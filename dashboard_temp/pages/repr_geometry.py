@@ -23,7 +23,7 @@ def create_repr_geometry_page_nav() -> html.Div:
         ]
     )
 
-def create_repr_geometry_page_layout(variant_data: dict | None) -> html.Div:
+def create_repr_geometry_page_layout() -> html.Div:
     print("create_repr_geometry_page_layout")
     return html.Div(
         id="repr_geometry_content",

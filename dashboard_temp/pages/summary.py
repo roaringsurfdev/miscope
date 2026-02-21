@@ -1,5 +1,5 @@
 import dash_bootstrap_components as dbc
-from dash import Dash, Input, Output, State, html
+from dash import Dash, Input, Output, State, html, set_props
 from dash.exceptions import PreventUpdate
 
 from dashboard_temp.components.visualization import create_empty_figure, create_graph
@@ -26,9 +26,8 @@ _PLOT_IDS = [
     "summary-dim-trajectory-plot",
 ]
 
-def _update_graphs(store_data: dict | None):
-    stored = store_data or {}
-    #family_name = stored.get("family_name")
+def _update_graphs(variant_data: dict | None):
+    stored = variant_data or {}
     variant_name = stored.get("variant_name")
     epoch = stored.get("epoch")
     last_field_updated = stored.get("last_field_updated")
@@ -45,8 +44,13 @@ def _update_graphs(store_data: dict | None):
     else:
         raise PreventUpdate
 
-def create_summary_page_layout(variant_data: dict | None) -> html.Div:
+def create_summary_page_nav() -> html.Div:
+    print("create_summary_page_nav")
+    return html.Div()
+
+def create_summary_page_layout() -> html.Div:
     print("create_summary_page_layout")
+    #set_props("variant-selector-store", {"data": {"stale_data": "1"}})
     return html.Div(
         children= [
             # Loss curve (full width)

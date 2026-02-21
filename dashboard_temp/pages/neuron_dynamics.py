@@ -50,11 +50,10 @@ def create_neuron_dynamics_page_nav() -> html.Div:
         ]
     )    
 
-def create_neuron_dynamics_page_layout(variant_data: dict | None) -> html.Div:
+def create_neuron_dynamics_page_layout() -> html.Div:
     print("create_neuron_dynamics_page_layout")
     return html.Div(
         children=[
-            dcc.Input(id="nd-page_out-of_date", value="0", type="hidden"),
             html.H4("Neuron Dynamics", className="mb-3"),
             html.Div(
                     [
