@@ -17,66 +17,11 @@ from pathlib import Path
 from typing import Any
 
 from miscope.analysis import ArtifactLoader
+from miscope import LoadedFamily, load_family
 from miscope.families import FamilyRegistry, Variant
 
 # ---------------------------------------------------------------------------
-# Job progress tracking (thread-safe)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class JobProgress:
-    """Server-side mutable progress state for a running job.
-
-    Used with threading.Thread + dcc.Interval polling pattern.
-    Single-user assumption makes global instances safe.
-    """
-
-    running: bool = False
-    progress: float = 0.0
-    message: str = ""
-    result: str = ""
-    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
-
-    def start(self) -> None:
-        """Mark job as started, reset progress."""
-        with self._lock:
-            self.running = True
-            self.progress = 0.0
-            self.message = "Starting..."
-            self.result = ""
-
-    def update(self, progress: float, message: str) -> None:
-        """Update progress (0.0-1.0) and status message."""
-        with self._lock:
-            self.progress = progress
-            self.message = message
-
-    def finish(self, result: str) -> None:
-        """Mark job as complete with result message."""
-        with self._lock:
-            self.running = False
-            self.progress = 1.0
-            self.message = "Complete"
-            self.result = result
-
-    def get_state(self) -> dict[str, Any]:
-        """Get a snapshot of current progress state."""
-        with self._lock:
-            return {
-                "running": self.running,
-                "progress": self.progress,
-                "message": self.message,
-                "result": self.result,
-            }
-
-
-training_progress = JobProgress()
-analysis_progress = JobProgress()
-
-
-# ---------------------------------------------------------------------------
-# Registry (singleton)
+# Family Registry (singleton)
 # ---------------------------------------------------------------------------
 
 _registry: FamilyRegistry | None = None
@@ -101,6 +46,20 @@ def refresh_registry() -> None:
         results_dir=Path("results"),
     )
 
+# ---------------------------------------------------------------------------
+# Variant Data in Server State
+# ---------------------------------------------------------------------------
+
+@dataclass
+class VariantState:
+    family: LoadedFamily | None = None
+    variant: Variant | None = None
+
+    def loadVariant(self, family_name: str, variant_name: str, epoch: int = 0):
+        if family_name is None:
+            return
+        
+        self.family = 
 
 # ---------------------------------------------------------------------------
 # Server-side state

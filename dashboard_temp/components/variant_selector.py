@@ -284,7 +284,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             
         return f"Epoch {epoch}"
 
-    # --- Sync epoch slider to cross-page store ---
+    # --- Show last field updated: for debugging purposes ---
     @app.callback(
         Input("variant-selector-store", "modified_timestamp"),
         State("variant-selector-store", "data"),

@@ -7,6 +7,7 @@ from dashboard_temp.components.sitenav import register_sitenav_callbacks
 from dashboard_temp.components.variant_selector import register_variant_selector_callbacks
 from dashboard_temp.layout import create_default_layout
 from dashboard_temp.pages.neuron_dynamics import register_neuron_dynamics_page_callbacks
+from dashboard_temp.pages.repr_geometry import register_repr_geometry_page_callbacks
 from dashboard_temp.pages.summary import register_summary_page_callbacks
 
 
@@ -19,11 +20,13 @@ def create_app() -> Dash:
     )
     app.title = "MechInterp Scope"
     app.layout = create_default_layout()
+    # core application callbacks
     register_left_nav_callbacks(app)
     register_sitenav_callbacks(app)
     register_variant_selector_callbacks(app)
-    # callbacks for pages
+    # page-specific callbacks
     register_neuron_dynamics_page_callbacks(app)
+    register_repr_geometry_page_callbacks(app)
     register_summary_page_callbacks(app)
     return app
 
