@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from miscope.analysis import ArtifactLoader
-from miscope import LoadedFamily, load_family
+from miscope import catalog, load_family, EpochContext
 from miscope.families import FamilyRegistry, Variant
 
 # ---------------------------------------------------------------------------
@@ -50,16 +50,49 @@ def refresh_registry() -> None:
 # Variant Data in Server State
 # ---------------------------------------------------------------------------
 
-@dataclass
 class VariantState:
-    family: LoadedFamily | None = None
-    variant: Variant | None = None
+    family_name: str | None = None
+    variant: Variant
+    context: EpochContext
+    available_epochs: list[int] = [0]
+    available_views: list[str] = catalog.names()
 
-    def loadVariant(self, family_name: str, variant_name: str, epoch: int = 0):
-        if family_name is None:
-            return
+    def load_variant(self, family_name: str, variant_name: str) -> bool:
+        """Load a variant's metadata and discover its artifacts.
+
+        Returns True if the variant was found and loaded.
+        """
+        registry = get_registry()
+
+        try:
+            family = registry.get_family(family_name)
+        except KeyError:
+            return False
+
+        variants = registry.get_variants(family)
+        variant = None
+        for v in variants:
+            if v.name == variant_name:
+                variant = v
+                break
+
+        if variant is None:
+            return False
+
+        self.variant = variant
+        self.available_epochs = variant.get_available_checkpoints()
+        self.context = variant.at(0)
         
-        self.family = 
+        return True
+    
+    def load_epoch(self, epoch: int) -> bool:
+        if epoch in self.available_epochs:
+            self.context = self.variant.at(epoch)
+
+        #TODO: Add error handling. This is currently just proof-of-concept 
+        # for wiring architecture
+        return True
+        
 
 # ---------------------------------------------------------------------------
 # Server-side state
@@ -208,3 +241,4 @@ class ServerState:
 
 # Global server state instance
 server_state = ServerState()
+variant_state = VariantState()

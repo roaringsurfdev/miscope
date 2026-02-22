@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
-from dashboard_temp.state import get_registry, server_state
+from dashboard_temp.state import get_registry, variant_state
 
 """
 Encapulated and reuseable component for handling standard 
@@ -116,7 +116,7 @@ def get_variant_selector(
             dcc.Store(
                 id="variant-selector-store",
                 storage_type="session",
-                data={"family_name": None, "variant_name": None, "epoch": None, "max_epochs": 0, "last_field_updated": None, "stale_data": "0"},
+                data={"family_name": None, "variant_name": None, "epoch": None, "epoch_index": None, "max_epochs": 0, "last_field_updated": None, "stale_data": "0"},
             ),
             html.Hr(),
             dbc.Label("Family", className="fw-bold"),
@@ -212,7 +212,8 @@ def register_variant_selector_callbacks(app: Dash) -> None:
     )
     def on_variant_change(variant_name: str | None, store_data: dict | None):
         stored = store_data or {}
-        epoch = 0
+        epoch = stored.get("epoch")
+        epoch_index = 0
         max_epochs = 0
         stored_variant_name = stored.get("variant_name")
         stored_family_name = stored.get("family_name")
@@ -227,6 +228,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 # Reset to defaults
                 print("on_variant_change: Variant reset")
                 epoch = 0
+                epoch_index = 0
                 max_epochs = 0
             else:
                 # load variant-specific data
@@ -235,9 +237,10 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                     raise PreventUpdate
                 
                 # load variant into server_state
-                server_state.load_variant(stored_family_name, str(variant_name))
-                # get max epochs for new variant
-                max_epochs = max(0, len(server_state.available_epochs) - 1)
+                variant_state.load_variant(stored_family_name, str(variant_name))
+                # reset epoch and epoch_index
+                # get max epochs for new variant                
+                max_epochs = max(0, len(variant_state.available_epochs) - 1)
                 print(f"New variant selected: variant_name: {variant_name}, epoch: {epoch}, max_epochs:{max_epochs}")
 
             # save updated variant settings to store
@@ -245,6 +248,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 "family_name": stored_family_name, 
                 "variant_name": variant_name,
                 "epoch": epoch,
+                "epoch_index": epoch_index,
                 "max_epochs": max_epochs,
                 "last_field_updated": "variant_name"
                 }})
@@ -252,7 +256,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             print("on_variant_change: variant_name is unchanged, PreventUpdate")
             raise PreventUpdate
 
-        return epoch, max_epochs, variant_name
+        return epoch_index, max_epochs, variant_name
 
     @app.callback(
         Output("variant-selector-epoch-display", "children"),
@@ -260,21 +264,33 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         State("variant-selector-store", "data"),
         prevent_initial_call=True
     )
-    def on_epoch_slider_changed(epoch: int | None, store_data: dict | None):
+    def on_epoch_slider_changed(epoch_index: int | None, store_data: dict | None):
         print("on_epoch_slider_changed")
         stored = store_data or {}
         stored_variant_name = stored.get("variant_name")
         stored_family_name = stored.get("family_name")
         stored_epoch = stored.get("epoch")
+        stored_epoch_index = stored.get("epoch_index")
+        stored_epoch_index = stored.get("epoch_index")
         stored_max_epochs = stored.get("max_epochs")
 
-        if stored_epoch != epoch:
+        if epoch_index is None:
+            epoch_index = 0
+            epoch = 0
+        else:
+            epoch = stored_epoch
+
+        if stored_epoch_index != epoch_index:
+            epoch = variant_state.available_epochs[epoch_index]
+
             # save updated variant settings to store
             print("on_epoch_slider_changed: epoch changed, update dependencies")
+            variant_state.load_epoch(epoch)
             set_props("variant-selector-store", {"data": {
                 "family_name": stored_family_name, 
                 "variant_name": stored_variant_name,
                 "epoch": epoch,
+                "epoch_index": epoch_index,
                 "max_epochs": stored_max_epochs,
                 "last_field_updated": "epoch"
                 }})

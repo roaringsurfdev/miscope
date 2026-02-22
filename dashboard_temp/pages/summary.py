@@ -1,7 +1,9 @@
+import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
 from dash.exceptions import PreventUpdate
 
+from dashboard_temp.state import variant_state
 from dashboard_temp.components.visualization import create_empty_figure, create_graph
 
 # ---------------------------------------------------------------------------
@@ -25,24 +27,43 @@ _PLOT_IDS = [
     "summary-velocity-plot",
     "summary-dim-trajectory-plot",
 ]
+_VIEW_LIST = {
+    "summary-loss-plot": "loss_curve",
+    "summary-freq-over-time-plot": "dominant_frequencies_over_time",
+    "summary-spec-trajectory-plot": "specialization_trajectory",
+    "summary-spec-freq-plot": "specialization_by_frequency",
+    "summary-attn-spec-plot": "attention_specialization_trajectory",
+    "summary-attn-dom-freq-plot": "attention_dominant_frequencies",
+    "summary-trajectory-3d-plot": "trajectory_3d",
+    "summary-trajectory-plot": "parameter_trajectory",
+    "summary-trajectory-pc1-pc3-plot": "trajectory_pc1_pc3",
+    "summary-trajectory-pc2-pc3-plot": "trajectory_pc2_pc3",
+    "summary-velocity-plot": "parameter_velocity",
+    "summary-dim-trajectory-plot": "dimensionality_trajectory",
+}
 
-def _update_graphs(variant_data: dict | None):
+def _update_graphs(variant_data: dict | None) -> list[go.Figure]:
     stored = variant_data or {}
     variant_name = stored.get("variant_name")
-    epoch = stored.get("epoch")
     last_field_updated = stored.get("last_field_updated")
+    figures = []
 
     # Clear graphs if variant_name is None
     if variant_name is None:
         no_data = create_empty_figure("Select a variant")
-        return [no_data for pid in _PLOT_IDS]
+        figures = [no_data for pid in _VIEW_LIST.keys()]
 
     if last_field_updated in ["variant_name", "epoch"]:
         #Update graphs
-        updated_data = create_empty_figure(f"Data for {variant_name} at epoch: {epoch}")
-        return [updated_data for pid in _PLOT_IDS]
+        for view_id, view_name in _VIEW_LIST.items():
+            if view_name in variant_state.available_views:
+                figures.append(variant_state.context.view(view_name).figure())
+            else:
+                figures.append(create_empty_figure("No view found"))
     else:
         raise PreventUpdate
+    
+    return figures
 
 def create_summary_page_nav() -> html.Div:
     print("create_summary_page_nav")
@@ -92,7 +113,7 @@ def register_summary_page_callbacks(app: Dash) -> None:
     """Register all callbacks for the Summary page."""
 
     @app.callback(
-        *[Output(pid, "figure") for pid in _PLOT_IDS],
+        *[Output(pid, "figure") for pid in _VIEW_LIST.keys()],
         Input("variant-selector-store", "modified_timestamp"),
         State("variant-selector-store", "data")
     )

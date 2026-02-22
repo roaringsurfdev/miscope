@@ -22,6 +22,24 @@ def create_empty_figure(message: str = "No data") -> go.Figure:
     )
     return fig
 
+def create_empty_graph(graph_id: str, height: str = "400px", message="No Data") -> dcc.Graph:
+    """Create a dcc.Graph with consistent config."""
+    return dcc.Graph(
+        id=graph_id,
+        config={"displayModeBar": True},
+        style={"height": height},
+        figure=create_empty_figure(message)
+    )
+
+def create_graph_from_figure(graph_id: str, figure: go.Figure, height: str = "400px") -> dcc.Graph:
+    """Create a dcc.Graph with consistent config."""
+    return dcc.Graph(
+        id=graph_id,
+        config={"displayModeBar": True},
+        style={"height": height},
+        figure=figure
+    )
+
 def create_graph(graph_id: str, height: str = "400px") -> dcc.Graph:
     """Create a dcc.Graph with consistent config."""
     return dcc.Graph(
