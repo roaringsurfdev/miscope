@@ -12,7 +12,11 @@ import numpy as np
 import torch
 import tqdm.auto as tqdm
 
-from miscope.analysis.protocols import AnalysisRunConfig, Analyzer, CrossEpochAnalyzer
+import logging
+
+from miscope.analysis.protocols import AnalysisRunConfig, Analyzer, CrossEpochAnalyzer, SecondaryAnalyzer
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from miscope.families import Variant
@@ -59,6 +63,7 @@ class AnalysisPipeline:
         self.artifacts_dir = str(variant.artifacts_dir)
 
         self._analyzers: list[Analyzer] = []
+        self._secondary_analyzers: list[SecondaryAnalyzer] = []
         self._cross_epoch_analyzers: list[CrossEpochAnalyzer] = []
         self._manifest: dict[str, Any] = {}
 
@@ -77,6 +82,25 @@ class AnalysisPipeline:
             Self for method chaining
         """
         self._analyzers.append(analyzer)
+        return self
+
+    def register_secondary(
+        self,
+        analyzer: SecondaryAnalyzer,
+    ) -> AnalysisPipeline:
+        """Register a secondary analyzer with the pipeline.
+
+        Secondary analyzers run after all per-epoch primary analysis completes
+        (Phase 1.5). They consume per-epoch artifacts from a named primary
+        analyzer and produce new per-epoch artifacts — without loading models.
+
+        Args:
+            analyzer: SecondaryAnalyzer instance
+
+        Returns:
+            Self for method chaining
+        """
+        self._secondary_analyzers.append(analyzer)
         return self
 
     def register_cross_epoch(
@@ -160,6 +184,10 @@ class AnalysisPipeline:
             for analyzer_name, collector in summary_collectors.items():
                 if collector["epochs"]:
                     self._save_summary(analyzer_name, collector)
+
+        # Phase 1.5: Secondary analysis (REQ_048)
+        if self._secondary_analyzers:
+            self._run_secondary_analyzers(context, force, progress_callback)
 
         # Phase 2: Cross-epoch analysis (REQ_038)
         if self._cross_epoch_analyzers:
@@ -379,6 +407,85 @@ class AnalysisPipeline:
         if not os.path.exists(summary_path):
             return None
         return dict(np.load(summary_path))
+
+    # ------------------------------------------------------------------
+    # Phase 1.5: Secondary analysis (REQ_048)
+    # ------------------------------------------------------------------
+
+    def _run_secondary_analyzers(
+        self,
+        context: dict[str, Any],
+        force: bool,
+        progress_callback: Callable[[float, str], None] | None = None,
+    ) -> None:
+        """Execute secondary analyzers after per-epoch primary phase completes.
+
+        Each secondary analyzer loads per-epoch artifact data from its declared
+        dependency and produces new per-epoch artifacts. No model loading occurs.
+
+        Target epochs are derived from the dependency's completed set, not from
+        config.checkpoints. If a dependency has no completed epochs, the analyzer
+        is skipped with a warning.
+        """
+        from miscope.analysis.artifact_loader import ArtifactLoader
+
+        loader = ArtifactLoader(self.artifacts_dir)
+
+        config_names = set(self.config.analyzers) if self.config.analyzers else None
+
+        for analyzer in self._secondary_analyzers:
+            if config_names is not None and analyzer.name not in config_names:
+                continue
+
+            dependency_epochs = self.get_completed_epochs(analyzer.depends_on)
+            if not dependency_epochs:
+                logger.warning(
+                    "Secondary analyzer '%s' depends on '%s' but no epochs have been computed "
+                    "for that analyzer. Skipping.",
+                    analyzer.name,
+                    analyzer.depends_on,
+                )
+                continue
+
+            if force:
+                target_epochs = dependency_epochs
+            else:
+                completed = set(self.get_completed_epochs(analyzer.name))
+                target_epochs = [e for e in dependency_epochs if e not in completed]
+
+            if not target_epochs:
+                continue
+
+            summary_collectors: dict[str, dict[str, Any]] = {}
+            if hasattr(analyzer, "get_summary_keys"):
+                keys = analyzer.get_summary_keys()  # type: ignore[attr-defined]
+                if keys:
+                    summary_collectors[analyzer.name] = {
+                        "epochs": [],
+                        "values": {k: [] for k in keys},
+                    }
+
+            for i, epoch in enumerate(tqdm.tqdm(target_epochs, desc=f"Secondary: {analyzer.name}")):
+                if progress_callback:
+                    progress_callback(
+                        0.8 + 0.1 * i / len(target_epochs),
+                        f"Secondary analysis: {analyzer.name} epoch {epoch}",
+                    )
+
+                artifact = loader.load_epoch(analyzer.depends_on, epoch)
+                result = analyzer.analyze(artifact, context)
+                self._save_epoch_artifact(analyzer.name, epoch, result)
+
+                if analyzer.name in summary_collectors:
+                    summary = analyzer.compute_summary(result, context)  # type: ignore[attr-defined]
+                    collector = summary_collectors[analyzer.name]
+                    collector["epochs"].append(epoch)
+                    for key, value in summary.items():
+                        collector["values"][key].append(value)
+
+            for analyzer_name, collector in summary_collectors.items():
+                if collector["epochs"]:
+                    self._save_summary(analyzer_name, collector)
 
     # ------------------------------------------------------------------
     # Phase 2: Cross-epoch analysis (REQ_038)

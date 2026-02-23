@@ -10,7 +10,7 @@ This package provides:
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.pipeline import AnalysisPipeline
-from miscope.analysis.protocols import AnalysisRunConfig, Analyzer, CrossEpochAnalyzer
+from miscope.analysis.protocols import AnalysisRunConfig, Analyzer, CrossEpochAnalyzer, SecondaryAnalyzer
 
 __all__ = [
     "Analyzer",
@@ -19,4 +19,5 @@ __all__ = [
     "AnalysisRunConfig",
     "ArtifactLoader",
     "CrossEpochAnalyzer",
+    "SecondaryAnalyzer",
 ]

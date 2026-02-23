@@ -96,6 +96,11 @@ class JsonModelFamily:
         return self._config["analyzers"]
 
     @property
+    def secondary_analyzers(self) -> list[str]:
+        """Secondary analyzer identifiers valid for this family."""
+        return self._config.get("secondary_analyzers", [])
+
+    @property
     def cross_epoch_analyzers(self) -> list[str]:
         """Cross-epoch analyzer identifiers valid for this family."""
         return self._config.get("cross_epoch_analyzers", [])
