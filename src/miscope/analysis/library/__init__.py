@@ -23,6 +23,7 @@ from miscope.analysis.library.fourier import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
     compute_neuron_coarseness,
+    extract_frequency_pairs,
     get_dominant_frequency_indices,
     get_fourier_basis,
     project_onto_fourier_basis,
@@ -58,6 +59,7 @@ __all__ = [
     "get_dominant_frequency_indices",
     "compute_frequency_variance_fractions",
     "compute_neuron_coarseness",
+    "extract_frequency_pairs",
     # Activation functions
     "extract_attention_patterns",
     "extract_mlp_activations",

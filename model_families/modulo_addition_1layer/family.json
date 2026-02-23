@@ -41,6 +41,10 @@
     "repr_geometry"
   ],
 
+  "secondary_analyzers": [
+    "neuron_fourier"
+  ],
+
   "cross_epoch_analyzers": [
     "parameter_trajectory",
     "neuron_dynamics"

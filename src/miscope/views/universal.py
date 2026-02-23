@@ -99,6 +99,8 @@ def _register_all() -> None:
         ("attention_freq_heatmap", "attention_freq", "render_attention_freq_heatmap"),
         ("singular_value_spectrum", "effective_dimensionality", "render_singular_value_spectrum"),
         ("perturbation_distribution", "landscape_flatness", "render_perturbation_distribution"),
+        ("neuron_fourier_heatmap", "neuron_fourier", "render_neuron_fourier_heatmap"),
+        ("neuron_fourier_heatmap_output", "neuron_fourier", "render_neuron_fourier_heatmap_output"),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
 
