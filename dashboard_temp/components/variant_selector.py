@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import dash_bootstrap_components as dbc
-from dash import Dash, Input, Output, State, dcc, html, set_props
+from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
 from dashboard_temp.state import get_registry, variant_state
@@ -261,11 +261,12 @@ def register_variant_selector_callbacks(app: Dash) -> None:
     @app.callback(
         Output("variant-selector-epoch-display", "children"),
         Input("variant-selector-epoch-slider", "value"),
+        Input({'view_type': 'epoch_selector', 'index': ALL}, "clickData"),
         State("variant-selector-store", "data"),
         prevent_initial_call=True
     )
-    def on_epoch_slider_changed(epoch_index: int | None, store_data: dict | None):
-        print("on_epoch_slider_changed")
+    def on_epoch_change(epoch_index: int | None, click_data: list[dict | None] | None, store_data: dict | None):
+        print("on_epoch_change")
         stored = store_data or {}
         stored_variant_name = stored.get("variant_name")
         stored_family_name = stored.get("family_name")
@@ -273,19 +274,48 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         stored_epoch_index = stored.get("epoch_index")
         stored_epoch_index = stored.get("epoch_index")
         stored_max_epochs = stored.get("max_epochs")
+        update_slider = False
+
+        if stored_family_name is None and stored_variant_name is None:
+            print("on_epoch_changed: variant_name is None and stored_variant_name is None, PreventUpdate")
+            raise PreventUpdate
 
         if epoch_index is None:
             epoch_index = 0
             epoch = 0
         else:
             epoch = stored_epoch
+        
+        # check for click events
+        if ctx.triggered_id != "variant-selector-epoch-slider":
+            click_data_component_id = ctx.triggered_id
+            if click_data is not None:
+                for click_data_item in click_data:
+                    if click_data_item:
+                        clicked_x = click_data_item["points"][0].get("x")
+                        if clicked_x:
+                            print(f"handling click event: {click_data}")
+                            epoch_index = variant_state.get_nearest_epoch_index(int(clicked_x))
+                            epoch = variant_state.available_epochs[epoch_index]
+                            # Will need to explicitly update the slider since the event 
+                            # did not come through the slider
+                            update_slider = True
+                            # Reset clickData so that there's only one entry in click_data at a time
+                            if click_data_component_id:
+                                set_props(click_data_component_id, {'clickData': None})
+                        break
 
+        # commit new epoch data if it has changed
         if stored_epoch_index != epoch_index:
             epoch = variant_state.available_epochs[epoch_index]
 
             # save updated variant settings to store
             print("on_epoch_slider_changed: epoch changed, update dependencies")
+            
+            # load the variant at the newly selected epoch
             variant_state.load_epoch(epoch)
+
+            # update the store with updated selections
             set_props("variant-selector-store", {"data": {
                 "family_name": stored_family_name, 
                 "variant_name": stored_variant_name,
@@ -294,6 +324,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 "max_epochs": stored_max_epochs,
                 "last_field_updated": "epoch"
                 }})
+            # update the slider if necessary
+            if update_slider:
+                set_props("variant-selector-epoch-slider", {'value': epoch_index})
         else:
             print("on_epoch_slider_changed: epoch unchanged, PreventUpdate")
             raise PreventUpdate

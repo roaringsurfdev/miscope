@@ -11,13 +11,12 @@ the Gradio dashboard's model and is appropriate for a local analysis tool.
 from __future__ import annotations
 
 import json
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from miscope import EpochContext, catalog
 from miscope.analysis import ArtifactLoader
-from miscope import catalog, load_family, EpochContext
 from miscope.families import FamilyRegistry, Variant
 
 # ---------------------------------------------------------------------------
@@ -93,6 +92,13 @@ class VariantState:
         # for wiring architecture
         return True
         
+
+    def get_nearest_epoch_index(self, epoch: int) -> int:
+        """Find the slider index closest to the given epoch number."""
+        if not self.available_epochs:
+            return 0
+        distances = [abs(e - epoch) for e in self.available_epochs]
+        return distances.index(min(distances))
 
 # ---------------------------------------------------------------------------
 # Server-side state

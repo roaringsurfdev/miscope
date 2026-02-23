@@ -40,10 +40,11 @@ def create_graph_from_figure(graph_id: str, figure: go.Figure, height: str = "40
         figure=figure
     )
 
-def create_graph(graph_id: str, height: str = "400px") -> dcc.Graph:
+def create_graph(graph_id: str, height: str = "400px", view_type: str = "default_graph") -> dcc.Graph:
     """Create a dcc.Graph with consistent config."""
+    component_id={'view_type': view_type, 'index': graph_id}
     return dcc.Graph(
-        id=graph_id,
+        id=component_id,
         config={"displayModeBar": True},
         style={"height": height},
     )
