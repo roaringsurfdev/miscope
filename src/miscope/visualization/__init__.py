@@ -72,6 +72,10 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_pc1_pc3,
     render_trajectory_pc2_pc3,
 )
+from miscope.visualization.renderers.neuron_fourier import (
+    render_neuron_fourier_heatmap,
+    render_neuron_fourier_heatmap_output,
+)
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,
     render_centroid_pca,
@@ -134,4 +138,7 @@ __all__ = [
     "render_centroid_pca",
     "render_centroid_distances",
     "render_fisher_heatmap",
+    # REQ_049: Neuron Fourier decomposition
+    "render_neuron_fourier_heatmap",
+    "render_neuron_fourier_heatmap_output",
 ]

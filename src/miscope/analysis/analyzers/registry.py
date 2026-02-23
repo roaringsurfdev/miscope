@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer
+from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer, SecondaryAnalyzer
 
 if TYPE_CHECKING:
     from miscope.families.protocols import ModelFamily
@@ -18,6 +18,7 @@ class AnalyzerRegistry:
     """
 
     _analyzers: dict[str, type] = {}
+    _secondary_analyzers: dict[str, type] = {}
     _cross_epoch_analyzers: dict[str, type] = {}
 
     @classmethod
@@ -58,6 +59,41 @@ class AnalyzerRegistry:
         if name not in cls._analyzers:
             raise KeyError(f"Analyzer '{name}' not found. Available: {list(cls._analyzers.keys())}")
         return cls._analyzers[name]()
+
+    @classmethod
+    def register_secondary(cls, analyzer_class: type) -> type:
+        """Register a secondary analyzer class.
+
+        Args:
+            analyzer_class: SecondaryAnalyzer class with a 'name' attribute
+
+        Returns:
+            The analyzer class (for decorator usage)
+        """
+        name = getattr(analyzer_class, "name", None)
+        if name is None:
+            raise ValueError(f"Analyzer {analyzer_class} must have a 'name' attribute")
+        cls._secondary_analyzers[name] = analyzer_class
+        return analyzer_class
+
+    @classmethod
+    def get_secondary(cls, name: str) -> SecondaryAnalyzer:
+        """Get a secondary analyzer instance by name."""
+        if name not in cls._secondary_analyzers:
+            raise KeyError(
+                f"Secondary analyzer '{name}' not found. "
+                f"Available: {list(cls._secondary_analyzers.keys())}"
+            )
+        return cls._secondary_analyzers[name]()
+
+    @classmethod
+    def get_secondary_for_family(
+        cls,
+        family: ModelFamily,
+    ) -> list[SecondaryAnalyzer]:
+        """Get all secondary analyzers valid for a family."""
+        names = getattr(family, "secondary_analyzers", [])
+        return [cls.get_secondary(name) for name in names if name in cls._secondary_analyzers]
 
     @classmethod
     def register_cross_epoch(cls, analyzer_class: type) -> type:
@@ -131,6 +167,7 @@ class AnalyzerRegistry:
     def clear(cls) -> None:
         """Clear all registered analyzers. Mainly for testing."""
         cls._analyzers.clear()
+        cls._secondary_analyzers.clear()
         cls._cross_epoch_analyzers.clear()
 
 
@@ -144,6 +181,7 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.landscape_flatness import LandscapeFlatnessAnalyzer
     from miscope.analysis.analyzers.neuron_activations import NeuronActivationsAnalyzer
     from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
+    from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
     from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
     from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
     from miscope.analysis.analyzers.parameter_trajectory_pca import ParameterTrajectoryPCA
@@ -159,6 +197,8 @@ def register_default_analyzers() -> None:
     AnalyzerRegistry.register(EffectiveDimensionalityAnalyzer)
     AnalyzerRegistry.register(LandscapeFlatnessAnalyzer)
     AnalyzerRegistry.register(RepresentationalGeometryAnalyzer)
+
+    AnalyzerRegistry.register_secondary(NeuronFourierAnalyzer)
 
     AnalyzerRegistry.register_cross_epoch(ParameterTrajectoryPCA)
     AnalyzerRegistry.register_cross_epoch(NeuronDynamicsAnalyzer)

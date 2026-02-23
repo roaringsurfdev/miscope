@@ -87,6 +87,53 @@ class Analyzer(Protocol):
 
 
 @runtime_checkable
+class SecondaryAnalyzer(Protocol):
+    """Protocol for analyzers that derive results from existing per-epoch artifacts.
+
+    Unlike Analyzer (which processes model checkpoints), SecondaryAnalyzers
+    run after per-epoch primary analysis completes and consume the resulting
+    artifacts to produce new per-epoch artifacts. No model loading occurs.
+
+    Pipeline execution order:
+        Phase 1:   Primary (Analyzer)       — model checkpoint → per-epoch artifact
+        Phase 1.5: Secondary (this)         — primary artifact → per-epoch artifact
+        Phase 2:   Cross-epoch (CrossEpochAnalyzer) — all epochs → cross_epoch.npz
+
+    depends_on declares the single primary analyzer whose artifacts are consumed.
+    The pipeline loads one epoch's artifact data and passes it to analyze().
+
+    Results are stored with the same per-epoch pattern as primary analyzers:
+        artifacts/{analyzer_name}/epoch_{NNNNN}.npz
+    """
+
+    @property
+    def name(self) -> str:
+        """Unique identifier (used in artifact naming)."""
+        ...
+
+    @property
+    def depends_on(self) -> str:
+        """Name of the primary analyzer whose per-epoch artifacts this consumes."""
+        ...
+
+    def analyze(
+        self,
+        artifact: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, np.ndarray]:
+        """Run analysis on a single epoch's artifact data.
+
+        Args:
+            artifact: Dict of arrays from the dependency analyzer for this epoch.
+            context: Family-provided analysis context (same as primary analyzers).
+
+        Returns:
+            Dict mapping artifact keys to numpy arrays.
+        """
+        ...
+
+
+@runtime_checkable
 class CrossEpochAnalyzer(Protocol):
     """Protocol for analyzers that operate across all checkpoints.
 

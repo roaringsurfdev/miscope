@@ -53,6 +53,16 @@ class ModelFamily(Protocol):
         ...
 
     @property
+    def secondary_analyzers(self) -> list[str]:
+        """Secondary analyzer identifiers valid for this family.
+
+        These analyzers run after all per-epoch primary analysis completes
+        (Phase 1.5) and derive new per-epoch artifacts from existing ones.
+        No model loading occurs during secondary analysis.
+        """
+        ...
+
+    @property
     def cross_epoch_analyzers(self) -> list[str]:
         """Cross-epoch analyzer identifiers valid for this family.
 
