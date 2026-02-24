@@ -311,4 +311,126 @@ variant_a = family.get_variant(**ANOMALOUS)
 final_epoch_a = int(epochs_a[-1])
 variant_a.at(final_epoch_a).view("neuron_fourier_heatmap").show()
 
+
+# %% --- Section 6: Margin vs. Switching — Phase and Magnitude Predictors ---
+# Tests whether initialization conditions predict which neurons thrash.
+# Compares two predictors: He et al.'s phase margin vs. magnitude ratio.
+# Also addresses Section 3's dilution issue via conditioned alignment.
+
+# -- 6a: Switch counts from neuron_freq_norm (activation-space) --
+
+loader_h = ArtifactLoader(variant_h.artifacts_dir)
+norm_stacked = loader_h.load_epochs("neuron_freq_norm")
+norm_matrix = norm_stacked["norm_matrix"]       # (n_epochs, n_freq, d_mlp)
+norm_epochs = norm_stacked["epochs"]
+
+SWITCH_THRESHOLD = 0.06   # 3× uniform baseline; matches neuron_freq_trajectory.py
+
+dominant_acts = np.argmax(norm_matrix, axis=1)  # (n_epochs, d_mlp)
+max_frac_acts = np.max(norm_matrix, axis=1)     # (n_epochs, d_mlp)
+
+
+def count_switches(dominant_freq: np.ndarray, max_frac: np.ndarray, threshold: float) -> np.ndarray:
+    """Per-neuron switch count between committed states."""
+    n_epochs, d_mlp = dominant_freq.shape
+    counts = np.zeros(d_mlp, dtype=int)
+    last = np.full(d_mlp, -1, dtype=int)
+    for t in range(n_epochs):
+        committed = max_frac[t] >= threshold
+        switched = committed & (last >= 0) & (dominant_freq[t] != last)
+        counts += switched.astype(int)
+        last = np.where(committed, dominant_freq[t], last)
+    return counts
+
+
+switch_counts = count_switches(dominant_acts, max_frac_acts, SWITCH_THRESHOLD)
+print(f"Switch counts — p={p}, seed={HEALTHY['seed']}")
+print(f"  Never switched: {np.sum(switch_counts == 0)}/{M}")
+print(f"  1+ switches:    {np.sum(switch_counts >= 1)}/{M}")
+print(f"  Max switches:   {switch_counts.max()}")
+print(f"  Mean:           {switch_counts.mean():.2f}")
+
+
+# -- 6b: Magnitude margin at initialization --
+
+alpha_0 = alpha_h[0]                                    # (M, K) — magnitudes at epoch 0
+sorted_alpha = np.sort(alpha_0, axis=1)[:, ::-1]       # descending
+mag_ratio = sorted_alpha[:, 0] / (sorted_alpha[:, 1] + 1e-8)   # top / 2nd
+mag_winner_k = np.argmax(alpha_0, axis=1)              # predicted winner by magnitude
+
+# Compare prediction accuracy: phase margin vs. magnitude ratio
+mag_accuracy = np.mean(mag_winner_k == observed_k)
+print(f"\nInitialization predictor accuracy (→ final dominant frequency):")
+print(f"  Phase margin (He et al.):    {accuracy:.1%}  ({int(accuracy * M)}/{M})")
+print(f"  Magnitude ratio:             {mag_accuracy:.1%}  ({int(mag_accuracy * M)}/{M})")
+print(f"  Chance baseline (1/K={K}):  {1/K:.1%}")
+
+
+# -- 6c: Scatter plots --
+
+rng = np.random.default_rng(42)
+jitter = rng.uniform(-0.2, 0.2, M)
+ipr_final = ipr_alpha_h[-1]                             # (M,) per-neuron IPR at final epoch
+
+# Phase margin vs. switches
+fig_phase_sw = go.Figure()
+fig_phase_sw.add_trace(go.Scatter(
+    x=margin,
+    y=switch_counts + jitter,
+    mode="markers",
+    marker=dict(color=ipr_final, colorscale="Viridis", size=4, opacity=0.6,
+                colorbar=dict(title="Final IPR")),
+    text=[f"Neuron {m}" for m in range(M)],
+    hovertemplate="Neuron %{text}<br>Phase margin: %{x:.3f} rad<br>Switches: %{customdata}<extra></extra>",
+    customdata=switch_counts,
+))
+fig_phase_sw.update_layout(
+    title=f"Phase Margin at Init vs. Frequency Switches — p={p}, seed={HEALTHY['seed']}",
+    xaxis_title="D̃(2nd best) − D̃(winner) at epoch 0  (radians)",
+    yaxis_title="Switch count  (jittered)",
+    template="plotly_white",
+    height=440,
+)
+fig_phase_sw.show()
+
+# Magnitude ratio vs. switches
+fig_mag_sw = go.Figure()
+fig_mag_sw.add_trace(go.Scatter(
+    x=np.log10(mag_ratio),
+    y=switch_counts + jitter,
+    mode="markers",
+    marker=dict(color=ipr_final, colorscale="Viridis", size=4, opacity=0.6,
+                colorbar=dict(title="Final IPR")),
+    text=[f"Neuron {m}" for m in range(M)],
+    hovertemplate="Neuron %{text}<br>log₁₀(ratio): %{x:.3f}<br>Switches: %{customdata}<extra></extra>",
+    customdata=switch_counts,
+))
+fig_mag_sw.update_layout(
+    title=f"Magnitude Ratio at Init vs. Frequency Switches — p={p}, seed={HEALTHY['seed']}",
+    xaxis_title="log₁₀(α_top / α_2nd)  at epoch 0",
+    yaxis_title="Switch count  (jittered)",
+    template="plotly_white",
+    height=440,
+)
+fig_mag_sw.show()
+
+
+# -- 6d: Conditioned alignment progress --
+# Section 3's population metric is diluted by uncommitted neurons (IPR near random).
+# Conditioning on IPR > threshold isolates neurons that have actually committed.
+
+IPR_THRESHOLD = 0.25
+print(f"\nConditioned phase alignment (IPR > {IPR_THRESHOLD}, dominant-frequency neurons only):")
+print(f"  {'Epoch':>8}  {'Committed':>10}  {'Unconditioned':>14}  {'Conditioned':>12}")
+
+sample_indices = np.linspace(0, n_epochs_h - 1, min(8, n_epochs_h), dtype=int)
+for t in sample_indices:
+    mask = ipr_alpha_h[t] > IPR_THRESHOLD
+    dom_k_t = dominant_freq_idx(alpha_h[t])
+    phi_t = phi_h[t, m_idx, dom_k_t]
+    psi_t = psi_h[t, m_idx, dom_k_t]
+    uncond = np.mean(np.abs(np.sin(2 * phi_t - psi_t)))
+    cond = np.mean(np.abs(np.sin(2 * phi_t[mask] - psi_t[mask]))) if mask.sum() > 0 else float("nan")
+    print(f"  {int(epochs_h[t]):>8}  {mask.sum():>10}  {uncond:>14.4f}  {cond:>12.4f}")
+
 # %%
