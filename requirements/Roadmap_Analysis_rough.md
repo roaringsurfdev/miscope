@@ -37,3 +37,6 @@ Going to start needing some cross-variant comparison. This seems like it might b
 There are at least two ways of solving this, and both might be needed:
 * Choose from list of variants for a model family to show on single epoch-series graph
 * Side-by-side selection comparison where 2-4 models are selected, epoch-series data is combined where possible, then side-by-side visualizations where not. This would follow a product-comparison model selection UX.
+
+**Mean IPR Analysis**
+Add Mean IPR Analysis from notbooks/neuron_fourier_poc.py to analysis pipeline and renders.
