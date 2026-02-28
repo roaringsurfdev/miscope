@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
-from dashboard_temp.state import get_registry, variant_state
+from dashboard.state import get_registry, variant_state
 
 """
 Encapulated and reuseable component for handling standard 

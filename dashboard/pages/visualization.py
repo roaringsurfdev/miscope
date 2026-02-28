@@ -3,8 +3,8 @@ import plotly.graph_objects as go
 from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
-from dashboard_temp.components.visualization import create_empty_figure, create_graph
-from dashboard_temp.state import variant_state
+from dashboard.components.visualization import create_empty_figure, create_graph
+from dashboard.state import variant_state
 
 # miscope
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES

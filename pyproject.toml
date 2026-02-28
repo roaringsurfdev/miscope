@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/miscope", "dashboard_v2"]
+packages = ["src/miscope", "dashboard"]
 
 [project]
 name = "miscope"

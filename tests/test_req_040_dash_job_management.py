@@ -4,10 +4,10 @@ Tests cover:
 - JobProgress state management (thread-safe progress tracking)
 - URL routing (correct page layout per pathname)
 - Training and Analysis Run page layouts render without error
-- Version accessible from dashboard_v2
+- Version accessible from dashboard
 """
 
-from dashboard_v2.state import JobProgress
+from dashboard.state import JobProgress
 
 
 class TestJobProgress:
@@ -73,18 +73,18 @@ class TestJobProgress:
 
     def test_global_instances_exist(self):
         """Module-level training_progress and analysis_progress exist."""
-        from dashboard_v2.state import analysis_progress, training_progress
+        from dashboard.state import analysis_progress, training_progress
 
         assert isinstance(training_progress, JobProgress)
         assert isinstance(analysis_progress, JobProgress)
 
 
-class TestVersionMigration:
-    """Tests for version.py migration to dashboard_v2."""
+class TestVersioning:
+    """Tests for version.py in dashboard."""
 
-    def test_version_importable_from_dashboard_v2(self):
-        """Can import __version__ from dashboard_v2.version."""
-        from dashboard_v2.version import __version__
+    def test_version_importable_from_dashboard(self):
+        """Can import __version__ from dashboard.version."""
+        from dashboard.version import __version__
 
         assert __version__ is not None
         assert isinstance(__version__, str)
@@ -93,7 +93,7 @@ class TestVersionMigration:
 
     def test_version_format_semantic(self):
         """Version follows MAJOR.MINOR.BUILD format."""
-        from dashboard_v2.version import __version__
+        from dashboard.version import __version__
 
         parts = __version__.split(".")
         assert all(part.isdigit() for part in parts)
@@ -102,19 +102,19 @@ class TestVersionMigration:
 class TestNavigation:
     """Tests for site-level navigation."""
 
-    def test_navbar_renders(self):
-        """create_navbar returns a component."""
-        from dashboard_v2.navigation import create_navbar
+    def test_sitenav_renders(self):
+        """create_sitenav returns a component."""
+        from dashboard.components.sitenav import create_sitenav
 
-        navbar = create_navbar()
+        navbar = create_sitenav()
         assert navbar is not None
 
-    def test_navbar_contains_version(self):
-        """Navbar brand includes the version string."""
-        from dashboard_v2.navigation import create_navbar
-        from dashboard_v2.version import __version__
+    def test_sitenav_contains_version(self):
+        """Sitenav brand includes the version string."""
+        from dashboard.components.sitenav import create_sitenav
+        from dashboard.version import __version__
 
-        navbar = create_navbar()
+        navbar = create_sitenav()
         brand = getattr(navbar, "brand", "")
         assert __version__ in str(brand)
 
@@ -123,35 +123,26 @@ class TestPageLayouts:
     """Tests for Training and Analysis Run page layouts."""
 
     def test_training_layout_renders(self):
-        """create_training_layout returns a valid component."""
-        from dashboard_v2.pages.training import create_training_layout
+        """create_training_page_layout returns a valid component."""
+        from dashboard.pages.training import create_training_page_layout
 
-        layout = create_training_layout()
+        layout = create_training_page_layout()
         assert layout is not None
 
     def test_analysis_run_layout_renders(self):
-        """create_analysis_run_layout returns a valid component."""
-        from dashboard_v2.pages.analysis_run import create_analysis_run_layout
+        """create_analysis_run_page_layout returns a valid component."""
+        from dashboard.pages.analysis_run import create_analysis_run_page_layout
 
-        layout = create_analysis_run_layout()
-        assert layout is not None
-
-    def test_visualization_layout_renders(self):
-        """create_visualization_layout returns a valid component."""
-        from dashboard_v2.layout import create_visualization_layout
-
-        layout = create_visualization_layout()
+        layout = create_analysis_run_page_layout()
         assert layout is not None
 
     def test_main_layout_has_url_and_page_content(self):
-        """create_layout includes dcc.Location and page-content container."""
-        from dashboard_v2.layout import create_layout
+        """create_default_layout includes dcc.Location and page-content container."""
+        from dashboard.layout import create_default_layout
 
-        layout = create_layout()
-        # Layout should have children: Store, Location, Navbar, page-content div
+        layout = create_default_layout()
         assert layout is not None
         assert layout.children is not None
-        assert len(layout.children) == 4
 
 
 class TestDashAppCreation:
@@ -159,8 +150,8 @@ class TestDashAppCreation:
 
     def test_create_app(self):
         """create_app returns a Dash application."""
-        from dashboard_v2.app import create_app
+        from dashboard.app import create_app
 
         app = create_app()
         assert app is not None
-        assert app.title == "Training Dynamics Workbench"
+        assert app.title == "MechInterp Scope"

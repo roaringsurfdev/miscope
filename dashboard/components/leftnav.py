@@ -19,7 +19,7 @@ Analysis Left Navigation
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
 
-from dashboard_temp.components.variant_selector import get_variant_selector
+from dashboard.components.variant_selector import get_variant_selector
 
 _SIDEBAR_STYLE = {
     "width": "280px",

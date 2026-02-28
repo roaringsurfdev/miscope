@@ -1,12 +1,11 @@
 """Site-level navigation for the Dash dashboard.
 
-Provides a top navbar with links to Visualization, Training, and Analysis Run
-pages, plus URL-driven routing callback.
+Provides a top navbar with links to all pages, plus URL-driven routing callback.
 """
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, html
 
-from dashboard_v2.version import __version__
+from dashboard.version import __version__
 
 
 def create_sitenav() -> dbc.NavbarSimple:
@@ -17,6 +16,8 @@ def create_sitenav() -> dbc.NavbarSimple:
             dbc.NavItem(dbc.NavLink("Summary", href="/summary")),
             dbc.NavItem(dbc.NavLink("Neuron Dynamics", href="/neuron-dynamics")),
             dbc.NavItem(dbc.NavLink("Repr Geometry", href="/repr-geometry")),
+            dbc.NavItem(dbc.NavLink("Training", href="/training")),
+            dbc.NavItem(dbc.NavLink("Analysis Run", href="/analysis-run")),
         ],
         brand=f"MechInterp Scope v{__version__}",
         brand_href="/",
@@ -28,18 +29,25 @@ def create_sitenav() -> dbc.NavbarSimple:
 
 
 def register_sitenav_callbacks(app: Dash) -> None:
-    print("register_routing_callbacks")
     """Register URL routing callback."""
-    from dashboard_temp.pages.neuron_dynamics import (
+    from dashboard.pages.analysis_run import (
+        create_analysis_run_page_layout,
+        create_analysis_run_page_nav,
+    )
+    from dashboard.pages.neuron_dynamics import (
         create_neuron_dynamics_page_layout,
         create_neuron_dynamics_page_nav,
     )
-    from dashboard_temp.pages.repr_geometry import (
+    from dashboard.pages.repr_geometry import (
         create_repr_geometry_page_layout,
         create_repr_geometry_page_nav,
     )
-    from dashboard_temp.pages.summary import create_summary_page_layout, create_summary_page_nav
-    from dashboard_temp.pages.visualization import (
+    from dashboard.pages.summary import create_summary_page_layout, create_summary_page_nav
+    from dashboard.pages.training import (
+        create_training_page_layout,
+        create_training_page_nav,
+    )
+    from dashboard.pages.visualization import (
         create_visualization_page_layout,
         create_visualization_page_nav,
     )
@@ -50,15 +58,15 @@ def register_sitenav_callbacks(app: Dash) -> None:
         Input("url", "pathname"),
     )
     def display_page(pathname: str | None) -> list[html.Div]:
-        print("display_page")
         if pathname == "/neuron-dynamics":
             return [create_neuron_dynamics_page_nav(), create_neuron_dynamics_page_layout()]
-            #return create_neuron_dynamics_page_layout()
         elif pathname == "/repr-geometry":
             return [create_repr_geometry_page_nav(), create_repr_geometry_page_layout()]
         elif pathname == "/summary":
             return [create_summary_page_nav(), create_summary_page_layout()]
-        elif pathname == "/visualization":
-            return [create_visualization_page_nav(), create_visualization_page_layout()]
+        elif pathname == "/training":
+            return [create_training_page_nav(), create_training_page_layout()]
+        elif pathname == "/analysis-run":
+            return [create_analysis_run_page_nav(), create_analysis_run_page_layout()]
         else:
             return [create_visualization_page_nav(), create_visualization_page_layout()]

@@ -2,8 +2,6 @@
 
 Ports the Gradio Analysis tab run-trigger UI: family/variant selection,
 analysis pipeline execution with real-time progress tracking.
-
-REQ_040: Migrate Training & Analysis Run Management to Dash.
 """
 
 from __future__ import annotations
@@ -14,11 +12,15 @@ import traceback
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dcc, html, no_update
 
-from dashboard_v2.components.family_selector import get_family_choices, get_variant_choices
-from dashboard_v2.state import analysis_progress, get_registry, refresh_registry
+from dashboard.components.variant_selector import get_family_choices, get_variant_choices
+from dashboard.state import analysis_progress, get_registry, refresh_registry
 
 
-def create_analysis_run_layout() -> html.Div:
+def create_analysis_run_page_nav() -> html.Div:
+    return html.Div()
+
+
+def create_analysis_run_page_layout() -> html.Div:
     """Create the Analysis Run page layout."""
     registry = get_registry()
     family_choices = get_family_choices(registry)
@@ -98,7 +100,6 @@ def create_analysis_run_layout() -> html.Div:
                 ],
                 className="g-4",
             ),
-            # Progress polling interval (disabled by default)
             dcc.Interval(
                 id="analysis-run-interval",
                 interval=500,
@@ -133,12 +134,7 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         family = registry.get_family(family_name)
         variants = registry.get_variants(family)
 
-        variant = None
-        for v in variants:
-            if v.name == variant_name:
-                variant = v
-                break
-
+        variant = next((v for v in variants if v.name == variant_name), None)
         if variant is None:
             analysis_progress.finish(f"Variant '{variant_name}' not found")
             return
@@ -146,8 +142,7 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         analysis_progress.update(0.1, "Starting analysis pipeline...")
 
         def progress_callback(pct: float, desc: str) -> None:
-            ui_progress = 0.1 + (pct * 0.9)
-            analysis_progress.update(ui_progress, desc)
+            analysis_progress.update(0.1 + (pct * 0.9), desc)
 
         pipeline = AnalysisPipeline(variant)
         pipeline.register(AttentionFreqAnalyzer())
@@ -164,34 +159,27 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         pipeline.run(progress_callback=progress_callback)
 
         refresh_registry()
-
         analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")
 
     except Exception as e:
         analysis_progress.finish(f"Analysis failed: {e}\n\n{traceback.format_exc()}")
 
 
-def register_analysis_callbacks(app: Dash) -> None:
+def register_analysis_run_page_callbacks(app: Dash) -> None:
     """Register all Analysis Run page callbacks."""
 
-    # --- Family change → populate variant dropdown ---
     @app.callback(
         Output("analysis-run-variant-dropdown", "options"),
         Output("analysis-run-variant-dropdown", "value"),
         Input("analysis-run-family-dropdown", "value"),
     )
-    def on_analysis_family_change(
-        family_name: str | None,
-    ) -> tuple[list, None]:
+    def on_analysis_family_change(family_name: str | None) -> tuple[list, None]:
         if not family_name:
             return [], None
-
         registry = get_registry()
         choices = get_variant_choices(registry, family_name)
-        options = [{"label": display, "value": name} for display, name in choices]
-        return options, None
+        return [{"label": display, "value": name} for display, name in choices], None
 
-    # --- Refresh button → reload variants ---
     @app.callback(
         Output("analysis-run-variant-dropdown", "options", allow_duplicate=True),
         Output("analysis-run-variant-dropdown", "value", allow_duplicate=True),
@@ -199,20 +187,14 @@ def register_analysis_callbacks(app: Dash) -> None:
         State("analysis-run-family-dropdown", "value"),
         prevent_initial_call=True,
     )
-    def on_refresh_variants(
-        n_clicks: int | None,
-        family_name: str | None,
-    ):  # noqa: ANN202 — Dash callbacks return no_update
+    def on_refresh_variants(n_clicks: int | None, family_name: str | None):
         if not n_clicks or not family_name:
             return no_update, no_update
-
         refresh_registry()
         registry = get_registry()
         choices = get_variant_choices(registry, family_name)
-        options = [{"label": display, "value": name} for display, name in choices]
-        return options, None
+        return [{"label": display, "value": name} for display, name in choices], None
 
-    # --- Start Analysis button → launch thread + enable interval ---
     @app.callback(
         Output("analysis-run-interval", "disabled"),
         Output("analysis-run-start-btn", "disabled"),
@@ -224,32 +206,23 @@ def register_analysis_callbacks(app: Dash) -> None:
         prevent_initial_call=True,
     )
     def on_start_analysis(
-        n_clicks: int | None,
-        family_name: str | None,
-        variant_name: str | None,
+        n_clicks: int | None, family_name: str | None, variant_name: str | None
     ) -> tuple:
         if not n_clicks:
             return no_update, no_update, no_update, no_update
-
         if not family_name or not variant_name:
             return no_update, no_update, "Please select a family and variant", no_update
-
-        state = analysis_progress.get_state()
-        if state["running"]:
+        if analysis_progress.get_state()["running"]:
             return no_update, no_update, "Analysis already in progress...", no_update
-
         analysis_progress.start()
-
         thread = threading.Thread(
             target=_run_analysis_thread,
             args=(family_name, variant_name),
             daemon=True,
         )
         thread.start()
-
         return False, True, "Starting analysis...", {"display": "block"}
 
-    # --- Interval → poll progress ---
     @app.callback(
         Output("analysis-run-progress-bar", "value"),
         Output("analysis-run-progress-bar", "label"),
@@ -260,26 +233,13 @@ def register_analysis_callbacks(app: Dash) -> None:
         Input("analysis-run-interval", "n_intervals"),
         prevent_initial_call=True,
     )
-    def poll_analysis_progress(n_intervals: int) -> tuple:
+    def poll_analysis_progress(_n_intervals: int) -> tuple:
         state = analysis_progress.get_state()
         pct = int(state["progress"] * 100)
-
         if state["running"]:
-            return (
-                pct,
-                f"{pct}%",
-                state["message"],
-                False,
-                True,
-                {"display": "block"},
-            )
-
-        # Job finished
+            return pct, f"{pct}%", state["message"], False, True, {"display": "block"}
         return (
-            100,
-            "100%",
+            100, "100%",
             state["result"] if state["result"] else state["message"],
-            True,
-            False,
-            {"display": "none"},
+            True, False, {"display": "none"},
         )
