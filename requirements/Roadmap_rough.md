@@ -37,3 +37,6 @@ Right now, we have a slider and we have an ability to click on a graph to select
 
 ### Add support for Loading and Editing Variant Checkpoint Data
 The current Training interface assumes I'm only creating new variants. I would like to be able edit an existing variant's checkpoints - for example, adding checkpoint for models whose grokking window falls outside the default grokking window. It would also be nice to be able to delete unecessary checkpoints and their artifacts through a single interface to make sure everything remains in sync. This requirement is coming from a need to rerun 107/485 with additional checkpoints. There were mistakes made on my end, and there's no way to gracefully recover without deleting and retraining/reanalyzing the entire model.
+
+### Adding checkpoints not need to retrain the whole model
+If checkpoints are added to a model, the platform should be able to pick up with the last checkpoint before the newly added ones. If inserting checkpoints (adding density), it should only be necessary to train the model between known good checkpoints.
