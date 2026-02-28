@@ -15,16 +15,16 @@ _SITE_OPTIONS = [
     {"label": "Resid Post", "value": "resid_post"},
 ]
 
-# Summary view (site kwarg; epoch as cursor)
+# Summary view (epoch as cursor)
 _SUMMARY_VIEW_LIST = {
     "rg-timeseries-plot": {"view_name": "geometry_timeseries", "view_type": "epoch_selector"},
 }
 
 # Per-epoch snapshot views (site kwarg; epoch as data slice)
 _SNAPSHOT_VIEW_LIST = {
-    "rg-centroid-pca-plot": {"view_name": "centroid_pca", "view_type": "default_graph", "view_parameter": "site"},
-    "rg-centroid-dist-plot": {"view_name": "centroid_distances", "view_type": "default_graph", "view_parameter": "site"},
-    "rg-fisher-heatmap-plot": {"view_name": "fisher_heatmap", "view_type": "default_graph", "view_parameter": "site"},
+    "rg-centroid-pca-plot": {"view_name": "centroid_pca", "view_type": "default_graph", "view_filter_set": "site"},
+    "rg-centroid-dist-plot": {"view_name": "centroid_distances", "view_type": "default_graph", "view_filter_set": "site"},
+    "rg-fisher-heatmap-plot": {"view_name": "fisher_heatmap", "view_type": "default_graph", "view_filter_set": "site"},
 }
 
 _VIEW_LIST = {**_SUMMARY_VIEW_LIST, **_SNAPSHOT_VIEW_LIST}
@@ -74,7 +74,7 @@ def register_repr_geometry_page_callbacks(app: Dash) -> None:
     def on_rg_data_change(
         _modified_timestamp: str | None, variant_data: dict | None
     ):
-        return _graph_manager.update_graphs(variant_data)
+        return _graph_manager.update_graphs(variant_data=variant_data)
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("site")],
@@ -86,5 +86,5 @@ def register_repr_geometry_page_callbacks(app: Dash) -> None:
         _modified_timestamp: str | None, site_value: str | None, variant_data: dict | None
     ):
         print("on_rg_site_value_change")
-        parameters = {"site": site_value}
-        return _graph_manager.update_graphs(variant_data, "site", parameters)
+        view_kwargs = {"site": site_value}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="site", view_kwargs=view_kwargs)

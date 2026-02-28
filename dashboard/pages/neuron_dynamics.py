@@ -4,7 +4,7 @@ from dash import Dash, Input, Output, State, html
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 _VIEW_LIST = {
-    "nd-trajectory-plot": {"view_name": "neuron_freq_trajectory", "view_type": "default_graph", "view_parameter": "sort_order"},
+    "nd-trajectory-plot": {"view_name": "neuron_freq_trajectory", "view_type": "default_graph", "view_filter_set": "sort_order"},
     "nd-switch-plot": {"view_name": "switch_count_distribution", "view_type": "default_graph"},
     "nd-commitment-plot": {"view_name": "commitment_timeline", "view_type": "default_graph"},
 }
@@ -59,7 +59,7 @@ def register_neuron_dynamics_page_callbacks(app: Dash) -> None:
     )
     def on_nd_data_change(modified_timestamp: str | None, variant_data: dict | None):
         print("on_nd_data_change")
-        return _graph_manager.update_graphs(variant_data, None)
+        return _graph_manager.update_graphs(variant_data=variant_data)
 
 
     @app.callback(
@@ -72,7 +72,7 @@ def register_neuron_dynamics_page_callbacks(app: Dash) -> None:
         _modified_timestamp: str | None, sort_value: str | None, variant_data: dict | None
     ):
         sorted_by_final = sort_value == "sorted"
-        parameters = {"sorted_by_final": sorted_by_final}
+        view_kwargs = {"sorted_by_final": sorted_by_final}
         return _graph_manager.update_graphs(
-            variant_data, "sort_order", parameters
+            variant_data=variant_data, view_filter_set="sort_order", view_kwargs=view_kwargs
         )

@@ -13,21 +13,21 @@ _VIEW_LIST = {
     "clusters-plot": {"view_name": "freq_clusters", "view_type": "neuron_selector"},
     "spec-trajectory-plot": {"view_name": "specialization_trajectory", "view_type": "epoch_selector"},
     "spec-freq-plot": {"view_name": "specialization_by_frequency", "view_type": "epoch_selector"},
-    "activation-plot": {"view_name": "neuron_heatmap", "view_type": "default_graph", "view_parameter": "neuron_id"},
-    "attention-plot": {"view_name": "attention_heads", "view_type": "default_graph", "view_parameter": "attention_pair"},
+    "activation-plot": {"view_name": "neuron_heatmap", "view_type": "default_graph", "view_filter_set": "neuron_id"},
+    "attention-plot": {"view_name": "attention_heads", "view_type": "default_graph", "view_filter_set": "attention_pair"},
     "attn-freq-plot": {"view_name": "attention_freq_heatmap", "view_type": "default_graph"},
     "attn-spec-plot": {"view_name": "attention_specialization_trajectory", "view_type": "epoch_selector"},
 
-    "trajectory-3d-plot": {"view_name": "trajectory_3d", "view_type": "default_graph", "view_parameter": "trajectory_group"},
-    "trajectory-plot": {"view_name": "parameter_trajectory", "view_type": "default_graph", "view_parameter": "trajectory_group"},
-    "trajectory-pc1-pc3-plot": {"view_name": "trajectory_pc1_pc3", "view_type": "default_graph", "view_parameter": "trajectory_group"},
-    "trajectory-pc2-pc3-plot": {"view_name": "trajectory_pc2_pc3", "view_type": "default_graph", "view_parameter": "trajectory_group"},
+    "trajectory-3d-plot": {"view_name": "trajectory_3d", "view_type": "default_graph", "view_filter_set": "trajectory_group"},
+    "trajectory-plot": {"view_name": "parameter_trajectory", "view_type": "default_graph", "view_filter_set": "trajectory_group"},
+    "trajectory-pc1-pc3-plot": {"view_name": "trajectory_pc1_pc3", "view_type": "default_graph", "view_filter_set": "trajectory_group"},
+    "trajectory-pc2-pc3-plot": {"view_name": "trajectory_pc2_pc3", "view_type": "default_graph", "view_filter_set": "trajectory_group"},
     "velocity-plot": {"view_name": "component_velocity", "view_type": "epoch_selector"},
 
     "dim-trajectory-plot": {"view_name": "dimensionality_trajectory", "view_type": "epoch_selector"},
-    "sv-spectrum-plot": {"view_name": "singular_value_spectrum", "view_type": "default_graph", "view_parameter": "matrix_name"},
+    "sv-spectrum-plot": {"view_name": "singular_value_spectrum", "view_type": "default_graph", "view_filter_set": "matrix_name"},
 
-    "flatness-trajectory-plot": {"view_name": "flatness_trajectory", "view_type":"epoch_selector", "view_parameter": "flatness_metric"},
+    "flatness-trajectory-plot": {"view_name": "flatness_trajectory", "view_type":"epoch_selector", "view_filter_set": "flatness_metric"},
     "perturbation-plot": {"view_name": "perturbation_distribution", "view_type":"default_graph"},
 }
 
@@ -180,8 +180,8 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     def on_vz_attention_pair_change(modified_timestamp: str | None, attention_pair: str, variant_data: dict | None):
         print("on_vz_attention_pair_change")
         attention_pair_value = dict(item.split(":") for item in attention_pair.split(","))
-        parameters = {key: int(value) for key, value in attention_pair_value.items()}
-        return _graph_manager.update_graphs(variant_data, "attention_pair", parameters)    
+        view_kwargs = {key: int(value) for key, value in attention_pair_value.items()}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="attention_pair", view_kwargs=view_kwargs)    
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("matrix_name")],
@@ -191,8 +191,8 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     )
     def on_vz_sv_matrix_change(modified_timestamp: str | None, matrix_name: str, variant_data: dict | None):
         print("on_vz_sv_matrix_change")
-        parameters = {"matrix_name": matrix_name}
-        return _graph_manager.update_graphs(variant_data, "matrix_name", parameters)    
+        view_kwargs = {"matrix_name": matrix_name}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="matrix_name", view_kwargs=view_kwargs)    
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("trajectory_group")],
@@ -202,8 +202,8 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     )
     def on_vz_trajectory_group_change(modified_timestamp: str | None, trajectory_group: str, variant_data: dict | None):
         print("on_vz_trajectory_group_change")
-        parameters = {"group_label": trajectory_group, "group": trajectory_group}
-        return _graph_manager.update_graphs(variant_data, "trajectory_group", parameters)    
+        view_kwargs = {"group_label": trajectory_group, "group": trajectory_group}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="trajectory_group", view_kwargs=view_kwargs)    
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("flatness_metric")],
@@ -213,8 +213,8 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     )
     def on_vz_flatness_metric_change(modified_timestamp: str | None, metric_name: str, variant_data: dict | None):
         print("on_vz_flatness_metric_change")
-        parameters = {"metric": metric_name}
-        return _graph_manager.update_graphs(variant_data, "flatness_metric", parameters)    
+        view_kwargs = {"metric": metric_name}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="flatness_metric", view_kwargs=view_kwargs)    
     
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("neuron_id")],
@@ -242,6 +242,6 @@ def register_visualization_page_callbacks(app: Dash) -> None:
                                 set_props("neuron-display", {'children': f"Neuron {neuron_id}"})
 
                         break
-        parameters = {"neuron_idx": neuron_id}
-        return _graph_manager.update_graphs(variant_data, "neuron_id", parameters)    
+        view_kwargs = {"neuron_idx": neuron_id}
+        return _graph_manager.update_graphs(variant_data=variant_data, view_filter_set="neuron_id", view_kwargs=view_kwargs)    
     

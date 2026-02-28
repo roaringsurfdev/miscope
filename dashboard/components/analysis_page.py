@@ -46,16 +46,16 @@ class AnalysisPageGraphManager:
             style={"height": height},
         )
 
-    def get_graph_output_list(self, view_parameter: str | None = None):
+    def get_graph_output_list(self, view_filter_set: str | None = None):
         graph_list = []
-        views = [key for key in self.view_list.keys() if self.view_list[key].get("view_parameter") == view_parameter]
+        views = [key for key in self.view_list.keys() if self.view_list[key].get("view_filter_set") == view_filter_set]
         for view_item in views:
             view_type = self.view_list[view_item].get("view_type")
             graph_list.append({'view_type': view_type, 'index': view_item})
 
         return graph_list
 
-    def update_graphs(self, variant_data: dict | None, view_parameter: str | None = None, view_parameter_value: dict | None = None) -> list[go.Figure]:
+    def update_graphs(self, variant_data: dict | None, view_filter_set: str | None = None, view_kwargs: dict | None = None) -> list[go.Figure]:
         stored = variant_data or {}
         variant_name = stored.get("variant_name")
         last_field_updated = stored.get("last_field_updated")
@@ -68,13 +68,13 @@ class AnalysisPageGraphManager:
 
         if last_field_updated in ["variant_name", "epoch"]:
             #Update graphs
-            views = [key for key in self.view_list.keys() if self.view_list[key].get("view_parameter") == view_parameter]
+            views = [key for key in self.view_list.keys() if self.view_list[key].get("view_filter_set") == view_filter_set]
             print(views)
             for view_item in views:
                 view_name = self.view_list[view_item].get("view_name")
                 if view_name in variant_state.available_views:
-                    if view_parameter_value:
-                        figures.append(variant_state.context.view(view_name).figure(**view_parameter_value))
+                    if view_kwargs:
+                        figures.append(variant_state.context.view(view_name).figure(**view_kwargs))
                     else:
                         figures.append(variant_state.context.view(view_name).figure())                    
                 else:
