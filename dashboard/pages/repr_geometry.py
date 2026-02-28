@@ -1,10 +1,7 @@
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dcc, html
-from dash.exceptions import PreventUpdate
 
-from dashboard.components.visualization import create_empty_figure, create_graph
-from dashboard.state import variant_state
+from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 # ---------------------------------------------------------------------------
 # Plot IDs (prefixed "rg-" to avoid collisions)
@@ -20,7 +17,7 @@ _SITE_OPTIONS = [
 
 # Summary view (site kwarg; epoch as cursor)
 _SUMMARY_VIEW_LIST = {
-    "rg-timeseries-plot": {"view_name": "geometry_timeseries", "view_type": "epoch_selector", "view_parameter": "site"},
+    "rg-timeseries-plot": {"view_name": "geometry_timeseries", "view_type": "epoch_selector"},
 }
 
 # Per-epoch snapshot views (site kwarg; epoch as data slice)
@@ -32,46 +29,7 @@ _SNAPSHOT_VIEW_LIST = {
 
 _VIEW_LIST = {**_SUMMARY_VIEW_LIST, **_SNAPSHOT_VIEW_LIST}
 
-
-def _get_graph_output_list() -> list[dict]:
-    return [
-        {"view_type": meta["view_type"], "index": pid}
-        for pid, meta in _VIEW_LIST.items()
-    ]
-
-
-def _get_graph_view_type(graph_key: str) -> str:
-    return _VIEW_LIST[graph_key].get("view_type", "default_graph")
-
-
-def _update_graphs(variant_data: dict | None, site_value: str | None) -> list[go.Figure]:
-    stored = variant_data or {}
-    variant_name = stored.get("variant_name")
-    last_field_updated = stored.get("last_field_updated")
-
-    if variant_name is None:
-        empty = create_empty_figure("Select a variant")
-        return [empty for _ in _VIEW_LIST]
-
-    if last_field_updated not in ["variant_name", "epoch"]:
-        raise PreventUpdate
-
-    site = None if site_value == "all" else site_value
-    snapshot_site = "resid_post" if site_value == "all" else site_value
-
-    figures = []
-    for pid, meta in _VIEW_LIST.items():
-        view_name = meta.get("view_name", "")
-        if view_name not in variant_state.available_views:
-            figures.append(create_empty_figure("No view found"))
-            continue
-        if pid in _SUMMARY_VIEW_LIST:
-            figures.append(variant_state.context.view(view_name).figure(site=site))
-        else:
-            figures.append(variant_state.context.view(view_name).figure(site=snapshot_site))
-
-    return figures
-
+_graph_manager = AnalysisPageGraphManager(_VIEW_LIST)
 
 def create_repr_geometry_page_nav() -> html.Div:
     return html.Div(
@@ -80,12 +38,11 @@ def create_repr_geometry_page_nav() -> html.Div:
             dcc.Dropdown(
                 id="rg-site-dropdown",
                 options=_SITE_OPTIONS,
-                value="all",
+                value="resid_post",
                 clearable=False,
             ),
         ]
     )
-
 
 def create_repr_geometry_page_layout() -> html.Div:
     return html.Div(
@@ -93,30 +50,41 @@ def create_repr_geometry_page_layout() -> html.Div:
         children=[
             html.H4("Repr Geometry", className="mb-3"),
             # Time-series (full width, tall)
-            dbc.Row(dbc.Col(create_graph("rg-timeseries-plot", "1400px", _get_graph_view_type("rg-timeseries-plot")))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("rg-timeseries-plot", "1400px"))),
             # Fisher heatmap | Distance heatmap
             dbc.Row(
                 [
-                    dbc.Col(create_graph("rg-fisher-heatmap-plot", "500px", _get_graph_view_type("rg-fisher-heatmap-plot")), width=6),
-                    dbc.Col(create_graph("rg-centroid-dist-plot", "500px", _get_graph_view_type("rg-centroid-dist-plot")), width=6),
+                    dbc.Col(_graph_manager.create_graph("rg-fisher-heatmap-plot", "500px"), width=6),
+                    dbc.Col(_graph_manager.create_graph("rg-centroid-dist-plot", "500px"), width=6),
                 ]
             ),
             # Centroid PCA
-            dbc.Row(dbc.Col(create_graph("rg-centroid-pca-plot", "800px", _get_graph_view_type("rg-centroid-pca-plot")), width=6)),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("rg-centroid-pca-plot", "800px"), width=6)),
         ],
     )
-
 
 def register_repr_geometry_page_callbacks(app: Dash) -> None:
     """Register all callbacks for the Repr Geometry page."""
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list()],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list()],
+        Input("variant-selector-store", "modified_timestamp"),
+        State("variant-selector-store", "data"),
+    )
+    def on_rg_data_change(
+        _modified_timestamp: str | None, variant_data: dict | None
+    ):
+        return _graph_manager.update_graphs(variant_data)
+
+    @app.callback(
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("site")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("rg-site-dropdown", "value"),
         State("variant-selector-store", "data"),
     )
-    def on_rg_data_change(
+    def on_rg_site_value_change(
         _modified_timestamp: str | None, site_value: str | None, variant_data: dict | None
     ):
-        return _update_graphs(variant_data, site_value)
+        print("on_rg_site_value_change")
+        parameters = {"site": site_value}
+        return _graph_manager.update_graphs(variant_data, "site", parameters)

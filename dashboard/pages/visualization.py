@@ -1,10 +1,7 @@
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
-from dash.exceptions import PreventUpdate
 
-from dashboard.components.visualization import create_empty_figure, create_graph
-from dashboard.state import variant_state
+from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 # miscope
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
@@ -34,49 +31,7 @@ _VIEW_LIST = {
     "perturbation-plot": {"view_name": "perturbation_distribution", "view_type":"default_graph"},
 }
 
-def _get_graph_output_list(view_parameter: str | None = None):
-    graph_list = []
-    views = [key for key in _VIEW_LIST.keys() if _VIEW_LIST[key].get("view_parameter") == view_parameter]
-    for view_item in views:
-        view_type = _VIEW_LIST[view_item].get("view_type")
-        graph_list.append({'view_type': view_type, 'index': view_item})
-
-    return graph_list
-
-def _get_graph_view_type(graph_key) -> str:
-    view_type = _VIEW_LIST[graph_key].get("view_type")
-    if not view_type:
-        view_type = "default_graph"
-    return view_type
-
-def _update_graphs(variant_data: dict | None, view_parameter: str | None = None, view_parameter_value: dict | None = None) -> list[go.Figure]:
-    stored = variant_data or {}
-    variant_name = stored.get("variant_name")
-    last_field_updated = stored.get("last_field_updated")
-    figures = []
-
-    # Clear graphs if variant_name is None
-    if variant_name is None:
-        no_data = create_empty_figure("Select a variant")
-        figures = [no_data for pid in _VIEW_LIST.keys()]
-
-    if last_field_updated in ["variant_name", "epoch"]:
-        #Update graphs
-        views = [key for key in _VIEW_LIST.keys() if _VIEW_LIST[key].get("view_parameter") == view_parameter]
-        print(views)
-        for view_item in views:
-            view_name = _VIEW_LIST[view_item].get("view_name")
-            if view_name in variant_state.available_views:
-                if view_parameter_value:
-                    figures.append(variant_state.context.view(view_name).figure(**view_parameter_value))
-                else:
-                    figures.append(variant_state.context.view(view_name).figure())                    
-            else:
-                figures.append(create_empty_figure("No view found"))
-    else:
-        raise PreventUpdate
-    
-    return figures
+_graph_manager = AnalysisPageGraphManager(_VIEW_LIST)
 
 def create_visualization_page_nav() -> html.Div:
     print("create_visualization_page_nav")
@@ -158,45 +113,45 @@ def create_visualization_page_layout() -> html.Div:
             html.Div(
                     [
                         # --- Loss ---
-                        dbc.Row(dbc.Col(create_graph("loss-plot", "350px", _get_graph_view_type("loss-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("loss-plot", "350px"))),
                         # --- Frequency Analysis ---
-                        dbc.Row(dbc.Col(create_graph("freq-plot", "400px", _get_graph_view_type("freq-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("freq-plot", "400px"))),
                         # --- Neuron Specialization (summary, click-to-navigate) ---
-                        dbc.Row(dbc.Col(create_graph("clusters-plot", "450px", _get_graph_view_type("clusters-plot")))),
-                        dbc.Row(dbc.Col(create_graph("spec-trajectory-plot", "350px", _get_graph_view_type("spec-trajectory-plot")))),
-                        dbc.Row(dbc.Col(create_graph("spec-freq-plot", "450px", _get_graph_view_type("spec-freq-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("clusters-plot", "450px"))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("spec-trajectory-plot", "350px"))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("spec-freq-plot", "450px"))),
 
                         # --- Neuron and Attention (per-epoch) ---
                         dbc.Row(
                             [
-                                dbc.Col(create_graph("activation-plot", "300px", _get_graph_view_type("activation-plot")), width=3),
-                                dbc.Col(create_graph("attention-plot", "400px", _get_graph_view_type("attention-plot")), width=9),
+                                dbc.Col(_graph_manager.create_graph("activation-plot", "300px"), width=3),
+                                dbc.Col(_graph_manager.create_graph("attention-plot", "400px"), width=9),
                             ]
                         ),
                         # --- Attention Specialization (summary, click-to-navigate) ---
-                        dbc.Row(dbc.Col(create_graph("attn-freq-plot", "450px", _get_graph_view_type("attn-freq-plot")))),
-                        dbc.Row(dbc.Col(create_graph("attn-spec-plot", "450px", _get_graph_view_type("attn-spec-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("attn-freq-plot", "450px"))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("attn-spec-plot", "450px"))),
                         # --- Trajectory (cross-epoch) ---
                         dbc.Row(
                             [
-                                dbc.Col(create_graph("trajectory-3d-plot", "350px", _get_graph_view_type("trajectory-3d-plot")), width=6),
-                                dbc.Col(create_graph("trajectory-plot", "350px", _get_graph_view_type("trajectory-plot")), width=6),
+                                dbc.Col(_graph_manager.create_graph("trajectory-3d-plot", "350px"), width=6),
+                                dbc.Col(_graph_manager.create_graph("trajectory-plot", "350px"), width=6),
                             ]
                         ),
                         dbc.Row(
                             [
-                                dbc.Col(create_graph("trajectory-pc1-pc3-plot", "350px", _get_graph_view_type("trajectory-pc1-pc3-plot")), width=6),
-                                dbc.Col(create_graph("trajectory-pc2-pc3-plot", "350px", _get_graph_view_type("trajectory-pc2-pc3-plot")), width=6),
+                                dbc.Col(_graph_manager.create_graph("trajectory-pc1-pc3-plot", "350px"), width=6),
+                                dbc.Col(_graph_manager.create_graph("trajectory-pc2-pc3-plot", "350px"), width=6),
                             ]
                         ),
-                        dbc.Row(dbc.Col(create_graph("velocity-plot", "400px", _get_graph_view_type("velocity-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("velocity-plot", "400px"))),
 
                         # --- Dimensionality (summary + per-epoch) ---
-                        dbc.Row(dbc.Col(create_graph("dim-trajectory-plot", "400px", _get_graph_view_type("dim-trajectory-plot")))),
-                        dbc.Row(dbc.Col(create_graph("sv-spectrum-plot", "400px", _get_graph_view_type("sv-spectrum-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("dim-trajectory-plot", "400px"))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("sv-spectrum-plot", "400px"))),
                         # --- Flatness (summary + per-epoch, click-to-navigate) ---
-                        dbc.Row(dbc.Col(create_graph("flatness-trajectory-plot", "400px", _get_graph_view_type("flatness-trajectory-plot")))),
-                        dbc.Row(dbc.Col(create_graph("perturbation-plot", "400px", _get_graph_view_type("perturbation-plot")))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("flatness-trajectory-plot", "400px"))),
+                        dbc.Row(dbc.Col(_graph_manager.create_graph("perturbation-plot", "400px"))),
                     ],
                 )            
         ]
@@ -207,17 +162,17 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     print("register_visualization_page_callbacks")
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list()],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list()],
         Input("variant-selector-store", "modified_timestamp"),
         State("variant-selector-store", "data")
     )
     def on_vz_data_change(modified_timestamp: str | None, variant_data: dict | None):
         print("on_vz_data_change")
-        return _update_graphs(variant_data, None)
+        return _graph_manager.update_graphs(variant_data, None)
 
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list("attention_pair")],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("attention_pair")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("position-pair-dropdown", "value"),
         State("variant-selector-store", "data")
@@ -226,10 +181,10 @@ def register_visualization_page_callbacks(app: Dash) -> None:
         print("on_vz_attention_pair_change")
         attention_pair_value = dict(item.split(":") for item in attention_pair.split(","))
         parameters = {key: int(value) for key, value in attention_pair_value.items()}
-        return _update_graphs(variant_data, "attention_pair", parameters)    
+        return _graph_manager.update_graphs(variant_data, "attention_pair", parameters)    
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list("matrix_name")],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("matrix_name")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("sv-matrix-dropdown", "value"),
         State("variant-selector-store", "data")
@@ -237,10 +192,10 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     def on_vz_sv_matrix_change(modified_timestamp: str | None, matrix_name: str, variant_data: dict | None):
         print("on_vz_sv_matrix_change")
         parameters = {"matrix_name": matrix_name}
-        return _update_graphs(variant_data, "matrix_name", parameters)    
+        return _graph_manager.update_graphs(variant_data, "matrix_name", parameters)    
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list("trajectory_group")],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("trajectory_group")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("trajectory-group-dropdown", "value"),
         State("variant-selector-store", "data")
@@ -248,10 +203,10 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     def on_vz_trajectory_group_change(modified_timestamp: str | None, trajectory_group: str, variant_data: dict | None):
         print("on_vz_trajectory_group_change")
         parameters = {"group_label": trajectory_group, "group": trajectory_group}
-        return _update_graphs(variant_data, "trajectory_group", parameters)    
+        return _graph_manager.update_graphs(variant_data, "trajectory_group", parameters)    
 
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list("flatness_metric")],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("flatness_metric")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("flatness-metric-dropdown", "value"),
         State("variant-selector-store", "data")
@@ -259,10 +214,10 @@ def register_visualization_page_callbacks(app: Dash) -> None:
     def on_vz_flatness_metric_change(modified_timestamp: str | None, metric_name: str, variant_data: dict | None):
         print("on_vz_flatness_metric_change")
         parameters = {"metric": metric_name}
-        return _update_graphs(variant_data, "flatness_metric", parameters)    
+        return _graph_manager.update_graphs(variant_data, "flatness_metric", parameters)    
     
     @app.callback(
-        [Output(pid, "figure") for pid in _get_graph_output_list("neuron_id")],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("neuron_id")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("neuron-slider", "value"),
         Input({'view_type': 'neuron_selector', 'index': ALL}, "clickData"),
@@ -288,5 +243,5 @@ def register_visualization_page_callbacks(app: Dash) -> None:
 
                         break
         parameters = {"neuron_idx": neuron_id}
-        return _update_graphs(variant_data, "neuron_id", parameters)    
+        return _graph_manager.update_graphs(variant_data, "neuron_id", parameters)    
     
