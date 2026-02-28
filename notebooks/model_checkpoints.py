@@ -50,5 +50,5 @@ CHECKPOINT_EPOCHS_101_485 = sorted(
 
 # %% print definition for copy/paste into training run config
 print(CHECKPOINT_EPOCHS_101_485)
-#print(len(CHECKPOINT_EPOCHS_107_485))
+print(len(CHECKPOINT_EPOCHS_101_485))
 # %%
