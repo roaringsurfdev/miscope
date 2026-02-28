@@ -295,11 +295,7 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "render_neuron_freq_trajectory",
         "cross_epoch_neuron_dynamics",
     ),
-    "neuron_freq_trajectory_sorted": (
-        "neuron_dynamics",
-        "render_neuron_freq_trajectory",
-        "cross_epoch_neuron_dynamics_sorted",
-    ),
+
 }
 
 

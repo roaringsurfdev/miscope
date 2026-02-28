@@ -11,9 +11,9 @@ from dashboard_temp.state import variant_state
 # ---------------------------------------------------------------------------
 
 _VIEW_LIST = {
-    "nd-trajectory-plot": {"view_name": "neuron_freq_trajectory", "view_type":"epoch_selector", "view_parameter": "sort_order"},
-    "nd-switch-plot": {"view_name": "", "view_type":"default_graph"},
-    "nd-commitment-plot": {"view_name": "", "view_type":"default_graph"},
+    "nd-trajectory-plot": {"view_name": "neuron_freq_trajectory", "view_type": "default_graph", "view_parameter": "sort_order"},
+    "nd-switch-plot": {"view_name": "switch_count_distribution", "view_type": "default_graph"},
+    "nd-commitment-plot": {"view_name": "commitment_timeline", "view_type": "default_graph"},
 }
 
 def _get_graph_output_list(view_parameter: str | None = None):
@@ -31,31 +31,31 @@ def _get_graph_view_type(graph_key) -> str:
         view_type = "default_graph"
     return view_type
 
-def _update_graphs(variant_data: dict | None, view_parameter: str | None = None) -> list[go.Figure]:
+def _update_graphs(
+    variant_data: dict | None,
+    view_parameter: str | None = None,
+    view_kwargs: dict | None = None,
+) -> list[go.Figure]:
     stored = variant_data or {}
     variant_name = stored.get("variant_name")
     last_field_updated = stored.get("last_field_updated")
     figures = []
 
-    # Clear graphs if variant_name is None
     if variant_name is None:
         no_data = create_empty_figure("Select a variant")
-        figures = [no_data for pid in _VIEW_LIST.keys()]
+        return [no_data for _ in _VIEW_LIST]
 
     if last_field_updated in ["variant_name", "epoch"]:
-        #Update graphs
-        views = [key for key in _VIEW_LIST.keys() if _VIEW_LIST[key].get("view_parameter") == view_parameter]
-        print(views)
+        views = [key for key in _VIEW_LIST if _VIEW_LIST[key].get("view_parameter") == view_parameter]
         for view_item in views:
             view_name = _VIEW_LIST[view_item].get("view_name")
-            #view_type = _VIEW_LIST[view_item].get("view_type")
             if view_name in variant_state.available_views:
-                figures.append(variant_state.context.view(view_name).figure())
+                figures.append(variant_state.context.view(view_name).figure(**(view_kwargs or {})))
             else:
                 figures.append(create_empty_figure("No view found"))
     else:
         raise PreventUpdate
-    
+
     return figures
 
 def create_neuron_dynamics_page_nav() -> html.Div:
@@ -113,8 +113,12 @@ def register_neuron_dynamics_page_callbacks(app: Dash) -> None:
         [Output(pid, "figure") for pid in _get_graph_output_list("sort_order")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("nd-sort-toggle", "value"),
-        State("variant-selector-store", "data")
+        State("variant-selector-store", "data"),
     )
-    def on_nd_sort_change(modified_timestamp: str | None, sort_value: str | None, variant_data: dict | None):
-        print("on_nd_sort_change")
-        return _update_graphs(variant_data, "sort_order")    
+    def on_nd_sort_change(
+        _modified_timestamp: str | None, sort_value: str | None, variant_data: dict | None
+    ):
+        sorted_by_final = sort_value == "sorted"
+        return _update_graphs(
+            variant_data, "sort_order", view_kwargs={"sorted_by_final": sorted_by_final}
+        )

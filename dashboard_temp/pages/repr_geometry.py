@@ -18,49 +18,60 @@ _SITE_OPTIONS = [
     {"label": "Resid Post", "value": "resid_post"},
 ]
 
-_VIEW_LIST = {
-    "rg-centroids-plot": {"view_name": "", "view_type":"default_graph"},
-    "rg-alignment-plot": {"view_name": "", "view_type":"default_graph"},
+# Summary view (site kwarg; epoch as cursor)
+_SUMMARY_VIEW_LIST = {
+    "rg-timeseries-plot": {"view_name": "geometry_timeseries", "view_type": "epoch_selector", "view_parameter": "site"},
 }
 
-def _get_graph_output_list():
-    graph_list = []
-    for view_item in _VIEW_LIST.keys():
-        view_type = _VIEW_LIST[view_item].get("view_type")
-        graph_list.append({'view_type': view_type, 'index': view_item})
+# Per-epoch snapshot views (site kwarg; epoch as data slice)
+_SNAPSHOT_VIEW_LIST = {
+    "rg-centroid-pca-plot": {"view_name": "centroid_pca", "view_type": "default_graph", "view_parameter": "site"},
+    "rg-centroid-dist-plot": {"view_name": "centroid_distances", "view_type": "default_graph", "view_parameter": "site"},
+    "rg-fisher-heatmap-plot": {"view_name": "fisher_heatmap", "view_type": "default_graph", "view_parameter": "site"},
+}
 
-    return graph_list
+_VIEW_LIST = {**_SUMMARY_VIEW_LIST, **_SNAPSHOT_VIEW_LIST}
 
-def _get_graph_view_type(graph_key) -> str:
-    view_type = _VIEW_LIST[graph_key].get("view_type")
-    if not view_type:
-        view_type = "default_graph"
-    return view_type
 
-def _update_graphs(variant_data: dict | None, activation_site: str | None) -> list[go.Figure]:
+def _get_graph_output_list() -> list[dict]:
+    return [
+        {"view_type": meta["view_type"], "index": pid}
+        for pid, meta in _VIEW_LIST.items()
+    ]
+
+
+def _get_graph_view_type(graph_key: str) -> str:
+    return _VIEW_LIST[graph_key].get("view_type", "default_graph")
+
+
+def _update_graphs(variant_data: dict | None, site_value: str | None) -> list[go.Figure]:
     stored = variant_data or {}
     variant_name = stored.get("variant_name")
     last_field_updated = stored.get("last_field_updated")
-    figures = []
 
-    # Clear graphs if variant_name is None
     if variant_name is None:
-        no_data = create_empty_figure("Select a variant")
-        figures = [no_data for pid in _VIEW_LIST.keys()]
+        empty = create_empty_figure("Select a variant")
+        return [empty for _ in _VIEW_LIST]
 
-    if last_field_updated in ["variant_name", "epoch"]:
-        #Update graphs
-        for view_item in _VIEW_LIST.keys():
-            view_name = _VIEW_LIST[view_item].get("view_name")
-            #view_type = _VIEW_LIST[view_item].get("view_type")
-            if view_name in variant_state.available_views:
-                figures.append(variant_state.context.view(view_name).figure())
-            else:
-                figures.append(create_empty_figure("No view found"))
-    else:
+    if last_field_updated not in ["variant_name", "epoch"]:
         raise PreventUpdate
-    
+
+    site = None if site_value == "all" else site_value
+    snapshot_site = "resid_post" if site_value == "all" else site_value
+
+    figures = []
+    for pid, meta in _VIEW_LIST.items():
+        view_name = meta.get("view_name", "")
+        if view_name not in variant_state.available_views:
+            figures.append(create_empty_figure("No view found"))
+            continue
+        if pid in _SUMMARY_VIEW_LIST:
+            figures.append(variant_state.context.view(view_name).figure(site=site))
+        else:
+            figures.append(variant_state.context.view(view_name).figure(site=snapshot_site))
+
     return figures
+
 
 def create_repr_geometry_page_nav() -> html.Div:
     return html.Div(
@@ -71,30 +82,41 @@ def create_repr_geometry_page_nav() -> html.Div:
                 options=_SITE_OPTIONS,
                 value="all",
                 clearable=False,
-            )
+            ),
         ]
     )
+
 
 def create_repr_geometry_page_layout() -> html.Div:
     return html.Div(
         id="repr_geometry_content",
         children=[
             html.H4("Repr Geometry", className="mb-3"),
-            dbc.Row(dbc.Col(create_graph("rg-centroids-plot", "350px", _get_graph_view_type("rg-centroids-plot")))),
-            dbc.Row(dbc.Col(create_graph("rg-alignment-plot", "350px", _get_graph_view_type("rg-alignment-plot")))),
-        ]
+            # Time-series (full width, tall)
+            dbc.Row(dbc.Col(create_graph("rg-timeseries-plot", "1400px", _get_graph_view_type("rg-timeseries-plot")))),
+            # Fisher heatmap | Distance heatmap
+            dbc.Row(
+                [
+                    dbc.Col(create_graph("rg-fisher-heatmap-plot", "500px", _get_graph_view_type("rg-fisher-heatmap-plot")), width=6),
+                    dbc.Col(create_graph("rg-centroid-dist-plot", "500px", _get_graph_view_type("rg-centroid-dist-plot")), width=6),
+                ]
+            ),
+            # Centroid PCA
+            dbc.Row(dbc.Col(create_graph("rg-centroid-pca-plot", "800px", _get_graph_view_type("rg-centroid-pca-plot")), width=6)),
+        ],
     )
+
 
 def register_repr_geometry_page_callbacks(app: Dash) -> None:
     """Register all callbacks for the Repr Geometry page."""
-    print("register_repr_geometry_page_callbacks")
 
     @app.callback(
-        *[Output(pid, "figure") for pid in _get_graph_output_list()],
+        [Output(pid, "figure") for pid in _get_graph_output_list()],
         Input("variant-selector-store", "modified_timestamp"),
         Input("rg-site-dropdown", "value"),
-        State("variant-selector-store", "data")
+        State("variant-selector-store", "data"),
     )
-    def on_rg_data_change(modified_timestamp: str | None, activation_site: str | None, variant_data: dict | None):
-        print("on_rg_data_change")
-        return _update_graphs(variant_data, activation_site)
+    def on_rg_data_change(
+        _modified_timestamp: str | None, site_value: str | None, variant_data: dict | None
+    ):
+        return _update_graphs(variant_data, site_value)

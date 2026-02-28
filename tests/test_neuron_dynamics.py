@@ -239,4 +239,3 @@ class TestExportRegistry:
 
         available = get_available_visualizations()
         assert "neuron_freq_trajectory" in available
-        assert "neuron_freq_trajectory_sorted" in available

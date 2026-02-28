@@ -241,40 +241,107 @@ def _register_all() -> None:
     def _load_neuron_dynamics(variant: Variant, epoch: int | None) -> dict:
         cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
         prime = int(variant.model_config["prime"])
-        return {"cross_epoch": cross_epoch, "prime": prime}
+        seed = variant.model_config.get("seed")
+        return {"cross_epoch": cross_epoch, "prime": prime, "seed": seed}
 
     def _render_neuron_freq_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        from miscope.visualization.renderers.neuron_freq_clusters import render_neuron_freq_trajectory
-
-        return render_neuron_freq_trajectory(
-            data["cross_epoch"], data["prime"], sorted_by_final=False, **kwargs
+        from miscope.visualization.renderers.neuron_freq_clusters import (
+            render_neuron_freq_trajectory,
         )
 
-    def _render_neuron_freq_trajectory_sorted(
+        sorted_by_final = kwargs.pop("sorted_by_final", False)
+        return render_neuron_freq_trajectory(
+            data["cross_epoch"], data["prime"], sorted_by_final=sorted_by_final, **kwargs
+        )
+
+    def _render_switch_count_distribution(
         data: Any, epoch: int | None, **kwargs: Any
     ) -> go.Figure:
-        from miscope.visualization.renderers.neuron_freq_clusters import render_neuron_freq_trajectory
-
-        return render_neuron_freq_trajectory(
-            data["cross_epoch"], data["prime"], sorted_by_final=True, **kwargs
+        from miscope.visualization.renderers.neuron_freq_clusters import (
+            render_switch_count_distribution,
         )
+
+        return render_switch_count_distribution(
+            data["cross_epoch"], data["prime"], seed=data["seed"], **kwargs
+        )
+
+    def _render_commitment_timeline(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_freq_clusters import (
+            render_commitment_timeline,
+        )
+
+        return render_commitment_timeline(
+            data["cross_epoch"], data["prime"], seed=data["seed"], **kwargs
+        )
+
+    for name, renderer in [
+        ("neuron_freq_trajectory", _render_neuron_freq_trajectory),
+        ("switch_count_distribution", _render_switch_count_distribution),
+        ("commitment_timeline", _render_commitment_timeline),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_neuron_dynamics,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+            )
+        )
+
+    # --- Representational geometry views ---
+    # Summary view uses site kwarg; per-epoch views bundle prime from model config.
+
+    def _load_repr_geometry_summary(variant: Variant, _epoch: int | None) -> dict:
+        return variant.artifacts.load_summary("repr_geometry")
+
+    def _render_geometry_timeseries(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        site = kwargs.pop("site", None)
+        return viz.render_geometry_timeseries(data, site=site, current_epoch=epoch)
 
     _catalog.register(
         ViewDefinition(
-            name="neuron_freq_trajectory",
-            load_data=_load_neuron_dynamics,
-            renderer=_render_neuron_freq_trajectory,
+            name="geometry_timeseries",
+            load_data=_load_repr_geometry_summary,
+            renderer=_render_geometry_timeseries,
             epoch_source_analyzer=None,
         )
     )
-    _catalog.register(
-        ViewDefinition(
-            name="neuron_freq_trajectory_sorted",
-            load_data=_load_neuron_dynamics,
-            renderer=_render_neuron_freq_trajectory_sorted,
-            epoch_source_analyzer=None,
+
+    def _load_repr_geometry_epoch(variant: Variant, epoch: int | None) -> dict:
+        return {
+            "epoch_data": variant.artifacts.load_epoch("repr_geometry", epoch),  # type: ignore[arg-type]
+            "prime": variant.model_config.get("prime"),
+        }
+
+    def _render_centroid_pca(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        site = kwargs.pop("site", "resid_post")
+        return viz.render_centroid_pca(data["epoch_data"], epoch or 0, site=site, p=data["prime"])
+
+    def _render_centroid_distances(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        site = kwargs.pop("site", "resid_post")
+        return viz.render_centroid_distances(
+            data["epoch_data"], epoch or 0, site=site, p=data["prime"]
         )
-    )
+
+    def _render_fisher_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        site = kwargs.pop("site", "resid_post")
+        return viz.render_fisher_heatmap(
+            data["epoch_data"], epoch or 0, site=site, p=data["prime"]
+        )
+
+    for name, renderer in [
+        ("centroid_pca", _render_centroid_pca),
+        ("centroid_distances", _render_centroid_distances),
+        ("fisher_heatmap", _render_fisher_heatmap),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_repr_geometry_epoch,
+                renderer=renderer,
+                epoch_source_analyzer="repr_geometry",
+            )
+        )
 
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
