@@ -3,8 +3,6 @@
 Ports the Gradio Train tab functionality: family selection, domain/training
 parameter configuration, variant preview, and training execution with
 real-time progress tracking.
-
-REQ_040: Migrate Training & Analysis Run Management to Dash.
 """
 
 from __future__ import annotations
@@ -15,12 +13,16 @@ import traceback
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dcc, html, no_update
 
-from dashboard_v2.components.family_selector import get_family_choices
-from dashboard_v2.state import get_registry, refresh_registry, training_progress
-from dashboard_v2.utils import parse_checkpoint_epochs
+from dashboard.components.variant_selector import get_family_choices
+from dashboard.state import get_registry, refresh_registry, training_progress
+from dashboard.utils import parse_checkpoint_epochs
 
 
-def create_training_layout() -> html.Div:
+def create_training_page_nav() -> html.Div:
+    return html.Div()
+
+
+def create_training_page_layout() -> html.Div:
     """Create the Training page layout."""
     registry = get_registry()
     family_choices = get_family_choices(registry)
@@ -35,7 +37,6 @@ def create_training_layout() -> html.Div:
                     # Left column: parameters
                     dbc.Col(
                         [
-                            # Family selection
                             dbc.Label("Model Family", className="fw-bold"),
                             dcc.Dropdown(
                                 id="training-family-dropdown",
@@ -48,7 +49,6 @@ def create_training_layout() -> html.Div:
                                 children="Select a family",
                                 className="text-muted small mt-1 mb-3",
                             ),
-                            # Domain parameters
                             html.H6("Domain Parameters", className="mt-3"),
                             dbc.Label("Prime (p)", className="small"),
                             dbc.Input(
@@ -64,7 +64,6 @@ def create_training_layout() -> html.Div:
                                 value=999,
                                 step=1,
                             ),
-                            # Training parameters
                             html.H6("Training Parameters", className="mt-4"),
                             dbc.Label("Data Seed", className="small"),
                             dbc.Input(
@@ -142,7 +141,6 @@ def create_training_layout() -> html.Div:
                 ],
                 className="g-4",
             ),
-            # Progress polling interval (disabled by default)
             dcc.Interval(
                 id="training-interval",
                 interval=500,
@@ -178,8 +176,7 @@ def _run_training_thread(
         training_progress.update(0.1, "Starting training...")
 
         def progress_callback(pct: float, desc: str) -> None:
-            ui_progress = 0.1 + (pct * 0.9)
-            training_progress.update(ui_progress, desc)
+            training_progress.update(0.1 + (pct * 0.9), desc)
 
         result = variant.train(
             num_epochs=int(num_epochs),
@@ -204,22 +201,18 @@ def _run_training_thread(
         training_progress.finish(f"Training failed: {e}\n\n{traceback.format_exc()}")
 
 
-def register_training_callbacks(app: Dash) -> None:
+def register_training_page_callbacks(app: Dash) -> None:
     """Register all Training page callbacks."""
 
-    # --- Family change → update defaults + variant preview ---
     @app.callback(
         Output("training-variant-preview", "children"),
         Output("training-prime-input", "value"),
         Output("training-seed-input", "value"),
         Input("training-family-dropdown", "value"),
     )
-    def on_training_family_change(
-        family_name: str | None,
-    ) -> tuple[str, int, int]:
+    def on_training_family_change(family_name: str | None) -> tuple[str, int, int]:
         if not family_name:
             return "Select a family", 113, 999
-
         registry = get_registry()
         family = registry.get_family(family_name)
         defaults = family.get_default_params()
@@ -228,7 +221,6 @@ def register_training_callbacks(app: Dash) -> None:
         variant_name = family.get_variant_directory_name({"prime": prime, "seed": seed})
         return f"Variant: {variant_name}", prime, seed
 
-    # --- Param change → update variant preview ---
     @app.callback(
         Output("training-variant-preview", "children", allow_duplicate=True),
         Input("training-prime-input", "value"),
@@ -236,24 +228,17 @@ def register_training_callbacks(app: Dash) -> None:
         State("training-family-dropdown", "value"),
         prevent_initial_call=True,
     )
-    def on_params_change(
-        prime: int | None,
-        seed: int | None,
-        family_name: str | None,
-    ):  # noqa: ANN202 — Dash callbacks return no_update
+    def on_params_change(prime: int | None, seed: int | None, family_name: str | None):
         if not family_name or prime is None or seed is None:
             return no_update
-
         try:
             registry = get_registry()
             family = registry.get_family(family_name)
-            params = {"prime": int(prime), "seed": int(seed)}
-            variant_name = family.get_variant_directory_name(params)
+            variant_name = family.get_variant_directory_name({"prime": int(prime), "seed": int(seed)})
             return f"Variant: {variant_name}"
         except Exception:
             return "Invalid parameters"
 
-    # --- Start Training button → launch thread + enable interval ---
     @app.callback(
         Output("training-interval", "disabled"),
         Output("training-start-btn", "disabled"),
@@ -270,24 +255,13 @@ def register_training_callbacks(app: Dash) -> None:
         prevent_initial_call=True,
     )
     def on_start_training(
-        n_clicks: int | None,
-        family_name: str | None,
-        prime: int | None,
-        seed: int | None,
-        data_seed: int | None,
-        train_fraction: float | None,
-        num_epochs: int | None,
-        checkpoint_str: str | None,
+        n_clicks, family_name, prime, seed, data_seed, train_fraction, num_epochs, checkpoint_str
     ) -> tuple:
         if not n_clicks or not family_name:
             return no_update, no_update, no_update, no_update
-
-        state = training_progress.get_state()
-        if state["running"]:
+        if training_progress.get_state()["running"]:
             return no_update, no_update, "Training already in progress...", no_update
-
         training_progress.start()
-
         thread = threading.Thread(
             target=_run_training_thread,
             args=(
@@ -302,10 +276,8 @@ def register_training_callbacks(app: Dash) -> None:
             daemon=True,
         )
         thread.start()
-
         return False, True, "Starting training...", {"display": "block"}
 
-    # --- Interval → poll progress ---
     @app.callback(
         Output("training-progress-bar", "value"),
         Output("training-progress-bar", "label"),
@@ -316,26 +288,13 @@ def register_training_callbacks(app: Dash) -> None:
         Input("training-interval", "n_intervals"),
         prevent_initial_call=True,
     )
-    def poll_training_progress(n_intervals: int) -> tuple:
+    def poll_training_progress(_n_intervals: int) -> tuple:
         state = training_progress.get_state()
         pct = int(state["progress"] * 100)
-
         if state["running"]:
-            return (
-                pct,
-                f"{pct}%",
-                state["message"],
-                False,  # keep interval enabled
-                True,  # keep button disabled
-                {"display": "block"},
-            )
-
-        # Job finished
+            return pct, f"{pct}%", state["message"], False, True, {"display": "block"}
         return (
-            100,
-            "100%",
+            100, "100%",
             state["result"] if state["result"] else state["message"],
-            True,  # disable interval
-            False,  # re-enable button
-            {"display": "none"},
+            True, False, {"display": "none"},
         )

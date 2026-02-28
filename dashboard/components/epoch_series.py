@@ -21,8 +21,8 @@ import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dcc, set_props
 from dash.exceptions import PreventUpdate
 
-from dashboard_temp.components.visualization import create_empty_figure, create_graph
-from dashboard_temp.state import server_state
+from dashboard.components.visualization import create_empty_figure, create_graph
+from dashboard.state import server_state
 
 # Convention: the epoch marker must be shapes[0] in any figure returned by
 # load_figure_fn. Use fig.add_vline(x=epoch_value, ...) as the first shape

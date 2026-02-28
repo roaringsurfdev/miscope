@@ -2,14 +2,16 @@
 import dash_bootstrap_components as dbc
 from dash import Dash
 
-from dashboard_temp.components.leftnav import register_left_nav_callbacks
-from dashboard_temp.components.sitenav import register_sitenav_callbacks
-from dashboard_temp.components.variant_selector import register_variant_selector_callbacks
-from dashboard_temp.layout import create_default_layout
-from dashboard_temp.pages.neuron_dynamics import register_neuron_dynamics_page_callbacks
-from dashboard_temp.pages.repr_geometry import register_repr_geometry_page_callbacks
-from dashboard_temp.pages.summary import register_summary_page_callbacks
-from dashboard_temp.pages.visualization import register_visualization_page_callbacks
+from dashboard.components.leftnav import register_left_nav_callbacks
+from dashboard.components.sitenav import register_sitenav_callbacks
+from dashboard.components.variant_selector import register_variant_selector_callbacks
+from dashboard.layout import create_default_layout
+from dashboard.pages.analysis_run import register_analysis_run_page_callbacks
+from dashboard.pages.neuron_dynamics import register_neuron_dynamics_page_callbacks
+from dashboard.pages.repr_geometry import register_repr_geometry_page_callbacks
+from dashboard.pages.summary import register_summary_page_callbacks
+from dashboard.pages.training import register_training_page_callbacks
+from dashboard.pages.visualization import register_visualization_page_callbacks
 
 
 def create_app() -> Dash:
@@ -26,9 +28,11 @@ def create_app() -> Dash:
     register_sitenav_callbacks(app)
     register_variant_selector_callbacks(app)
     # page-specific callbacks
+    register_analysis_run_page_callbacks(app)
     register_neuron_dynamics_page_callbacks(app)
     register_repr_geometry_page_callbacks(app)
     register_summary_page_callbacks(app)
+    register_training_page_callbacks(app)
     register_visualization_page_callbacks(app)
     return app
 

@@ -9,8 +9,8 @@ The visualization layout (sidebar + plots) moved to create_visualization_layout(
 
 from dash import dcc, html
 
-from dashboard_temp.components.leftnav import create_collapsed_sidebar, create_sidebar
-from dashboard_temp.components.sitenav import create_sitenav
+from dashboard.components.leftnav import create_collapsed_sidebar, create_sidebar
+from dashboard.components.sitenav import create_sitenav
 
 # ---------------------------------------------------------------------------
 # Shared style constants
