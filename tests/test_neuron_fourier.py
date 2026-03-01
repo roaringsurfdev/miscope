@@ -274,6 +274,7 @@ class TestNeuronFourierRenderers:
         fig = render_neuron_fourier_heatmap_output(fake_artifact, epoch=100)
         assert isinstance(fig, go.Figure)
 
+
 """
     def test_heatmap_has_correct_dimensions(self, fake_artifact):
         from miscope.visualization.renderers.neuron_fourier import render_neuron_fourier_heatmap
