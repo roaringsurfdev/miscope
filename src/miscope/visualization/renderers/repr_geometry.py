@@ -466,6 +466,92 @@ def render_centroid_distances(
     return fig
 
 
+def render_centroid_pca_variance_summary(
+    summary_data: dict[str, np.ndarray],
+    current_epoch: int | None = None,
+    site: str | None = None,
+    height: int = 600,
+) -> go.Figure:
+    """Time-series of centroid class PCA variance explained per PC over training.
+
+    Summary-based variant — reads pre-computed {site}_pca_var_pc1/2/3 keys
+    from summary data. Faster than the stacked-epoch version since no per-epoch
+    PCA computation occurs at render time.
+
+    Three panels (PC1, PC2, PC3), one line per activation site.
+
+    Args:
+        summary_data: From ArtifactLoader.load_summary("repr_geometry").
+            Must contain "{site}_pca_var_pc1/2/3" keys (added after reanalysis).
+        current_epoch: Current epoch for vertical indicator.
+        site: Single activation site to display. None = show all sites.
+        height: Total figure height in pixels.
+
+    Returns:
+        Plotly Figure with 3 vertically stacked subplots.
+    """
+    epochs = summary_data["epochs"]
+    sites = [site] if site else _ALL_SITES
+
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        subplot_titles=["PC1 Variance Explained", "PC2 Variance Explained", "PC3 Variance Explained"],
+    )
+
+    for s in sites:
+        color = _SITE_COLORS.get(s, "gray")
+        label = _SITE_LABELS.get(s, s)
+
+        for pc_idx in range(3):
+            key = f"{s}_pca_var_pc{pc_idx + 1}"
+            if key not in summary_data:
+                continue
+            fig.add_trace(
+                go.Scatter(
+                    x=epochs,
+                    y=summary_data[key] * 100,
+                    mode="lines",
+                    name=label,
+                    legendgroup=s,
+                    showlegend=(pc_idx == 0),
+                    line=dict(color=color, width=2),
+                    hovertemplate=(
+                        f"{label}<br>Epoch %{{x}}<br>"
+                        f"PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
+                    ),
+                ),
+                row=pc_idx + 1,
+                col=1,
+            )
+
+    if current_epoch is not None:
+        for row in range(1, 4):
+            fig.add_vline(
+                x=current_epoch,
+                line_dash="solid",
+                line_color="red",
+                line_width=1,
+                row=row,  # type: ignore[reportArgumentType]
+                col=1,  # type: ignore[reportArgumentType]
+            )
+
+    for row in range(1, 4):
+        fig.update_yaxes(range=[0, 105], ticksuffix="%", row=row, col=1)
+
+    fig.update_xaxes(title_text="Epoch", row=3, col=1)
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
+        margin=dict(l=60, r=20, t=40, b=40),
+    )
+
+    return fig
+
+
 def render_centroid_pca_variance(
     stacked_data: dict[str, np.ndarray],
     current_epoch: int | None = None,

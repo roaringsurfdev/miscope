@@ -75,11 +75,13 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_3d,
     render_trajectory_pc1_pc3,
     render_trajectory_pc2_pc3,
+    render_trajectory_pca_variance,
 )
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,
     render_centroid_pca,
     render_centroid_pca_variance,
+    render_centroid_pca_variance_summary,
     render_fisher_heatmap,
     render_geometry_timeseries,
 )
@@ -134,10 +136,12 @@ __all__ = [
     "render_trajectory_3d",
     "render_trajectory_pc1_pc3",
     "render_trajectory_pc2_pc3",
+    "render_trajectory_pca_variance",
     # REQ_044/045: Representational geometry
     "render_geometry_timeseries",
     "render_centroid_pca",
     "render_centroid_pca_variance",
+    "render_centroid_pca_variance_summary",
     "render_centroid_distances",
     "render_fisher_heatmap",
     # REQ_049: Neuron Fourier decomposition

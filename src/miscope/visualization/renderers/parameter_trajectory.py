@@ -480,6 +480,117 @@ def _render_trajectory_2d(
     return fig
 
 
+def render_trajectory_pca_variance(
+    cross_epoch_data: dict[str, np.ndarray],
+    current_epoch: int | None = None,
+    height: int = 600,
+) -> go.Figure:
+    """Progressive variance explained by PC1/PC2/PC3 of the parameter trajectory.
+
+    At each epoch N, computes what fraction of the accumulated trajectory
+    variance (epochs 0..N) is captured by each principal component. Shows
+    whether the trajectory expands into higher-dimensional PC space during
+    grokking and contracts afterward.
+
+    Three panels (PC1, PC2, PC3), one line per component group
+    (all, embedding, attention, mlp).
+
+    Args:
+        cross_epoch_data: From ArtifactLoader.load_cross_epoch("parameter_trajectory").
+            Must contain "{group}__projections" and "epochs" keys.
+        current_epoch: Current epoch for vertical indicator.
+        height: Total figure height in pixels.
+
+    Returns:
+        Plotly Figure with 3 vertically stacked subplots.
+    """
+    from plotly.subplots import make_subplots
+
+    epochs = cross_epoch_data["epochs"].tolist()
+    n_epochs = len(epochs)
+
+    group_colors = {
+        "all": "rgba(100, 100, 100, 1.0)",
+        "embedding": "rgba(31, 119, 180, 1.0)",
+        "attention": "rgba(44, 160, 44, 1.0)",
+        "mlp": "rgba(214, 39, 40, 1.0)",
+    }
+
+    group_var_fracs: dict[str, np.ndarray] = {}
+    for group_name in group_colors:
+        proj_key = f"{group_name}__projections"
+        if proj_key not in cross_epoch_data:
+            continue
+        projections = cross_epoch_data[proj_key]  # (N, n_components)
+        var_fracs = np.zeros((n_epochs, 3))
+        for i in range(n_epochs):
+            chunk = projections[: i + 1]
+            variances = np.var(chunk, axis=0)
+            total = variances.sum()
+            if total > 1e-12:
+                var_fracs[i, :3] = variances[:3] / total
+            else:
+                var_fracs[i, 0] = 1.0
+        group_var_fracs[group_name] = var_fracs
+
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.04,
+        subplot_titles=["PC1 Variance Explained", "PC2 Variance Explained", "PC3 Variance Explained"],
+    )
+
+    for group_name, color in group_colors.items():
+        if group_name not in group_var_fracs:
+            continue
+        label = _GROUP_LABELS.get(group_name, group_name.capitalize())
+        var_fracs = group_var_fracs[group_name]
+
+        for pc_idx in range(3):
+            fig.add_trace(
+                go.Scatter(
+                    x=epochs,
+                    y=var_fracs[:, pc_idx] * 100,
+                    mode="lines",
+                    name=label,
+                    legendgroup=group_name,
+                    showlegend=(pc_idx == 0),
+                    line=dict(color=color, width=2),
+                    hovertemplate=(
+                        f"{label}<br>Epoch %{{x}}<br>"
+                        f"PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
+                    ),
+                ),
+                row=pc_idx + 1,
+                col=1,
+            )
+
+    if current_epoch is not None:
+        for row in range(1, 4):
+            fig.add_vline(
+                x=current_epoch,
+                line_dash="solid",
+                line_color="red",
+                line_width=1,
+                row=row,  # type: ignore[reportArgumentType]
+                col=1,  # type: ignore[reportArgumentType]
+            )
+
+    for row in range(1, 4):
+        fig.update_yaxes(range=[0, 105], ticksuffix="%", row=row, col=1)
+
+    fig.update_xaxes(title_text="Epoch", row=3, col=1)
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
+        margin=dict(l=60, r=20, t=40, b=40),
+    )
+
+    return fig
+
+
 def get_group_label(group: str) -> str:
     """Get display label for a component group key."""
     return _GROUP_LABELS.get(group, group.capitalize())

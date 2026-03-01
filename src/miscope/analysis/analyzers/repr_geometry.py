@@ -18,6 +18,7 @@ from miscope.analysis.library import (
     extract_residual_stream,
 )
 from miscope.analysis.library.geometry import (
+    _pca_project,
     compute_center_spread,
     compute_circularity,
     compute_class_centroids,
@@ -51,10 +52,15 @@ _SCALAR_KEYS = [
     "fisher_argmin_diff",
 ]
 
+# PCA variance fraction keys: top-3 PC variance per site
+_PCA_VAR_KEYS = ["pca_var_pc1", "pca_var_pc2", "pca_var_pc3"]
+
 
 def _get_summary_keys() -> list[str]:
     """Build the full list of summary stat keys across all sites."""
-    return [f"{site}_{key}" for site in _SITES for key in _SCALAR_KEYS]
+    scalar_keys = [f"{site}_{key}" for site in _SITES for key in _SCALAR_KEYS]
+    pca_keys = [f"{site}_{key}" for site in _SITES for key in _PCA_VAR_KEYS]
+    return scalar_keys + pca_keys
 
 
 class RepresentationalGeometryAnalyzer:
@@ -111,11 +117,19 @@ class RepresentationalGeometryAnalyzer:
     ) -> dict[str, float | np.ndarray]:
         """Extract scalar summary stats from epoch result.
 
-        Simply picks out the scalar keys — they're already computed
-        by analyze().
+        Picks out pre-computed scalar keys and computes PCA variance
+        fractions from the stored centroid matrices.
         """
-        summary_keys = _get_summary_keys()
-        return {key: float(result[key]) for key in summary_keys}
+        scalar_keys = [f"{site}_{key}" for site in _SITES for key in _SCALAR_KEYS]
+        summary: dict[str, float | np.ndarray] = {key: float(result[key]) for key in scalar_keys}
+
+        for site_name in _SITES:
+            centroids = result[f"{site_name}_centroids"]
+            _, var_fracs = _pca_project(centroids, n_components=3)
+            for pc_idx, frac in enumerate(var_fracs, 1):
+                summary[f"{site_name}_pca_var_pc{pc_idx}"] = float(frac)
+
+        return summary
 
     def _compute_labels(self, probe: torch.Tensor, p: int) -> np.ndarray:
         """Compute output class labels: (a + b) mod p."""

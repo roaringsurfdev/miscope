@@ -386,13 +386,26 @@ class AnalysisPipeline:
             keep_mask = np.array([e not in old_set for e in new_epochs])
 
             if keep_mask.any():
+                # Append genuinely new epochs; for new keys, pad old epochs with zeros.
                 merged_epochs = np.concatenate([old_epochs, new_epochs[keep_mask]])
                 merged_values = {}
                 for k in new_values:
-                    merged_values[k] = np.concatenate([existing[k], new_values[k][keep_mask]])
+                    if k in existing:
+                        merged_values[k] = np.concatenate(
+                            [existing[k], new_values[k][keep_mask]]
+                        )
+                    else:
+                        old_fill = np.zeros(len(old_epochs), dtype=new_values[k].dtype)
+                        merged_values[k] = np.concatenate(
+                            [old_fill, new_values[k][keep_mask]]
+                        )
             else:
+                # No new epochs — new_values covers the full existing epoch set
+                # (e.g. force=True rerun). Prefer new_values; keep old for absent keys.
                 merged_epochs = old_epochs
-                merged_values = {k: existing[k] for k in new_values}
+                merged_values = {}
+                for k in new_values:
+                    merged_values[k] = new_values[k]
 
             # Sort by epoch
             sort_idx = np.argsort(merged_epochs)
