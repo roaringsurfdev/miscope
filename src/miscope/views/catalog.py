@@ -93,12 +93,16 @@ class BoundView:
         """Render the figure inline in a Jupyter notebook."""
         self.figure(**kwargs).show()
 
-    def export(self, format: str, path: str | Path, **kwargs: Any) -> Path:
+    def export(self, format: str, path: str | Path | None = None, **kwargs: Any) -> Path:
         """Write figure to a static file.
+
+        When path is omitted, a canonical path is derived from the variant name,
+        view name, epoch, and any domain kwargs (e.g. site="attn_out"):
+            results/exports/{variant}__{view}[__epoch{NNNNN}][__{key}_{val}...].{fmt}
 
         Args:
             format: "png", "svg", "pdf", or "html".
-            path: Destination file path.
+            path: Destination file path. Derived from context if not provided.
             **kwargs: Passed to figure() for renderer-specific options.
 
         Returns:
@@ -106,8 +110,25 @@ class BoundView:
         """
         from miscope.visualization.export import export_figure
 
+        if path is None:
+            path = self._default_export_path(format, **kwargs)
         fig = self.figure(**kwargs)
         return export_figure(fig, path, format=format)
+
+    def _default_export_path(self, format: str, **kwargs: Any) -> Path:
+        """Derive a canonical export path from variant, view, epoch, and kwargs."""
+        from miscope.config import get_config
+
+        parts = [self._variant.name, self._view_def.name]
+        if self._epoch is not None:
+            parts.append(f"epoch{self._epoch:05d}")
+        for key in sorted(kwargs):
+            parts.append(f"{key}_{kwargs[key]}")
+        filename = "__".join(parts) + f".{format}"
+
+        export_dir = get_config().results_dir / "exports"
+        export_dir.mkdir(parents=True, exist_ok=True)
+        return export_dir / filename
 
 
 class EpochContext:
