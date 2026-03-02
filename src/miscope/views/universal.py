@@ -371,6 +371,28 @@ def _register_all() -> None:
             )
         )
 
+    # --- Global centroid PCA (REQ_050) ---
+    # Loads cross_epoch.npz from global_centroid_pca; epoch is a cursor
+    # selecting which epoch's projections to display.
+
+    def _load_global_centroid_pca(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("global_centroid_pca")
+
+    def _render_centroid_global_pca(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        site = kwargs.pop("site", "resid_post")
+        epochs = data["epochs"]
+        resolved_epoch = epoch if epoch is not None else int(epochs[-1])
+        return viz.render_centroid_global_pca(data, resolved_epoch, site=site)
+
+    _catalog.register(
+        ViewDefinition(
+            name="centroid_global_pca",
+            load_data=_load_global_centroid_pca,
+            renderer=_render_centroid_global_pca,
+            epoch_source_analyzer=None,
+        )
+    )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

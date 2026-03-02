@@ -46,7 +46,8 @@
 
   "cross_epoch_analyzers": [
     "parameter_trajectory",
-    "neuron_dynamics"
+    "neuron_dynamics",
+    "global_centroid_pca"
   ],
 
   "visualizations": [

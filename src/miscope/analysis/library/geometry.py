@@ -15,6 +15,7 @@ Functions:
 - compute_fourier_alignment: Whether angular ordering matches residue class ordering
 - compute_fisher_discriminant: Pairwise Fisher discriminant ratio statistics
 - compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data
+- compute_global_centroid_pca: Single PCA basis computed across all epochs (REQ_050)
 """
 
 import numpy as np
@@ -294,6 +295,71 @@ def compute_fisher_matrix(
     )
     np.fill_diagonal(fisher_matrix, 0.0)
     return fisher_matrix
+
+
+def compute_global_centroid_pca(
+    centroids_per_epoch: list[np.ndarray],
+    variance_threshold: float = 0.95,
+) -> dict[str, np.ndarray]:
+    """Compute a single PCA basis across all epochs for cross-epoch tracking.
+
+    Pools centroid matrices from all epochs into one shared matrix, fits PCA
+    once, and projects each epoch's centroids into the shared coordinate frame.
+    This produces a consistent basis for tracking centroid trajectories over
+    training — unlike per-epoch PCA, the coordinate frame does not rotate.
+
+    The number of retained components is data-driven: the smallest k such that
+    the top-k components capture at least `variance_threshold` cumulative
+    explained variance from the pooled matrix.
+
+    Args:
+        centroids_per_epoch: List of centroid matrices, one per epoch.
+            Each has shape (n_classes, d_model). Must be non-empty.
+        variance_threshold: Retain components until cumulative explained
+            variance reaches this fraction. Default 0.95.
+
+    Returns:
+        Dict with:
+            "basis": shape (d_model, n_components) — global PCA eigenvectors
+            "mean": shape (d_model,) — global mean subtracted before projection
+            "projections": shape (n_epochs, n_classes, n_components)
+            "explained_variance_ratio": shape (n_components,) — per-component
+                explained variance from the pooled matrix
+    """
+    n_epochs = len(centroids_per_epoch)
+    pooled = np.concatenate(centroids_per_epoch, axis=0)  # (n_epochs*n_classes, d_model)
+    global_mean = pooled.mean(axis=0)
+    centered = pooled - global_mean
+
+    cov = centered.T @ centered / centered.shape[0]
+    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+
+    # eigh returns ascending order; reverse for descending
+    eigenvalues = eigenvalues[::-1]
+    eigenvectors = eigenvectors[:, ::-1]
+
+    total_var = eigenvalues.sum()
+    if total_var < 1e-12:
+        n_components = 1
+    else:
+        cumvar = np.cumsum(eigenvalues) / total_var
+        passing = np.where(cumvar >= variance_threshold)[0]
+        n_components = int(passing[0]) + 1 if len(passing) > 0 else len(eigenvalues)
+
+    basis = eigenvectors[:, :n_components]  # (d_model, n_components)
+    var_ratio = eigenvalues[:n_components] / total_var if total_var > 1e-12 else np.zeros(n_components)
+
+    n_classes = centroids_per_epoch[0].shape[0]
+    projections = np.empty((n_epochs, n_classes, n_components))
+    for i, centroids in enumerate(centroids_per_epoch):
+        projections[i] = (centroids - global_mean) @ basis
+
+    return {
+        "basis": basis,
+        "mean": global_mean,
+        "projections": projections,
+        "explained_variance_ratio": var_ratio,
+    }
 
 
 # --- Private helpers ---

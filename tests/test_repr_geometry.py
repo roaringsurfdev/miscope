@@ -298,7 +298,7 @@ class TestRepresentationalGeometryAnalyzer:
 
     def test_summary_keys_match_scalars(self):
         summary_keys = _get_summary_keys()
-        assert len(summary_keys) == 4 * 11  # 4 sites × 11 scalar measures
+        assert len(summary_keys) == 4 * 14  # 4 sites × (11 scalar + 3 PCA variance keys)
 
     def test_compute_summary_extracts_scalars(self):
         p = 7

@@ -755,3 +755,145 @@ def render_fisher_heatmap(
     )
 
     return fig
+
+
+def render_centroid_global_pca(
+    cross_epoch_data: dict[str, np.ndarray],
+    epoch: int,
+    site: str = "resid_post",
+    height: int = 800,
+) -> go.Figure:
+    """Centroid scatter in the global PCA coordinate frame at a given epoch.
+
+    Unlike render_centroid_pca (which recomputes PCA per epoch), this uses
+    the single global basis from REQ_050 — so the coordinate frame is stable
+    across all epochs and centroid positions are directly comparable over time.
+
+    Args:
+        cross_epoch_data: From ArtifactLoader.load_cross_epoch("global_centroid_pca").
+            Contains "epochs", "{site}__projections", "{site}__explained_variance_ratio".
+        epoch: Epoch number to display. Nearest available epoch is selected.
+        site: Activation site to display.
+        height: Figure height in pixels.
+
+    Returns:
+        Plotly Figure with 2×2 grid: PC1-PC2, PC1-PC3, PC2-PC3, 3D scatter.
+    """
+    epochs = cross_epoch_data["epochs"]
+    proj_key = f"{site}__projections"
+    var_key = f"{site}__explained_variance_ratio"
+
+    # Find the closest available epoch
+    epoch_arr = np.array(epochs)
+    epoch_idx = int(np.argmin(np.abs(epoch_arr - epoch)))
+    actual_epoch = int(epochs[epoch_idx])
+
+    projections = cross_epoch_data[proj_key]  # (n_epochs, n_classes, n_components)
+    var_ratio = cross_epoch_data[var_key]      # (n_components,)
+
+    epoch_proj = projections[epoch_idx]        # (n_classes, n_components)
+    n_classes = epoch_proj.shape[0]
+    n_components = epoch_proj.shape[1]
+
+    residues = np.arange(n_classes)
+    labels = [str(r) for r in residues]
+
+    def _var_label(pc_idx: int) -> str:
+        if pc_idx < len(var_ratio):
+            return f"PC{pc_idx + 1} ({var_ratio[pc_idx]:.1%})"
+        return f"PC{pc_idx + 1}"
+
+    has_pc3 = n_components >= 3
+
+    fig = make_subplots(
+        rows=2,
+        cols=2,
+        specs=[
+            [{"type": "xy"}, {"type": "xy"}],
+            [{"type": "xy"}, {"type": "scene"}],
+        ],
+        subplot_titles=[
+            f"{_var_label(0)} vs {_var_label(1)}",
+            f"{_var_label(0)} vs {_var_label(2)}" if has_pc3 else "PC3 unavailable",
+            f"{_var_label(1)} vs {_var_label(2)}" if has_pc3 else "PC3 unavailable",
+            f"3D ({float(var_ratio[:min(3, n_components)].sum()):.1%} total)"
+            if has_pc3 else "3D (unavailable)",
+        ],
+        horizontal_spacing=0.08,
+        vertical_spacing=0.10,
+    )
+
+    scatter_kwargs = dict(
+        mode="markers+text",
+        marker=dict(size=8, color=residues, colorscale="HSV", showscale=False),
+        text=labels,
+        textposition="top center",
+        textfont=dict(size=7),
+        showlegend=False,
+    )
+
+    pc_pairs = [(0, 1), (0, 2), (1, 2)]
+    positions = [(1, 1), (1, 2), (2, 1)]
+
+    for (a, b), (row, col) in zip(pc_pairs, positions):
+        if b >= n_components:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=epoch_proj[:, a],
+                y=epoch_proj[:, b],
+                hovertemplate=(
+                    f"Residue %{{text}}<br>"
+                    f"{_var_label(a)}: %{{x:.3f}}<br>"
+                    f"{_var_label(b)}: %{{y:.3f}}<extra></extra>"
+                ),
+                **scatter_kwargs,
+            ),
+            row=row,
+            col=col,
+        )
+        fig.update_xaxes(title_text=_var_label(a), row=row, col=col)
+        fig.update_yaxes(title_text=_var_label(b), row=row, col=col)
+
+    if has_pc3:
+        fig.add_trace(
+            go.Scatter3d(
+                x=epoch_proj[:, 0],
+                y=epoch_proj[:, 1],
+                z=epoch_proj[:, 2],
+                mode="markers+text",
+                marker=dict(
+                    size=4,
+                    color=residues,
+                    colorscale="HSV",
+                    showscale=True,
+                    colorbar=dict(title="Residue", x=1.02, len=0.4, y=0.2),
+                ),
+                text=labels,
+                textfont=dict(size=6),
+                hovertemplate=(
+                    "Residue %{text}<br>"
+                    "PC1: %{x:.3f}<br>PC2: %{y:.3f}<br>PC3: %{z:.3f}<extra></extra>"
+                ),
+                showlegend=False,
+            ),
+            row=2,
+            col=2,
+        )
+        fig.update_layout(
+            scene=dict(xaxis_title="PC1", yaxis_title="PC2", zaxis_title="PC3"),
+        )
+
+    site_label = _SITE_LABELS.get(site, site)
+    total_var_pct = float(var_ratio.sum()) * 100
+    fig.update_layout(
+        title=(
+            f"Class Centroids — Global PCA — {site_label} — Epoch {actual_epoch}"
+            f"<br><sub>Global basis: {total_var_pct:.1f}% total variance</sub>"
+        ),
+        template="plotly_white",
+        height=height,
+        margin=dict(l=50, r=50, t=80, b=50),
+    )
+
+    return fig
