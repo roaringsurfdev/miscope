@@ -143,14 +143,37 @@ def get_variant_selector(
             ),
             html.Br(),
             dbc.Label("Epoch", className="fw-bold"),
-            dcc.Slider(
-                id="variant-selector-epoch-slider",
-                min=0,
-                max=1,
-                step=1,
-                value=initial_epoch_idx,
-                marks=None,
-                tooltip={"placement": "bottom", "always_visible": False},
+            html.Div(
+                [
+                    dbc.Button(
+                        "<",
+                        id="variant-selector-epoch-prev",
+                        size="sm",
+                        color="secondary",
+                        outline=True,
+                        n_clicks=0,
+                        style={"flexShrink": "0"},
+                    ),
+                    dcc.Slider(
+                        id="variant-selector-epoch-slider",
+                        min=0,
+                        max=1,
+                        step=1,
+                        value=initial_epoch_idx,
+                        marks=None,
+                        tooltip={"placement": "bottom", "always_visible": False},
+                    ),
+                    dbc.Button(
+                        ">",
+                        id="variant-selector-epoch-next",
+                        size="sm",
+                        color="secondary",
+                        outline=True,
+                        n_clicks=0,
+                        style={"flexShrink": "0"},
+                    ),
+                ],
+                style={"display": "flex", "alignItems": "center", "gap": "4px"},
             ),
             html.Div(
                 id="variant-selector-epoch-display",
@@ -366,6 +389,29 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             raise PreventUpdate
 
         return f"Epoch {epoch}"
+
+    @app.callback(
+        Input("variant-selector-epoch-prev", "n_clicks"),
+        Input("variant-selector-epoch-next", "n_clicks"),
+        State("variant-selector-store", "data"),
+        prevent_initial_call=True,
+    )
+    def on_epoch_nav_click(
+        _prev_clicks: int, _next_clicks: int, store_data: dict | None
+    ) -> None:
+        stored = store_data or {}
+        epoch_index = stored.get("epoch_index") or 0
+        max_epochs = stored.get("max_epochs") or 0
+
+        if ctx.triggered_id == "variant-selector-epoch-prev":
+            new_index = max(0, epoch_index - 1)
+        else:
+            new_index = min(max_epochs, epoch_index + 1)
+
+        if new_index != epoch_index:
+            set_props("variant-selector-epoch-slider", {"value": new_index})
+        else:
+            raise PreventUpdate
 
     # --- Show last field updated: for debugging purposes ---
     @app.callback(
