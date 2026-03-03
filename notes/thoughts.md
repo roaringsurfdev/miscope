@@ -979,3 +979,70 @@ The variant health dashboard concept (from 2026-02-15: loop closure, grokking ti
 ---
 
 *View naming, cross-variant analysis, and export pipeline are converging toward the same need: reproducible, communicable findings rather than ephemeral notebook sessions.*
+
+---
+
+## 2026-03-02: DMD Residual — Grokking Dynamics Across Variants
+
+### Validated on 113/999 and 101/999 (log scale)
+
+The DMD residual norm (REQ_051), viewed on log scale, is a viable per-site grokking onset signal with distinct signatures across variant archetypes.
+
+**Site hierarchy is consistent**: Post-Embed < Attn Out < MLP Out < Resid Post throughout training. Residuals scale with depth and computation — the embedding layer is nearly always the most linearly predictable, and the residual stream the least. This is a cross-variant invariant.
+
+### 113/999 — Broad Plateau During Grokking Window
+
+Resid Post shows a broad elevated plateau from ~5k–12k epochs — diffuse rather than a sharp spike. After the plateau resolves, residuals drop slightly (~12–13k) corresponding to post-grokking stabilization. The geometry story: the model found its circle early and maintained it, then reorganized during grokking. The DMD sees this as a sustained departure from linearity during the reorganization phase, not a sharp onset event.
+
+### 101/999 — Sharp Spike at ~13k; Site Dissociation
+
+The spike at ~13k–14k is a full order of magnitude above the pre-spike baseline for Resid Post and MLP Out. This is the most prominent feature in the 35K training history. Timing: right at the labeled grokking onset.
+
+**New observation on log scale**: Post-Embed has a dramatic *minimum* at exactly the spike moment — dropping to near 0.05 while MLP Out and Resid Post are maximal. The embedding layer briefly becomes ultra-predictable precisely when downstream computation is most nonlinear. This dissociation between sites was invisible on linear scale.
+
+**Hypothesis (to verify with 109/485)**: The 101/999 spike is more dramatic than 113/999's because the model *did not have an organized circle entering the grokking window* — the Circularity/Fourier Alignment graph shows 101/999 finds a circle only transiently and weakly, right before what the user calls the "second search phase." Without pre-organized geometry, the grokking attempt is a sudden departure from established dynamics rather than a smooth reorganization.
+
+### Post-spike structure for 101/999
+
+After the 13k spike, residuals remain elevated and structured (second bump ~17–25k) before declining. This second bump aligns with the parameter velocity spike at ~24k that prompted extended training. The model didn't recover — it lost a lower-frequency MLP band instead. The DMD residual captures this second dynamics excursion as its own event.
+
+### Connection to Basin Landing Hypothesis
+
+The Post-Embed minimum at the spike moment for 101/999 may be the embedding layer briefly settling into a regular configuration — a momentary alignment — just before the downstream computation attempts (and fails to sustain) the grokking transition. This is the weight-space analog of the transient circle seen in the representational geometry: the model *approaches* the basin briefly (Post-Embed settles, geometry almost organizes) but the substrate (degenerate cos/sin ratio, premature neuron commitment) can't hold it.
+
+### 109/485 — Scaffolding Hypothesis in Direct Form
+
+**Residual:** No sharp spike at grokking onset (~5k). The broad elevated region from 1k–5k simply resolves around grokking — the model had its geometry ready, so the test-loss transition was not a sudden departure from established dynamics. This directly confirms the hypothesis that spike magnitude inversely correlates with pre-grokking geometric organization.
+
+**Reconstruction:** At epoch 3100 (labeled pre-grokking), the ring is already fully and cleanly formed. Grokking occurs at ~5k. The geometry preceded the test-loss drop by at least 1500–1900 epochs. This is the scaffolding hypothesis in its most direct form: representational structure was in place well before generalization performance improved.
+
+**Global PCA:** 72.3% variance in PC1+PC2 (vs 41.3% for 113/999). PC3 is only 9.8% vs 18% for 113/999. The fastest clean grokker has the most compressed representation — class structure concentrated in two dimensions.
+
+**Post-Embed minimum at 1200 (train loss):** Fires at memorization completion, not at grokking. This separates the Post-Embed minimum from the 101/999 case, where it fired at the grokking *attempt*. The phenomenon appears to be a "stable regime achieved" marker: embeddings briefly align whenever the model enters a stable attractor, whether that's memorization or grokking. In 101/999, the failed grokking attempt produces a transient stability that the embedding layer registers, even though the downstream substrate can't hold it.
+
+### 59/485 — Oscillatory Waves; Post-Embed Fires at Second Search Phase
+
+**Residual:** Broad oscillatory waves throughout training — structured chaos, not random noise. A trough is visible at ~13-15k (first attractor approach) before the dynamics resume their oscillatory character. No clean spike; instead the entire training history is elevated and wave-like. Confirms the prediction from the 101/999 vs 109/485 comparison: variants without pre-organized geometry show more dramatic DMD departure events, and the most chaotic geometry produces the most chaotic residual profile.
+
+**Post-Embed minimum at ~24-25k:** Fires at the parameter velocity spike (the "second search phase"). User confirmed: the model begins locking in at exactly this moment. This is consistent with the "stable regime" interpretation: the embedding layer registers whenever the model enters a stable attractor. For 59/485, the first search phase (~13-15k) was a transient, and the real commitment starts at 24-25k.
+
+**Global PCA:** Asymmetric ring at enormous scale (±100), heart-shaped 3D structure rather than torus. PC1 35.3% / PC2 26.2% / PC3 18.5%. The 3D structure shows diagonal scatter in PC2 vs PC3 rather than organized Lissajous — consistent with a two-band-only solution, different from clean grokkers' clean toroidal structure.
+
+**Reconstruction:** DMD dashed lines predict an oscillatory rise-peak-fall trajectory (what most of training looks like), while actual solid lines show sustained growth into the final ring. DMD correctly characterized the oscillatory regime but the final phase transition to ring structure was a dynamics event outside the linear fit. This is expected: approximate DMD captures the dominant long-term linear structure, and the dominant structure for 59/485 is the oscillatory search phase.
+
+**Global PCA compression:** 61.5% in PC1+PC2 — less compressed than 109/485 (72.3%) but more than 101/999 (~27%). The overshooter achieves partial organization; the anomalous variant achieves almost none.
+
+### Cross-Variant Summary
+
+| Variant | Pre-grokking geometry | Residual signature | Post-Embed event |
+|---------|----------------------|-------------------|-----------------|
+| 109/485 (fast) | Ring fully formed at 3100, grokking at 5k | Broad plateau resolves at grokking | Minimum at train loss (~1200) |
+| 113/999 (canonical) | Ring building during grokking | Broad diffuse plateau 5k–12k | Not yet characterized |
+| 59/485 (overshooter) | Oscillatory search; ring during second phase | Broad oscillatory waves throughout; trough ~13-15k | Minimum at second search phase (~24-25k) |
+| 101/999 (anomalous) | Transient ring at ~18k, collapses | Sharp spike at grokking attempt (~13k) | Minimum at grokking attempt spike |
+
+The pattern: better pre-organized geometry → smoother residual transition → Post-Embed alignment tied to an earlier stable event. 59/485 sits between 113/999 and 101/999 in organization quality: it eventually locks in, but through a chaotic oscillatory search rather than a clean reorganization.
+
+---
+
+*Hypothesis confirmed: spike magnitude inversely correlates with pre-grokking geometric organization. The ring preceding grokking onset in 109/485 is direct scaffolding evidence. Post-Embed minimum is a "stable regime" marker, not a grokking-specific signal — fires at memorization (109/485), grokking transition (113/999 TBD), grokking attempt (101/999), and second search phase commitment (59/485).*

@@ -405,7 +405,8 @@ def _register_all() -> None:
 
     def _render_dmd_residual(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", None)
-        return viz.render_dmd_residual(data, site=site, current_epoch=epoch)
+        log_y = kwargs.pop("log_y", True)
+        return viz.render_dmd_residual(data, site=site, current_epoch=epoch, log_y=log_y)
 
     def _render_dmd_reconstruction(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", "resid_post")

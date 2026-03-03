@@ -122,6 +122,7 @@ def render_dmd_residual(
     cross_epoch_data: dict[str, np.ndarray],
     site: str | None = None,
     current_epoch: int | None = None,
+    log_y: bool = False,
     height: int = 400,
 ) -> go.Figure:
     """DMD residual norm over training — the primary grokking onset signal.
@@ -135,6 +136,8 @@ def render_dmd_residual(
         cross_epoch_data: From ArtifactLoader.load_cross_epoch("centroid_dmd").
         site: Single site to display. None = overlay all four sites.
         current_epoch: Epoch for optional vertical indicator.
+        log_y: Use log scale on the y-axis. Reveals mid-training structure
+            that is otherwise swamped by the large early-training spike.
         height: Figure height in pixels.
 
     Returns:
@@ -179,10 +182,14 @@ def render_dmd_residual(
             line_width=1,
         )
 
+    yaxis_cfg: dict = dict(title="Residual Norm")
+    if log_y:
+        yaxis_cfg["type"] = "log"
+
     fig.update_layout(
         title="DMD Residual Norm — Centroid Trajectory Prediction Error",
         xaxis_title="Epoch",
-        yaxis_title="Residual Norm",
+        yaxis=yaxis_cfg,
         template="plotly_white",
         height=height,
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
@@ -275,8 +282,14 @@ def render_dmd_reconstruction(
             ),
             row=1, col=1,
         )
-    fig.update_xaxes(title_text="PC1", row=1, col=1)
-    fig.update_yaxes(title_text="PC2", row=1, col=1)
+    # Constrain scatter axes to actual data — DMD divergence doesn't corrupt scale.
+    actual_at_epoch = actual[epoch_idx]  # (n_classes, n_components)
+    _x = actual_at_epoch[:, 0]
+    _y = actual_at_epoch[:, 1] if n_components >= 2 else np.zeros(n_classes)
+    _xpad = max(float(np.abs(_x).max()) * 0.2, 0.1)
+    _ypad = max(float(np.abs(_y).max()) * 0.2, 0.1)
+    fig.update_xaxes(title_text="PC1", range=[_x.min() - _xpad, _x.max() + _xpad], row=1, col=1)
+    fig.update_yaxes(title_text="PC2", range=[_y.min() - _ypad, _y.max() + _ypad], row=1, col=1)
 
     # Right panel: PC1 trajectory over time for a sample of classes
     sample_classes = _sample_classes(n_classes, max_classes=5)
@@ -318,8 +331,11 @@ def render_dmd_reconstruction(
         row=1,  # type: ignore[reportArgumentType]
         col=2,  # type: ignore[reportArgumentType]
     )
+    # Constrain trajectory axis to actual PC1 range across all epochs.
+    _pc1_all = actual[:, :, 0].flatten()
+    _pc1_pad = max(float(np.abs(_pc1_all).max()) * 0.2, 0.1)
     fig.update_xaxes(title_text="Epoch", row=1, col=2)
-    fig.update_yaxes(title_text="PC1", row=1, col=2)
+    fig.update_yaxes(title_text="PC1", range=[_pc1_all.min() - _pc1_pad, _pc1_all.max() + _pc1_pad], row=1, col=2)
 
     site_label = _SITE_LABELS.get(site, site)
     fig.update_layout(
