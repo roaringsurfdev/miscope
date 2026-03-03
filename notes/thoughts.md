@@ -1046,3 +1046,47 @@ The pattern: better pre-organized geometry → smoother residual transition → 
 ---
 
 *Hypothesis confirmed: spike magnitude inversely correlates with pre-grokking geometric organization. The ring preceding grokking onset in 109/485 is direct scaffolding evidence. Post-Embed minimum is a "stable regime" marker, not a grokking-specific signal — fires at memorization (109/485), grokking transition (113/999 TBD), grokking attempt (101/999), and second search phase commitment (59/485).*
+
+### Geometry-Debt Hypothesis — Evidence from Reconstruction Right Panel
+
+Reading the PC1 trajectory panel across variants reveals a two-sided version of the scaffolding story. The positive case (109/485) was already established; the reconstruction view makes the negative case explicit.
+
+**The distinction:** Early class separation is not inherently good. What matters is whether the model separated *toward the right positions*. 109/485 fanned out directly to its eventual ring positions in a single monotonic motion. 101/999 fanned out to somewhere, overcommitted, and then contracted sharply at the grokking-attempt spike — the contraction is the model trying to undo its prior commitment before attempting reorganization. The second expansion is smaller and doesn't produce a clean ring: the model carried the cost of the bad first geometry through the rest of training.
+
+**Two-sided scaffolding:**
+- Correct early geometry → scaffolding accelerates grokking, smooth residual transition, monotonic PC1 fan-out
+- Wrong early geometry → scaffolding becomes debt; contraction event required to revise the commitment; grokking delayed or degraded
+
+**Contraction magnitude as a debt proxy:** The size of the contraction reflects how wrong the prior commitment was. 101/999 = large contraction, failed revision, degraded ring. 107/485 = smaller contraction bump, lumpy but more complete ring. 109/485 = no contraction, largest spread, cleanest ring.
+
+**Geometry-debt shows up in multiple metrics — evidence trail:**
+- Circularity / Fourier Alignment: 101/999 finds a circle transiently and weakly before the second search phase
+- DMD residual (log scale): sharp spike at 13k = moment of geometry revision attempt; second bump at 24k = continued search
+- DMD reconstruction right panel: expansion-contraction-partial-reexpansion visible directly as a PC1 trajectory
+- Global PCA: 101/999 has lowest PC1+PC2 compression (~27%) — debt left in the representation
+
+The hypothesis is recurring across lenses. It's not a DMD-specific artifact; DMD is just the view that makes the commitment-and-revision sequence most visually explicit.
+
+---
+
+## Future Requirement: Windowed DMD Eigenvalue Spectrum
+
+**Motivation:** The current `centroid_dmd_eigenvalues` view shows global eigenvalues (DMD fit over the entire training trajectory). The epoch cursor does nothing — eigenvalues don't change because they're a property of the global fit. This is correct behavior but not the most interesting view.
+
+**What we want:** Refit DMD over a sliding window centered on each selected epoch, then plot the eigenvalue spectrum at that moment. This would let you watch the eigenvalue spectrum shift as grokking happens — e.g., seeing whether complex conjugate pairs appear (rotational modes) as the ring forms, or whether real eigenvalues near 1 give way to oscillatory modes post-grokking.
+
+**Why it's interesting:** The global DMD sees only monotonic drift (all-real eigenvalues near (1,0)) because the dominant long-run signal is centroids converging to their ring positions. A windowed fit would capture the *local* dynamics — what the trajectory looks like over a 500–2000 epoch window — which may reveal oscillatory structure around grokking that the global model washes out.
+
+**Scope note:** This is a new analyzer (windowed DMD) + a new view, not a modification to CentroidDMD. The window width is a meaningful hyperparameter (too narrow = noisy, too wide = washes out the transition). Eigenvalue stability as a function of window position is itself a grokking onset signal.
+
+---
+
+## 2026-03-02: Circularity Handoff Hypothesis — Ruled Out
+
+**Hypothesis:** During grokking, Attention Circularity rises above MLP/Resid Circularity (handoff), then falls back below (reclaim). These crossover epochs would mark grokking onset and resolution.
+
+**Test:** Implemented `find_circularity_crossovers()` to detect all crossover events across `mlp_out` and `resid_post` reference sites. Marked events on loss curves across variants.
+
+**Result:** The pattern appeared in a handful of models but did not generalize. Not a reliable grokking signal.
+
+**Code left in place:** `find_circularity_crossovers()` in `miscope.analysis.library.geometry` and `event_epochs` param in `render_loss_curves_with_indicator()` — both are generically useful for future event-annotation work.

@@ -36,6 +36,7 @@ from miscope.analysis.library.geometry import (
     compute_class_radii,
     compute_fisher_discriminant,
     compute_fourier_alignment,
+    find_circularity_crossovers,
 )
 from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.analysis.library.trajectory import (
@@ -76,6 +77,7 @@ __all__ = [
     "compute_circularity",
     "compute_fourier_alignment",
     "compute_fisher_discriminant",
+    "find_circularity_crossovers",
     # Weight matrix functions
     "extract_parameter_snapshot",
     "compute_weight_singular_values",

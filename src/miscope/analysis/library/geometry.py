@@ -16,6 +16,7 @@ Functions:
 - compute_fisher_discriminant: Pairwise Fisher discriminant ratio statistics
 - compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data
 - compute_global_centroid_pca: Single PCA basis computed across all epochs (REQ_050)
+- find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites
 """
 
 import numpy as np
@@ -437,3 +438,51 @@ def _kasa_circle_fit(points: np.ndarray) -> tuple[float, float, float]:
     radius_sq = cx**2 + cy**2 - c
     radius = np.sqrt(max(radius_sq, 0.0))
     return float(cx), float(cy), float(radius)
+
+
+def find_circularity_crossovers(
+    summary_data: dict,
+    attn_site: str = "attn_out",
+    reference_sites: tuple[str, ...] = ("mlp_out", "resid_post"),
+) -> dict:
+    """Detect all epochs where attention circularity crosses reference site circularity.
+
+    For each reference site, scans the diff timeseries for every sign change.
+    All events are collected and returned sorted by epoch so early-training
+    crossovers are visible alongside later ones.
+
+    Args:
+        summary_data: Cross-epoch summary from load_summary("repr_geometry").
+                      Must contain "epochs" and "{site}_circularity" arrays.
+        attn_site: Attention activation site key. Default: "attn_out".
+        reference_sites: Sites to compare against. Default: ("mlp_out", "resid_post").
+
+    Returns:
+        Dict with keys:
+        - "events": list of {"epoch": int, "direction": "rise"|"fall", "site": str}
+                    all crossover events across all reference sites, sorted by epoch.
+        - "per_site": {site: [{"epoch": int, "direction": "rise"|"fall"}, ...]}
+    """
+    epochs = np.array(summary_data["epochs"])
+    attn_circ = np.array(summary_data[f"{attn_site}_circularity"])
+
+    per_site: dict = {}
+    all_events: list[dict] = []
+    for site in reference_sites:
+        ref_circ = np.array(summary_data[f"{site}_circularity"])
+        diff = attn_circ - ref_circ
+        signs = np.sign(diff)
+
+        site_events: list[dict] = []
+        for i in range(len(signs) - 1):
+            if signs[i] <= 0 and signs[i + 1] > 0:
+                site_events.append({"epoch": int(epochs[i + 1]), "direction": "rise"})
+            elif signs[i] >= 0 and signs[i + 1] < 0:
+                site_events.append({"epoch": int(epochs[i + 1]), "direction": "fall"})
+
+        per_site[site] = site_events
+        for evt in site_events:
+            all_events.append({**evt, "site": site})
+
+    all_events.sort(key=lambda e: e["epoch"])
+    return {"events": all_events, "per_site": per_site}

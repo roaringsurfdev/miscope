@@ -11,6 +11,7 @@ def render_loss_curves_with_indicator(
     test_losses: list[float] | None,
     current_epoch: int,
     checkpoint_epochs: list[int] | None = None,
+    event_epochs: list[tuple[int, str, str]] | None = None,
     log_scale: bool = True,
     title: str = "Training Progress",
 ) -> go.Figure:
@@ -21,6 +22,7 @@ def render_loss_curves_with_indicator(
         test_losses: List of test losses per epoch.
         current_epoch: Current epoch for vertical line indicator.
         checkpoint_epochs: Optional list of checkpointed epochs to mark.
+        event_epochs: Optional list of (epoch, label, color) tuples for named event lines.
         log_scale: Whether to use log scale for y-axis.
         title: Chart title.
 
@@ -109,6 +111,20 @@ def render_loss_curves_with_indicator(
                     ),
                 )
             )
+
+    # Named event lines (e.g., circularity crossover epochs)
+    if event_epochs:
+        for epoch, label, color in event_epochs:
+            if 0 <= epoch < len(train_losses or []):
+                fig.add_vline(
+                    x=epoch,
+                    line_dash="dash",
+                    line_color=color,
+                    line_width=1.5,
+                    annotation_text=label,
+                    annotation_position="top left",
+                    annotation_font_color=color,
+                )
 
     fig.update_layout(
         title=title,
