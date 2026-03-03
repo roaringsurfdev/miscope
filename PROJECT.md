@@ -1,162 +1,136 @@
-# [Project Name]
-Training Dynamics Workbench
+# MIScope (Training Dynamics Workbench)
 
-## Summary
-The workbench exists to answer: **"How does behavior X change across training?"**
+## Mission
 
-For that question to be meaningful, analysis must hold constant:
-- The trained model instance (Model Variant)
-- The probe dataset
+**A dynamics analysis platform that standardizes and hones lenses on models as they learn.**
 
-The **only independent variable** is the checkpoint (training moment).
+This is a platform for mechanistic interpretability research, not a model optimization tool. It asks: *how did learning happen?* — not: *did the model learn the task?*
 
-This invariant is what the platform enforces. Without it, researcher error could introduce confounding variables—different probes, accidental model variations—making visualizations misleading. The workbench systematizes this so visualizations are scientifically meaningful.
+Train/test loss is a starting point for investigation. The platform provides the instruments to go deeper.
 
-## Purpose
-The primary purpose of this project is to systematize the training, analysis, and visualization of models over the course of their training.
+## Scientific Strategy
 
-Unlike typical ML training platforms, this platform is focused on studying *how* models learn a task, not on *optimizing* a model for a given task.
+Modulo addition is the **calibration model** — small, well-understood, with known structure (Fourier representations, clear grokking dynamics). It is the model against which analytical instruments are validated. When PCA reveals the expected parameter trajectory and Fourier analysis shows the expected frequency specialization, the instruments are confirmed.
 
-For any given model, this platform is designed to allow a mechanistic researcher to define a Model Family, train Variants of that family, define Probes, and to consistently apply a given Probe across custom-defined Training Checkpoints for single Model Variant.
+When the next family is introduced, the question shifts to: *what's the same, and what's different?* That comparative question is only scientifically valid if the measurement protocol is identical across families. The platform enforces this.
 
-By applying a single Probe across Variant Training Checkpoints systematically, a researcher will be able to reliable study emergence across training knowing that the only independent variable is the Training Checkpoint.
+The platform **accumulates analytical capability over time.** When a lens reveals something meaningful (e.g., the PC2/PC3 trajectory loop as a signature of grokking), it is refined and added to the catalog. When the next family is introduced, the full catalog is immediately available. If a pattern reappears: universal signature. If it doesn't: the difference is the finding.
 
-The secondary purpose, but still central to the purpose of the project, is to create a streamlined and parallelizable analysis engine that allows a researcher to define analysis data they want to capture over training and to define visualizations that are most meaningful for a given Model Family. This allows a researcher to focus on exploring visualizations for signs of emergent behavior.
+## Core Invariants
 
-The analysis engine should be available through a notebook for exploratory visualization design.
+**Scientific invariant:** For any analysis run, the only independent variable is the training checkpoint. The model variant and probe dataset are held constant. Confounds introduced by researcher error — different probes, accidental model variation — make visualizations misleading. The workbench systematizes this so comparisons are meaningful.
 
-The workbench provides a web-based dashboard interface for exploring visualizations across training. The researcher should be able to choose a given Model Family, a subset of analyses and visualizations, and compile data results using a Variant across its Training Checkpoints.
-This platform should allow the researcher to spend more time doing analysis and designing visualizations and to minimize time spend training models and generating analysis data.
+**Architectural invariant:** Analytical views are universal instruments. A lens that reveals structure in one transformer applies to any transformer. The instrument does not change shape because of the model family. Families are context providers — they contribute probe construction, interpretive context (e.g., a prime-based Fourier basis for modulo addition), and task-specific performance metrics. They do not own analytical views.
+
+## What This Platform Is Not
+
+- Not a model optimization tool — no hyperparameter search, no benchmark tracking
+- Not a "what did the model learn?" tool — final performance is a starting point, not the answer
+- Not modulo-addition-specific — that is where we *start* calibrating instruments, not where we stop
 
 ## Goals
-I am able to able analyze mechanistic behaviors that emerge during training.
+
+A mechanistic researcher can:
+- Train variants of a model family and save checkpoints at configurable intervals
+- Run a standardized analysis pipeline across all checkpoints for any configured set of analyzers
+- Explore any analytical view across training via the web dashboard or a notebook
+- Compare the same view across multiple variants of the same family
+- Apply the full view catalog to a new family without implementing new views
 
 ## Scope
+
 **In scope:**
-- This is a project meant to streamline analysis of training dynamics.
-- This is meant to provide a workbench for analyzing visualizations of emergent model behaviors in one location. - The goal is to be able to kick off a training run, configure visualizations that might be useful, process snapshots to generate visualizations, and view the final visualizations in one location. 
-- It would also be nice to be able visually compare differences in behavior with different parameters.
+- Systematic analysis of training dynamics (how behavior emerges over training)
+- Standardized analytical views applicable across model families (the View Catalog)
+- Notebook-based exploration for discovery and visualization design
+- Web dashboard for interactive exploration across training checkpoints
+- Small-to-medium transformer models (TransformerLens compatible)
 
-**Out of scope (for now):**
-- This is not meant to be an application for optimizing model performance. 
-- This is also not a replacement for Neuropedia.
-- This should be limited to smaller toy model analysis (at first)
-- No use of cloud infrastructure. All models will be trained locally. This could change.
-
-## Domain Context
-
-### Key Concepts & Terminology
-
-**Model Family:** A declared grouping of models that share architecture, valid analyzers, and visualizations. Examples: "Modulo Addition 1-Layer", "Indirect Object Identification". Families are defined by `family.json` files in `model_families/`. The family is responsible for creating models and definining analysis and visualization sets that are useful across variants. Families are explicitly registered because what constitutes "structurally similar" is learned over time by the researcher. The Model Family defines the training datasets and the Probe datasets. Training and Probe datasets should be able to accomodate variations in domain parameters that generate Variants. By making the model responsible for training and probe data, this ensures that data generation remains constant across variants, which makes it easier to attribute differences in emergent behavior to changes in parameters as opposed to errors or discrepancies in data generation.
-
-**Model Variant:** A specific trained model within a family. Variants share architecture and analysis logic but differ in domain parameters. In the "Modulo Addition 1-Layer" example, a Model Variant would be a model trainined on a different Modulus or Seed value without changing any of the model architecture. Model Variants are meant to allow researchers to explore how small changes to task definitions and seed values affect training dynamics. Each variant contains its own checkpoints and analysis artifacts directories. Each variant contains its own list of Probe datasets.
-
-**Probe:** The input data used by a Model Family during analysis forward passes. For small toy models, this might be one canonical dataset (e.g., full (a, b) grid for Modulo Addition). For larger models, a Model Family may contain many smaller probes that exercise behaviors of interest. Probe design is part of the research for larger models.
-
-**Checkpoint:** A snapshot of model weights at a specific training epoch. The workbench saves checkpoints at configurable intervals to enable analysis of how behaviors emerge over training.
-
-**Analyzer:**
-A module responsible for generating analysis data given a Model Variant Checkpoint and its activation cache. Computes a single analysis function and returns numpy arrays as analysis artifacts. It's possible to re-use Analyzers across multiple Model Families.
-
-**Analysis Run:** 
-The workbench focuses on analysis runs instead of training runs. The goal is to optimize the ability to analyze models across training checkpoints instead of optimizing models themselves. Analysis Runs orchestrate the creation of analysis dataset artifacts. The Analysis Run is reponsible for loading checkpoints of a Model Variant, executing forward passes through each checkpoint, passing the output of the forward pass and activation cache to each Analyzer defined in the run. (Note: within the codebase, the Analysis Run is called AnalysisPipeline. I'm intentionally keeping this discrepancy for now.)
-
-**Analysis Report:**
-A web-based report made up of visualization components. A single Analysis Report and its Visualization components can be used by any Variant within a Model Family. The data rendered by the visualizers is generated from Analyzers generating Analysis artifacts on a Model Variant's training checkpoints.
-
-## High-Level Architecture
-Training Runner: 
-- Responsible for executing training runs
-- Models limited to what is supported by TransformerLens
-- Ideally, model configuration files + training data modules should be configurable. Training data modules may need to be code modules for generating synthetic data
-- Responsible for creating model checkpoints
-- Initially, model checkpoints will be accessible to the runner as an array of important checkpoints. Going forward, it may be possible to create checkpoints programmatically based on deterministic model training behavior. (EX: change in TEST LOSS curve might kick off higher checkpoint rate)
-
-Analysis Engine:
-- Responsible for loading checkpoints, executing forward passes with probes, and generating analysis artifacts
-- Enforces the scientific invariant: same Variant + same Probe across all checkpoints
-- Receives work via AnalysisPipelineConfig (which analyzers, which checkpoints)
-- Artifacts are keyed by (Variant, Analyzer, Checkpoint) for incremental computation
-- Future: gap-filling pattern to compute only missing (analyzer, checkpoint) combinations
-
-Workbench:
-- This is the primary user interface
-- Surfaces ability to kick off asynchronous training runs
-- Surfaces ability to kick off asynchronous training run analysis via Analysis Engine
-- Provides configurable dashboard to view analysis visualizations
-
-## MVP (Completed)
-
-MVP was released with v0.1.0. The initial release delivered:
-- End-to-end training and analysis of Modulo Addition 1-Layer model
-- Three core visualizations (Dominant Frequencies, Neuron Activations, Frequency Clusters)
-- Gradio dashboard with basic Training and Analysis tabs
-- Parameterization by modulus (p) and seed
-
-See `requirements/archive/` for detailed MVP requirements.
-
-## Current Status
-
-**v0.2.0 — First Foundational Release**
-
-This release takes the project from prototype to a foundational architecture. The MVP proved viability; v0.2.0 establishes the abstractions and infrastructure for sustained research.
-
-**Completed (v0.2.0):**
-- Model Family abstraction (REQ_021a): ModelFamily protocol, Variant class, FamilyRegistry
-- Analysis library architecture (REQ_021b): library/ + analyzers/ separation
-- Modulo Addition 1-Layer family implementation (REQ_021c)
-- Dashboard integration with family-aware Analysis tab (REQ_021d)
-- Training integration with family selection (REQ_021e)
-- Per-epoch artifact storage (REQ_021f): eliminates memory exhaustion, enables on-demand loading
-- End-to-end workflow: Family selection, variant training, analysis, visualization
-- Five trained variants across different primes (p=97, 101, 103, 109, 113)
-
-**Completed (v0.1.x — MVP):**
-- First pass at end-to-end process: Training -> Analysis -> Visualizations
-- Three core visualizations (Dominant Frequencies, Neuron Activations, Frequency Clusters)
-- Interactive slider for navigating visualizations in sync with loss curves
-- Gradio dashboard with Training and Analysis tabs
-- Project structure and collaboration framework
-
-**Next Up:**
-- Notebook-based exploratory visualization design
-- Gap-filling pattern for incremental analysis
-- Analysis Report concept (web-based visualization reports per family)
-
-## Dependencies & Constraints
-
-**Technology Stack:**
-- Python 3.13
-- PyTorch with CUDA support
-- TransformerLens (latest stable version)
-- Plotly for visualizations
-- Gradio for dashboard UI (ML-focused, suitable for interpretability work)
-- pytest for testing
-- safetensors for model checkpoint persistence
-- JAX/Flax (optional, for data generation and analysis computations)
-
-**Checkpoint Strategy:**
-- Configurable as integer list of epoch checkpoints
-- Allows fine-tuning checkpoint density around grokking phase
-- Format: safetensors for model weights, separate metadata for training metrics
-
-**Storage:**
-- Local filesystem only for MVP
-- 1TB available after WSL instance migration
-- Future: Potential AWS deployment
-
-**Training:**
-- Small toy models (Modulo Addition, p=113)
-- Local execution, training time not a concern for MVP
-- Model specs match Neel Nanda's Grokking Experiment
-
-**Logging:**
-- Custom logging for MVP (no external integrations like W&B, MLflow)
-
-
-## Open Questions
-- Optimal visualization presentation for neuron frequency clusters (remove/minimize legend)
-- Async architecture patterns for training and analysis
+**Out of scope:**
+- Model performance optimization
+- Cloud infrastructure (local execution only, for now)
+- Non-transformer architectures (for now)
 
 ---
-**Last Updated:** 2026-02-06
+
+## Domain Concepts
+
+**Model Family:** A declared grouping of models sharing architecture and training protocol. The family contributes: probe construction logic, interpretive context (e.g., Fourier basis for modulo addition), task-specific performance metrics, and training configuration. The family does *not* own analytical views — those belong to the View Catalog and are universal. Families are explicitly registered because what constitutes "structurally similar" is learned over time by the researcher.
+
+**Model Variant:** A specific trained model within a family, differing in domain parameters (e.g., modulus, seed). Variants share architecture and analysis logic. Each variant has its own checkpoints and analysis artifacts. Variants are the unit of comparison.
+
+**Probe:** The input data used during analysis forward passes. For small toy models, one canonical dataset (e.g., the full (a, b) grid for modulo addition). For larger models, targeted probes that exercise specific behaviors. Probe design is part of the research for larger models.
+
+**Checkpoint:** A snapshot of model weights at a specific training epoch. Saved at configurable intervals to enable analysis of how behaviors emerge over training.
+
+**Analyzer:** A module that generates analysis artifacts from a model checkpoint and activation cache. Analyzers are generally applicable across families — they compute a single function and store numpy arrays as per-epoch `.npz` files. Some analyzers may require family-specific context (e.g., a Fourier basis), but the analyzer itself is not family-owned.
+
+**Analysis Run (AnalysisPipeline in code):** Orchestrates artifact generation across checkpoints. Loads each checkpoint, runs a forward pass with the probe, and passes output to each configured analyzer.
+
+**View Catalog:** The registry of named analytical views. Each view definition declares: its name, which analyzer artifact it requires, how to load that artifact, and which renderer to call. Views are available to all variants of any family. Families may contribute task-specific views (e.g., accuracy against ground truth), but the analytical catalog is universal. The catalog grows as new lenses are discovered and validated.
+
+---
+
+## Architecture
+
+```
+                         View Catalog
+                 (universal + task-specific views)
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+          Notebook        Dashboard        Export
+          (explore)       (navigate)   (static/gif)
+              │               │               │
+              └───────────────┼───────────────┘
+                              │
+                       miscope.views
+               (Separated Presentation layer)
+                              │
+              ┌───────────────┼───────────────┐
+              │                               │
+       ArtifactLoader                    Renderers
+     (data loading)               (plotly figures)
+              │
+      Analysis Pipeline
+   (analyzers → per-epoch .npz)
+              │
+       Model Families
+  (probe, context, training config)
+              │
+         Checkpoints
+     (safetensors files)
+```
+
+**Key separation:** `miscope.views` is the connective tissue between data loading and rendering. Neither the dashboard nor notebooks implement their own data→renderer wiring. The dashboard, notebooks, and export utilities all consume the View Catalog. Adding a new analytical view means adding it once to the catalog; all consumers get it immediately.
+
+The interface:
+```python
+variant.view("parameter_trajectory").show()     # inline in notebook
+variant.view("parameter_trajectory").export("png")  # static file
+variant.view("parameter_trajectory").figure()   # raw Plotly fig for dashboard
+```
+
+---
+
+## Technology Stack
+
+- Python 3.13, PyTorch with CUDA support
+- TransformerLens (transformer model support)
+- Plotly (visualizations)
+- Dash (web dashboard)
+- pytest (testing)
+- safetensors (checkpoint persistence)
+- uv (package management)
+
+## Open Questions
+
+- Async architecture for training and analysis jobs (forcing function: multi-probe support or long-running jobs)
+- SQLite for job state management when async jobs arrive
+- Probe design methodology for larger models
+- Optimization strategy for expensive analyses (representation-space PCA) as model size grows
+
+---
+
+**Last Updated:** 2026-02-21
+*(For version history and recent changes, see [CHANGELOG.md](CHANGELOG.md))*

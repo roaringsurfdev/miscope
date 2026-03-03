@@ -13,7 +13,7 @@ from plotly.subplots import make_subplots
 def render_neuron_heatmap(
     epoch_data: dict[str, np.ndarray],
     epoch: int,
-    neuron_idx: int,
+    neuron_idx: int = 0,
     title: str | None = None,
     colorscale: str = "RdBu",
 ) -> go.Figure:

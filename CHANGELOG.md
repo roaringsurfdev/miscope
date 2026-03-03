@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-03-03
+
+### Added
+
+- **View Catalog — Universal Presentation Layer** (REQ_047)
+  - `miscope/views/` module: `catalog.py` (registry) + `universal.py` (all registered views)
+  - Primary interface: `variant.at(epoch)` → `EpochContext` → `.view(name)` → `BoundView`
+  - `BoundView`: `.show()` (notebook inline), `.figure()` (raw Plotly), `.export(format, path)` (file)
+  - All views are universal instruments — families are context providers, not view owners
+  - Canonical export path derivation on `BoundView`; animation kwargs bug fixed
+
+- **Dashboard Navigation UX** (REQ_046)
+  - Encapsulated `variant_selector` component with embedded store
+  - `AnalysisPageGraphManager`: shared page logic driving `_VIEW_LIST` dispatch, prevents functionality drift
+  - Pattern IDs (`{'view_type': ..., 'index': graph_id}`) enable ALL-pattern callbacks for click-to-navigate
+  - Store-centric: all state flows through `variant-selector-store`; cross-page coordination via store
+  - Removed unused pages and components; consolidated dashboard from `dashboard_v2` → `dashboard`
+
+- **Summary Lens** (REQ_041)
+  - New `/summary` page: dense grid of 12 cross-epoch visualizations answering "what's the shape of this model's training story?"
+  - Loss curve, embedding Fourier, neuron specialization, attention specialization, PCA trajectories, component velocity, effective dimensionality
+  - Temporal cursor: epoch slider synchronizes vertical indicator line across all time-axis plots without reloading data
+
+- **Neuron Dynamics Page** (REQ_042)
+  - New `/neuron-dynamics` page with `neuron_freq_trajectory` heatmap: neuron × epoch colored by dominant frequency
+  - Natural order / sorted-by-final-frequency toggle reveals cluster structure
+  - Switch count distribution and commitment timeline visualizations
+  - Extended `neuron_freq_norm` summary: `switch_count` and `commitment_epoch` fields per neuron
+
+- **Secondary Analysis Tier** (REQ_048)
+  - Pipeline extension: secondary analyzers run after per-epoch analysis, consuming existing artifacts
+  - `NeuronDynamicsAnalyzer`: computes switch counts and commitment epochs from `neuron_freq_norm` artifacts without re-running the primary pipeline
+
+- **Neuron Fourier Decomposition** (REQ_049)
+  - New `NeuronFourierAnalyzer`: per-neuron Fourier decomposition of MLP weights following He et al. (2026)
+  - Proof-of-concept notebook: `notebooks/neuron_fourier_poc.py` with margin vs. switching analysis
+
+- **Representational Geometry** (REQ_044)
+  - New `RepresentationalGeometryAnalyzer`: first activation-space analysis in the platform
+  - Per-epoch class centroid geometry (PCA, Fisher discriminant, centroid distances) at four sites: embedding, post-attention, MLP output, residual stream
+  - New `/repr-geometry` dashboard page
+
+- **Fisher Minimum Pair Analysis** (REQ_045)
+  - Fisher heatmap view: per-epoch Fisher discriminant across class pairs
+  - Extends representational geometry with targeted pairwise separability analysis
+
+- **Global Centroid PCA** (REQ_050)
+  - New `GlobalCentroidPCAAnalyzer`: PCA fit jointly across all training epochs — stable coordinate frame for centroid trajectory analysis
+  - New `/dimensionality` page: parameter + centroid PCA, trajectory, SV spectrum, and variance timeseries views
+
+- **Centroid DMD** (REQ_051)
+  - New `CentroidDMDAnalyzer`: Dynamic Mode Decomposition of class centroid trajectories
+  - Decomposes evolution of representational geometry into dynamic modes
+  - New `/centroid-dmd` dashboard page with log-scale amplitude support
+
+### Architecture
+
+```
+src/miscope/
+  views/
+    catalog.py                    # ViewDefinition protocol, ViewCatalog registry
+    universal.py                  # All registered universal views
+  analysis/
+    pipeline.py                   # + secondary analysis tier
+    analyzers/
+      repr_geometry.py            # RepresentationalGeometryAnalyzer
+      neuron_dynamics.py          # NeuronDynamicsAnalyzer (secondary tier)
+      neuron_fourier.py           # NeuronFourierAnalyzer
+      global_centroid_pca.py      # GlobalCentroidPCAAnalyzer
+      centroid_dmd.py             # CentroidDMDAnalyzer
+dashboard/                        # Consolidated (dashboard_v2 retired)
+  components/
+    analysis_page.py              # AnalysisPageGraphManager (shared logic)
+    variant_selector.py           # Encapsulated variant selector + store
+  pages/
+    summary.py                    # Summary Lens (/summary)
+    neuron_dynamics.py            # Neuron Dynamics (/neuron-dynamics)
+    repr_geometry.py              # Representational Geometry (/repr-geometry)
+    dimensionality.py             # Dimensionality (/dimensionality)
+    centroid_dmd.py               # Centroid DMD (/centroid-dmd)
+```
+
+### References
+
+- Archived requirements: `requirements/archive/v0.7.0-view-catalog-and-ux/`
+- Milestone summary: `requirements/archive/v0.7.0-view-catalog-and-ux/MILESTONE_SUMMARY.md`
+- Deferred: REQ_043 (Fourier Profile Expansion — W_U multi-matrix) → `requirements/future/`
+
 ## [0.6.0] - 2026-02-15
 
 ### Added

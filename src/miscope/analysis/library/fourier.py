@@ -8,6 +8,7 @@ modular arithmetic (period p), not standard FFT. This is appropriate
 for analyzing models that learn modular structure.
 """
 
+import numpy as np
 import torch
 
 
@@ -178,3 +179,48 @@ def compute_neuron_coarseness(
     """
     k = min(n_low_freqs, freq_fractions.shape[0])
     return freq_fractions[:k].sum(dim=0)
+
+
+def extract_frequency_pairs(
+    fourier_coeffs: np.ndarray,
+    prime: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract per-frequency-pair magnitudes and phases from Fourier coefficients.
+
+    Interprets a projected coefficient array (produced using the normalized basis
+    from get_fourier_basis()) and returns per-frequency-pair magnitudes and phases
+    for all K = (prime-1)//2 non-DC frequency pairs.
+
+    Basis index convention (matches get_fourier_basis()):
+        Index 0:     Constant (DC) — excluded from output
+        Index 2k-1:  sin(k) component for k = 1, ..., K
+        Index 2k:    cos(k) component for k = 1, ..., K
+
+    Phase convention (He et al. 2026, §5.1):
+        φ_k = atan2(-sin_coeff, cos_coeff)
+
+    Args:
+        fourier_coeffs: Array of shape (prime, M) where M is the number of
+            weight vectors. Column j contains the prime Fourier coefficients
+            for weight vector j. Rows correspond to the normalized basis components.
+        prime: The prime p (determines K = (p-1)//2 frequency pairs).
+
+    Returns:
+        Tuple (magnitudes, phases):
+            magnitudes: shape (M, K) — per (weight vector, frequency) magnitude.
+                        magnitudes[m, k] = ||(sin_k_coeff, cos_k_coeff)||_2
+            phases:     shape (M, K) — per (weight vector, frequency) phase in (-π, π].
+                        phases[m, k] = atan2(-sin_k_coeff, cos_k_coeff)
+    """
+    k_count = (prime - 1) // 2
+
+    sin_idx = np.array([2 * k - 1 for k in range(1, k_count + 1)])
+    cos_idx = np.array([2 * k for k in range(1, k_count + 1)])
+
+    sin_coeffs = fourier_coeffs[sin_idx, :]  # (K, M)
+    cos_coeffs = fourier_coeffs[cos_idx, :]  # (K, M)
+
+    magnitudes = np.sqrt(sin_coeffs**2 + cos_coeffs**2).T  # (M, K)
+    phases = np.arctan2(-sin_coeffs, cos_coeffs).T  # (M, K)
+
+    return magnitudes, phases

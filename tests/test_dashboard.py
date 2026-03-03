@@ -8,13 +8,8 @@ from pathlib import Path
 import plotly.graph_objects as go
 import pytest
 
-from dashboard_v2.components.loss_curves import render_loss_curves_with_indicator
-from dashboard_v2.utils import (
-    discover_trained_models,
-    get_model_choices,
-    parse_checkpoint_epochs,
-    validate_training_params,
-)
+from dashboard.utils import parse_checkpoint_epochs
+from miscope.visualization.renderers.loss_curves import render_loss_curves_with_indicator
 
 
 class TestLossCurvesRenderer:
@@ -66,52 +61,6 @@ class TestLossCurvesRenderer:
         assert fig.layout.yaxis.type == "linear"
 
 
-class TestModelDiscovery:
-    """Tests for model discovery utilities."""
-
-    @pytest.fixture
-    def mock_results_dir(self):
-        """Create a mock results directory structure."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Create model directory structure
-            model_dir = Path(tmpdir) / "modulo_addition" / "modulo_addition_p17_seed42"
-            model_dir.mkdir(parents=True)
-
-            # Create config.json
-            config = {"prime": 17, "model_seed": 42, "n_ctx": 3}
-            with open(model_dir / "config.json", "w") as f:
-                json.dump(config, f)
-
-            # Create metadata.json
-            metadata = {"train_losses": [1.0, 0.5], "test_losses": [1.2, 0.6]}
-            with open(model_dir / "metadata.json", "w") as f:
-                json.dump(metadata, f)
-
-            yield tmpdir
-
-    def test_discover_models(self, mock_results_dir):
-        """Discovers models in directory."""
-        models = discover_trained_models(mock_results_dir)
-
-        assert len(models) == 1
-        assert models[0]["config"]["prime"] == 17
-        assert "p=17" in models[0]["display_name"]
-
-    def test_discover_empty_directory(self):
-        """Returns empty list for non-existent directory."""
-        models = discover_trained_models("/nonexistent/path")
-        assert models == []
-
-    def test_get_model_choices(self, mock_results_dir):
-        """Converts models to dropdown choices."""
-        models = discover_trained_models(mock_results_dir)
-        choices = get_model_choices(models)
-
-        assert len(choices) == 1
-        assert isinstance(choices[0], tuple)
-        assert len(choices[0]) == 2  # (display_name, path)
-
-
 class TestParseCheckpointEpochs:
     """Tests for checkpoint epoch parsing."""
 
@@ -136,83 +85,19 @@ class TestParseCheckpointEpochs:
             parse_checkpoint_epochs("0, abc, 100")
 
 
-class TestValidateTrainingParams:
-    """Tests for training parameter validation."""
-
-    def test_valid_params(self):
-        """Accepts valid parameters."""
-        is_valid, msg = validate_training_params(
-            modulus=17,
-            model_seed=42,
-            data_seed=598,
-            train_fraction=0.3,
-            num_epochs=100,
-            checkpoint_str="0, 50, 99",
-            save_path="results/",
-        )
-
-        assert is_valid
-        assert msg == ""
-
-    def test_invalid_modulus(self):
-        """Rejects modulus < 2."""
-        is_valid, msg = validate_training_params(
-            modulus=1,
-            model_seed=42,
-            data_seed=598,
-            train_fraction=0.3,
-            num_epochs=100,
-            checkpoint_str="0, 50",
-            save_path="results/",
-        )
-
-        assert not is_valid
-        assert "Modulus" in msg
-
-    def test_invalid_train_fraction(self):
-        """Rejects train_fraction outside (0, 1)."""
-        is_valid, msg = validate_training_params(
-            modulus=17,
-            model_seed=42,
-            data_seed=598,
-            train_fraction=1.5,
-            num_epochs=100,
-            checkpoint_str="0, 50",
-            save_path="results/",
-        )
-
-        assert not is_valid
-        assert "fraction" in msg.lower()
-
-    def test_checkpoint_exceeds_epochs(self):
-        """Rejects checkpoint >= num_epochs."""
-        is_valid, msg = validate_training_params(
-            modulus=17,
-            model_seed=42,
-            data_seed=598,
-            train_fraction=0.3,
-            num_epochs=100,
-            checkpoint_str="0, 50, 100",  # 100 >= 100
-            save_path="results/",
-        )
-
-        assert not is_valid
-        assert "100" in msg
-
-
 class TestVersioning:
     """Tests for REQ_010: Application Versioning."""
 
     def test_version_importable_from_version_module(self):
-        """Can import __version__ from dashboard_v2.version."""
-        from dashboard_v2.version import __version__
+        """Can import __version__ from dashboard.version."""
+        from dashboard.version import __version__
 
         assert __version__ is not None
         assert isinstance(__version__, str)
 
     def test_version_format_semantic(self):
         """Version follows MAJOR.MINOR.BUILD format."""
-        from dashboard_v2.version import __version__
+        from dashboard.version import __version__
 
         parts = __version__.split(".")
         assert len(parts) == 3, f"Version should have 3 parts: {__version__}"
@@ -223,7 +108,7 @@ class TestVersioning:
 
     def test_version_is_mvp(self):
         """Version starts with 0.x.x for MVP phase."""
-        from dashboard_v2.version import __version__
+        from dashboard.version import __version__
 
         assert __version__.startswith("0."), f"MVP version should start with 0.x: {__version__}"
 
@@ -283,7 +168,7 @@ class TestFamilySelectorComponent:
 
     def test_get_family_choices(self, mock_family_dir):
         """get_family_choices returns list of (display_name, name) tuples."""
-        from dashboard_v2.components.family_selector import get_family_choices
+        from dashboard.components.variant_selector import get_family_choices
         from miscope.families import FamilyRegistry
 
         registry = FamilyRegistry(
@@ -298,7 +183,7 @@ class TestFamilySelectorComponent:
 
     def test_get_variant_choices(self, mock_family_dir):
         """get_variant_choices returns list of variant choices."""
-        from dashboard_v2.components.family_selector import get_variant_choices
+        from dashboard.components.variant_selector import get_variant_choices
         from miscope.families import FamilyRegistry
 
         registry = FamilyRegistry(
@@ -317,7 +202,7 @@ class TestFamilySelectorComponent:
 
     def test_get_variant_choices_empty_family(self, mock_family_dir):
         """get_variant_choices returns empty list for unknown family."""
-        from dashboard_v2.components.family_selector import get_variant_choices
+        from dashboard.components.variant_selector import get_variant_choices
         from miscope.families import FamilyRegistry
 
         registry = FamilyRegistry(
@@ -331,7 +216,7 @@ class TestFamilySelectorComponent:
 
     def test_get_state_indicator(self, mock_family_dir):
         """get_state_indicator returns correct symbols for states."""
-        from dashboard_v2.components.family_selector import get_state_indicator
+        from dashboard.components.variant_selector import get_state_indicator
         from miscope.families import FamilyRegistry
 
         registry = FamilyRegistry(
@@ -348,7 +233,7 @@ class TestFamilySelectorComponent:
 
     def test_format_variant_params(self, mock_family_dir):
         """format_variant_params creates readable parameter string."""
-        from dashboard_v2.components.family_selector import format_variant_params
+        from dashboard.components.variant_selector import format_variant_params
         from miscope.families import FamilyRegistry
 
         registry = FamilyRegistry(
@@ -362,19 +247,3 @@ class TestFamilySelectorComponent:
         params_str = format_variant_params(variant)
         assert "prime=17" in params_str
         assert "seed=42" in params_str
-
-    def test_get_available_actions(self, mock_family_dir):
-        """get_available_actions returns actions for variant state."""
-        from dashboard_v2.components.family_selector import get_available_actions
-        from miscope.families import FamilyRegistry
-
-        registry = FamilyRegistry(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
-
-        variants = registry.get_variants("test_family")
-        variant = variants[0]
-
-        actions = get_available_actions(variant)
-        assert "Analyze" in actions

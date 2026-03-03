@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
     from miscope.analysis.artifact_loader import ArtifactLoader
     from miscope.families.protocols import ModelFamily
+    from miscope.views.catalog import BoundView, EpochContext
 
 
 @dataclass
@@ -301,6 +302,41 @@ class Variant:
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
         return self._family.prepare_analysis_context(self._params, device=device)
+
+    def at(self, epoch: int | None) -> EpochContext:
+        """Pin a training moment and return an EpochContext for view access.
+
+        The returned context fixes the epoch for all views dispatched through
+        it, enforcing a shared cursor across lenses.
+
+        Args:
+            epoch: Training epoch to pin. None defers resolution per-view
+                (per-epoch views resolve to first available; cross-epoch
+                views receive None as a "no cursor" signal).
+
+        Returns:
+            EpochContext bound to this variant and epoch.
+        """
+        from miscope.views.catalog import EpochContext
+
+        return EpochContext(variant=self, epoch=epoch)
+
+    def view(self, name: str) -> BoundView:
+        """Convenience shortcut for variant.at(epoch=None).view(name).
+
+        For per-epoch views, resolves to the first available artifact epoch.
+        For cross-epoch and metadata-based views, epoch is None (no cursor).
+
+        Args:
+            name: View identifier (e.g., "loss_curve", "dominant_frequencies").
+
+        Returns:
+            BoundView ready to call .show(), .figure(), or .export().
+
+        Raises:
+            KeyError: If view name is not found in the catalog.
+        """
+        return self.at(epoch=None).view(name)
 
     # --- End notebook convenience properties ---
 

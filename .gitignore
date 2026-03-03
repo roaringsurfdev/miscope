@@ -219,5 +219,7 @@ __marimo__/
 /results
 *.pth
 /temp_artifacts
-
+/notebooks/animations
+/notebooks/exports
+/articles
 

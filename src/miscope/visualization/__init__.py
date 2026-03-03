@@ -33,6 +33,11 @@ from miscope.visualization.renderers.coarseness import (
     render_coarseness_distribution,
     render_coarseness_trajectory,
 )
+from miscope.visualization.renderers.dmd import (
+    render_dmd_eigenvalues,
+    render_dmd_reconstruction,
+    render_dmd_residual,
+)
 from miscope.visualization.renderers.dominant_frequencies import (
     get_dominant_indices,
     get_fourier_basis_names,
@@ -54,6 +59,10 @@ from miscope.visualization.renderers.neuron_activations import (
     render_neuron_grid,
     render_neuron_heatmap,
 )
+from miscope.visualization.renderers.neuron_fourier import (
+    render_neuron_fourier_heatmap,
+    render_neuron_fourier_heatmap_output,
+)
 from miscope.visualization.renderers.neuron_freq_clusters import (
     get_neuron_specialization,
     get_specialized_neurons,
@@ -71,6 +80,16 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_3d,
     render_trajectory_pc1_pc3,
     render_trajectory_pc2_pc3,
+    render_trajectory_pca_variance,
+)
+from miscope.visualization.renderers.repr_geometry import (
+    render_centroid_distances,
+    render_centroid_global_pca,
+    render_centroid_pca,
+    render_centroid_pca_variance,
+    render_centroid_pca_variance_summary,
+    render_fisher_heatmap,
+    render_geometry_timeseries,
 )
 
 __all__ = [
@@ -123,4 +142,21 @@ __all__ = [
     "render_trajectory_3d",
     "render_trajectory_pc1_pc3",
     "render_trajectory_pc2_pc3",
+    "render_trajectory_pca_variance",
+    # REQ_044/045: Representational geometry
+    "render_geometry_timeseries",
+    "render_centroid_pca",
+    "render_centroid_pca_variance",
+    "render_centroid_pca_variance_summary",
+    "render_centroid_distances",
+    "render_fisher_heatmap",
+    # REQ_050: Global centroid PCA
+    "render_centroid_global_pca",
+    # REQ_051: DMD on centroid trajectories
+    "render_dmd_eigenvalues",
+    "render_dmd_residual",
+    "render_dmd_reconstruction",
+    # REQ_049: Neuron Fourier decomposition
+    "render_neuron_fourier_heatmap",
+    "render_neuron_fourier_heatmap_output",
 ]

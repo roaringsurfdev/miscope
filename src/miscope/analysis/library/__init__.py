@@ -14,6 +14,7 @@ from miscope.analysis.library.activations import (
     compute_grid_size_from_dataset,
     extract_attention_patterns,
     extract_mlp_activations,
+    extract_residual_stream,
     get_embedding_weights,
     reshape_to_grid,
     run_with_cache,
@@ -22,9 +23,20 @@ from miscope.analysis.library.fourier import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
     compute_neuron_coarseness,
+    extract_frequency_pairs,
     get_dominant_frequency_indices,
     get_fourier_basis,
     project_onto_fourier_basis,
+)
+from miscope.analysis.library.geometry import (
+    compute_center_spread,
+    compute_circularity,
+    compute_class_centroids,
+    compute_class_dimensionality,
+    compute_class_radii,
+    compute_fisher_discriminant,
+    compute_fourier_alignment,
+    find_circularity_crossovers,
 )
 from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.analysis.library.trajectory import (
@@ -48,13 +60,24 @@ __all__ = [
     "get_dominant_frequency_indices",
     "compute_frequency_variance_fractions",
     "compute_neuron_coarseness",
+    "extract_frequency_pairs",
     # Activation functions
     "extract_attention_patterns",
     "extract_mlp_activations",
+    "extract_residual_stream",
     "reshape_to_grid",
     "get_embedding_weights",
     "run_with_cache",
     "compute_grid_size_from_dataset",
+    # Geometry functions
+    "compute_class_centroids",
+    "compute_class_radii",
+    "compute_class_dimensionality",
+    "compute_center_spread",
+    "compute_circularity",
+    "compute_fourier_alignment",
+    "compute_fisher_discriminant",
+    "find_circularity_crossovers",
     # Weight matrix functions
     "extract_parameter_snapshot",
     "compute_weight_singular_values",

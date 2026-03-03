@@ -1,5 +1,20 @@
 # Working with Claude: Coding Guidelines & Collaboration Framework
 
+## Project North Star
+
+See [PROJECT.md](PROJECT.md) for the full mission and architectural principles.
+
+**Mission:** A dynamics analysis platform that standardizes and hones lenses on models as they learn. This platform asks *how did learning happen?* — not *did the model learn the task?*
+
+**Two architectural constraints that must hold across all requirements:**
+
+1. **Views are universal instruments.** Analytical lenses (PCA, Fourier, neuron activations, attention patterns, loss curves) apply to any transformer. They do not belong to a model family. The instrument does not change shape because of what it's pointed at.
+2. **Families are context providers, not view owners.** A family contributes probe construction, interpretive context (e.g., a prime-based Fourier basis), and task-specific performance metrics. It does not register or own analytical views.
+
+When a requirement conflicts with these constraints, flag it before implementing.
+
+---
+
 ### Separation of Concerns: The Central Principle
 
 **Why this matters so much:**

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from miscope.config import AppConfig, get_config
 from miscope.loaded_family import LoadedFamily
+from miscope.views import BoundView, EpochContext, ViewCatalog, ViewDefinition, catalog
 
 __all__ = [
     "load_family",
@@ -34,6 +35,12 @@ __all__ = [
     "get_config",
     "AppConfig",
     "LoadedFamily",
+    # REQ_047: View Catalog
+    "BoundView",
+    "EpochContext",
+    "ViewCatalog",
+    "ViewDefinition",
+    "catalog",
 ]
 
 

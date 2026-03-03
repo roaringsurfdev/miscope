@@ -190,3 +190,18 @@ Beyond Modulo Addition, potential models to support:
 2. How do we balance flexibility with simplicity?
 3. Which analyses are truly universal vs model-specific?
 4. Should we support user-contributed models, or curated set only?
+
+**2026-02-21: Architectural reframe — read before workshopping**
+
+The current draft frames multi-model support as: "which analyses cross over vs. which are model-specific," treating model-specific as a large first-class category to be registered and managed per family. Phase 4 reflects this ("Implement analysis registration per model").
+
+This framing is now understood to be backwards. See [PROJECT.md](../../PROJECT.md) for the full architectural invariant. The revised position:
+
+**Analytical views are universal instruments.** The category of truly model-specific analyses is much smaller than the current draft assumes. The real split is:
+
+- **Universal analytical views** — applicable to any transformer: PCA (parameter space, representation space), Fourier analysis on weights, neuron activation patterns, attention patterns, loss curves, parameter velocity, effective dimensionality. These belong to the View Catalog and are available to all families automatically.
+- **Task-specific performance views** — depends on what the model was trying to learn: accuracy against ground truth, per-class error rates, task-specific metrics. These are genuinely family-contributed.
+
+What families contribute is *context*, not *views*: how to construct probes, interpretive metadata (e.g., a prime-based Fourier basis for modulo addition), and task-specific performance metrics.
+
+The practical implication: when a new family is introduced, it gets the full analytical catalog for free. The family does not need to register views. Phase 4 of the current implementation plan should be rewritten accordingly — the question is not "which analyses to register per model" but "what context does this family provide that enriches the universal views."

@@ -1,8 +1,13 @@
-"""REQ_006: Neuron Frequency Cluster Visualization.
+"""REQ_006/REQ_042: Neuron Frequency Cluster Visualization.
 
 Renders neuron-frequency specialization matrix as a heatmap showing
 what fraction of each neuron's activation is explained by each frequency.
+
+REQ_042 adds cross-epoch neuron dynamics renderers: frequency trajectory
+heatmap, switch count distribution, and commitment timeline.
 """
+
+import colorsys
 
 import numpy as np
 import plotly.graph_objects as go
@@ -425,6 +430,217 @@ def render_specialization_by_frequency(
         width=width,
         template="plotly_white",
         margin=dict(l=60, r=80, t=50, b=50),
+    )
+
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# REQ_042: Cross-epoch neuron dynamics renderers
+# ---------------------------------------------------------------------------
+
+
+def _build_freq_colorscale(n_freq: int) -> list[list]:
+    """Build muted HSL hue-rotation colorscale for frequency discrimination."""
+    colorscale = []
+    for i in range(n_freq):
+        hue = i / n_freq
+        r, g, b = colorsys.hls_to_rgb(hue, 0.55, 0.5)
+        colorscale.append([i / (n_freq - 1), f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"])
+    return colorscale
+
+
+def render_neuron_freq_trajectory(
+    cross_epoch_data: dict[str, np.ndarray],
+    prime: int,
+    sorted_by_final: bool = False,
+    title: str | None = None,
+    height: int = 600,
+    width: int = 1100,
+) -> go.Figure:
+    """Render neuron dominant frequency over training as a heatmap.
+
+    Y-axis: neuron index, X-axis: epoch, color: dominant frequency.
+    Uncommitted neurons (below threshold) shown as grey background.
+
+    Args:
+        cross_epoch_data: Dict from NeuronDynamicsAnalyzer cross_epoch.npz
+            containing 'epochs', 'dominant_freq', 'max_frac', 'threshold'.
+        prime: The modulus (for title and threshold fallback).
+        sorted_by_final: If True, reorder neurons by final dominant frequency.
+        title: Custom title.
+        height: Figure height in pixels.
+        width: Figure width in pixels.
+
+    Returns:
+        Plotly Figure with heatmap.
+    """
+    epochs = cross_epoch_data["epochs"]
+    dominant_freq = cross_epoch_data["dominant_freq"]  # (n_epochs, d_mlp)
+    max_frac = cross_epoch_data["max_frac"]  # (n_epochs, d_mlp)
+
+    # Threshold from precomputed data or derive from prime
+    if "threshold" in cross_epoch_data and cross_epoch_data["threshold"].size > 0:
+        threshold = float(cross_epoch_data["threshold"][0])
+    else:
+        n_freq = prime // 2
+        threshold = 3.0 / n_freq
+
+    n_freq = int(np.nanmax(dominant_freq)) + 1
+
+    # Apply sort if requested
+    if sorted_by_final:
+        sort_order = np.lexsort(
+            (
+                -max_frac[-1],
+                dominant_freq[-1],
+            )
+        )
+        dominant_freq = dominant_freq[:, sort_order]
+        max_frac = max_frac[:, sort_order]
+
+    # Mask uncommitted neurons
+    display = dominant_freq.astype(float).copy()
+    display[max_frac < threshold] = np.nan
+
+    # Transpose: (d_mlp, n_epochs) for y=neuron, x=epoch
+    display_t = display.T
+    d_mlp = display_t.shape[0]
+
+    colorscale = _build_freq_colorscale(n_freq)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Heatmap(
+            z=display_t,
+            x=epochs,
+            y=list(range(d_mlp)),
+            colorscale=colorscale,
+            zmin=0,
+            zmax=n_freq - 1,
+            colorbar=dict(
+                title=dict(text="Dominant<br>Freq", side="right"),
+                thickness=15,
+                len=0.9,
+            ),
+            hovertemplate=("Epoch %{x}<br>Neuron %{y}<br>Dominant Freq: %{z:.0f}<extra></extra>"),
+        )
+    )
+
+    sort_label = " (sorted by final freq)" if sorted_by_final else ""
+    if title is None:
+        title = f"Neuron Dominant Frequency Over Training — p={prime}{sort_label}"
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Epoch",
+        yaxis_title="Neuron Index",
+        height=height,
+        width=width,
+        template="plotly_white",
+        margin=dict(l=60, r=80, t=50, b=50),
+        plot_bgcolor="rgb(220,220,220)",
+    )
+
+    return fig
+
+
+def render_switch_count_distribution(
+    cross_epoch_data: dict[str, np.ndarray],
+    prime: int,
+    seed: int | None = None,
+    title: str | None = None,
+    height: int = 350,
+    width: int = 550,
+) -> go.Figure:
+    """Render histogram of frequency switch counts across neurons.
+
+    Args:
+        cross_epoch_data: Dict containing 'switch_counts' array.
+        prime: The modulus (for title).
+        seed: Random seed (for title).
+        title: Custom title.
+        height: Figure height in pixels.
+        width: Figure width in pixels.
+
+    Returns:
+        Plotly Figure with histogram.
+    """
+    switch_counts = cross_epoch_data["switch_counts"]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Histogram(
+            x=switch_counts,
+            nbinsx=max(int(np.max(switch_counts)) + 1, 10),
+            marker_color="steelblue",
+            hovertemplate="Switches: %{x}<br>Count: %{y}<extra></extra>",
+        )
+    )
+
+    if title is None:
+        seed_str = f", seed={seed}" if seed is not None else ""
+        title = f"Frequency Switch Distribution — p={prime}{seed_str}"
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Number of Dominant Frequency Switches",
+        yaxis_title="Neuron Count",
+        template="plotly_white",
+        height=height,
+        width=width,
+        margin=dict(l=60, r=20, t=50, b=50),
+    )
+
+    return fig
+
+
+def render_commitment_timeline(
+    cross_epoch_data: dict[str, np.ndarray],
+    prime: int,
+    seed: int | None = None,
+    title: str | None = None,
+    height: int = 350,
+    width: int = 550,
+) -> go.Figure:
+    """Render histogram of commitment epochs for committed neurons.
+
+    Args:
+        cross_epoch_data: Dict containing 'commitment_epochs' array.
+        prime: The modulus (for title).
+        seed: Random seed (for title).
+        title: Custom title.
+        height: Figure height in pixels.
+        width: Figure width in pixels.
+
+    Returns:
+        Plotly Figure with histogram.
+    """
+    commitment_epochs = cross_epoch_data["commitment_epochs"]
+    committed = commitment_epochs[~np.isnan(commitment_epochs)]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Histogram(
+            x=committed,
+            nbinsx=30,
+            marker_color="seagreen",
+            hovertemplate="Epoch: %{x}<br>Count: %{y}<extra></extra>",
+        )
+    )
+
+    if title is None:
+        seed_str = f", seed={seed}" if seed is not None else ""
+        title = f"Neuron Commitment Timeline — p={prime}{seed_str}"
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Commitment Epoch",
+        yaxis_title="Neuron Count",
+        template="plotly_white",
+        height=height,
+        width=width,
+        margin=dict(l=60, r=20, t=50, b=50),
     )
 
     return fig

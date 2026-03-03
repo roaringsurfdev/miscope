@@ -48,6 +48,27 @@ def extract_attention_patterns(
     return cache["pattern", layer]
 
 
+def extract_residual_stream(
+    cache: ActivationCache,
+    layer: int = 0,
+    position: int = -1,
+    location: str = "resid_post",
+) -> torch.Tensor:
+    """Extract residual stream activations from cache.
+
+    Args:
+        cache: Activation cache from model.run_with_cache()
+        layer: Which transformer layer (default: 0)
+        position: Token position to extract (default: -1)
+        location: One of "resid_pre", "resid_post", "attn_out"
+
+    Returns:
+        Tensor of shape (batch, d_model)
+    """
+    acts = cache[location, layer]  # (batch, seq_len, d_model)
+    return acts[:, position, :]
+
+
 def reshape_to_grid(activations: torch.Tensor, grid_size: int) -> torch.Tensor:
     """Reshape flat batch of activations to 2D grid.
 

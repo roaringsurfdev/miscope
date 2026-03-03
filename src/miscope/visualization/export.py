@@ -35,6 +35,15 @@ from miscope.analysis.artifact_loader import ArtifactLoader
 VALID_FORMATS = {"png", "svg", "pdf", "html"}
 
 
+def _read_prime_from_config(config_path: Path) -> int:
+    """Read the prime modulus from a variant's config.json."""
+    import json
+
+    with open(config_path) as f:
+        config = json.load(f)
+    return int(config["prime"])
+
+
 def export_figure(
     fig: go.Figure,
     output_path: str | Path,
@@ -280,6 +289,12 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "render_component_velocity",
         "cross_epoch_component_velocity",
     ),
+    # REQ_042: Cross-epoch neuron dynamics
+    "neuron_freq_trajectory": (
+        "neuron_dynamics",
+        "render_neuron_freq_trajectory",
+        "cross_epoch_neuron_dynamics",
+    ),
 }
 
 
@@ -405,6 +420,14 @@ def export_variant_visualization(
         fig = render_fn(cross_epoch, epochs_arr, current_epoch, **kwargs)
         filename = visualization
 
+    elif data_pattern in ("cross_epoch_neuron_dynamics", "cross_epoch_neuron_dynamics_sorted"):
+        cross_epoch = loader.load_cross_epoch(analyzer_name)
+        config_path = variant_dir / "config.json"
+        prime = _read_prime_from_config(config_path)
+        sorted_flag = data_pattern.endswith("_sorted")
+        fig = render_fn(cross_epoch, prime, sorted_by_final=sorted_flag, **kwargs)
+        filename = visualization
+
     else:
         raise ValueError(f"Unknown data pattern '{data_pattern}'")
 
@@ -440,3 +463,59 @@ def _save_gif(frames: list[Image.Image], output_path: Path, fps: int) -> None:
         duration=duration_ms,
         loop=0,
     )
+
+
+def export_neuron_animation(
+    variant_dir: str | Path,
+    neuron_idx: int,
+    epochs: list[int] | None = None,
+    output_path: str | Path | None = None,
+    fps: int = 4,
+    width: int = 600,
+    height: int = 500,
+    scale: int = 2,
+) -> Path:
+    """Export animated GIF of a single neuron's activation heatmap across epochs.
+
+    Shows how a neuron's activation pattern evolves during training,
+    useful for understanding whether frequency switches are smooth
+    transitions or abrupt phase changes.
+
+    Args:
+        variant_dir: Path to the variant directory.
+        neuron_idx: Which neuron to animate.
+        epochs: Specific epochs to include. None = all available.
+        output_path: Output file path. None = variant_dir/exports/neuron_{idx}.gif.
+        fps: Frames per second for the GIF.
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        scale: Resolution multiplier.
+
+    Returns:
+        Path to the exported GIF file.
+    """
+    from miscope.visualization.renderers.neuron_activations import render_neuron_heatmap
+
+    variant_dir = Path(variant_dir)
+    artifacts_dir = variant_dir / "artifacts"
+    loader = ArtifactLoader(str(artifacts_dir))
+
+    if epochs is None:
+        epochs = loader.get_epochs("neuron_activations")
+
+    frames: list[Image.Image] = []
+    for epoch in epochs:
+        epoch_data = loader.load_epoch("neuron_activations", epoch)
+        fig = render_neuron_heatmap(epoch_data, epoch, neuron_idx)
+        frames.append(_fig_to_pil(fig, width, height, scale))
+
+    if output_path is None:
+        output_dir = variant_dir / "exports"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"neuron_{neuron_idx:03d}.gif"
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    _save_gif(frames, output_path, fps)
+
+    return output_path
