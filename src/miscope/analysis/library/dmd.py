@@ -50,18 +50,18 @@ def compute_dmd(
             "n_modes":          scalar int64 — number of retained modes
     """
     n_steps, state_dim = trajectory.shape
-    n_pairs = n_steps - 1
+    # n_pairs = n_steps - 1
 
-    X = trajectory[:-1].T   # (state_dim, n_pairs) — "from" snapshots
-    Xp = trajectory[1:].T   # (state_dim, n_pairs) — "to" snapshots
+    X = trajectory[:-1].T  # (state_dim, n_pairs) — "from" snapshots
+    Xp = trajectory[1:].T  # (state_dim, n_pairs) — "to" snapshots
 
     U, s, Vt = np.linalg.svd(X, full_matrices=False)  # U: (d,k), s: (k,), Vt: (k,n)
 
     r = _truncation_rank(s, energy_threshold)
 
-    U_r = U[:, :r]        # (state_dim, r)
-    s_r = s[:r]           # (r,)
-    Vt_r = Vt[:r, :]      # (r, n_pairs)
+    U_r = U[:, :r]  # (state_dim, r)
+    s_r = s[:r]  # (r,)
+    Vt_r = Vt[:r, :]  # (r, n_pairs)
 
     # Reduced DMD operator: Ã = U_r^T X' V_r Σ_r^{-1}
     A_tilde = (U_r.T @ Xp) @ Vt_r.T @ np.diag(1.0 / s_r)  # (r, r)
@@ -82,7 +82,7 @@ def compute_dmd(
         "amplitudes": amplitudes,
         "residual_norms": residual_norms,
         "singular_values": s,
-        "n_modes": np.int64(r),
+        "n_modes": np.array(r, dtype=np.int64),
     }
 
 
@@ -148,12 +148,12 @@ def _compute_residual_norms(
     Phi_pinv = np.linalg.pinv(modes)  # (n_modes, state_dim)
 
     # Project all "from" states into DMD modal coordinates
-    Z = Phi_pinv @ trajectory[:-1].T          # (n_modes, n_pairs)
+    Z = Phi_pinv @ trajectory[:-1].T  # (n_modes, n_pairs)
     # Advance one step by multiplying each mode coordinate by its eigenvalue
-    Z_next = eigenvalues[:, np.newaxis] * Z   # (n_modes, n_pairs)
+    Z_next = eigenvalues[:, np.newaxis] * Z  # (n_modes, n_pairs)
     # Reconstruct predicted "to" states (real part)
-    X_pred = (modes @ Z_next).real             # (state_dim, n_pairs)
+    X_pred = (modes @ Z_next).real  # (state_dim, n_pairs)
 
     # Residual norms along state dimension
-    diff = trajectory[1:].T - X_pred          # (state_dim, n_pairs)
-    return np.linalg.norm(diff, axis=0)        # (n_pairs,)
+    diff = trajectory[1:].T - X_pred  # (state_dim, n_pairs)
+    return np.linalg.norm(diff, axis=0)  # (n_pairs,)

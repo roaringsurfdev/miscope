@@ -16,8 +16,9 @@ _SITE_OPTIONS = [
     {"label": "Resid Post", "value": "resid_post"},
 ]
 
+
 class AnalysisPageGraphManager:
-    def __init__(self, view_list, page_prefix = None):
+    def __init__(self, view_list, page_prefix=None):
         self.view_list = view_list
         self.page_prefix = page_prefix
 
@@ -71,7 +72,7 @@ class AnalysisPageGraphManager:
             graph_id = view_item
             if self.page_prefix:
                 graph_id = f"{self.page_prefix}-{graph_id}"
-            
+
             graph_list.append({"view_type": view_type, "index": graph_id})
 
         return graph_list

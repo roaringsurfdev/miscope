@@ -85,6 +85,6 @@ class CentroidDMD:
             result[f"{site}__singular_values"] = dmd["singular_values"]
             result[f"{site}__n_modes"] = dmd["n_modes"]
             result[f"{site}__trajectory"] = trajectory
-            result[f"{site}__n_classes"] = np.int64(n_classes)
+            result[f"{site}__n_classes"] = np.array(n_classes, dtype=np.int64)
 
         return result

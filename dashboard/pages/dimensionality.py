@@ -18,8 +18,14 @@ _VIEW_LIST = {
         "view_name": "attention_specialization_trajectory",
         "view_type": "epoch_selector",
     },
-    "parameter-pca-summary-plot": {"view_name": "trajectory_pca_variance", "view_type": "epoch_selector"},
-    "centroid-class-pca-summary-plot": {"view_name": "centroid_pca_variance", "view_type": "epoch_selector"},
+    "parameter-pca-summary-plot": {
+        "view_name": "trajectory_pca_variance",
+        "view_type": "epoch_selector",
+    },
+    "centroid-class-pca-summary-plot": {
+        "view_name": "centroid_pca_variance",
+        "view_type": "epoch_selector",
+    },
     "trajectory-3d-plot": {
         "view_name": "trajectory_3d",
         "view_type": "default_graph",
@@ -107,18 +113,22 @@ def create_dimensionality_page_layout() -> html.Div:
                             dbc.Col("Parameter Space PCA", style={"align": "center"}),
                             dbc.Col("Centroid Class PCA", style={"align": "center"}),
                         ],
-                        style={"height": "50px"}
+                        style={"height": "50px"},
                     ),
                     dbc.Row(
                         children=[
                             dbc.Col(
-                                _graph_manager.create_graph("parameter-pca-summary-plot", "350px"), width=6
+                                _graph_manager.create_graph("parameter-pca-summary-plot", "350px"),
+                                width=6,
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("centroid-class-pca-summary-plot", "350px"), width=6
+                                _graph_manager.create_graph(
+                                    "centroid-class-pca-summary-plot", "350px"
+                                ),
+                                width=6,
                             ),
                         ],
-                        style={"height": "600px"}
+                        style={"height": "600px"},
                     ),
                     dbc.Row(
                         [

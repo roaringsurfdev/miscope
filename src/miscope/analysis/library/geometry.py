@@ -348,7 +348,9 @@ def compute_global_centroid_pca(
         n_components = int(passing[0]) + 1 if len(passing) > 0 else len(eigenvalues)
 
     basis = eigenvectors[:, :n_components]  # (d_model, n_components)
-    var_ratio = eigenvalues[:n_components] / total_var if total_var > 1e-12 else np.zeros(n_components)
+    var_ratio = (
+        eigenvalues[:n_components] / total_var if total_var > 1e-12 else np.zeros(n_components)
+    )
 
     n_classes = centroids_per_epoch[0].shape[0]
     projections = np.empty((n_epochs, n_classes, n_components))

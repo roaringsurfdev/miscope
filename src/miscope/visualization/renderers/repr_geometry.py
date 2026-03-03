@@ -498,7 +498,11 @@ def render_centroid_pca_variance_summary(
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
-        subplot_titles=["PC1 Variance Explained", "PC2 Variance Explained", "PC3 Variance Explained"],
+        subplot_titles=[
+            "PC1 Variance Explained",
+            "PC2 Variance Explained",
+            "PC3 Variance Explained",
+        ],
     )
 
     for s in sites:
@@ -519,8 +523,7 @@ def render_centroid_pca_variance_summary(
                     showlegend=(pc_idx == 0),
                     line=dict(color=color, width=2),
                     hovertemplate=(
-                        f"{label}<br>Epoch %{{x}}<br>"
-                        f"PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
+                        f"{label}<br>Epoch %{{x}}<br>PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
                     ),
                 ),
                 row=pc_idx + 1,
@@ -596,7 +599,11 @@ def render_centroid_pca_variance(
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
-        subplot_titles=["PC1 Variance Explained", "PC2 Variance Explained", "PC3 Variance Explained"],
+        subplot_titles=[
+            "PC1 Variance Explained",
+            "PC2 Variance Explained",
+            "PC3 Variance Explained",
+        ],
     )
 
     for s in sites:
@@ -617,8 +624,7 @@ def render_centroid_pca_variance(
                     showlegend=(pc_idx == 0),
                     line=dict(color=color, width=2),
                     hovertemplate=(
-                        f"{label}<br>Epoch %{{x}}<br>"
-                        f"PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
+                        f"{label}<br>Epoch %{{x}}<br>PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
                     ),
                 ),
                 row=pc_idx + 1,
@@ -789,9 +795,9 @@ def render_centroid_global_pca(
     actual_epoch = int(epochs[epoch_idx])
 
     projections = cross_epoch_data[proj_key]  # (n_epochs, n_classes, n_components)
-    var_ratio = cross_epoch_data[var_key]      # (n_components,)
+    var_ratio = cross_epoch_data[var_key]  # (n_components,)
 
-    epoch_proj = projections[epoch_idx]        # (n_classes, n_components)
+    epoch_proj = projections[epoch_idx]  # (n_classes, n_components)
     n_classes = epoch_proj.shape[0]
     n_components = epoch_proj.shape[1]
 
@@ -816,8 +822,9 @@ def render_centroid_global_pca(
             f"{_var_label(0)} vs {_var_label(1)}",
             f"{_var_label(0)} vs {_var_label(2)}" if has_pc3 else "PC3 unavailable",
             f"{_var_label(1)} vs {_var_label(2)}" if has_pc3 else "PC3 unavailable",
-            f"3D ({float(var_ratio[:min(3, n_components)].sum()):.1%} total)"
-            if has_pc3 else "3D (unavailable)",
+            f"3D ({float(var_ratio[: min(3, n_components)].sum()):.1%} total)"
+            if has_pc3
+            else "3D (unavailable)",
         ],
         horizontal_spacing=0.08,
         vertical_spacing=0.10,

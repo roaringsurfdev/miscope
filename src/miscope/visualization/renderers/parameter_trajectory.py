@@ -538,7 +538,11 @@ def render_trajectory_pca_variance(
         cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
-        subplot_titles=["PC1 Variance Explained", "PC2 Variance Explained", "PC3 Variance Explained"],
+        subplot_titles=[
+            "PC1 Variance Explained",
+            "PC2 Variance Explained",
+            "PC3 Variance Explained",
+        ],
     )
 
     for group_name, color in group_colors.items():
@@ -558,8 +562,7 @@ def render_trajectory_pca_variance(
                     showlegend=(pc_idx == 0),
                     line=dict(color=color, width=2),
                     hovertemplate=(
-                        f"{label}<br>Epoch %{{x}}<br>"
-                        f"PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
+                        f"{label}<br>Epoch %{{x}}<br>PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
                     ),
                 ),
                 row=pc_idx + 1,

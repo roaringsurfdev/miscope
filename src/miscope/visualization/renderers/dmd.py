@@ -48,7 +48,7 @@ def render_dmd_eigenvalues(
     Returns:
         Plotly Figure with unit circle and eigenvalue scatter.
     """
-    eigenvalues = cross_epoch_data[f"{site}__eigenvalues"]
+    eigenvalues = cross_epoch_data[f"{site}__eigenvalues"].astype(np.complex128)
     amplitudes = cross_epoch_data[f"{site}__amplitudes"]
 
     amp_magnitude = np.abs(amplitudes)
@@ -85,7 +85,10 @@ def render_dmd_eigenvalues(
                 colorbar=dict(title="|α|", x=1.02),
                 line=dict(width=0.5, color="rgba(0,0,0,0.4)"),
             ),
-            text=[f"λ={ev.real:.3f}+{ev.imag:.3f}j<br>|α|={a:.3f}" for ev, a in zip(eigenvalues, amp_magnitude)],
+            text=[
+                f"λ={ev.real:.3f}+{ev.imag:.3f}j<br>|α|={a:.3f}"
+                for ev, a in zip(eigenvalues, amp_magnitude)
+            ],
             hovertemplate="%{text}<extra></extra>",
             name="Eigenvalues",
         )
@@ -94,7 +97,8 @@ def render_dmd_eigenvalues(
     # Origin
     fig.add_trace(
         go.Scatter(
-            x=[0], y=[0],
+            x=[0],
+            y=[0],
             mode="markers",
             marker=dict(size=4, color="black", symbol="cross"),
             showlegend=False,
@@ -168,9 +172,7 @@ def render_dmd_residual(
                 name=label,
                 line=dict(color=color, width=2),
                 marker=dict(size=3),
-                hovertemplate=(
-                    f"{label}<br>Epoch %{{x}}<br>Residual: %{{y:.4f}}<extra></extra>"
-                ),
+                hovertemplate=(f"{label}<br>Epoch %{{x}}<br>Residual: %{{y:.4f}}<extra></extra>"),
             )
         )
 
@@ -245,7 +247,8 @@ def render_dmd_reconstruction(
     labels = [str(r) for r in residues]
 
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=1,
+        cols=2,
         subplot_titles=[
             f"PC1 vs PC2 — Epoch {actual_epoch}",
             "PC1 Trajectory (actual vs DMD)",
@@ -280,7 +283,8 @@ def render_dmd_reconstruction(
                     "PC1: %{x:.3f}<br>PC2: %{y:.3f}<extra></extra>"
                 ),
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
     # Constrain scatter axes to actual data — DMD divergence doesn't corrupt scale.
     actual_at_epoch = actual[epoch_idx]  # (n_classes, n_components)
@@ -307,7 +311,8 @@ def render_dmd_reconstruction(
                 hovertemplate=f"Class {cls_idx} actual<br>Epoch %{{x}}<br>PC1: %{{y:.3f}}<extra></extra>",
                 showlegend=True,
             ),
-            row=1, col=2,
+            row=1,
+            col=2,
         )
         fig.add_trace(
             go.Scatter(
@@ -320,7 +325,8 @@ def render_dmd_reconstruction(
                 hovertemplate=f"Class {cls_idx} DMD<br>Epoch %{{x}}<br>PC1: %{{y:.3f}}<extra></extra>",
                 showlegend=True,
             ),
-            row=1, col=2,
+            row=1,
+            col=2,
         )
     # Mark selected epoch on trajectory panel
     fig.add_vline(
@@ -335,7 +341,9 @@ def render_dmd_reconstruction(
     _pc1_all = actual[:, :, 0].flatten()
     _pc1_pad = max(float(np.abs(_pc1_all).max()) * 0.2, 0.1)
     fig.update_xaxes(title_text="Epoch", row=1, col=2)
-    fig.update_yaxes(title_text="PC1", range=[_pc1_all.min() - _pc1_pad, _pc1_all.max() + _pc1_pad], row=1, col=2)
+    fig.update_yaxes(
+        title_text="PC1", range=[_pc1_all.min() - _pc1_pad, _pc1_all.max() + _pc1_pad], row=1, col=2
+    )
 
     site_label = _SITE_LABELS.get(site, site)
     fig.update_layout(

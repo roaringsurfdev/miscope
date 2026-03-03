@@ -9,7 +9,6 @@ import pytest
 
 from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.geometry import compute_global_centroid_pca
 from miscope.analysis.protocols import CrossEpochAnalyzer
 from miscope.visualization.renderers.repr_geometry import render_centroid_global_pca

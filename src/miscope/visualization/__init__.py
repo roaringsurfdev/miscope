@@ -33,6 +33,11 @@ from miscope.visualization.renderers.coarseness import (
     render_coarseness_distribution,
     render_coarseness_trajectory,
 )
+from miscope.visualization.renderers.dmd import (
+    render_dmd_eigenvalues,
+    render_dmd_reconstruction,
+    render_dmd_residual,
+)
 from miscope.visualization.renderers.dominant_frequencies import (
     get_dominant_indices,
     get_fourier_basis_names,
@@ -76,11 +81,6 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_pc1_pc3,
     render_trajectory_pc2_pc3,
     render_trajectory_pca_variance,
-)
-from miscope.visualization.renderers.dmd import (
-    render_dmd_eigenvalues,
-    render_dmd_reconstruction,
-    render_dmd_residual,
 )
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,

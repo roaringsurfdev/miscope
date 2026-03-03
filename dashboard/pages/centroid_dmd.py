@@ -57,8 +57,12 @@ def create_centroid_dmd_layout() -> html.Div:
                     # --- Centroid DMD  ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-global-pca", "350px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-dmd-residual", "450px"))),
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-dmd-reconstruction", "450px"))),
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-dmd-eigenvalues", "450px"))),
+                    dbc.Row(
+                        dbc.Col(_graph_manager.create_graph("centroid-dmd-reconstruction", "450px"))
+                    ),
+                    dbc.Row(
+                        dbc.Col(_graph_manager.create_graph("centroid-dmd-eigenvalues", "450px"))
+                    ),
                 ],
             ),
         ]
@@ -77,7 +81,6 @@ def register_centroid_dmd_callbacks(app: Dash) -> None:
     def on_vz_data_change(modified_timestamp: str | None, variant_data: dict | None):
         print("on_vz_data_change")
         return _graph_manager.update_graphs(variant_data, None)
-
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("site")],

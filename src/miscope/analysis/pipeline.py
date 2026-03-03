@@ -391,14 +391,10 @@ class AnalysisPipeline:
                 merged_values = {}
                 for k in new_values:
                     if k in existing:
-                        merged_values[k] = np.concatenate(
-                            [existing[k], new_values[k][keep_mask]]
-                        )
+                        merged_values[k] = np.concatenate([existing[k], new_values[k][keep_mask]])
                     else:
                         old_fill = np.zeros(len(old_epochs), dtype=new_values[k].dtype)
-                        merged_values[k] = np.concatenate(
-                            [old_fill, new_values[k][keep_mask]]
-                        )
+                        merged_values[k] = np.concatenate([old_fill, new_values[k][keep_mask]])
             else:
                 # No new epochs — new_values covers the full existing epoch set
                 # (e.g. force=True rerun). Prefer new_values; keep old for absent keys.

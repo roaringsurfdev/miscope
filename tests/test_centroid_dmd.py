@@ -9,7 +9,6 @@ import pytest
 
 from miscope.analysis.analyzers.centroid_dmd import CentroidDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.dmd import _truncation_rank, compute_dmd, dmd_reconstruct
 from miscope.analysis.protocols import CrossEpochAnalyzer
 from miscope.visualization.renderers.dmd import (
@@ -88,7 +87,14 @@ class TestComputeDmd:
     def test_returns_required_keys(self):
         traj = _make_trajectory(8, 6)
         result = compute_dmd(traj)
-        for key in ["eigenvalues", "modes", "amplitudes", "residual_norms", "singular_values", "n_modes"]:
+        for key in [
+            "eigenvalues",
+            "modes",
+            "amplitudes",
+            "residual_norms",
+            "singular_values",
+            "n_modes",
+        ]:
             assert key in result
 
     def test_eigenvalues_shape(self):
@@ -204,7 +210,7 @@ class TestDmdReconstruct:
 
     def test_consistency_with_compute_dmd(self):
         """Reconstruction at t=0 should closely match the initial state."""
-        rng = np.random.default_rng(42)
+        # rng = np.random.default_rng(42)
         traj = _make_trajectory(15, 8, seed=42)
         result = compute_dmd(traj, energy_threshold=0.99)
         recon = dmd_reconstruct(
@@ -335,8 +341,9 @@ class TestDmdRenderers:
 
     def test_eigenvalues_contains_unit_circle(self, cross_epoch_dmd_data):
         fig = render_dmd_eigenvalues(cross_epoch_dmd_data)
+        assert isinstance(fig, go.Figure)
         # Unit circle is the first trace
-        assert len(fig.data) >= 2
+        assert len(tuple(fig.data)) >= 2
 
     def test_residual_returns_figure(self, cross_epoch_dmd_data):
         fig = render_dmd_residual(cross_epoch_dmd_data)
@@ -349,7 +356,8 @@ class TestDmdRenderers:
 
     def test_residual_all_sites_four_traces(self, cross_epoch_dmd_data):
         fig = render_dmd_residual(cross_epoch_dmd_data, site=None)
-        assert len(fig.data) == 4
+        assert isinstance(fig, go.Figure)
+        assert len(tuple(fig.data)) == 4
 
     def test_reconstruction_returns_figure(self, cross_epoch_dmd_data):
         fig = render_dmd_reconstruction(cross_epoch_dmd_data, epoch=500, site="resid_post")
