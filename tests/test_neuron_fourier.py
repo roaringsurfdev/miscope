@@ -309,8 +309,8 @@ class TestNeuronFourierViews:
         from miscope.views.catalog import _catalog
 
         names = _catalog.names()
-        assert "neuron_fourier_heatmap" in names
-        assert "neuron_fourier_heatmap_output" in names
+        assert "activations.mlp.neuron_fourier_heatmap" in names
+        assert "activations.mlp.neuron_fourier_heatmap_output" in names
 
 
 # ── Pipeline integration ───────────────────────────────────────────────

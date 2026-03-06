@@ -8,51 +8,51 @@ from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
 
 # Page for showing dimensionality metrics in one place
 _VIEW_LIST = {
-    "loss-plot": {"view_name": "loss_curve", "view_type": "epoch_selector"},
-    "spec-trajectory-plot": {
-        "view_name": "specialization_trajectory",
+    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
+    "neuron_frequency_range": {
+        "view_name": "activations.mlp.neuron_frequency_range",
         "view_type": "epoch_selector",
     },
-    "spec-freq-plot": {"view_name": "specialization_by_frequency", "view_type": "epoch_selector"},
+    "spec-freq-plot": {"view_name": "activations.mlp.neuron_frequency_specialization", "view_type": "epoch_selector"},
     "attn-spec-plot": {
-        "view_name": "attention_specialization_trajectory",
+        "view_name": "activations.attention.frequency_clusters",
         "view_type": "epoch_selector",
     },
     "parameter-pca-summary-plot": {
-        "view_name": "trajectory_pca_variance",
+        "view_name": "parameters.pca.variance_explained",
         "view_type": "epoch_selector",
     },
     "centroid-class-pca-summary-plot": {
-        "view_name": "centroid_pca_variance",
+        "view_name": "geometry.centroid_pca_variance",
         "view_type": "epoch_selector",
     },
-    "trajectory-3d-plot": {
-        "view_name": "trajectory_3d",
+    "parameters-pca-3d-scatter": {
+        "view_name": "parameters.pca.scatter_3d",
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "trajectory-plot": {
-        "view_name": "parameter_trajectory",
+    "parameters-pca-pc1-pc2": {
+        "view_name": "parameters.pca.pc1_pc2",
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "trajectory-pc1-pc3-plot": {
-        "view_name": "trajectory_pc1_pc3",
+    "parameters-pca-pc1-pc3": {
+        "view_name": "parameters.pca.pc1_pc3",
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "trajectory-pc2-pc3-plot": {
-        "view_name": "trajectory_pc2_pc3",
+    "parameters-pca-pc2-pc3": {
+        "view_name": "parameters.pca.pc2_pc3",
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "velocity-plot": {"view_name": "component_velocity", "view_type": "epoch_selector"},
+    "velocity-plot": {"view_name": "parameters.pca.component_velocity", "view_type": "epoch_selector"},
     "dim-trajectory-plot": {
-        "view_name": "dimensionality_trajectory",
+        "view_name": "parameters.effective_dimensionality",
         "view_type": "epoch_selector",
     },
     "sv-spectrum-plot": {
-        "view_name": "singular_value_spectrum",
+        "view_name": "parameters.singular_value_spectrum",
         "view_type": "default_graph",
         "view_filter_set": "matrix_name",
     },
@@ -102,9 +102,9 @@ def create_dimensionality_page_layout() -> html.Div:
             html.Div(
                 [
                     # --- Loss ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("loss-plot", "350px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
                     # --- Neuron Specialization  ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("spec-trajectory-plot", "350px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("neuron_frequency_range", "350px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("spec-freq-plot", "450px"))),
                     # --- Attention Specialization (summary, click-to-navigate) ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attn-spec-plot", "450px"))),
@@ -133,21 +133,21 @@ def create_dimensionality_page_layout() -> html.Div:
                     dbc.Row(
                         [
                             dbc.Col(
-                                _graph_manager.create_graph("trajectory-3d-plot", "350px"), width=6
+                                _graph_manager.create_graph("parameters-pca-3d-scatter", "350px"), width=6
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("trajectory-plot", "350px"), width=6
+                                _graph_manager.create_graph("parameters-pca-pc1-pc2", "350px"), width=6
                             ),
                         ]
                     ),
                     dbc.Row(
                         [
                             dbc.Col(
-                                _graph_manager.create_graph("trajectory-pc1-pc3-plot", "350px"),
+                                _graph_manager.create_graph("parameters-pca-pc1-pc3", "350px"),
                                 width=6,
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("trajectory-pc2-pc3-plot", "350px"),
+                                _graph_manager.create_graph("parameters-pca-pc2-pc3", "350px"),
                                 width=6,
                             ),
                         ]

@@ -274,7 +274,7 @@ class TestGlobalCatalog:
 
     def test_loss_curve_is_registered(self):
         """loss_curve view is registered (metadata-based data source)."""
-        assert "loss_curve" in _catalog.names()
+        assert "training.metadata.loss_curves" in _catalog.names()
 
     def test_names_returns_sorted(self):
         names = _catalog.names()
@@ -282,12 +282,12 @@ class TestGlobalCatalog:
 
     def test_loss_curve_has_no_epoch_source(self):
         """loss_curve does not trigger per-epoch resolution (metadata-based)."""
-        view_def = _catalog.get("loss_curve")
+        view_def = _catalog.get("training.metadata.loss_curves")
         assert view_def.epoch_source_analyzer is None
 
     def test_dominant_frequencies_has_epoch_source(self):
-        """dominant_frequencies has epoch_source_analyzer set."""
-        view_def = _catalog.get("dominant_frequencies")
+        """parameters.embeddings.fourier_coefficients has epoch_source_analyzer set."""
+        view_def = _catalog.get("parameters.embeddings.fourier_coefficients")
         assert view_def.epoch_source_analyzer == "dominant_frequencies"
 
 
@@ -348,8 +348,8 @@ class TestVariantIntegration:
     def test_view_is_shortcut_for_at_none(self, temp_variant):
         """variant.view(name) is equivalent to variant.at(None).view(name)."""
         ctx = temp_variant.at(epoch=None)
-        bound_via_at = ctx.view("loss_curve")
-        bound_via_shortcut = temp_variant.view("loss_curve")
+        bound_via_at = ctx.view("training.metadata.loss_curves")
+        bound_via_shortcut = temp_variant.view("training.metadata.loss_curves")
         # Both should produce BoundViews bound to the same epoch
         assert bound_via_at._epoch == bound_via_shortcut._epoch
 
@@ -359,20 +359,20 @@ class TestVariantIntegration:
 
     def test_loss_curve_figure_from_variant(self, temp_variant):
         """loss_curve view produces a Plotly Figure from variant metadata."""
-        bound = temp_variant.view("loss_curve")
+        bound = temp_variant.view("training.metadata.loss_curves")
         fig = bound.figure()
         assert isinstance(fig, go.Figure)
 
     def test_shared_epoch_cursor(self, temp_variant):
         """Two views from the same EpochContext have the same bound epoch."""
         ctx = temp_variant.at(epoch=500)
-        loss_view = ctx.view("loss_curve")
+        loss_view = ctx.view("training.metadata.loss_curves")
         # Access another non-artifact view — both epoch values should match
         assert loss_view._epoch == 500
 
     def test_loss_curve_with_explicit_epoch(self, temp_variant):
         """loss_curve with an epoch renders a cursor at that epoch."""
-        bound = temp_variant.at(epoch=1).view("loss_curve")
+        bound = temp_variant.at(epoch=1).view("training.metadata.loss_curves")
         fig = bound.figure()
         # Vertical line at epoch 1 should appear as a shape or annotation
         assert isinstance(fig, go.Figure)

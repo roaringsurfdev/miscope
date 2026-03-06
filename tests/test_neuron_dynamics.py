@@ -238,4 +238,4 @@ class TestExportRegistry:
         from miscope.visualization.export import get_available_visualizations
 
         available = get_available_visualizations()
-        assert "neuron_freq_trajectory" in available
+        assert "activations.mlp.neuron_freq_trajectory" in available

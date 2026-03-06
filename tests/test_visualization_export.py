@@ -377,25 +377,25 @@ class TestExportVariantVisualization:
         assert isinstance(available, list)
         assert len(available) > 0
         assert available == sorted(available)
-        assert "dominant_frequencies" in available
-        assert "parameter_trajectory" in available
+        assert "parameters.embeddings.fourier_coefficients" in available
+        assert "parameters.pca.pc1_pc2" in available
 
     def test_registry_has_all_expected_entries(self):
         """Registry covers both per-epoch and cross-epoch visualizations."""
         available = get_available_visualizations()
         # Per-epoch
-        assert "dominant_frequencies" in available
-        assert "freq_clusters" in available
-        assert "perturbation_distribution" in available
+        assert "parameters.embeddings.fourier_coefficients" in available
+        assert "activations.mlp.neuron_frequency_clusters" in available
+        assert "loss_landscape.perturbation_distribution" in available
         # Summary-based
-        assert "coarseness_trajectory" in available
-        assert "flatness_trajectory" in available
+        assert "activations.mlp.coarseness_trajectory" in available
+        assert "loss_landscape.flatness_trajectory" in available
         # Snapshot-based
-        assert "parameter_trajectory" in available
-        assert "trajectory_3d" in available
+        assert "parameters.pca.pc1_pc2" in available
+        assert "parameters.pca.scatter_3d" in available
 
     def test_per_epoch_export(self, mock_variant_dir, output_dir):
-        """Exports a per-epoch visualization (dominant_frequencies)."""
+        """Exports a per-epoch visualization (parameters.embeddings.fourier_coefficients)."""
         # Mock the renderer to avoid needing real data format
         mock_fig = go.Figure()
         mock_fig.add_trace(go.Bar(x=[1], y=[1]))
@@ -405,7 +405,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda epoch_data, epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "dominant_frequencies",
+                "parameters.embeddings.fourier_coefficients",
                 epoch=200,
                 output_dir=output_dir / "exports",
                 width=400,
@@ -429,7 +429,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = capturing_renderer
             export_variant_visualization(
                 mock_variant_dir,
-                "dominant_frequencies",
+                "parameters.embeddings.fourier_coefficients",
                 epoch=None,
                 output_dir=output_dir / "exports",
                 width=400,
@@ -447,7 +447,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda epoch_data, epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "dominant_frequencies",
+                "parameters.embeddings.fourier_coefficients",
                 epoch=100,
                 width=400,
                 height=300,
@@ -466,7 +466,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda epoch_data, epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "dominant_frequencies",
+                "parameters.embeddings.fourier_coefficients",
                 epoch=100,
                 output_dir=nested,
                 width=400,
@@ -484,7 +484,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda summary_data, current_epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "coarseness_trajectory",
+                "activations.mlp.coarseness_trajectory",
                 output_dir=output_dir / "exports",
                 width=400,
                 height=300,
@@ -502,7 +502,7 @@ class TestExportVariantVisualization:
             with pytest.raises(FileNotFoundError):
                 export_variant_visualization(
                     empty_variant,
-                    "dominant_frequencies",
+                    "parameters.embeddings.fourier_coefficients",
                     width=400,
                     height=300,
                     scale=1,
@@ -517,7 +517,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda epoch_data, epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "dominant_frequencies",
+                "parameters.embeddings.fourier_coefficients",
                 epoch=100,
                 output_dir=output_dir / "exports",
                 format="html",

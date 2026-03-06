@@ -57,7 +57,6 @@ class JsonModelFamily:
             "architecture",
             "domain_parameters",
             "analyzers",
-            "visualizations",
             "variant_pattern",
         ]
         missing = [f for f in required_fields if f not in self._config]
@@ -104,11 +103,6 @@ class JsonModelFamily:
     def cross_epoch_analyzers(self) -> list[str]:
         """Cross-epoch analyzer identifiers valid for this family."""
         return self._config.get("cross_epoch_analyzers", [])
-
-    @property
-    def visualizations(self) -> list[str]:
-        """Visualization identifiers valid for this family."""
-        return self._config["visualizations"]
 
     @property
     def analysis_dataset(self) -> AnalysisDatasetSpec:

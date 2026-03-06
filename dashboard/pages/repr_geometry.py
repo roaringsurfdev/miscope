@@ -4,28 +4,28 @@ from dash import Dash, Input, Output, State, dcc, html
 from dashboard.components.analysis_page import _SITE_OPTIONS, AnalysisPageGraphManager
 
 # ---------------------------------------------------------------------------
-# Plot IDs (prefixed "rg-" to avoid collisions)
+# Plot IDs (prefixed "" to avoid collisions)
 # ---------------------------------------------------------------------------
 
 # Summary view (epoch as cursor)
 _SUMMARY_VIEW_LIST = {
-    "rg-timeseries-plot": {"view_name": "geometry_timeseries", "view_type": "epoch_selector"},
+    "timeseries-plot": {"view_name": "geometry.timeseries", "view_type": "epoch_selector"},
 }
 
 # Per-epoch snapshot views (site kwarg; epoch as data slice)
 _SNAPSHOT_VIEW_LIST = {
-    "rg-centroid-pca-plot": {
-        "view_name": "centroid_pca",
+    "centroid-pca-plot": {
+        "view_name": "geometry.centroid_pca",
         "view_type": "default_graph",
         "view_filter_set": "site",
     },
-    "rg-centroid-dist-plot": {
-        "view_name": "centroid_distances",
+    "centroid-dist-plot": {
+        "view_name": "geometry.centroid_distances",
         "view_type": "default_graph",
         "view_filter_set": "site",
     },
-    "rg-fisher-heatmap-plot": {
-        "view_name": "fisher_heatmap",
+    "fisher-heatmap-plot": {
+        "view_name": "geometry.fisher_heatmap",
         "view_type": "default_graph",
         "view_filter_set": "site",
     },
@@ -33,7 +33,7 @@ _SNAPSHOT_VIEW_LIST = {
 
 _VIEW_LIST = {**_SUMMARY_VIEW_LIST, **_SNAPSHOT_VIEW_LIST}
 
-_graph_manager = AnalysisPageGraphManager(_VIEW_LIST)
+_graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "rg")
 
 
 def create_repr_geometry_page_nav() -> html.Div:
@@ -41,7 +41,7 @@ def create_repr_geometry_page_nav() -> html.Div:
         children=[
             dbc.Label("Activation Site", className="fw-bold"),
             dcc.Dropdown(
-                id="rg-site-dropdown",
+                id="site-dropdown",
                 options=_SITE_OPTIONS,
                 value="resid_post",
                 clearable=False,
@@ -56,18 +56,18 @@ def create_repr_geometry_page_layout() -> html.Div:
         children=[
             html.H4("Repr Geometry", className="mb-3"),
             # Time-series (full width, tall)
-            dbc.Row(dbc.Col(_graph_manager.create_graph("rg-timeseries-plot", "1400px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("timeseries-plot", "1400px"))),
             # Fisher heatmap | Distance heatmap
             dbc.Row(
                 [
                     dbc.Col(
-                        _graph_manager.create_graph("rg-fisher-heatmap-plot", "500px"), width=6
+                        _graph_manager.create_graph("fisher-heatmap-plot", "500px"), width=6
                     ),
-                    dbc.Col(_graph_manager.create_graph("rg-centroid-dist-plot", "500px"), width=6),
+                    dbc.Col(_graph_manager.create_graph("centroid-dist-plot", "500px"), width=6),
                 ]
             ),
             # Centroid PCA
-            dbc.Row(dbc.Col(_graph_manager.create_graph("rg-centroid-pca-plot", "800px"), width=6)),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-pca-plot", "800px"))),
         ],
     )
 
@@ -86,7 +86,7 @@ def register_repr_geometry_page_callbacks(app: Dash) -> None:
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("site")],
         Input("variant-selector-store", "modified_timestamp"),
-        Input("rg-site-dropdown", "value"),
+        Input("site-dropdown", "value"),
         State("variant-selector-store", "data"),
     )
     def on_rg_site_value_change(

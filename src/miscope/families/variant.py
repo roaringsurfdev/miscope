@@ -328,7 +328,7 @@ class Variant:
         For cross-epoch and metadata-based views, epoch is None (no cursor).
 
         Args:
-            name: View identifier (e.g., "loss_curve", "dominant_frequencies").
+            name: View identifier (e.g., "training.metadata.loss_curves", "parameters.embeddings.fourier_coefficients").
 
         Returns:
             BoundView ready to call .show(), .figure(), or .export().

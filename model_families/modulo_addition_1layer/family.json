@@ -52,26 +52,6 @@
     "centroid_dmd"
   ],
 
-  "visualizations": [
-    "attention_freq_heatmap",
-    "attention_specialization_trajectory",
-    "attention_heads_grid",
-    "dominant_frequencies_bar",
-    "neuron_activation_heatmap",
-    "neuron_activation_grid",
-    "frequency_clusters_heatmap",
-    "specialization_trajectory",
-    "specialization_by_frequency",
-    "coarseness_trajectory",
-    "coarseness_distribution",
-    "parameter_trajectory",
-    "component_velocity",
-    "dimensionality_trajectory",
-    "singular_value_spectrum",
-    "flatness_trajectory",
-    "perturbation_distribution"
-  ],
-
   "analysis_dataset": {
     "type": "modulo_addition_grid",
     "description": "Full (a, b) input grid for modular arithmetic"

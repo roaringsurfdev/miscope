@@ -4,16 +4,16 @@ from dash import Dash, Input, Output, State, html
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 _VIEW_LIST = {
-    "nd-trajectory-plot": {
-        "view_name": "neuron_freq_trajectory",
+    "parameters-pca-pc1-pc2": {
+        "view_name": "activations.mlp.neuron_freq_trajectory",
         "view_type": "default_graph",
         "view_filter_set": "sort_order",
     },
-    "nd-switch-plot": {"view_name": "switch_count_distribution", "view_type": "default_graph"},
-    "nd-commitment-plot": {"view_name": "commitment_timeline", "view_type": "default_graph"},
+    "switch-plot": {"view_name": "activations.mlp.switch_count_distribution", "view_type": "default_graph"},
+    "commitment-plot": {"view_name": "activations.mlp.commitment_timeline", "view_type": "default_graph"},
 }
 
-_graph_manager = AnalysisPageGraphManager(_VIEW_LIST)
+_graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "nd")
 
 
 def create_neuron_dynamics_page_nav() -> html.Div:
@@ -22,7 +22,7 @@ def create_neuron_dynamics_page_nav() -> html.Div:
         children=[
             dbc.Label("Sort Order", className="fw-bold"),
             dbc.RadioItems(
-                id="nd-sort-toggle",
+                id="sort-toggle",
                 options=[
                     {"label": "Natural Order", "value": "natural"},
                     {"label": "Sorted by Final Frequency", "value": "sorted"},
@@ -42,20 +42,20 @@ def create_neuron_dynamics_page_layout() -> html.Div:
             html.Div(
                 [
                     # Trajectory heatmap (full width)
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("nd-trajectory-plot", "600px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-pc1-pc2", "600px"))),
                     # Switch distribution | Commitment timeline
                     dbc.Row(
                         [
                             dbc.Col(
                                 _graph_manager.create_graph(
-                                    "nd-switch-plot",
+                                    "switch-plot",
                                     "350px",
                                 ),
                                 width=6,
                             ),
                             dbc.Col(
                                 _graph_manager.create_graph(
-                                    "nd-commitment-plot",
+                                    "commitment-plot",
                                     "350px",
                                 ),
                                 width=6,
@@ -84,7 +84,7 @@ def register_neuron_dynamics_page_callbacks(app: Dash) -> None:
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("sort_order")],
         Input("variant-selector-store", "modified_timestamp"),
-        Input("nd-sort-toggle", "value"),
+        Input("sort-toggle", "value"),
         State("variant-selector-store", "data"),
     )
     def on_nd_sort_change(
