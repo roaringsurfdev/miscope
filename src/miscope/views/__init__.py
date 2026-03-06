@@ -23,17 +23,35 @@ Example usage:
     print(catalog.names())
 """
 
-# Import universal registrations to populate the catalog as a side effect.
+# Import universal registrations to populate the catalogs as a side effect.
+import miscope.views.dataview_universal  # noqa: F401
 import miscope.views.universal  # noqa: F401
 from miscope.views.catalog import BoundView, EpochContext, ViewCatalog, ViewDefinition, _catalog
+from miscope.views.dataview_catalog import (
+    BoundDataView,
+    DataView,
+    DataViewCatalog,
+    DataViewDefinition,
+    DataViewField,
+    DataViewSchema,
+    _dataview_catalog,
+)
 
-# Public catalog instance — use catalog.names() to inspect available views.
+# Public catalog instances — use .names() to inspect available views/dataviews.
 catalog = _catalog
+dataview_catalog = _dataview_catalog
 
 __all__ = [
+    "BoundDataView",
     "BoundView",
+    "DataView",
+    "DataViewCatalog",
+    "DataViewDefinition",
+    "DataViewField",
+    "DataViewSchema",
     "EpochContext",
     "ViewCatalog",
     "ViewDefinition",
     "catalog",
+    "dataview_catalog",
 ]

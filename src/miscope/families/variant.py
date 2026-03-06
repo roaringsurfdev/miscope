@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from miscope.analysis.artifact_loader import ArtifactLoader
     from miscope.families.protocols import ModelFamily
     from miscope.views.catalog import BoundView, EpochContext
+    from miscope.views.dataview_catalog import BoundDataView
 
 
 @dataclass
@@ -337,6 +338,23 @@ class Variant:
             KeyError: If view name is not found in the catalog.
         """
         return self.at(epoch=None).view(name)
+
+    def dataview(self, name: str) -> BoundDataView:
+        """Convenience shortcut for variant.at(epoch=None).dataview(name).
+
+        For per-epoch dataviews, resolves to the first available artifact epoch.
+        For cross-epoch and metadata-based dataviews, epoch is None.
+
+        Args:
+            name: DataView identifier (e.g., "training.metadata.loss_curves").
+
+        Returns:
+            BoundDataView ready to call .data() or inspect .schema.
+
+        Raises:
+            KeyError: If dataview name is not found in the catalog.
+        """
+        return self.at(epoch=None).dataview(name)
 
     # --- End notebook convenience properties ---
 
