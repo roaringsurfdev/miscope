@@ -4,7 +4,7 @@ from dash import Dash, Input, Output, State, html
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 _VIEW_LIST = {
-    "trajectory-plot": {
+    "parameters-pca-pc1-pc2": {
         "view_name": "neuron_freq_trajectory",
         "view_type": "default_graph",
         "view_filter_set": "sort_order",
@@ -42,7 +42,7 @@ def create_neuron_dynamics_page_layout() -> html.Div:
             html.Div(
                 [
                     # Trajectory heatmap (full width)
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("trajectory-plot", "600px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-pc1-pc2", "600px"))),
                     # Switch distribution | Commitment timeline
                     dbc.Row(
                         [

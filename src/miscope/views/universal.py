@@ -90,15 +90,15 @@ def _register_all() -> None:
     # --- Per-epoch views ---
 
     for name, analyzer, renderer_name in [
-        ("dominant_frequencies", "dominant_frequencies", "render_dominant_frequencies"),
-        ("neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
-        ("freq_clusters", "neuron_freq_norm", "render_freq_clusters"),
+        ("parameters.embeddings.fourier_coefficients", "dominant_frequencies", "render_dominant_frequencies"),
+        ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
+        ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
         ("coarseness_distribution", "coarseness", "render_coarseness_distribution"),
         ("coarseness_by_neuron", "coarseness", "render_coarseness_by_neuron"),
-        ("attention_heads", "attention_patterns", "render_attention_heads"),
-        ("attention_freq_heatmap", "attention_freq", "render_attention_freq_heatmap"),
-        ("singular_value_spectrum", "effective_dimensionality", "render_singular_value_spectrum"),
-        ("perturbation_distribution", "landscape_flatness", "render_perturbation_distribution"),
+        ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
+        ("activations.attention.head_frequency_clusters", "attention_freq", "render_attention_freq_heatmap"),
+        ("parameters.singular_value_spectrum", "effective_dimensionality", "render_singular_value_spectrum"),
+        ("loss_landscape.perturbation_distribution", "landscape_flatness", "render_perturbation_distribution"),
         ("neuron_fourier_heatmap", "neuron_fourier", "render_neuron_fourier_heatmap"),
         ("neuron_fourier_heatmap_output", "neuron_fourier", "render_neuron_fourier_heatmap_output"),
     ]:
@@ -109,24 +109,24 @@ def _register_all() -> None:
     for name, analyzer, renderer_name in [
         ("coarseness_trajectory", "coarseness", "render_coarseness_trajectory"),
         ("blob_count_trajectory", "coarseness", "render_blob_count_trajectory"),
-        ("specialization_trajectory", "neuron_freq_norm", "render_specialization_trajectory"),
-        ("specialization_by_frequency", "neuron_freq_norm", "render_specialization_by_frequency"),
+        ("activations.mlp.neuron_frequency_range", "neuron_freq_norm", "render_specialization_trajectory"),
+        ("activations.mlp.neuron_frequency_specialization", "neuron_freq_norm", "render_specialization_by_frequency"),
         (
-            "dimensionality_trajectory",
+            "parameters.effective_dimensionality",
             "effective_dimensionality",
             "render_dimensionality_trajectory",
         ),
         (
-            "attention_specialization_trajectory",
+            "activations.attention.frequency_clusters",
             "attention_freq",
             "render_attention_specialization_trajectory",
         ),
         (
-            "attention_dominant_frequencies",
+            "activations.attention.head_frequency_range",
             "attention_freq",
             "render_attention_dominant_frequencies",
         ),
-        ("flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
+        ("loss_landscape.flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
         (
             "fourier_quality_trajectory",
             "fourier_frequency_quality",
@@ -176,10 +176,10 @@ def _register_all() -> None:
         return renderer
 
     for name, render_fn in [
-        ("parameter_trajectory", viz.render_parameter_trajectory),
-        ("trajectory_3d", viz.render_trajectory_3d),
-        ("trajectory_pc1_pc3", viz.render_trajectory_pc1_pc3),
-        ("trajectory_pc2_pc3", viz.render_trajectory_pc2_pc3),
+        ("parameters.pca.pc1_pc2", viz.render_parameter_trajectory),
+        ("parameters.pca.pc1_pc3", viz.render_trajectory_pc1_pc3),
+        ("parameters.pca.pc2_pc3", viz.render_trajectory_pc2_pc3),
+        ("parameters.pca.3d_scatter", viz.render_trajectory_3d),
     ]:
         _catalog.register(
             ViewDefinition(
@@ -237,7 +237,7 @@ def _register_all() -> None:
 
     _catalog.register(
         ViewDefinition(
-            name="component_velocity",
+            name="parameters.component_velocity",
             load_data=_load_parameter_trajectory,
             renderer=_render_component_velocity,
             epoch_source_analyzer=None,
@@ -455,7 +455,7 @@ def _register_all() -> None:
 
     _catalog.register(
         ViewDefinition(
-            name="loss_curve",
+            name="training.metadata.loss_curves",
             load_data=_load_loss_curve,
             renderer=_render_loss_curve,
             epoch_source_analyzer=None,

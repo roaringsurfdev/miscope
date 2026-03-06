@@ -24,7 +24,7 @@ class ViewDefinition:
     """Pairs data loading and rendering for a named view.
 
     Attributes:
-        name: Unique view identifier (e.g., "dominant_frequencies").
+        name: Unique view identifier (e.g., "parameters.embeddings.fourier_coefficients").
         load_data: Callable(variant, epoch) -> Any. Loads all data needed
             for rendering. Epoch may be None for cross-epoch/metadata views.
         renderer: Callable(data, epoch, **kwargs) -> Figure. Renders the
@@ -157,7 +157,7 @@ class EpochContext:
         metadata-based views receive None as-is.
 
         Args:
-            name: View identifier (e.g., "dominant_frequencies").
+            name: View identifier (e.g., "parameters.embeddings.fourier_coefficients").
 
         Returns:
             BoundView with epoch fixed.

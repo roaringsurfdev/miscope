@@ -5,40 +5,40 @@ from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 # TODO: Standardize _VIEW_LIST to use a shared schema across pages
 _VIEW_LIST = {
-    "loss-plot": {"view_name": "loss_curve", "view_type": "epoch_selector"},
+    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
     "freq-over-time-plot": {
         "view_name": "dominant_frequencies_over_time",
         "view_type": "epoch_selector",
     },
-    "spec-trajectory-plot": {
-        "view_name": "specialization_trajectory",
+    "neuron_frequency_range": {
+        "view_name": "activations.mlp.neuron_frequency_range",
         "view_type": "default_graph",
     },
     "spec-freq-plot": {
-        "view_name": "specialization_by_frequency",
+        "view_name": "activations.mlp.neuron_frequency_specialization",
         "view_type": "epoch_selector",
     },
     "attn-spec-plot": {
-        "view_name": "attention_specialization_trajectory",
+        "view_name": "activations.attention.frequency_clusters",
         "view_type": "default_graph",
     },
     "attn-dom-freq-plot": {
-        "view_name": "attention_dominant_frequencies",
+        "view_name": "activations.attention.head_frequency_range",
         "view_type": "default_graph",
     },
-    "trajectory-3d-plot": {"view_name": "trajectory_3d", "view_type": "default_graph"},
-    "trajectory-plot": {"view_name": "parameter_trajectory", "view_type": "default_graph"},
-    "trajectory-pc1-pc3-plot": {
-        "view_name": "trajectory_pc1_pc3",
+    "parameters-pca-3d-scatter": {"view_name": "parameters.pca.3d_scatter", "view_type": "default_graph"},
+    "parameters-pca-pc1-pc2": {"view_name": "parameters.pca.pc1_pc2", "view_type": "default_graph"},
+    "parameters-pca-pc1-pc3": {
+        "view_name": "parameters.pca.pc1_pc3",
         "view_type": "default_graph",
     },
-    "trajectory-pc2-pc3-plot": {
-        "view_name": "trajectory_pc2_pc3",
+    "parameters-pca-pc2-pc3": {
+        "view_name": "parameters.pca.pc2_pc3",
         "view_type": "default_graph",
     },
     "velocity-plot": {"view_name": "parameter_velocity", "view_type": "default_graph"},
     "dim-trajectory-plot": {
-        "view_name": "dimensionality_trajectory",
+        "view_name": "parameters.effective_dimensionality",
         "view_type": "default_graph",
     },
 }
@@ -57,14 +57,14 @@ def create_summary_page_layout() -> html.Div:
     return html.Div(
         children=[
             # Loss curve (full width)
-            dbc.Row(dbc.Col(_graph_manager.create_graph("loss-plot", "300px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "300px"))),
             # Embedding Fourier over time (full width)
             dbc.Row(dbc.Col(_graph_manager.create_graph("freq-over-time-plot", "350px"))),
             # Neuron specialization | Attention head specialization
             dbc.Row(
                 [
                     dbc.Col(
-                        _graph_manager.create_graph("spec-trajectory-plot", "350px"),
+                        _graph_manager.create_graph("neuron_frequency_range", "350px"),
                         width=7,
                     ),
                     dbc.Col(
@@ -77,19 +77,19 @@ def create_summary_page_layout() -> html.Div:
             # Attention dominant frequencies (full width)
             dbc.Row(dbc.Col(_graph_manager.create_graph("attn-dom-freq-plot", "300px"))),
             # Trajectory 3D (full width)
-            dbc.Row(dbc.Col(_graph_manager.create_graph("trajectory-3d-plot", "550px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-3d-scatter", "550px"))),
             # PC1/PC2 | PC1/PC3 | PC2/PC3
             dbc.Row(
                 [
                     dbc.Col(
-                        _graph_manager.create_graph("trajectory-plot", "400px"), width=4
+                        _graph_manager.create_graph("parameters-pca-pc1-pc2", "400px"), width=4
                     ),
                     dbc.Col(
-                        _graph_manager.create_graph("trajectory-pc1-pc3-plot", "400px"),
+                        _graph_manager.create_graph("parameters-pca-pc1-pc3", "400px"),
                         width=4,
                     ),
                     dbc.Col(
-                        _graph_manager.create_graph("trajectory-pc2-pc3-plot", "400px"),
+                        _graph_manager.create_graph("parameters-pca-pc2-pc3", "400px"),
                         width=4,
                     ),
                 ]

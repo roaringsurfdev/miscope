@@ -385,14 +385,14 @@ class TestExportVariantVisualization:
         available = get_available_visualizations()
         # Per-epoch
         assert "dominant_frequencies" in available
-        assert "freq_clusters" in available
-        assert "perturbation_distribution" in available
+        assert "activations.mlp.neuron_frequency_clusters" in available
+        assert "loss_landscape.perturbation_distribution" in available
         # Summary-based
         assert "coarseness_trajectory" in available
-        assert "flatness_trajectory" in available
+        assert "loss_landscape.flatness_trajectory" in available
         # Snapshot-based
         assert "parameter_trajectory" in available
-        assert "trajectory_3d" in available
+        assert "parameters.pca.3d_scatter" in available
 
     def test_per_epoch_export(self, mock_variant_dir, output_dir):
         """Exports a per-epoch visualization (dominant_frequencies)."""

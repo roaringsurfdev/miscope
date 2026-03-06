@@ -11,12 +11,12 @@ Example usage:
 
     # Pin a training moment and access multiple views
     ctx = variant.at(epoch=26400)
-    ctx.view("loss_curve").show()
-    ctx.view("dominant_frequencies").show()
+    ctx.view("training.metadata.loss_curves").show()
+    ctx.view("parameters.embeddings.fourier_coefficients").show()
     ctx.view("parameter_trajectory").show()
 
     # Convenience shortcut (uses first available epoch for per-epoch views)
-    variant.view("loss_curve").show()
+    variant.view("training.metadata.loss_curves").show()
 
     # Inspect available views
     from miscope.views import catalog

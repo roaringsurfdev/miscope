@@ -6,7 +6,7 @@ from dashboard.components.analysis_page import _SITE_OPTIONS, AnalysisPageGraphM
 # Page for showing dimensionality metrics in one place
 views = ["centroid_pca", "centroid_dmd_reconstruction", "centroid_dmd_eigenvalues"]
 _VIEW_LIST = {
-    "loss-plot": {"view_name": "loss_curve", "view_type": "epoch_selector"},
+    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
     "centroid-global-pca": {
         "view_name": "centroid_global_pca",
         "view_type": "default_graph",
@@ -53,7 +53,7 @@ def create_centroid_dmd_layout() -> html.Div:
             html.Div(
                 [
                     # --- Loss ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("loss-plot", "350px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
                     # --- Centroid DMD  ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-global-pca", "350px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-dmd-residual", "450px"))),

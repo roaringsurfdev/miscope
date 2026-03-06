@@ -213,19 +213,19 @@ def export_cross_epoch_animation(
 # data_pattern is one of: "per_epoch", "cross_epoch", "summary", "snapshot"
 _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
     # Per-epoch renderers (epoch_data, epoch)
-    "dominant_frequencies": ("dominant_frequencies", "render_dominant_frequencies", "per_epoch"),
-    "neuron_heatmap": ("neuron_activations", "render_neuron_heatmap", "per_epoch"),
-    "freq_clusters": ("neuron_freq_norm", "render_freq_clusters", "per_epoch"),
+    "parameters.embeddings.fourier_coefficients": ("dominant_frequencies", "render_dominant_frequencies", "per_epoch"),
+    "activations.mlp.neuron_heatmap": ("neuron_activations", "render_neuron_heatmap", "per_epoch"),
+    "activations.mlp.neuron_frequency_clusters": ("neuron_freq_norm", "render_freq_clusters", "per_epoch"),
     "coarseness_distribution": ("coarseness", "render_coarseness_distribution", "per_epoch"),
     "coarseness_by_neuron": ("coarseness", "render_coarseness_by_neuron", "per_epoch"),
-    "attention_heads": ("attention_patterns", "render_attention_heads", "per_epoch"),
-    "attention_freq_heatmap": ("attention_freq", "render_attention_freq_heatmap", "per_epoch"),
-    "singular_value_spectrum": (
+    "activations.attention.head_heatmap": ("attention_patterns", "render_attention_heads", "per_epoch"),
+    "activations.attention.head_frequency_clusters": ("attention_freq", "render_attention_freq_heatmap", "per_epoch"),
+    "parameters.singular_value_spectrum": (
         "effective_dimensionality",
         "render_singular_value_spectrum",
         "per_epoch",
     ),
-    "perturbation_distribution": (
+    "loss_landscape.perturbation_distribution": (
         "landscape_flatness",
         "render_perturbation_distribution",
         "per_epoch",
@@ -233,32 +233,32 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
     # Summary-based cross-epoch renderers (summary_data, current_epoch)
     "coarseness_trajectory": ("coarseness", "render_coarseness_trajectory", "summary"),
     "blob_count_trajectory": ("coarseness", "render_blob_count_trajectory", "summary"),
-    "specialization_trajectory": (
+    "activations.mlp.neuron_frequency_range": (
         "neuron_freq_norm",
         "render_specialization_trajectory",
         "summary",
     ),
-    "specialization_by_frequency": (
+    "activations.mlp.neuron_frequency_specialization": (
         "neuron_freq_norm",
         "render_specialization_by_frequency",
         "summary",
     ),
-    "dimensionality_trajectory": (
+    "parameters.effective_dimensionality": (
         "effective_dimensionality",
         "render_dimensionality_trajectory",
         "summary",
     ),
-    "attention_specialization_trajectory": (
+    "activations.attention.frequency_clusters": (
         "attention_freq",
         "render_attention_specialization_trajectory",
         "summary",
     ),
-    "attention_dominant_frequencies": (
+    "activations.attention.head_frequency_range": (
         "attention_freq",
         "render_attention_dominant_frequencies",
         "summary",
     ),
-    "flatness_trajectory": ("landscape_flatness", "render_flatness_trajectory", "summary"),
+    "loss_landscape.flatness_trajectory": ("landscape_flatness", "render_flatness_trajectory", "summary"),
     # Cross-epoch stacked renderers (artifact with "epochs" key)
     "dominant_frequencies_over_time": (
         "dominant_frequencies",
@@ -266,14 +266,14 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "cross_epoch",
     ),
     # Cross-epoch precomputed renderers (REQ_038)
-    "parameter_trajectory": (
+    "parameters.pca.pc1_pc2": (
         "parameter_trajectory",
         "render_parameter_trajectory",
         "cross_epoch_pca",
     ),
-    "trajectory_3d": ("parameter_trajectory", "render_trajectory_3d", "cross_epoch_pca"),
-    "trajectory_pc1_pc3": ("parameter_trajectory", "render_trajectory_pc1_pc3", "cross_epoch_pca"),
-    "trajectory_pc2_pc3": ("parameter_trajectory", "render_trajectory_pc2_pc3", "cross_epoch_pca"),
+    "parameters.pca.3d_scatter": ("parameter_trajectory", "render_trajectory_3d", "cross_epoch_pca"),
+    "parameters.pca.pc1_pc3": ("parameter_trajectory", "render_trajectory_pc1_pc3", "cross_epoch_pca"),
+    "parameters.pca.pc2_pc3": ("parameter_trajectory", "render_trajectory_pc2_pc3", "cross_epoch_pca"),
     "explained_variance": (
         "parameter_trajectory",
         "render_explained_variance",
@@ -284,7 +284,7 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "render_parameter_velocity",
         "cross_epoch_velocity",
     ),
-    "component_velocity": (
+    "parameters.component_velocity": (
         "parameter_trajectory",
         "render_component_velocity",
         "cross_epoch_component_velocity",
@@ -323,7 +323,7 @@ def export_variant_visualization(
 
     Args:
         variant_dir: Path to the variant directory (contains artifacts/).
-        visualization: Name like "dominant_frequencies", "parameter_trajectory", etc.
+        visualization: Name like "parameters.embeddings.fourier_coefficients", "parameter_trajectory", etc.
         epoch: For per-epoch visualizations, the epoch to render.
             None = use latest available epoch.
         output_dir: Where to save. None = variant_dir/exports/.
