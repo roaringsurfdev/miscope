@@ -74,6 +74,7 @@ def compute_band_concentration_trajectory(
     ).astype(float)  # (n_epochs, n_freq)
 
     totals = per_freq.sum(axis=1)  # (n_epochs,)
+    #print(f"pre_freq: {per_freq}, totals: {totals[:, None]}")
     shares = np.where(totals[:, None] > 0, per_freq / totals[:, None], 0.0)
 
     hhi = (shares**2).sum(axis=1)

@@ -39,17 +39,26 @@ class ClassificationRules:
     Attributes:
         grokking_threshold: test_loss value below which the model is considered
             to have grokked (default 0.1).
+        early_grokking_epoch: grokking onset epoch below which a model is
+            classified as "early_grokker" (default 9000).
         late_grokking_epoch: grokking onset epoch above which a model is
-            classified as "late_grokker" (default 15000).
+            classified as "late_grokker" (default 12000).
         degraded_test_loss: final test_loss above which a model with slow
-            grokking is classified as "degraded" (default 0.005).
+            grokking is classified as "degraded" (default 1.0e-6).
         min_frequency_bands: minimum expected number of frequency bands for a
             healthy model. Models below this with slow grokking are flagged.
+    Notes:
+        - neuron specialization health metric 
+            (do neuron specialization counts rise together or out of balance)
+        - neuron specialization diversity metric
+            (is there enough frequency mix (low/mid/high)?)
+            (this probably boils down to: is there a low-frequency band?)
     """
 
     grokking_threshold: float = 0.1
-    late_grokking_epoch: int = 15000
-    degraded_test_loss: float = 0.005
+    early_grokking_epoch: int = 9000
+    late_grokking_epoch: int = 12000
+    degraded_test_loss: float = 1.0e-6
     min_frequency_bands: int = 2
 
 
@@ -83,6 +92,7 @@ def compute_variant_metrics(
     num_epochs = len(test_losses)
     final_test_loss = float(test_losses[-1])
 
+    # This captures grokking completion more than onset
     grokking_onset_epoch: int | None = None
     for i, loss in enumerate(test_losses):
         if loss < rules.grokking_threshold:
