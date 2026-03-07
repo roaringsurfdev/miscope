@@ -14,8 +14,18 @@ _VIEW_LIST = {
     "neuron_frequency_range": {
         "view_name": "activations.mlp.neuron_frequency_range",
         "view_type": "epoch_selector",
+        "view_filter_set": "specialization_threshold",
     },
-    "spec-freq-plot": {"view_name": "activations.mlp.neuron_frequency_specialization", "view_type": "epoch_selector"},
+    "spec-freq-plot": {
+        "view_name": "activations.mlp.neuron_frequency_specialization",
+        "view_type": "epoch_selector",
+        "view_filter_set": "specialization_threshold",
+    },
+    "per-band-specialization": {
+        "view_name": "activations.mlp.per_band_specialization",
+        "view_type": "epoch_selector",
+        "view_filter_set": "specialization_threshold",
+    },
     "activation-plot": {
         "view_name": "activations.mlp.neuron_heatmap",
         "view_type": "default_graph",
@@ -29,6 +39,18 @@ _VIEW_LIST = {
     "attn-freq-plot": {"view_name": "activations.attention.head_frequency_clusters", "view_type": "default_graph"},
     "attn-spec-plot": {
         "view_name": "activations.attention.frequency_clusters",
+        "view_type": "epoch_selector",
+    },
+    "attn-qk-fourier-heatmap": {
+        "view_name": "parameters.attention.qk_fourier_heatmap",
+        "view_type": "default_graph",
+    },
+    "attn-v-fourier-heatmap": {
+        "view_name": "parameters.attention.v_fourier_heatmap",
+        "view_type": "default_graph",
+    },
+    "attn-head-alignment-trajectory": {
+        "view_name": "parameters.attention.head_alignment_trajectory",
         "view_type": "epoch_selector",
     },
     "parameters-pca-3d-scatter": {
@@ -90,6 +112,23 @@ def create_visualization_page_nav() -> html.Div:
             html.Div(
                 id="neuron-display",
                 children="Neuron 0",
+                className="text-muted small mb-3",
+            ),
+            html.Hr(),
+            # Specialization threshold slider (REQ_056 / REQ_058)
+            dbc.Label("Specialization Threshold", className="fw-bold"),
+            dcc.Slider(
+                id="specialization-threshold-slider",
+                min=0.0,
+                max=1.0,
+                step=0.05,
+                value=0.9,
+                marks={0: "0%", 0.5: "50%", 0.9: "90%", 1.0: "100%"},
+                tooltip={"placement": "bottom", "always_visible": False},
+            ),
+            html.Div(
+                id="specialization-threshold-display",
+                children="Threshold: 90%",
                 className="text-muted small mb-3",
             ),
             html.Hr(),
@@ -160,6 +199,7 @@ def create_visualization_page_layout() -> html.Div:
                     dbc.Row(dbc.Col(_graph_manager.create_graph("neuron-frequency-clusters", "450px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("neuron_frequency_range", "350px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("spec-freq-plot", "450px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("per-band-specialization", "400px"))),
                     # --- Neuron and Attention (per-epoch) ---
                     dbc.Row(
                         [
@@ -174,6 +214,9 @@ def create_visualization_page_layout() -> html.Div:
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attention-plot", "400px"))),
                     # --- Attention Specialization (summary, click-to-navigate) ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attn-spec-plot", "450px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("attn-qk-fourier-heatmap", "450px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("attn-v-fourier-heatmap", "450px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("attn-head-alignment-trajectory", "450px"))),
                     # --- Trajectory (cross-epoch) ---
                     dbc.Row(
                         [
@@ -284,6 +327,28 @@ def register_visualization_page_callbacks(app: Dash) -> None:
         view_kwargs = {"metric": metric_name}
         return _graph_manager.update_graphs(
             variant_data=variant_data, view_filter_set="flatness_metric", view_kwargs=view_kwargs
+        )
+
+    @app.callback(
+        Output("specialization-threshold-display", "children"),
+        Input("specialization-threshold-slider", "value"),
+    )
+    def on_threshold_display_update(threshold: float) -> str:
+        return f"Threshold: {int(threshold * 100)}%"
+
+    @app.callback(
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("specialization_threshold")],
+        Input("variant-selector-store", "modified_timestamp"),
+        Input("specialization-threshold-slider", "value"),
+        State("variant-selector-store", "data"),
+    )
+    def on_vz_threshold_change(
+        modified_timestamp: str | None, threshold: float, variant_data: dict | None
+    ):
+        print("on_vz_threshold_change")
+        view_kwargs = {"threshold": threshold}
+        return _graph_manager.update_graphs(
+            variant_data=variant_data, view_filter_set="specialization_threshold", view_kwargs=view_kwargs
         )
 
     @app.callback(

@@ -436,6 +436,47 @@ def render_specialization_by_frequency(
 
 
 # ---------------------------------------------------------------------------
+# Threshold-parameterized summary computation
+# ---------------------------------------------------------------------------
+
+
+def compute_summary_from_dynamics(
+    cross_epoch: dict[str, np.ndarray],
+    prime: int,
+    threshold: float,
+) -> dict[str, np.ndarray]:
+    """Compute specialization summary from neuron_dynamics at any threshold.
+
+    Produces the same dict shape expected by render_specialization_trajectory
+    and render_specialization_by_frequency, recomputed at the given threshold
+    from raw dominant_freq and max_frac arrays.
+    """
+    epochs = cross_epoch["epochs"]
+    dominant_freq = cross_epoch["dominant_freq"]  # (n_epochs, d_mlp)
+    max_frac = cross_epoch["max_frac"]  # (n_epochs, d_mlp)
+    n_freq = prime // 2
+    n_low = n_freq // 3
+    n_mid = 2 * n_freq // 3
+
+    committed = max_frac >= threshold
+    per_freq = np.stack(
+        [(committed & (dominant_freq == k)).sum(axis=1) for k in range(n_freq)],
+        axis=1,
+    )  # (n_epochs, n_freq)
+
+    return {
+        "epochs": epochs,
+        "specialized_count_total": committed.sum(axis=1).astype(float),
+        "specialized_count_low": (committed & (dominant_freq < n_low)).sum(axis=1).astype(float),
+        "specialized_count_mid": (
+            committed & (dominant_freq >= n_low) & (dominant_freq < n_mid)
+        ).sum(axis=1).astype(float),
+        "specialized_count_high": (committed & (dominant_freq >= n_mid)).sum(axis=1).astype(float),
+        "specialized_count_per_freq": per_freq.astype(float),
+    }
+
+
+# ---------------------------------------------------------------------------
 # REQ_042: Cross-epoch neuron dynamics renderers
 # ---------------------------------------------------------------------------
 
