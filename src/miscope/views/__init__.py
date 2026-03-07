@@ -41,9 +41,17 @@ from miscope.views.dataview_catalog import (
 catalog = _catalog
 dataview_catalog = _dataview_catalog
 
+from miscope.views.cross_variant import (  # noqa: E402
+    ClassificationRules,
+    classify_failure_mode,
+    compute_variant_metrics,
+    load_family_comparison,
+)
+
 __all__ = [
     "BoundDataView",
     "BoundView",
+    "ClassificationRules",
     "DataView",
     "DataViewCatalog",
     "DataViewDefinition",
@@ -53,5 +61,8 @@ __all__ = [
     "ViewCatalog",
     "ViewDefinition",
     "catalog",
+    "classify_failure_mode",
+    "compute_variant_metrics",
     "dataview_catalog",
+    "load_family_comparison",
 ]
