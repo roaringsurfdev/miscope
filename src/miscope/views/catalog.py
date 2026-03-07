@@ -17,6 +17,7 @@ import plotly.graph_objects as go
 
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
+    from miscope.views.dataview_catalog import BoundDataView, DataViewCatalog
 
 
 @dataclass
@@ -144,10 +145,12 @@ class EpochContext:
         variant: Variant,
         epoch: int | None,
         catalog: ViewCatalog | None = None,
+        dataview_catalog: DataViewCatalog | None = None,
     ) -> None:
         self._variant = variant
         self._epoch = epoch
         self._catalog = catalog if catalog is not None else _catalog
+        self._dataview_catalog = dataview_catalog
 
     def view(self, name: str) -> BoundView:
         """Look up a view and bind it to this epoch.
@@ -168,6 +171,33 @@ class EpochContext:
         view_def = self._catalog.get(name)
         epoch = _resolve_epoch(self._epoch, view_def, self._variant)
         return BoundView(view_def=view_def, variant=self._variant, epoch=epoch)
+
+    def dataview(self, name: str) -> BoundDataView:
+        """Look up a dataview and bind it to this epoch.
+
+        For per-epoch dataviews (epoch_source_analyzer is set), resolves a None
+        epoch to the first available artifact epoch. Cross-epoch and
+        metadata-based dataviews receive None as-is.
+
+        Args:
+            name: DataView identifier (e.g., "training.metadata.loss_curves").
+
+        Returns:
+            BoundDataView with epoch fixed.
+
+        Raises:
+            KeyError: If dataview name is not found in the catalog.
+        """
+        from miscope.views.dataview_catalog import (
+            BoundDataView as _BoundDataView,
+            _dataview_catalog,
+            _resolve_dataview_epoch,
+        )
+
+        catalog = self._dataview_catalog if self._dataview_catalog is not None else _dataview_catalog
+        dataview_def = catalog.get(name)
+        epoch = _resolve_dataview_epoch(self._epoch, dataview_def, self._variant)
+        return _BoundDataView(dataview_def=dataview_def, variant=self._variant, epoch=epoch)
 
 
 def _resolve_epoch(
