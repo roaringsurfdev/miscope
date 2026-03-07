@@ -504,6 +504,52 @@ def _register_all() -> None:
         )
     )
 
+    # --- Band concentration views (REQ_058) ---
+    # Concentration trajectory and rank alignment trajectory per variant.
+    # Both load from neuron_dynamics cross_epoch; rank alignment also loads
+    # dominant_frequencies to get embedding band magnitudes.
+
+    def _load_band_concentration(variant: Variant, epoch: int | None) -> dict:
+        from miscope.analysis.band_concentration import compute_band_concentration_trajectory
+
+        cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        prime = int(variant.model_config["prime"])
+        threshold = 0.75
+        return compute_band_concentration_trajectory(cross_epoch, threshold, prime)
+
+    def _render_concentration_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_concentration_trajectory(data, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="analysis.band_concentration.trajectory",
+            load_data=_load_band_concentration,
+            renderer=_render_concentration_trajectory,
+            epoch_source_analyzer=None,
+        )
+    )
+
+    def _load_rank_alignment(variant: Variant, epoch: int | None) -> dict:
+        from miscope.analysis.band_concentration import compute_rank_alignment_trajectory
+
+        cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        coeff_epochs = variant.artifacts.load_epochs("dominant_frequencies")
+        prime = int(variant.model_config["prime"])
+        threshold = 0.75
+        return compute_rank_alignment_trajectory(cross_epoch, coeff_epochs, threshold, prime)
+
+    def _render_rank_alignment_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_rank_alignment_trajectory(data, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="analysis.band_concentration.rank_alignment",
+            load_data=_load_rank_alignment,
+            renderer=_render_rank_alignment_trajectory,
+            epoch_source_analyzer=None,
+        )
+    )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

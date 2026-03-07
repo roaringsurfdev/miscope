@@ -17,6 +17,11 @@ Usage:
     fig.show()  # or pass to Gradio
 """
 
+from miscope.visualization.renderers.band_concentration import (
+    render_concentration_scatter,
+    render_concentration_trajectory,
+    render_rank_alignment_trajectory,
+)
 from miscope.visualization.line_plot import line
 from miscope.visualization.renderers.attention_fourier import (
     render_head_alignment_trajectory,
@@ -123,6 +128,10 @@ __all__ = [
     # REQ_027: Neuron specialization summary
     "render_specialization_trajectory",
     "render_specialization_by_frequency",
+    # REQ_058: Band concentration health
+    "render_concentration_trajectory",
+    "render_rank_alignment_trajectory",
+    "render_concentration_scatter",
     # REQ_055: Attention Fourier decomposition
     "render_qk_freq_heatmap",
     "render_v_freq_heatmap",
