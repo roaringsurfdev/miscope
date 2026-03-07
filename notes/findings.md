@@ -455,6 +455,50 @@ For anomalous variants: the gradual slope is informative. A gradual quality scor
 
 *Quality score validates the Fourier learning story already visible in loss, but adds weight-space grounding and helps distinguish algorithmic accumulation from memorization in anomalous variants.*
 
+---
+
+## 2026-03-06: Neuron Distribution as Grokking Health Predictor — Preliminary Observations
+
+### Core Observation
+
+At the >90% specialization threshold, neuron band distribution predicts grokking outcome better than embedding Fourier magnitudes alone.
+
+**p101/999 (failure):** Three attention heads were weakly aligned to frequency 5 pre-second-descent. Higher frequencies (35, 43, 44, 41) overwhelmed frequency 5 in neuron volume — growing at disproportionate rates while frequency 5 peaked at ~62 neurons then declined. At epoch 15K: frequency 43 had 41 neurons vs frequency 5's 34. Head 2 held frequency 5 longest, abandoning it at ~17.5K; test loss rose after. Embedding Fourier magnitudes throughout showed frequency 5 as dominant — direct embedding-neuron misalignment. Gradient momentum from neuron count (not embedding signal) drove the outcome.
+
+**p103/485 (healthy control):** Groks near canonical window, looks normal from loss. Loses frequency 20 gracefully — 3 remaining frequencies (6, 24, 40). Neuron counts across Low/Medium/High bands grew with similar slopes. By epoch 20500, QK^T firmly concentrated on {6, 24, 40}; V still retains some frequency-20 signal. QK led V in dropping the frequency — consistent with QK as active router, V as passive content carrier (healthy adaptation sequence).
+
+### The Gradient Momentum Story
+
+Each specialized neuron contributes gradient signal toward its frequency. 41 neurons on frequency 43 vs 34 on frequency 5 is a ~20% gradient advantage, compounded every step. Attention heads fighting this tide can hold briefly but eventually capitulate. The lottery isn't fixed at initialization — it plays out at the attention-MLP interface during the competition window, resolved by neuron count gradient momentum, not embedding structure.
+
+### Hidden Dynamics Warning
+
+The >90% threshold may be missing earlier dynamics in the 60-90% specialization range. There could be partial specialization activity that predates what's currently visible. Threshold was initially set at 90% because it aligns with grokking onset. Lower thresholds are unexplored. REQ_058 proposes threshold-parameterized metrics; the dashboard threshold slider enables exploration.
+
+---
+
+*Neuron volume (not embedding magnitude) determines gradient competition outcome. QK leads V in healthy frequency transitions. The 90% threshold may hide earlier dynamics worth exploring via threshold sweep.*
+
+### Frequency Pairs Travel Together
+
+Across several variants, pairs of frequencies share nearly identical growth slopes in committed neuron counts — they grow together, plateau together, and (in pathological cases) decline together. This is not random. If two frequencies have correlated slopes across the entire training run, they may be sharing a structural role in the computation (e.g., both encoding related harmonics of the same Fourier component) or have similar gradient signal levels due to similar initialization positions in the lottery.
+
+**Implication for HHI metrics (REQ_058):** If pairs travel together, the effective number of independent frequency bands may be lower than the raw active band count suggests. A concentration index computed over all active bands could understate concentration if two of the four bands are essentially moving as one. The slope CV metric (CoS 4) should detect this — paired slopes will produce low variance between the two paired bands and high variance vs the uncoupled bands.
+
+**Open questions:** Does the pairing persist after grokking (suggesting a stable structural relationship) or dissolve (suggesting it's a competition artifact from initialization)? Does the pairing align with mathematical properties — e.g., are the paired frequencies harmonically related (k and 2k)?
+
+### 75%/100-Neuron Critical Mass Hypothesis
+
+Rough inspection at 75% threshold suggests ~100 committed neurons may be the trigger for second descent (grokking). The 75% threshold appears to be a stable diagnostic window — lower than 90% (which may miss early dynamics) but high enough to exclude transient partial alignments.
+
+**Why 75% may be special:** At 75% specialization, a neuron's dominant frequency contributes 75% of its Fourier energy. This is enough to produce meaningful gradient signal toward that frequency but below the threshold where phase alignment is complete. The 75% population likely represents neurons in the "committed but still refining" phase — counting them gives earlier visibility into the emerging frequency distribution.
+
+**Why ~100 neurons may matter:** 100 neurons out of 512 is ~20% of the MLP. Gradient signal from 20% of neurons uniformly pushing toward 2-3 frequencies likely crosses a tipping point for attention head alignment. Below this, attention can resist the gradient momentum; above it, the pull becomes irresistible and the second descent begins.
+
+**The pathological shape:** The distinction between healthy and anomalous may not be *when* 100 neurons is reached, but *which frequencies they're distributed across*. Healthy: 100 neurons spread across 2-3 frequencies with similar slopes → balanced gradient pull → all frequencies survive → clean grokking. Anomalous: 100 neurons concentrated in one or two frequencies with steep slope → asymmetric gradient pull → competing frequencies eliminated → degenerate solution.
+
+*This hypothesis drives the core metrics in REQ_058: HHI (concentration), slope CV (balance), and the critical mass snapshot (frequency distribution at the 100-neuron crossing epoch).*
+
 ### Correction: Initial Computation Was Inverted
 
 The first run used an absolute threshold of 1.0, borrowed from the bar chart renderer (a display convention). At random init all p coefficients ≈ 1.07, so all passed and quality ≈ 1. After grokking, concentrated frequencies spiked but the rest dropped, so quality went to near 0. Fixed by using a relative threshold: `coefficient > 3 × mean(coefficients)`. Now quality starts near 0 and rises around grokking.
