@@ -72,11 +72,6 @@ class ModelFamily(Protocol):
         ...
 
     @property
-    def visualizations(self) -> list[str]:
-        """Visualization identifiers valid for this family."""
-        ...
-
-    @property
     def analysis_dataset(self) -> AnalysisDatasetSpec:
         """Specification for the analysis dataset."""
         ...
