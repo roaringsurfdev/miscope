@@ -22,13 +22,15 @@ from ModuloAdditionSpecification import ModuloAdditionSpecification
 
 # %% initialize environment and model
 p = 113
+seed = 999
+data_seed = 999
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # Define the location to save the model, using a relative path
-MODEL_PATH = os.path.join(os.getcwd(), "results")
+MODEL_PATH = os.path.join(os.getcwd(), "results", "modulo_addition_source", f"p{p}_seed{seed}_dseed{data_seed}")
 
-model_spec = ModuloAdditionSpecification(MODEL_PATH, p, device)
+model_spec = ModuloAdditionSpecification(MODEL_PATH, p, device, seed=seed, data_seed=data_seed)
 
-TRAIN_MODEL = False
+TRAIN_MODEL = True
 
 # %% define the data
 

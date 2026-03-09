@@ -83,6 +83,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
     )
 
     def _load_fourier_coefficients(variant: Variant, epoch: int | None) -> DataView:
+        assert epoch is not None, "epoch must be resolved before loading per-epoch artifact"
         epoch_data = variant.artifacts.load_epoch("dominant_frequencies", epoch)
         return DataView(schema=_fourier_schema, coefficients=epoch_data["coefficients"])
 
@@ -249,6 +250,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
     )
 
     def _load_attn_fourier(variant: Variant, epoch: int | None) -> DataView:
+        assert epoch is not None, "epoch must be resolved before loading per-epoch artifact"
         epoch_data = variant.artifacts.load_epoch("attention_fourier", epoch)
         return DataView(
             schema=_attn_fourier_schema,
