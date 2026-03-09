@@ -565,6 +565,35 @@ def _register_all() -> None:
         )
     )
 
+    # --- Fourier nucleation views (REQ_063) ---
+    # Always load epoch 0 — these are initialization-anchored views.
+    # The epoch slider is intentionally ignored; epoch 0 is the nucleation snapshot.
+
+    def _load_nucleation(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_epoch("fourier_nucleation", 0)
+
+    def _render_nucleation_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_nucleation_heatmap(data, epoch=0, **kwargs)
+
+    def _render_nucleation_frequency_gains(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_nucleation_frequency_gains(data, epoch=0, **kwargs)
+
+    _nucleation_req = [AnalyzerRequirement("fourier_nucleation", ArtifactKind.EPOCH)]
+
+    for name, renderer in [
+        ("parameters.mlp.nucleation_heatmap", _render_nucleation_heatmap),
+        ("parameters.mlp.nucleation_frequency_gains", _render_nucleation_frequency_gains),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_nucleation,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_nucleation_req,
+            )
+        )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

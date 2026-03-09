@@ -24,6 +24,15 @@ _VIEW_LIST = {
         "view_name": "analysis.band_concentration.trajectory",
         "view_type": "default_graph"
     },
+    # REQ_063: Fourier nucleation — always epoch 0
+    "nucleation-heatmap": {
+        "view_name": "parameters.mlp.nucleation_heatmap",
+        "view_type": "default_graph",
+    },
+    "nucleation-gains": {
+        "view_name": "parameters.mlp.nucleation_frequency_gains",
+        "view_type": "default_graph",
+    },
 }
 
 _graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "nd")
@@ -85,19 +94,12 @@ def create_neuron_dynamics_page_layout() -> html.Div:
                         ]
                     ),
                     # Threshold-sensitive views
-                    dbc.Row(
-                        [
-                            dbc.Col(
-                                _graph_manager.create_graph("per-band-specialization", "350px"),
-                                width=6,
-                            ),
-                            dbc.Col(
-                                _graph_manager.create_graph("neuron-frequency-range", "350px"),
-                                width=6,
-                            ),
-                        ]
-                    ),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("per-band-specialization", "400px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("neuron-frequency-range", "400px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("band-concentration", "400px"))),
+                    # REQ_063: Fourier nucleation (epoch 0, initialization-anchored)
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("nucleation-heatmap", "650px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("nucleation-gains", "350px"))),
                 ],
             ),
         ]

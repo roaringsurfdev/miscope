@@ -43,7 +43,8 @@
     "effective_dimensionality",
     "landscape_flatness",
     "repr_geometry",
-    "attention_fourier"
+    "attention_fourier",
+    "fourier_nucleation"
   ],
 
   "secondary_analyzers": [

@@ -57,6 +57,10 @@ from miscope.visualization.renderers.dominant_frequencies import (
 from miscope.visualization.renderers.fourier_frequency_quality import (
     render_fourier_quality_trajectory,
 )
+from miscope.visualization.renderers.fourier_nucleation import (
+    render_nucleation_frequency_gains,
+    render_nucleation_heatmap,
+)
 from miscope.visualization.renderers.effective_dimensionality import (
     render_dimensionality_trajectory,
     render_singular_value_spectrum,
@@ -110,6 +114,9 @@ __all__ = [
     "line",
     # REQ_052: Fourier frequency quality
     "render_fourier_quality_trajectory",
+    # REQ_063: Fourier nucleation predictor
+    "render_nucleation_heatmap",
+    "render_nucleation_frequency_gains",
     # REQ_004: Dominant frequencies
     "render_dominant_frequencies",
     "render_dominant_frequencies_over_time",
