@@ -457,6 +457,63 @@ For anomalous variants: the gradual slope is informative. A gradual quality scor
 
 ---
 
+## 2026-03-08: Data Seed Controls Frequency Set Selection — Attention-MLP Handshake Failure
+
+### Setup
+
+p113/seed999 trained with data_seed=999 (vs. the canonical data_seed=598). All prior models used dseed=598. This is the first clean comparison of the same model identity under two different data splits.
+
+### Key Results
+
+| Metric | p113/seed999/dseed598 (canonical) | p113/seed999/dseed999 |
+|--------|-----------------------------------|-----------------------|
+| Final test loss | ~0.000000 | 0.049271 |
+| Min test loss ever | ~0.000000 | 0.015372 (epoch 13,157) |
+| Frequency set used | {9, 33, 38, 55} | {13, 25, 33} (after Freq 40 collapse) |
+| Landscape flatness post-grokking | Dead flat (machine epsilon) | Residual oscillations remain |
+| Neuron 0 activation pattern | Clean sinusoidal grid stripes | Triangular/threshold structure |
+
+### The Frequency Set Difference
+
+The two models don't use the same frequency basis. The canonical model settled on {9, 33, 38, 55}; the dseed=999 model attempted {13, 25, 33, 40} and then lost Freq 40. **The data split is steering which frequency set the model attempts to build** — this is a deeper effect than reduced gradient magnitude for one frequency.
+
+### The Attention-MLP Handshake Failure
+
+The per-band neuron specialization chart tells the story:
+- Freq 40 builds to ~50 committed neurons (MLP side) between epochs 10k-15k
+- The QKT Fourier spectrum at epoch 12,300 (the inflection point) shows Freqs 13, 25, 33 with clear QKT mass — Freq 40 has essentially none
+- The MLP learned to specialize to Freq 40; attention never routed queries to it
+- Weight decay then eliminates the unattended neurons; Freq 40 collapses to zero by epoch 20k
+- Test loss, which had reached a minimum of 0.015 at epoch 13,157, climbs back to 0.049
+
+The Freq 40 neurons were computing without being selected. The attention-MLP co-evolution needed to close the loop didn't complete.
+
+### The Landscape Flatness Signature
+
+The canonical model's landscape flatness drops to an absolute flat line at epoch ~10,900 — machine epsilon, no visible oscillation for the remaining 14k epochs. The dseed=999 model never achieves this. Residual oscillations remain in mean delta loss throughout the post-settling period. This is the geometric signature of the difference:
+- Dead flat = the model found a crisp algorithmic minimum; perturbations do nothing because the solution is implemented exactly
+- Residual oscillations = the model is in a wide shallow basin, not a sharp minimum; the partial solution is sensitive to perturbation
+
+### The Unusual Neuron Shape
+
+The failing model shows a triangular activation pattern over the (a,b) grid — strongly positive where a+b is small, essentially off elsewhere. Confirmed: Neuron 0 at this epoch is at 62% frac explained on Frequency 3, not on Frequency 40. Frequency 3 barely registers on the per-band specialization chart — it shows up as a faint bump near zero.
+
+The triangular shape is mechanistically interpretable for Freq 3. A neuron partially specialized to k=3 computes something proportional to cos(3·2π·(a+b)/113). At k=3 over a range [0, 112], the cosine function completes ~3 full cycles, making its first positive lobe span roughly the lower-sum region of the grid — the upper-left triangle where a+b < p/3. This is not a broken or malformed Fourier neuron; it's what partial (62%) specialization to a very low frequency looks like over the (a,b) activation surface.
+
+The observation that this pattern is unfamiliar reinforces that Freq 3 specialization essentially never appears in the dseed=598 model population. It's not a frequency the canonical models use. Its presence here — even weakly — is another signal that the data split is steering the dseed=999 model toward an entirely different candidate frequency basis.
+
+### Data Seed as Frequency Steering
+
+dseed=598 is not lucky — across all 17 models, it consistently produced splits that allowed the model to settle on a viable frequency basis and complete the attention-MLP co-evolution. The data split determines which (a,b) pairs provide gradient signal for each Fourier component. dseed=999 may underrepresent pairs that are most informative for the components the model needs — specifically those that would allow Freq 40 to build sufficient gradient momentum to secure attention routing.
+
+This connects directly to the gradient momentum story from the 2026-03-06 findings: 50 neurons on Freq 40 vs. 80+ on Freq 33 is a meaningful gradient disadvantage. If the split provided weaker signal for Freq 40 from the start, it never builds the neuron count needed to compete for attention routing.
+
+---
+
+*Data split steers frequency set selection, not just gradient magnitude. Freq 40 failed the attention-MLP handshake. The landscape flatness quality gap distinguishes a crisp algorithm from a wide shallow basin. The unusual triangular neuron is a Fourier basis function that never formed.*
+
+---
+
 ## 2026-03-06: Neuron Distribution as Grokking Health Predictor — Preliminary Observations
 
 ### Core Observation
@@ -568,5 +625,86 @@ This is why tying frequency quality to class geometry (Fisher, centroid distance
 ---
 
 *Frequency allocation constraints produce irreducible error floors. Per-class accuracy localizes which residues bear the cost. Fisher discriminant and distance heatmaps provide the geometric side of the same story.*
+
+---
+
+## 2026-03-09: Second Descent Survivability and Frequency Competition Dynamics
+
+### The Survivability Reframe
+
+The prevailing narrative is "entering second descent = generalization." The emerging picture is more specific: **a model can enter second descent and fail to survive it.** Second descent is a process with its own trajectory, not a binary milestone.
+
+Three model archetypes identified:
+
+| Model | Second Descent | Outcome |
+|-------|---------------|---------|
+| 109/485/598 | Fast, steep, no bumps | Clean grokker |
+| 101/999/598 | Slow, multiple drops in MLP/Resid Post Fourier alignment | Late grokker |
+| 113/999/999 | Enters descent, test loss climbs back up | Failed second descent |
+
+113/999/999 requires a new failure mode category: `degraded_recovery` — the model did the work, descended 80%+ from peak test loss, then lost it.
+
+### First-Mover Advantage
+
+The frequency that achieves early neuron mass wins the competition window. **The first-mover determines the trajectory, not the final count.**
+
+Observed:
+- 109/485/598: Frequency 4 (low band) leads by thousands of epochs → clean geometry → clean descent
+- 101/999/598: Frequency 40 (high band) leads first → low-band frequency tries to build mass later but too late — attention already aligned to the high-band winner
+- 113/999/999: Frequency 13 (mid band) leads; frequency 3 (low) tries to build mass late and loses it
+
+Once a frequency achieves early dominance, attention heads begin aligning to it. This creates a self-reinforcing cycle: attention alignment → stronger gradient signal for that frequency → more neurons commit → more attention alignment. Late arrivals face entrenched attention weights, not just neuron competition.
+
+### Frequency Portfolio at Second Descent Onset
+
+Not all frequency losses are equal. The damage depends on **what remains** after the loss:
+
+- **Redundant loss**: loses a frequency but retains another in the same band → survived (103/485/598 case: lost a mid-range frequency, retained the winning mid-range frequency, no MLP alignment drop)
+- **Anchor loss**: loses the only representative of a band, leaving the portfolio single-band → compromised geometry entering descent (101/999/598: lost its only low-band frequency, remaining portfolio entirely high-band)
+- **Late-build failure**: a needed frequency tries to build neuron mass but is overpowered by already-entrenched frequencies — never achieves critical mass (101/999/598, 113/999/999)
+
+Band diversity of the surviving portfolio matters more than total frequency count. A model entering second descent with frequencies all in the high band may be worse positioned than one spanning low and mid.
+
+### MLP vs. Attention Alignment as Damage Indicator
+
+Frequency losses leave different signatures depending on which layer's alignment is affected:
+
+| Signature | Interpretation |
+|-----------|---------------|
+| Attention alignment drops only | Survivable — attention reorganized, MLP computation was stable (redundant loss) |
+| MLP/Resid Post alignment drops | Fundamental damage — MLP's Fourier structure destabilized, computational substrate broken |
+| MLP alignment drops, no attention drop | High-frequency secondary participant lost; attention never fully committed to it but MLP depended on it |
+
+Observed:
+- 103/485/598: attention drop only → survived
+- 101/999/598: multiple MLP/Resid Post alignment drops → difficult, slow descent
+- 113/999/999: MLP alignment drop, no attention drop → catastrophic failure mode
+
+The timing of alignment drops against the commitment timeline (from `neuron_dynamics`) is checkable: if an alignment drop coincides with a neuron-count drop at a given frequency, the causal chain is visible.
+
+### Circularity and High-Band Geometry
+
+High-band frequencies (k near p/2) have tighter geometric spacing between residue classes in their 2D Fourier subspace. A model locked into high-band frequencies may show lower circularity even with adequate data coverage, because the ring representing residue classes is denser and more sensitive to interference.
+
+Predicts: max circularity achieved before second descent onset should be lower for models whose first-mover was high-band. Worth measuring as `pre_descent_max_circularity` against `first_mover_band` across all variants.
+
+### The Nucleation Predictor as Conditional Signal
+
+The REQ_063 Fourier Nucleation analysis is not failing when predicted frequencies diverge from winning frequencies. **The divergence IS the signal.**
+
+- Models where init-predicted frequency ≈ winning frequency: healthy grokkers (109/485 → frequency 4 predicted and won)
+- Models where init-predicted frequencies diverge from winning frequencies: anomalous (101/999: init predicted 30, 14, 25; actual winners 35, 41, 43, 44)
+
+The degree of divergence may predict anomaly severity. Models that had to fight their own initialization bias to reach their trained state are the ones with damaged trajectories.
+
+### Data Compatibility: A Flatness Finding
+
+For primes in the 59–113 range with 30% training fraction, data compatibility is near-uniform across all frequencies. ~30% of p² pairs, randomly sampled, provides approximately 0.3×p pairs per residue class — sufficient for balanced Gram matrix coverage at all frequencies by law of large numbers. Data seed does not meaningfully change the compatibility landscape at these scales.
+
+Implication: the variation in grokking character across data seeds is not primarily driven by differential data support for specific frequencies. The cause lies upstream — in initialization (which frequency gets first-mover advantage) and in the competition dynamics that unfold before second descent.
+
+---
+
+*First-mover advantage determines trajectory. Second descent survivability depends on frequency portfolio composition at onset. MLP vs. attention alignment drops distinguish survivable from fundamental damage. Nucleation divergence is the anomaly signal.*
 
 ---
