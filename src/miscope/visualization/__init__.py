@@ -57,6 +57,10 @@ from miscope.visualization.renderers.dominant_frequencies import (
 from miscope.visualization.renderers.fourier_frequency_quality import (
     render_fourier_quality_trajectory,
 )
+from miscope.visualization.renderers.data_compatibility import (
+    render_data_compatibility_overlap,
+    render_data_compatibility_spectrum,
+)
 from miscope.visualization.renderers.fourier_nucleation import (
     render_nucleation_frequency_gains,
     render_nucleation_heatmap,
@@ -117,6 +121,9 @@ __all__ = [
     # REQ_063: Fourier nucleation predictor
     "render_nucleation_heatmap",
     "render_nucleation_frequency_gains",
+    # REQ_064: Fourier data compatibility
+    "render_data_compatibility_spectrum",
+    "render_data_compatibility_overlap",
     # REQ_004: Dominant frequencies
     "render_dominant_frequencies",
     "render_dominant_frequencies_over_time",

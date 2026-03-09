@@ -594,6 +594,64 @@ def _register_all() -> None:
             )
         )
 
+    # --- Data compatibility views (REQ_064) ---
+    # Computed on demand from variant params (prime, data_seed).
+    # No artifact required — always available for modular addition variants.
+    # The overlap view additionally tries to load the nucleation artifact
+    # (epoch 0) and degrades gracefully when it is absent.
+
+    def _load_data_compatibility(variant: Variant, epoch: int | None) -> dict:
+        from miscope.analysis.data_compatibility import compute_data_compatibility
+
+        prime = int(variant.model_config["prime"])
+        data_seed = int(variant.model_config["data_seed"])
+        return compute_data_compatibility(prime, data_seed)
+
+    def _render_data_compatibility_spectrum(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_data_compatibility_spectrum(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="analysis.data_compatibility.spectrum",
+            load_data=_load_data_compatibility,
+            renderer=_render_data_compatibility_spectrum,
+            epoch_source_analyzer=None,
+            required_analyzers=[],
+        )
+    )
+
+    def _load_data_compatibility_overlap(variant: Variant, epoch: int | None) -> dict:
+        from miscope.analysis.data_compatibility import compute_data_compatibility
+
+        prime = int(variant.model_config["prime"])
+        data_seed = int(variant.model_config["data_seed"])
+        compat = compute_data_compatibility(prime, data_seed)
+
+        nucleation = None
+        try:
+            nucleation = variant.artifacts.load_epoch("fourier_nucleation", 0)
+        except (FileNotFoundError, KeyError, OSError):
+            pass
+
+        return {"compatibility": compat, "nucleation": nucleation}
+
+    def _render_data_compatibility_overlap(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_data_compatibility_overlap(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="analysis.data_compatibility.overlap",
+            load_data=_load_data_compatibility_overlap,
+            renderer=_render_data_compatibility_overlap,
+            epoch_source_analyzer=None,
+            required_analyzers=[],
+        )
+    )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

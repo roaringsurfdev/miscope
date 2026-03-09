@@ -33,6 +33,15 @@ _VIEW_LIST = {
         "view_name": "parameters.mlp.nucleation_frequency_gains",
         "view_type": "default_graph",
     },
+    # REQ_064: Data compatibility — epoch-independent, computed on demand
+    "data-compatibility-spectrum": {
+        "view_name": "analysis.data_compatibility.spectrum",
+        "view_type": "default_graph",
+    },
+    "data-compatibility-overlap": {
+        "view_name": "analysis.data_compatibility.overlap",
+        "view_type": "default_graph",
+    },
 }
 
 _graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "nd")
@@ -100,6 +109,9 @@ def create_neuron_dynamics_page_layout() -> html.Div:
                     # REQ_063: Fourier nucleation (epoch 0, initialization-anchored)
                     dbc.Row(dbc.Col(_graph_manager.create_graph("nucleation-heatmap", "650px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("nucleation-gains", "350px"))),
+                    # REQ_064: Data compatibility (epoch-independent, on-demand)
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("data-compatibility-overlap", "450px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("data-compatibility-spectrum", "400px"))),
                 ],
             ),
         ]
