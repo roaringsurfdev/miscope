@@ -107,7 +107,7 @@ class TestClassifyFailureMode:
     def test_healthy_variant(self):
         metrics = {
             "grokking_onset_epoch": 5000,
-            "final_test_loss": 0.0001,
+            "final_test_loss": 1e-9,  # well below degraded_test_loss=1e-6
             "frequency_band_count": 3,
         }
         mode, reasons = classify_failure_mode(metrics)
@@ -136,7 +136,7 @@ class TestClassifyFailureMode:
     def test_late_grokker(self):
         metrics = {
             "grokking_onset_epoch": 20000,
-            "final_test_loss": 0.001,
+            "final_test_loss": 1e-9,  # clean final loss — late but healthy loss level
             "frequency_band_count": 3,
         }
         rules = ClassificationRules(late_grokking_epoch=15000)
@@ -147,7 +147,7 @@ class TestClassifyFailureMode:
     def test_custom_rules_applied(self):
         metrics = {
             "grokking_onset_epoch": 8000,
-            "final_test_loss": 0.0001,
+            "final_test_loss": 1e-9,  # well below degraded_test_loss=1e-6
             "frequency_band_count": 3,
         }
         strict_rules = ClassificationRules(late_grokking_epoch=5000)
@@ -244,7 +244,7 @@ class TestLoadFamilyComparison:
         assert len(df) == 2
 
     def test_healthy_variant_sorted_first(self):
-        healthy = _make_variant([2.0, 0.05, 0.001], prime=113, seed=999)
+        healthy = _make_variant([2.0, 0.05, 1e-9], prime=113, seed=999)
         no_grok = _make_variant([2.0, 2.0, 1.5], prime=101, seed=999)
         family = self._make_family([no_grok, healthy])
         df = load_family_comparison(family)
