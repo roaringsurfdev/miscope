@@ -305,3 +305,70 @@ Implication: the variation in grokking character across data seeds is not primar
 *First-mover advantage determines trajectory. Second descent survivability depends on frequency portfolio composition at onset. MLP vs. attention alignment drops distinguish survivable from fundamental damage. Nucleation divergence is the anomaly signal.*
 
 ---
+
+## 2026-03-10: Multi-Stream Timing — Embedding Leads Attention Leads MLP
+
+### Setup
+
+REQ_066 Multi-Stream Specialization Trajectory view implemented and applied to p113/seed999/dseed598 (the canonical healthy variant). The four-panel view shows embedding dim count, attention aggregate commitment, and MLP committed neuron count over the full training run on a shared x-axis, with Effective Dimensionality as a fourth context panel.
+
+Settings: MLP threshold 70%, Embedding threshold 50%, Attention floor 7%.
+
+### Key Results
+
+Clear temporal ordering across the three specialization streams:
+
+| Stream | Onset epoch (approx) | Description |
+|--------|----------------------|-------------|
+| Embedding | ~2,000–3,000 | Dims begin organizing around key frequencies during first descent |
+| Attention | ~5,000–7,000 | Aggregate QK^T commitment rises; bump-and-settle visible |
+| MLP | ~8,000–10,000 | Neuron commitment crosses threshold at grokking onset |
+
+Gaps between streams are ~3,000–5,000 epochs. The sequence is not simultaneous — the model builds Fourier structure layer by layer, bottom-up.
+
+### The Embedding Leads
+
+Embedding dims begin organizing around the dominant frequencies during the first descent, thousands of epochs before either attention or MLP show measurable specialization. This puts embedding reorganization in the same window as the effective dimensionality compression (panel 4), consistent with the earlier finding that dimensionality compression precedes grokking. Embedding organization and ED compression may be the same underlying event viewed from two angles: the model is consolidating its representational basis.
+
+### The Attention Bump-and-Settle
+
+Attention aggregate commitment doesn't rise monotonically. The leading frequency (frequency 9 for this variant) shows a visible peak at ~0.5 aggregate commitment during the 5k–8k window, then settles back to ~0.35 as MLP neurons commit. The bump precedes full MLP commitment by 1,000–3,000 epochs.
+
+Interpretation: attention is probing — testing frequency 9 as a candidate routing target — before the MLP neuron mass is large enough to sustain that routing. Once MLP commits, the aggregate drops slightly to a stable operating level. The over-commitment during the transition window may reflect the attention mechanism scouting the circuit before it closes.
+
+### The Early Mover (Frequency 9)
+
+Frequency 9 leads in all three streams. It appears first in embedding dims, peaks first in attention aggregate, and reaches committed neuron mass before any other frequency. This is consistent with the first-mover advantage hypothesis (2026-03-09 findings): the frequency that builds early momentum across all three streams wins the competition window.
+
+A brief appearance of a secondary frequency in MLP during the attention over-commit window (the same 5k–8k transition) is visible in the four-panel chart — a transient excursion that rises and falls exactly as the leading frequency's attention aggregate peaks then settles. This timing suggests the attention bump created a permissive window for secondary frequencies to attempt commitment; once attention stabilized, that window closed.
+
+### The Effective Dimensionality Context
+
+ED (panel 4) compresses in the first descent window — W_E and W_in both drop — and then stabilizes. The ED compression onset coincides with the embedding specialization onset. This strengthens the interpretation: first descent is when the model collapses its representational space into the Fourier subspace it will use, and embedding specialization is the readable signature of that collapse.
+
+By the time attention commits and MLP neurons cross threshold, ED has already plateaued. The dimensionality compression is a precondition, not a consequence.
+
+### The Timing Ordering Hypothesis
+
+The observed ordering — Embedding → Attention → MLP — suggests a causal chain:
+
+1. **Embedding organizes first**: The input representations collapse into a Fourier-structured space during first descent, creating a low-dimensional scaffold for the downstream circuit.
+2. **Attention probes the scaffold**: Attention heads begin routing toward the emerging Fourier structure, testing which frequencies the embedding is expressing. The bump-and-settle is this testing phase.
+3. **MLP commits**: Once attention has stabilized its routing, gradient signal concentrates on MLP neurons aligned with the routed frequencies. Neuron commitment follows the attention lock.
+
+If this ordering holds across variants, it implies: **the embedding lottery is drawn first, then attention reads the lottery outcome, then MLP builds the circuit the attention has committed to routing.** The attention-MLP handshake failure (2026-03-08 findings: dseed=999 variant) would then be a failure to complete step 3 — MLP built neurons for a frequency that attention never committed to routing.
+
+### Open Questions
+
+- Does this ordering hold across all healthy variants, or is it specific to p113?
+- Do anomalous variants (p101/999, p59/485) show disrupted ordering — e.g., MLP committing before attention stabilizes, or attention oscillating without converging?
+- Is the attention bump-and-settle universal, or does it correlate with grokking quality? A sharper, shorter bump may predict cleaner grokking.
+- Does the embedding-leads-by-N-epochs gap correlate with grokking speed or quality across variants?
+
+The multi-stream view is the right instrument for these comparisons. Running it across the full variant set would be the next step.
+
+---
+
+*Embedding organizes first (~2–3k), attention probes next (~5–7k), MLP commits last (~8–10k). The temporal gaps suggest a causal relay, not simultaneous specialization. Effective dimensionality compression co-occurs with embedding onset — both are first-descent events. The attention bump-and-settle may be the readable signature of the attention-MLP handshake forming.*
+
+---

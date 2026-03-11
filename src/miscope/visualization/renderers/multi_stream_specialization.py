@@ -50,14 +50,15 @@ def _compute_mlp_band_counts(
 
 def _compute_attn_aggregate(
     attn_fourier_epochs: dict[str, np.ndarray],
+    attn_floor: float = 0.02,
 ) -> tuple[np.ndarray, np.ndarray, list[int]]:
     """Compute mean QK^T Fourier fraction across heads per frequency per epoch."""
     epochs = attn_fourier_epochs["epochs"]
     qk_freq_norms = attn_fourier_epochs["qk_freq_norms"]  # (n_epochs, n_heads, n_freq)
     mean_qk = qk_freq_norms.mean(axis=1)  # (n_epochs, n_freq)
 
-    # Show frequencies that reach at least 2% aggregate commitment at any epoch
-    active = [k for k in range(mean_qk.shape[1]) if mean_qk[:, k].max() > 0.02]
+    # Show frequencies that reach at least attn_floor aggregate commitment at any epoch
+    active = [k for k in range(mean_qk.shape[1]) if mean_qk[:, k].max() > attn_floor]
     return epochs, mean_qk, active
 
 
@@ -112,6 +113,7 @@ def render_multi_stream_specialization(
     epoch: int | None,
     threshold_mlp: float = 0.5,
     threshold_embedding: float = 0.5,
+    attn_floor: float = 0.02,
     title: str | None = None,
     height: int = 1400,
     width: int = 950,
@@ -137,6 +139,9 @@ def render_multi_stream_specialization(
         epoch: Current epoch for vertical cursor. None omits the cursor.
         threshold_mlp: Neuron commitment threshold for panel 1.
         threshold_embedding: Dimension commitment threshold for panel 3.
+        attn_floor: Minimum peak aggregate commitment for a frequency to appear
+            in the attention panel. Filters noise at low values; raise to show
+            only frequencies with meaningful head commitment (e.g., 0.10–0.20).
         title: Custom figure title.
         height: Total figure height in pixels.
         width: Figure width in pixels.
@@ -151,7 +156,7 @@ def render_multi_stream_specialization(
         data["neuron_dynamics"], prime, threshold_mlp
     )
     attn_epochs, attn_mean_qk, attn_active = _compute_attn_aggregate(
-        data["attn_fourier_epochs"]
+        data["attn_fourier_epochs"], attn_floor=attn_floor
     )
     emb_epochs, emb_counts, emb_active = _compute_embedding_dim_counts(
         data["embedding_w_e"], prime, threshold_embedding
