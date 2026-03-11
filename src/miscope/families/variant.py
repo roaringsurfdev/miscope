@@ -370,6 +370,7 @@ class Variant:
         training_fraction: float = 0.3,
         device: str | torch.device | None = None,
         progress_callback: Callable[[float, str], None] | None = None,
+        training_hook: Callable[[int], list[tuple[str, Callable[..., Any]]]] | None = None,
     ) -> TrainingResult:
         """Train this variant's model.
 
@@ -387,6 +388,12 @@ class Variant:
             device: Device for training (default: auto-detect CUDA)
             progress_callback: Optional callback for progress updates
                               (fraction: float, description: str)
+            training_hook: Optional hook factory. Called each epoch with the
+                          current epoch number; returns a list of transformer_lens
+                          forward hook tuples (name, fn) to apply via
+                          model.run_with_hooks(). Return [] outside the
+                          intervention window for a no-op epoch. When None,
+                          the standard model(train_data) forward pass is used.
 
         Returns:
             TrainingResult with losses and checkpoint info
@@ -436,8 +443,12 @@ class Variant:
 
         # Training loop
         for epoch in tqdm.tqdm(range(num_epochs), desc="Training"):
-            # Forward pass
-            train_logits = model(train_data)
+            # Forward pass — apply intervention hooks if provided for this epoch
+            fwd_hooks = training_hook(epoch) if training_hook is not None else []
+            if fwd_hooks:
+                train_logits = model.run_with_hooks(train_data, fwd_hooks=fwd_hooks)
+            else:
+                train_logits = model(train_data)
             train_loss = self._loss_function(train_logits, train_labels)
 
             # Backward pass

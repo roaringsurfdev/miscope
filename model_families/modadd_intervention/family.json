@@ -1,0 +1,71 @@
+{
+  "name": "modadd_intervention",
+  "display_name": "Modulo Addition Intervention",
+  "description": "Intervention training runs on the Modulo Addition 1-Layer task. Variants are stored separately from baseline results and cannot overwrite them.",
+
+  "architecture": {
+    "n_layers": 1,
+    "n_heads": 4,
+    "d_model": 128,
+    "d_head": 32,
+    "d_mlp": 512,
+    "act_fn": "relu",
+    "normalization_type": null,
+    "n_ctx": 3
+  },
+
+  "domain_parameters": {
+    "prime": {
+      "type": "int",
+      "description": "Modulus for the addition task",
+      "default": 113
+    },
+    "seed": {
+      "type": "int",
+      "description": "Random seed for model initialization",
+      "default": 999
+    },
+    "data_seed": {
+      "type": "int",
+      "description": "Random seed for train/test split of the (a, b) input grid",
+      "default": 598
+    },
+    "intervention_id": {
+      "type": "str",
+      "description": "Short deterministic ID derived from the SHA-256 hash of the intervention config"
+    }
+  },
+
+  "analyzers": [
+    "attention_freq",
+    "attention_patterns",
+    "dominant_frequencies",
+    "neuron_activations",
+    "neuron_freq_norm",
+    "parameter_snapshot",
+    "effective_dimensionality",
+    "landscape_flatness",
+    "repr_geometry",
+    "attention_fourier",
+    "fourier_nucleation"
+  ],
+
+  "secondary_analyzers": [
+    "neuron_fourier",
+    "fourier_frequency_quality"
+  ],
+
+  "cross_epoch_analyzers": [
+    "parameter_trajectory",
+    "neuron_dynamics",
+    "global_centroid_pca",
+    "centroid_dmd"
+  ],
+
+  "analysis_dataset": {
+    "type": "modulo_addition_grid",
+    "description": "Full (a, b) input grid for modular arithmetic"
+  },
+
+  "variant_pattern": "modaddintervention_p{prime}_seed{seed}_dseed{data_seed}_iv_{intervention_id}"
+}
