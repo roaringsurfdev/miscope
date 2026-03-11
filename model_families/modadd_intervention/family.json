@@ -2,6 +2,7 @@
   "name": "modadd_intervention",
   "display_name": "Modulo Addition Intervention",
   "description": "Intervention training runs on the Modulo Addition 1-Layer task. Variants are stored separately from baseline results and cannot overwrite them.",
+  "ui_trainable": false,
 
   "architecture": {
     "n_layers": 1,

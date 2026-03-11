@@ -41,7 +41,7 @@ def get_family_choices(registry: FamilyRegistry) -> list[tuple[str, str]]:
         List of (display_name, family_name) tuples for gr.Dropdown
     """
     families = registry.list_families()
-    return [(f.display_name, f.name) for f in families]
+    return [(f.display_name, f.name) for f in families if f.ui_trainable]
 
 
 def get_variant_choices(registry: FamilyRegistry, family_name: str | None) -> list[tuple[str, str]]:
