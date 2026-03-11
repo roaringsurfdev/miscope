@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from miscope.families.protocols import ModelFamily
@@ -86,6 +87,46 @@ class LoadedFamily:
             List of parameter dicts (e.g., [{"prime": 113, "seed": 999}, ...])
         """
         return [v.params for v in self.list_variants()]
+
+    def create_intervention_variant(
+        self,
+        prime: int,
+        seed: int,
+        data_seed: int,
+        intervention_config: dict[str, Any],
+        results_dir: Path | str | None = None,
+    ) -> Variant:
+        """Create an intervention variant, defaulting results_dir to the config-derived path.
+
+        Delegates to the underlying ModAddInterventionFamily. The results_dir
+        defaults to the registry's results directory (set from AppConfig), so
+        no hardcoded paths are needed in notebook cells.
+
+        Args:
+            prime: Modulus for the addition task
+            seed: Random seed for model initialization
+            data_seed: Random seed for train/test split
+            intervention_config: Intervention parameter dict
+            results_dir: Override for results root. Uses config-derived path if omitted.
+
+        Raises:
+            TypeError: If the underlying family is not a ModAddInterventionFamily
+        """
+        from miscope.families.implementations.modadd_intervention import ModAddInterventionFamily
+
+        if not isinstance(self._family, ModAddInterventionFamily):
+            raise TypeError(
+                f"create_intervention_variant() requires a ModAddInterventionFamily, "
+                f"got {type(self._family).__name__}"
+            )
+        resolved = Path(results_dir) if results_dir else self._registry._results_dir
+        return self._family.create_intervention_variant(
+            prime=prime,
+            seed=seed,
+            data_seed=data_seed,
+            intervention_config=intervention_config,
+            results_dir=resolved,
+        )
 
     def __repr__(self) -> str:
         n_variants = len(self.list_variants())
