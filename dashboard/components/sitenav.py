@@ -14,6 +14,7 @@ def create_sitenav() -> dbc.NavbarSimple:
     return dbc.NavbarSimple(
         children=[
             dbc.NavItem(dbc.NavLink("Visualization", href="/visualization")),
+            dbc.NavItem(dbc.NavLink("Multi-Stream", href="/multistream")),
             dbc.NavItem(dbc.NavLink("Summary", href="/summary")),
             dbc.NavItem(dbc.NavLink("Neuron Dynamics", href="/neuron-dynamics")),
             dbc.NavItem(dbc.NavLink("Repr Geometry", href="/repr-geometry")),
@@ -45,6 +46,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_dimensionality_page_layout,
         create_dimensionality_page_nav,
     )
+    from dashboard.pages.multistream import (
+        create_multistream_page_layout,
+        create_multistream_page_nav,
+    )
     from dashboard.pages.neuron_dynamics import (
         create_neuron_dynamics_page_layout,
         create_neuron_dynamics_page_nav,
@@ -69,6 +74,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
         Input("url", "pathname"),
     )
     def display_page(pathname: str | None) -> list[html.Div]:
+        if pathname == "/multistream":
+            return [create_multistream_page_nav(), create_multistream_page_layout()]
         if pathname == "/neuron-dynamics":
             return [create_neuron_dynamics_page_nav(), create_neuron_dynamics_page_layout()]
         elif pathname == "/repr-geometry":

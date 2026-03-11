@@ -6,24 +6,27 @@ from dashboard.components.analysis_page import AnalysisPageGraphManager
 _VIEW_LIST = {
     "neuron_freq_trajectory": {
         "view_name": "activations.mlp.neuron_freq_trajectory",
-        "view_type": "default_graph",
+        "view_type": "epoch_selector",
         "view_filter_set": "nd_specialization_threshold",
     },
     "switch-plot": {"view_name": "activations.mlp.switch_count_distribution", "view_type": "default_graph"},
-    "commitment-plot": {"view_name": "activations.mlp.commitment_timeline", "view_type": "default_graph"},
+    "commitment-plot": {
+        "view_name": "activations.mlp.commitment_timeline", 
+        "view_type": "epoch_selector",
+    },
     # Threshold-sensitive views
     "per-band-specialization": {
         "view_name": "activations.mlp.per_band_specialization",
-        "view_type": "default_graph",
+        "view_type": "epoch_selector",
         "view_filter_set": "nd_specialization_threshold",
     },
     "neuron-frequency-range": {
         "view_name": "activations.mlp.neuron_frequency_range",
-        "view_type": "default_graph"
+        "view_type": "epoch_selector"
     },
     "band-concentration": {
         "view_name": "analysis.band_concentration.trajectory",
-        "view_type": "default_graph"
+        "view_type": "epoch_selector"
     },
     # REQ_063: Fourier nucleation — always epoch 0
     "nucleation-heatmap": {

@@ -62,7 +62,10 @@ class ArtifactLoader:
         return dict(np.load(artifact_path))
 
     def load_epochs(
-        self, analyzer_name: str, epochs: list[int] | None = None
+        self,
+        analyzer_name: str,
+        epochs: list[int] | None = None,
+        fields: list[str] | None = None,
     ) -> dict[str, np.ndarray]:
         """Load and stack results across multiple epochs.
 
@@ -72,6 +75,10 @@ class ArtifactLoader:
         Args:
             analyzer_name: Name of the analyzer
             epochs: Specific epochs to load. None means all available.
+            fields: Specific field names to load from each epoch file.
+                None loads all fields. Use this for large artifacts (e.g.,
+                parameter_snapshot) where only one field is needed — avoids
+                loading all weight matrices when only W_E is required.
 
         Returns:
             Dict with 'epochs' array and stacked data arrays.
@@ -88,21 +95,30 @@ class ArtifactLoader:
 
         epochs = sorted(epochs)
 
-        # Load first epoch to determine keys
-        first = self.load_epoch(analyzer_name, epochs[0])
-        keys = list(first.keys())
+        if fields is not None:
+            # Selective loading: open each npz lazily and only extract requested fields.
+            # Avoids loading large arrays (e.g., W_in, W_out) when only W_E is needed.
+            result: dict[str, list[np.ndarray]] = {k: [] for k in fields}
+            for epoch in epochs:
+                artifact_path = os.path.join(
+                    self.artifacts_dir, analyzer_name, f"epoch_{epoch:05d}.npz"
+                )
+                with np.load(artifact_path) as npz:
+                    for k in fields:
+                        result[k].append(npz[k])
+        else:
+            # Load all fields via load_epoch (original behavior)
+            first = self.load_epoch(analyzer_name, epochs[0])
+            keys = list(first.keys())
+            result = {k: [first[k]] for k in keys}
+            for epoch in epochs[1:]:
+                data = self.load_epoch(analyzer_name, epoch)
+                for k in keys:
+                    result[k].append(data[k])
 
-        # Pre-allocate and fill
-        result: dict[str, list[np.ndarray]] = {k: [first[k]] for k in keys}
-
-        for epoch in epochs[1:]:
-            data = self.load_epoch(analyzer_name, epoch)
-            for k in keys:
-                result[k].append(data[k])
-
-        stacked = {"epochs": np.array(epochs)}
-        for k in keys:
-            stacked[k] = np.stack(result[k], axis=0)
+        stacked: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
+        for k, arrays in result.items():
+            stacked[k] = np.stack(arrays, axis=0)
 
         return stacked
 

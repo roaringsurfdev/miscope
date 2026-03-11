@@ -652,6 +652,55 @@ def _register_all() -> None:
         )
     )
 
+    # --- Multi-stream specialization (REQ_066) ---
+    # Loads from four artifact sources; W_E loaded selectively to avoid
+    # pulling all weight matrices from parameter_snapshot across all epochs.
+
+    def _load_multi_stream_specialization(variant: Variant, _epoch: int | None) -> dict:
+        return {
+            "neuron_dynamics": variant.artifacts.load_cross_epoch("neuron_dynamics"),
+            "attn_fourier_epochs": variant.artifacts.load_epochs("attention_fourier"),
+            "embedding_w_e": variant.artifacts.load_epochs(
+                "parameter_snapshot", fields=["W_E"]
+            ),
+            "eff_dim_summary": variant.artifacts.load_summary("effective_dimensionality"),
+            "prime": int(variant.model_config["prime"]),
+        }
+
+    def _render_multi_stream_specialization(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        from miscope.visualization.renderers.multi_stream_specialization import (
+            render_multi_stream_specialization,
+        )
+
+        threshold_mlp = kwargs.pop("threshold_mlp", 0.5)
+        threshold_embedding = kwargs.pop("threshold_embedding", 0.5)
+        attn_floor = kwargs.pop("attn_floor", 0.02)
+        return render_multi_stream_specialization(
+            data,
+            epoch,
+            threshold_mlp=threshold_mlp,
+            threshold_embedding=threshold_embedding,
+            attn_floor=attn_floor,
+            **kwargs,
+        )
+
+    _catalog.register(
+        ViewDefinition(
+            name="multi_stream_specialization",
+            load_data=_load_multi_stream_specialization,
+            renderer=_render_multi_stream_specialization,
+            epoch_source_analyzer=None,
+            required_analyzers=[
+                AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH),
+                AnalyzerRequirement("attention_fourier", ArtifactKind.EPOCH),
+                AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
+                AnalyzerRequirement("effective_dimensionality", ArtifactKind.SUMMARY),
+            ],
+        )
+    )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

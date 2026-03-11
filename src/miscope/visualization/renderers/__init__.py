@@ -28,6 +28,10 @@ from miscope.visualization.renderers.repr_geometry import (
     render_geometry_timeseries,
 )
 
+from miscope.visualization.renderers.multi_stream_specialization import (
+    render_multi_stream_specialization,
+)
+
 __all__ = [
     # REQ_004: Dominant frequencies
     "render_dominant_frequencies",
@@ -54,4 +58,6 @@ __all__ = [
     "render_centroid_distances",
     # REQ_045: Fisher minimum pair
     "render_fisher_heatmap",
+    # REQ_066: Multi-stream specialization
+    "render_multi_stream_specialization",
 ]

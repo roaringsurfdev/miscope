@@ -178,3 +178,43 @@ Pick two or three candidate definitions, compute them for all variants, check wh
 *Grokking window definition is the methodological linchpin. DMD residual, Fourier Alignment threshold, and test loss inflection point are the three candidates. Cross-variant ordering stability is the validation test. PC3 circularity revisit is a natural follow-on once global PCA is in place.*
 
 ---
+
+## 2026-03-08: Two New Lenses for Initialization and Data Split Mechanics
+
+Motivated by the data_seed=999 experiment: the model attempted a different frequency set than the canonical, and one frequency (Freq 40) failed the attention-MLP handshake. Two new analytical lenses would directly address the mechanism.
+
+### Lens 1: Initialization Frequency Bias
+
+**What it shows:** Which frequencies the model is already biased toward at epoch 0 — before any gradient signal. This includes frequencies that later lose the competition, not just surviving ones.
+
+**Why it matters:** The lottery ticket findings (2026-02-23) showed that initialization IS predictive for anomalous variants. But that analysis looked at what happened — this lens would look at the cause. If an initialization creates systematic energy in frequencies {13, 25, 33, 40} at epoch 0, that predicts which frequency set the model will attempt to build. If {40} has weaker initial energy, it's already disadvantaged entering the competition.
+
+**What to compute:** Fourier analysis of weight matrices at epoch 0 (and perhaps the first few hundred epochs before memorization). The same Fourier projections already used for dominant_frequencies and neuron_fourier, but applied at initialization and in a per-frequency energy view rather than a "what won" view. Show energy across all frequencies, not just the dominant ones — the losers are the point.
+
+**Visualization:** Per-head/per-matrix frequency energy at epoch 0 as a bar chart or heatmap. Cross-epoch view of early-epoch (0-1k) frequency energy trajectory showing which frequencies build early momentum. Overlay with the eventual competition outcome (which frequencies won) to show prediction quality.
+
+**Scope note:** This is primarily a new visualization of data already captured in parameter_snapshot (epoch 0 is always checkpointed). No new analyzer needed — it's a new view over existing data.
+
+---
+
+### Lens 2: Training Data Split Composition
+
+**What it shows:** The Fourier structure of the actual (a,b) pairs in the training set — which frequencies are well-represented and which are underrepresented by the specific data split.
+
+**Why it matters:** The data split steers frequency set selection (2026-03-08 findings). To understand *why* dseed=999 steers toward {13, 25, 33, 40} rather than {9, 33, 38, 55}, we need to see the Fourier content of what's in the training set. If the split systematically underrepresents the pairs most informative for certain frequencies, those frequencies start with less gradient signal from step one.
+
+**What to compute:** For each (a,b) pair in the training set, compute its contribution to each Fourier frequency. Aggregate per-frequency to produce a "coverage profile" — how much Fourier signal the training data carries at each frequency k. Compare against the full grid (uniform coverage) to show gaps. This is essentially applying the Fourier analysis to the training set as a dataset, not to model weights.
+
+**Two sub-views:**
+1. **Split visualization:** Scatter plot of the p×p grid with training vs test pairs colored differently. Organized by row/column sums (or (a+b) mod p) to reveal any structural holes.
+2. **Frequency coverage profile:** Per-frequency k, compute the projection of the training set indicator function onto the Fourier basis. Show as a bar chart. A flat profile = uniform coverage across all frequencies; gaps = frequencies the training data underserves.
+
+**Cross-variant utility:** For a fixed prime, compare the coverage profile across multiple data seeds. This directly tests whether dseed=598's consistent success is explained by better Fourier coverage, or whether it's subtler (e.g., particular (a+b) residues covered vs. missed).
+
+**Scope note:** This is a one-time analysis tool, not a per-epoch analyzer. It operates on the training set index arrays already stored in metadata, or can be recomputed from data_seed. Lightweight to implement as a notebook or standalone view.
+
+---
+
+*Together these lenses close the causal chain: initialization bias → frequency candidates → data split coverage → which candidates receive sustained gradient → attention-MLP handshake success or failure.*
+
+---
