@@ -8,9 +8,8 @@ Import side effect: populates the module-level _dataview_catalog.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import numpy as np
 import pandas as pd
 
 from miscope.views.catalog import AnalyzerRequirement, ArtifactKind

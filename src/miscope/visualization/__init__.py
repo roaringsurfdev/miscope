@@ -17,11 +17,6 @@ Usage:
     fig.show()  # or pass to Gradio
 """
 
-from miscope.visualization.renderers.band_concentration import (
-    render_concentration_scatter,
-    render_concentration_trajectory,
-    render_rank_alignment_trajectory,
-)
 from miscope.visualization.line_plot import line
 from miscope.visualization.renderers.attention_fourier import (
     render_head_alignment_trajectory,
@@ -37,11 +32,20 @@ from miscope.visualization.renderers.attention_patterns import (
     render_attention_heads,
     render_attention_single_head,
 )
+from miscope.visualization.renderers.band_concentration import (
+    render_concentration_scatter,
+    render_concentration_trajectory,
+    render_rank_alignment_trajectory,
+)
 from miscope.visualization.renderers.coarseness import (
     render_blob_count_trajectory,
     render_coarseness_by_neuron,
     render_coarseness_distribution,
     render_coarseness_trajectory,
+)
+from miscope.visualization.renderers.data_compatibility import (
+    render_data_compatibility_overlap,
+    render_data_compatibility_spectrum,
 )
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
@@ -54,20 +58,16 @@ from miscope.visualization.renderers.dominant_frequencies import (
     render_dominant_frequencies,
     render_dominant_frequencies_over_time,
 )
+from miscope.visualization.renderers.effective_dimensionality import (
+    render_dimensionality_trajectory,
+    render_singular_value_spectrum,
+)
 from miscope.visualization.renderers.fourier_frequency_quality import (
     render_fourier_quality_trajectory,
-)
-from miscope.visualization.renderers.data_compatibility import (
-    render_data_compatibility_overlap,
-    render_data_compatibility_spectrum,
 )
 from miscope.visualization.renderers.fourier_nucleation import (
     render_nucleation_frequency_gains,
     render_nucleation_heatmap,
-)
-from miscope.visualization.renderers.effective_dimensionality import (
-    render_dimensionality_trajectory,
-    render_singular_value_spectrum,
 )
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,

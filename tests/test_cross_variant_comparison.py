@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import pytest
 
 from miscope.views.cross_variant import (
     ClassificationRules,
@@ -19,7 +18,6 @@ from miscope.visualization.renderers.cross_variant import (
     render_loss_curve_overlay,
     render_metrics_table,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers

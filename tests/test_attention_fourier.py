@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 import numpy as np
 import plotly.graph_objects as go
-import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_fourier import (
@@ -19,7 +18,6 @@ from miscope.visualization.renderers.attention_fourier import (
     render_qk_freq_heatmap,
     render_v_freq_heatmap,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers
@@ -150,7 +148,7 @@ class TestAttentionFourierAnalyzer:
         """A head whose Q and K are both aligned to frequency k should produce
         a QK^T dominated by that frequency."""
         p = P
-        n_freq = p // 2
+        #n_freq = p // 2
         F, _ = _make_fourier_basis_and_names(p)
         k = 2  # target frequency (1-indexed)
         sin_k = F[2 * k - 1]  # (p,)

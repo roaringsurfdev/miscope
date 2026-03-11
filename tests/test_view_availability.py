@@ -15,7 +15,6 @@ from miscope.views.catalog import (
 )
 from miscope.views.dataview_catalog import DataViewCatalog, DataViewDefinition, DataViewSchema
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

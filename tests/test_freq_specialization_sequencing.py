@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 import plotly.graph_objects as go
-import pytest
 
 from miscope.visualization.renderers.neuron_freq_clusters import (
     render_neuron_freq_trajectory,
     render_per_band_specialization,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

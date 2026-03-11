@@ -12,7 +12,6 @@ from miscope.analysis.analyzers.fourier_nucleation import (
     _snapshot,
 )
 
-
 # ---------------------------------------------------------------------------
 # Unit: Fourier basis construction
 # ---------------------------------------------------------------------------
@@ -268,6 +267,7 @@ class TestFourierNucleationIntegration:
     def trained_variant(self, tmp_path):
         """Small trained variant for integration testing."""
         import json
+
         from miscope.families import FamilyRegistry
 
         family_dir = tmp_path / "model_families" / "modulo_addition_1layer"

@@ -11,12 +11,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
-from miscope.views.catalog import AnalyzerRequirement, ArtifactKind, _check_requirement
+from miscope.views.catalog import AnalyzerRequirement, _check_requirement
 
 if TYPE_CHECKING:
     from miscope.families.variant import Variant

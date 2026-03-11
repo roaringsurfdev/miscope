@@ -13,7 +13,6 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-
 _TOP_N_CONVERGENCE = 8  # Frequencies to track in convergence traces
 _TOP_N_GAINS = 12       # Frequencies to show in gains chart
 

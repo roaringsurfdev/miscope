@@ -6,7 +6,6 @@ import torch
 
 from miscope.analysis.data_compatibility import compute_data_compatibility
 
-
 # ---------------------------------------------------------------------------
 # Unit: output structure
 # ---------------------------------------------------------------------------

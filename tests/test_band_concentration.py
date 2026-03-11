@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 import pytest
 
 from miscope.analysis.band_concentration import (
-    compute_band_concentration_at_epoch,
     compute_band_concentration_trajectory,
     compute_critical_mass_snapshot,
     compute_embedding_band_magnitudes,
@@ -20,7 +19,6 @@ from miscope.visualization.renderers.band_concentration import (
     render_concentration_trajectory,
     render_rank_alignment_trajectory,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -256,16 +254,18 @@ class TestSlopeCv:
         # All neurons committed from the start, equal per-band count at every epoch
         dominant = np.concatenate([np.full(4, k) for k in range(n_freq)])
         dominant_freq = np.tile(dominant, (n_epochs, 1))
-        max_frac = np.ones((n_epochs, d_mlp))
+        #max_frac = np.ones((n_epochs, d_mlp))
 
         # Increase total committed at the same rate per frequency by scaling max_frac
         epochs = np.arange(n_epochs) * 100
         # Let committed count per band grow as t (same for all bands)
         # We do this by controlling which neurons are committed per epoch
         # Instead: make per-band counts proportional to epoch index, same slope
-        rng = np.random.default_rng(99)
-        max_frac_arr = np.ones((n_epochs, d_mlp)) * 0.5  # below threshold
-        threshold = 0.9
+        
+        #rng = np.random.default_rng(99)
+        max_frac_arr = np.ones((n_epochs, d_mlp)) * 0.5  # below threshold        
+        #threshold = 0.9
+
         # For each epoch t, commit t+1 neurons per band (same slope)
         committed_per_band = np.arange(1, n_epochs + 1)  # 1,2,...,n_epochs
 
@@ -401,8 +401,8 @@ class TestCrossVariantSummaryIntegration:
             "critical_mass_hhi",
         ]
 
-        from unittest.mock import MagicMock, PropertyMock
-        import pandas as pd
+        from unittest.mock import MagicMock
+
 
         variant = MagicMock()
         variant.name = "test/variant"
@@ -441,7 +441,7 @@ class TestRenderConcentrationTrajectory:
 
     def test_custom_title(self):
         fig = render_concentration_trajectory(self._data(), title="Test Title")
-        assert "Test Title" in fig.layout.title.text
+        assert "Test Title" in fig.layout.title.text # type: ignore
 
     def test_has_traces(self):
         fig = render_concentration_trajectory(self._data())
@@ -465,7 +465,7 @@ class TestRenderRankAlignmentTrajectory:
 
     def test_custom_title(self):
         fig = render_rank_alignment_trajectory(self._data(), title="Custom")
-        assert "Custom" in fig.layout.title.text
+        assert "Custom" in fig.layout.title.text # type: ignore
 
 
 class TestRenderConcentrationScatter:
@@ -491,4 +491,4 @@ class TestRenderConcentrationScatter:
 
     def test_custom_title(self):
         fig = render_concentration_scatter(self._df(), title="Scatter")
-        assert "Scatter" in fig.layout.title.text
+        assert "Scatter" in fig.layout.title.text # type: ignore

@@ -6,6 +6,9 @@ from miscope.visualization.renderers.dominant_frequencies import (
     render_dominant_frequencies,
     render_dominant_frequencies_over_time,
 )
+from miscope.visualization.renderers.multi_stream_specialization import (
+    render_multi_stream_specialization,
+)
 from miscope.visualization.renderers.neuron_activations import (
     get_most_active_neurons,
     render_neuron_across_epochs,
@@ -26,10 +29,6 @@ from miscope.visualization.renderers.repr_geometry import (
     render_centroid_pca,
     render_fisher_heatmap,
     render_geometry_timeseries,
-)
-
-from miscope.visualization.renderers.multi_stream_specialization import (
-    render_multi_stream_specialization,
 )
 
 __all__ = [

@@ -7,7 +7,7 @@ they do not fit the per-variant ViewCatalog pattern — call them directly.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -168,7 +168,7 @@ def render_loss_curve_overlay(
 
         if align_by_grokking:
             onset = next(
-                (i for i, l in enumerate(test_losses) if l < grokking_threshold), None
+                (i for i, loss in enumerate(test_losses) if loss < grokking_threshold), None
             )
             if onset is None:
                 continue

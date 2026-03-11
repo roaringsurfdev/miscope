@@ -10,13 +10,12 @@ import pytest
 
 from miscope.views.cross_variant import (
     ClassificationRules,
+    _compute_first_mover_metrics,
+    _compute_test_loss_trajectory,
     classify_failure_mode,
     compute_variant_metrics,
     load_family_comparison,
-    _compute_test_loss_trajectory,
-    _compute_first_mover_metrics,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers
