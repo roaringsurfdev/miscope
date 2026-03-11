@@ -1,5 +1,5 @@
 import dash_bootstrap_components as dbc
-from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
+from dash import Dash, Input, Output, State, dcc, html
 
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
@@ -27,7 +27,7 @@ def create_multistream_page_nav() -> html.Div:
                 min=0.0,
                 max=1.0,
                 step=0.05,
-                value=0.5,
+                value=0.7,
                 marks={0: "0%", 0.5: "50%", 0.9: "90%", 1.0: "100%"},
                 tooltip={"placement": "bottom", "always_visible": False},
             ),
@@ -43,7 +43,7 @@ def create_multistream_page_nav() -> html.Div:
                 min=0.0,
                 max=1.0,
                 step=0.05,
-                value=0.5,
+                value=0.2,
                 marks={0: "0%", 0.5: "50%", 0.9: "90%", 1.0: "100%"},
                 tooltip={"placement": "bottom", "always_visible": False},
             ),
@@ -59,7 +59,7 @@ def create_multistream_page_nav() -> html.Div:
                 min=0.0,
                 max=0.3,
                 step=0.01,
-                value=0.02,
+                value=0.07,
                 marks={0: "0%", 0.05: "5%", 0.1: "10%", 0.2: "20%", 0.3: "30%"},
                 tooltip={"placement": "bottom", "always_visible": False},
             ),
