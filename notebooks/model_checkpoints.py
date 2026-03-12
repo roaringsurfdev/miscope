@@ -47,8 +47,32 @@ CHECKPOINT_EPOCHS_101_485 = sorted(
         )
     )
 )
+CHECKPOINT_EPOCHS_59_485 = sorted(
+    list(
+        set(
+            [
+                *range(0, 1500, 100),  # Early training - dense (~15 checkpoints)
+                *range(1500, 9000, 500),  # Mid training - moderate (~15 checkpoints)
+                *range(9000, 13000, 100),  # Grokking region - dense (~100 checkpoints)
+                *range(13000, 35000, 500),  # Post-grokking - moderate (~24 checkpoints)
+            ]
+        )
+    )
+)
+CHECKPOINT_EPOCHS_59_485_DENSE_INTERVENTION = sorted(
+    list(
+        set(
+            [
+                *range(0, 6500, 100),  # Early training - dense (~15 checkpoints)
+                *range(6500, 9000, 500),  # Mid training - moderate (~15 checkpoints)
+                *range(9000, 13000, 100),  # Grokking region - dense (~100 checkpoints)
+                *range(13000, 35000, 500),  # Post-grokking - moderate (~24 checkpoints)
+            ]
+        )
+    )
+)
 
 # %% print definition for copy/paste into training run config
-print(CHECKPOINT_EPOCHS_101_485)
-print(len(CHECKPOINT_EPOCHS_101_485))
+print(CHECKPOINT_EPOCHS_59_485_DENSE_INTERVENTION)
+print(len(CHECKPOINT_EPOCHS_59_485_DENSE_INTERVENTION))
 # %%

@@ -372,3 +372,45 @@ The multi-stream view is the right instrument for these comparisons. Running it 
 *Embedding organizes first (~2–3k), attention probes next (~5–7k), MLP commits last (~8–10k). The temporal gaps suggest a causal relay, not simultaneous specialization. Effective dimensionality compression co-occurs with embedding onset — both are first-descent events. The attention bump-and-settle may be the readable signature of the attention-MLP handshake forming.*
 
 ---
+
+## 2026-03-11: Attention Head Intervention Results — Thrasher (p=59, seed=485)
+
+Ran three frequency-gain hook interventions on hook_attn_out, window epoch 1500–6500, ramp 200 epochs. All used W_E-based Fourier directions captured at epoch 1500.
+
+| Run | Config | Grok epoch | Δ |
+|-----|--------|-----------|---|
+| Baseline | — | 24,648 | — |
+| v1 | dampen [4,10,12,17,22]@0.3 | 24,411 | −237 |
+| v2 | v1 + boost Freq2@2.0, Freq10@0.1 | 24,147 | −501 |
+| v3 | v1 + boost Freq15@3.0 | 25,400 | +752 |
+
+**Key observations:**
+- All models converge to the same final quality. No permanent damage from any intervention.
+- v1: near-zero geometric impact (Repr Geometry curves smooth, no dimensionality dip).
+- v2: visible geometric disruption (Mean Effective Dimensionality, Center Spread, Mean Radius all show dip + recovery during window). Centroid DMD PC1 reconstruction looks like a different model. Model recovers after hook ramps out. Caused by Freq 2 boost (unsupported frequency — no MLP infrastructure at epoch 1500).
+- v3: +752 epoch delay. Tracks baseline until ~epoch 20K then stalls. Boosting an already-dominant frequency (Freq 15 strong in MLP + embeddings) appears to overcrowd the late-stage frequency balance, delaying final descent.
+
+**Interpretation:**
+Attention frequency balance at plateau onset does not appear to be causal for grokking speed. The model shows strong resilience — gradient compensates upstream (embeddings, Q/K/V weights) regardless of the hook's effect on activations. MLP neuron commitment timeline is internally gated and does not respond to attention output signal at this stage. The bottleneck is likely not in hook_attn_out at epoch 1500.
+
+The v3 result (boosting a supported frequency delays grokking) is the clearest causal signal: the late-stage descent is sensitive to frequency overcrowding in attention, suggesting a balance requirement the model has already calculated for.
+
+---
+
+## 2026-03-11: The Mismatch Hypothesis — Thrasher Failure Mode
+
+**Observation**: At plateau onset (epoch 1500), there is a structural mismatch between what the Thrasher's attention heads are prioritizing and what its MLPs and embeddings are prioritizing. Attention spreads across 8+ frequencies (competition failure mode). MLPs and embeddings have already committed to a different frequency set (notably Freq 15 strong in MLP/embeddings, weak in attention).
+
+**The circular geometry locks in this mismatch**. The PC1/PC2 centroid structure forms during the plateau, encoding the disagreement between components into the geometry. By epoch 1500 the topology is set.
+
+**Grokking as reconciliation**: The second descent is not just generalization — it's the model bringing attention into alignment with what the MLP and embeddings have committed to. This reconciliation is the actual work of grokking in the Thrasher, and it takes ~23K epochs from plateau.
+
+**Evidence from interventions**:
+- Boosting Freq 15 (already MLP/embedding-favored) delayed grokking by 752 epochs. The model had factored the mismatch into its reconciliation path — disrupting the pre-conditions extended, not shortened, the descent.
+- Snap-back begins at epoch 5800 (700 epochs before hook turns off), confirming the geometry is self-asserting from within the intervention window.
+
+**Implication**: The leverage point is before epoch 1500, while the frequency priorities across components are still being negotiated and the circular geometry hasn't yet locked in. After that, small activation-level interventions can tilt the geometry temporarily but cannot redirect the reconciliation trajectory.
+
+**Open question**: Is the second descent the true "vulnerable phase"? If so, the intervention target would need to be the reconciliation mechanism itself — smoothing the path by which attention realigns with MLP/embedding commitments — rather than the frequency balance at plateau onset.
+
+---

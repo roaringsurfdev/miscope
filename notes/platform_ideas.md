@@ -331,3 +331,19 @@ The variant health dashboard concept (from 2026-02-15: loop closure, grokking ti
 *View naming, cross-variant analysis, and export pipeline are converging toward the same need: reproducible, communicable findings rather than ephemeral notebook sessions.*
 
 ---
+
+## 2026-03-11: Intervention Detail Pane in Variant Selector
+
+When an intervention variant is selected in the dashboard, a detail pane should surface the full intervention config alongside the standard variant info (params, state, etc.). This lets users verify they're looking at the right hash without having to open config.json.
+
+The data is already there — the `intervention` block is stored in `config.json` on every intervention variant directory. The requirement is purely display: detect the `intervention` key in the variant's stored config and render it as a readable summary (type, gain dict, window, ramp).
+
+Useful especially when multiple intervention variants exist for the same base variant and the short hash alone is not self-documenting.
+
+---
+
+## 2026-03-11: Unembedding Fourier Alignment Panel
+
+The `parameter_snapshot` analyzer already captures W_U. Adding a Fourier alignment view for W_U alongside the existing MLP and embedding panels would let us see whether the unembedding is pulling toward specific frequencies — potentially explaining why certain frequencies resist dampening (the gradient from W_U may be sustaining them upstream). Came up during intervention analysis: Freq 10 showed strong resistance to 0.3x dampening, possibly gradient-supported from W_U.
+
+---
