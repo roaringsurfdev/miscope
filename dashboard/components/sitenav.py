@@ -47,6 +47,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_dimensionality_page_layout,
         create_dimensionality_page_nav,
     )
+    from dashboard.pages.intervention_check import (
+        create_intervention_check_page_layout,
+        create_intervention_check_page_nav,
+    )
     from dashboard.pages.multistream import (
         create_multistream_page_layout,
         create_multistream_page_nav,
@@ -63,10 +67,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
     from dashboard.pages.training import (
         create_training_page_layout,
         create_training_page_nav,
-    )
-    from dashboard.pages.intervention_check import (
-        create_intervention_check_page_layout,
-        create_intervention_check_page_nav,
     )
     from dashboard.pages.visualization import (
         create_visualization_page_layout,
