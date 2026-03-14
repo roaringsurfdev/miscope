@@ -42,7 +42,7 @@ def print_ideal_fourier_spectrum_list(p_list):
 # %% load model and list variants
 family = load_family("modulo_addition_1layer")
 variant = family.get_variant(prime=113, seed=999)
-model = variant.load_model_at_checkpoint(9000)
+model = variant.at(9000)
 
 # %% analyze probe
 probe = variant.make_probe([[3, 29]])
