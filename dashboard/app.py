@@ -9,12 +9,12 @@ from dashboard.layout import create_default_layout
 from dashboard.pages.analysis_run import register_analysis_run_page_callbacks
 from dashboard.pages.centroid_dmd import register_centroid_dmd_callbacks
 from dashboard.pages.dimensionality import register_dimensionality_page_callbacks
+from dashboard.pages.intervention_check import register_intervention_check_callbacks
 from dashboard.pages.multistream import register_multistream_page_callbacks
 from dashboard.pages.neuron_dynamics import register_neuron_dynamics_page_callbacks
 from dashboard.pages.repr_geometry import register_repr_geometry_page_callbacks
 from dashboard.pages.summary import register_summary_page_callbacks
 from dashboard.pages.training import register_training_page_callbacks
-from dashboard.pages.intervention_check import register_intervention_check_callbacks
 from dashboard.pages.visualization import register_visualization_page_callbacks
 
 

@@ -342,6 +342,20 @@ Useful especially when multiple intervention variants exist for the same base va
 
 ---
 
+## 2026-03-12: Intervention Type Editor + Extensible Sanity Check
+
+The Intervention Check page (REQ_070) is currently hardcoded to `FrequencyGainHook` on `modadd_intervention` variants. As new intervention types are added (different hook locations, different gain functions, different families), the verification page should generalize.
+
+**Two linked future requirements:**
+
+1. **Intervention Type Editor**: A UI for creating and editing intervention configs directly in the dashboard — define gain values, window, ramp schedule, label. Currently this is done in notebook code. An editor would make it easier to run incremental experiments without touching code. The config schema already supports it; the missing piece is a form-based UI.
+
+2. **Extensible sanity check**: The verification page concept should extend to any intervention type, not just FrequencyGainHook. The principle is the same for any hook — show the "before and after" signal at the hook insertion point — but the computation and visualization are specific to the hook type. A dispatch pattern (hook type → verification computation + renderer) would generalize the page without requiring separate pages per intervention.
+
+These are naturally paired: if you can define a new intervention type in the editor, you should also be able to verify it applies correctly from the same surface.
+
+---
+
 ## 2026-03-11: Unembedding Fourier Alignment Panel
 
 The `parameter_snapshot` analyzer already captures W_U. Adding a Fourier alignment view for W_U alongside the existing MLP and embedding panels would let us see whether the unembedding is pulling toward specific frequencies — potentially explaining why certain frequencies resist dampening (the gradient from W_U may be sustaining them upstream). Came up during intervention analysis: Freq 10 showed strong resistance to 0.3x dampening, possibly gradient-supported from W_U.

@@ -527,7 +527,7 @@ class Variant:
             # Forward pass — apply intervention hooks if provided for this epoch
             fwd_hooks = training_hook(epoch) if training_hook is not None else []
             if fwd_hooks:
-                train_logits = model.run_with_hooks(train_data, fwd_hooks=fwd_hooks)
+                train_logits = model.run_with_hooks(train_data, fwd_hooks=list(fwd_hooks))
             else:
                 train_logits = model(train_data)
             train_loss = self._loss_function(train_logits, train_labels)

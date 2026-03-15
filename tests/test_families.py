@@ -411,7 +411,10 @@ class TestInterventionVariant:
         assert iv.name == "v1"
 
     def test_name_falls_back_to_hash(self, base_variant):
-        from miscope.families.intervention_variant import InterventionVariant, compute_intervention_id
+        from miscope.families.intervention_variant import (
+            InterventionVariant,
+            compute_intervention_id,
+        )
         config = {"type": "frequency_gain", "target_frequencies": [4], "gain": {"4": 0.3},
                   "epoch_start": 1500, "epoch_end": 6500}
         iv = InterventionVariant(base_variant, config)

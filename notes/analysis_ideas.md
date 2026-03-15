@@ -218,3 +218,32 @@ Motivated by the data_seed=999 experiment: the model attempted a different frequ
 *Together these lenses close the causal chain: initialization bias → frequency candidates → data split coverage → which candidates receive sustained gradient → attention-MLP handshake success or failure.*
 
 ---
+
+## 2026-03-14: Geometry-First Hypothesis — Frequencies as Coordinate System, Not Target
+
+### The Hypothesis
+
+Models are not solving "find the best Fourier representation." They are finding the most concise geometry that allows class separation. For modular addition, that geometry is a torus — p classes arranged on a circle, maximally separated. The Fourier basis is the natural coordinate system for a torus; the model arrives at it because it arrived at the circular geometry, not the other way around.
+
+**Key evidence:** Different initializations of the same prime find different frequency sets, all of which work. If the model were optimizing for "best Fourier fit," you'd expect convergence to a canonical frequency set. The divergence across seeds shows the frequencies are a parameterization, not a target.
+
+### Implication for Non-Periodic Tasks
+
+This is testable. For a task whose natural geometry is not periodic, the model should find *some* coherent low-dimensional representation reflecting the task's geometry, but not necessarily Fourier structure.
+
+Candidate task geometries to expect:
+- **Hierarchical / tree-structured tasks** → branching/hypercube geometry, not toric
+- **Metric-preserving tasks** → continuous manifold reflecting pairwise distances between classes
+- **Compositional tasks** → product of simpler geometries, one per compositional factor
+
+**The prediction:** When we add non-periodic toy models, PCA/geometry analysis should reveal clean structure *appropriate to the task*, but the Fourier lens should show noise (no dominant modes). If the Fourier lens still shows clean structure, the hypothesis needs revision. If it shows noise but the PCA shows clean non-toric geometry, the hypothesis is confirmed.
+
+### Implication for the Early Gradient Analysis
+
+The epoch 0 gradient peaks at certain frequencies because the initialization's random weights accidentally create geometric structure with energy in those directions — not because the model "knows" those are the right frequencies. First-mover advantage is the initialization's accidental geometry amplifying itself through gradient descent. The model follows gradient descent toward compact class separation; the frequency structure emerges because that's what compact separation looks like on a circle.
+
+### Relationship to Broader ML
+
+This reframes what "learning a representation" means. The model isn't learning to use a basis — it's learning the geometry of the task and the basis emerges as the natural parameterization of that geometry. This may have implications for superposition in larger models: features pack into geometric structures that maximize separation per dimension, and the "directions" that emerge are the natural coordinates of whatever manifold the task lives on.
+
+---

@@ -96,7 +96,7 @@ def _build_gain_vector(config: dict[str, Any], n_freqs: int) -> torch.Tensor:
     Returns:
         gain: (n_freqs,) tensor of per-frequency scalars
     """
-    raw_gain: dict[str, Any] = config.get("gain", {})
+    raw_gain: dict[str | int, Any] = config.get("gain", {})
     target_freqs: list[int] = config.get("target_frequencies", [])
 
     gain = torch.ones(n_freqs)

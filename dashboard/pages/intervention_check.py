@@ -27,7 +27,6 @@ from dashboard.state import get_registry
 from miscope.families.implementations.frequency_gain_hook import compute_hook_verification
 from miscope.visualization.renderers.intervention_check import render_hook_verification_chart
 
-
 # ---------------------------------------------------------------------------
 # Page-local server state
 # ---------------------------------------------------------------------------
@@ -337,7 +336,7 @@ def register_intervention_check_callbacks(app: Dash) -> None:
         variant_name = stored.get("variant_name")
         intervention_name = stored.get("intervention_name")
 
-        if not intervention_name or not _state.available_checkpoints:
+        if not family_name or not variant_name or not intervention_name or not _state.available_checkpoints:
             raise PreventUpdate
 
         epoch_index = max(0, min(epoch_index, len(_state.available_checkpoints) - 1))

@@ -373,6 +373,54 @@ The multi-stream view is the right instrument for these comparisons. Running it 
 
 ---
 
+## 2026-03-14: Data Seed Effects — Scope and Open Questions
+
+### Current State
+
+Only p=113 has been trained against multiple data seeds. Results so far:
+
+| data_seed | model_seed | Outcome |
+|-----------|------------|---------|
+| 598 | 999 | Clean grokking (canonical) |
+| 598 | 485 | Grokks faster than seed 999 |
+| 42 | 999 | Catastrophic — higher test loss, rebounding behavior |
+| 999 | 999 | Catastrophic — documented 2026-03-08 (freq set steering, Freq 40 handshake failure) |
+
+All other primes have only been tested against data_seed=598. Whether data seed has the same dramatic impact on other primes is unknown.
+
+### Contradiction With March 9 "Flatness Finding"
+
+The 2026-03-09 findings include a theoretical argument that data compatibility is near-uniform across frequencies for 30% training fraction at these scales — predicting data seed shouldn't matter much. Empirically, it matters catastrophically for p=113. One of the following must be true:
+
+1. The Gram matrix coverage argument is correct in the limit but insufficient at actual training scales — small imbalances in frequency coverage get amplified by the competition dynamics
+2. The mechanism isn't Fourier coverage at all — it's which specific (a, b) pairs are present during the early competition window (first-mover advantage phase), when gradient signal is being accumulated to determine which frequency wins
+3. Something about p=113 specifically makes it sensitive to data seed in a way other primes may not be
+
+The 2026-03-09 flatness finding should be treated as provisional until cross-prime data seed experiments are run.
+
+### New Data (2026-03-14)
+
+| Model | Outcome |
+|-------|---------|
+| p=101/seed=999/dseed=999 | Triple descent, but ultimately recovers to machine epsilon |
+| p=101/seed=485/dseed=598 | Single clean descent, late (~15k epochs) but uncomplicated |
+
+**The resilience pattern is narrow:** p=101/999/dseed=999 recovers (triple descent), but p=101/485/dseed=999 fails catastrophically in the same shape as p=113/999/dseed=999 — descends to a minimum ~epoch 9k then climbs back and stalls at ~0.02. The triple-descent recovery is specific to the 999/999 combination, not a general property of p=101. Seed=485 (the healthier initialization for p=101) is just as vulnerable to a bad data seed as the healthy p=113 models.
+
+**p=101/485/598** — seed=485 is the healthier initialization for p=101. Late grokking but a single clean descent, no anomalies. The seed=999 anomaly is initialization-specific, not prime-specific.
+
+### What Cross-Prime Results Would Tell Us
+
+- **If all primes degrade with non-598 seeds**: data seed is a universal factor; the theoretical flatness argument is wrong; Fourier coverage or early-window pair selection is causal across the board
+- **If only p=113 degrades**: something specific to p=113's frequency structure makes it sensitive; other primes' key frequencies may be better supported by random sampling on average
+- **If degradation is seed-and-prime dependent (mixed)**: the interaction between prime-specific key frequencies and which (a, b) pairs the seed selects is the mechanism — some seed/prime combinations happen to provide poor coverage for that prime's specific key frequencies
+
+---
+
+*Data seed matters dramatically for p=113. Other primes untested. The 2026-03-09 flatness prediction is contradicted by empirical results and should be treated as provisional.*
+
+---
+
 ## 2026-03-11: Attention Head Intervention Results — Thrasher (p=59, seed=485)
 
 Ran three frequency-gain hook interventions on hook_attn_out, window epoch 1500–6500, ramp 200 epochs. All used W_E-based Fourier directions captured at epoch 1500.
@@ -410,6 +458,8 @@ Two interpretations, both worth investigating:
 2. **Geometry is self-stabilizing**: The torus shape is determined by properties deeper than `hook_attn_out` (Q/K/V weights, embedding structure). Modifying activations at this point changes the "pointing direction" but not the manifold structure itself. Consistent with the snap-back behavior observed at epoch 5800.
 
 This finding raises the core question for the intervention verification page (REQ_070): what are the frequency directions the attention computation is *actually* using, and how much do they differ from the W_E-based directions? If the gap is large, the hook design may need to be revised before further experiments.
+
+**Update (2026-03-12):** REQ_070 verification page confirms that the hook IS correctly targeting the intended frequencies — the gain is being applied to the right signals in `hook_attn_out`. This rules out the alignment-gap interpretation. The torus rotation is therefore genuine: **the attention mechanism is performing a rotation in representation space during the intervention window**, not a frequency-selective rescaling as intended. The geometry and topology are self-stabilizing; modifying the output activations changes the orientation without disturbing the structure. The leverage point for geometric change is not `hook_attn_out` at epoch 1500.
 
 ---
 
