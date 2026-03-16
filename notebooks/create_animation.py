@@ -94,12 +94,20 @@ def export_animation(
     return output_path
 
 # %% load model and list variants
-family = load_family("modulo_addition_1layer")
-variant = family.get_variant(prime=113, seed=999)
-view_name = "centroid_pca"
-view_kwargs = {"site": "attn_out"}
-output_path = os.path.join("animations", f"{variant.name}_{view_name}_att_out.gif")
+START_EPOCH = 0
+END_EPOCH = 6500
 
-export_animation(variant, view_name=view_name, output_path=output_path, fps=2, **view_kwargs)
+family = load_family("modulo_addition_1layer")
+variant = family.get_variant(prime=109, seed=485, data_seed=598)
+all_checkpoints = variant.get_available_checkpoints()
+checkpoint_range = [epoch for epoch in all_checkpoints if epoch >= START_EPOCH and epoch <= END_EPOCH]
+print(all_checkpoints)
+
+site = "resid_post"
+view_name = "geometry.centroid_pca_variance"
+view_kwargs = {"site": site}
+output_path = os.path.join("animations", f"{variant.name}_{view_name}_{site}.gif")
+
+export_animation(variant, view_name=view_name, output_path=output_path, fps=2, epochs=checkpoint_range, **view_kwargs)
 
 # %%
