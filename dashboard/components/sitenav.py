@@ -15,10 +15,8 @@ def create_sitenav() -> dbc.NavbarSimple:
         children=[
             dbc.NavItem(dbc.NavLink("Visualization", href="/visualization")),
             dbc.NavItem(dbc.NavLink("Multi-Stream", href="/multistream")),
-            dbc.NavItem(dbc.NavLink("Summary", href="/summary")),
             dbc.NavItem(dbc.NavLink("Neuron Dynamics", href="/neuron-dynamics")),
             dbc.NavItem(dbc.NavLink("Repr Geometry", href="/repr-geometry")),
-            dbc.NavItem(dbc.NavLink("Dimensionality", href="/dimensionality")),
             dbc.NavItem(dbc.NavLink("Centroid DMD", href="/centroid-dmd")),
             dbc.NavItem(dbc.NavLink("Training", href="/training")),
             dbc.NavItem(dbc.NavLink("Analysis Run", href="/analysis-run")),
