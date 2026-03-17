@@ -5,7 +5,10 @@ from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 # TODO: Standardize _VIEW_LIST to use a shared schema across pages
 _VIEW_LIST = {
-    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
+    "training-loss-curves": {
+        "view_name": "training.metadata.loss_curves",
+        "view_type": "epoch_selector",
+    },
     "freq-over-time-plot": {
         "view_name": "activations.mlp.dominant_frequencies_over_time",
         "view_type": "epoch_selector",
@@ -26,7 +29,10 @@ _VIEW_LIST = {
         "view_name": "activations.attention.head_frequency_range",
         "view_type": "default_graph",
     },
-    "parameters-pca-3d-scatter": {"view_name": "parameters.pca.scatter_3d", "view_type": "default_graph"},
+    "parameters-pca-3d-scatter": {
+        "view_name": "parameters.pca.scatter_3d",
+        "view_type": "default_graph",
+    },
     "parameters-pca-pc1-pc2": {"view_name": "parameters.pca.pc1_pc2", "view_type": "default_graph"},
     "parameters-pca-pc1-pc3": {
         "view_name": "parameters.pca.pc1_pc3",
@@ -67,9 +73,7 @@ def create_summary_page_layout(app: Dash) -> html.Div:
                         _graph_manager.create_graph("neuron_frequency_range", "350px"),
                         width=7,
                     ),
-                    dbc.Col(
-                        _graph_manager.create_graph("attn-spec-plot", "350px"), width=5
-                    ),
+                    dbc.Col(_graph_manager.create_graph("attn-spec-plot", "350px"), width=5),
                 ]
             ),
             # Specialized neurons by frequency (full width)
@@ -98,9 +102,7 @@ def create_summary_page_layout(app: Dash) -> html.Div:
             dbc.Row(
                 [
                     dbc.Col(_graph_manager.create_graph("velocity-plot", "350px"), width=6),
-                    dbc.Col(
-                        _graph_manager.create_graph("dim-trajectory-plot", "350px"), width=6
-                    ),
+                    dbc.Col(_graph_manager.create_graph("dim-trajectory-plot", "350px"), width=6),
                 ]
             ),
         ],

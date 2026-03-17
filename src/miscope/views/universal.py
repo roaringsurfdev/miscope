@@ -92,17 +92,41 @@ def _register_all() -> None:
     # --- Per-epoch views ---
 
     for name, analyzer, renderer_name in [
-        ("parameters.embeddings.fourier_coefficients", "dominant_frequencies", "render_dominant_frequencies"),
+        (
+            "parameters.embeddings.fourier_coefficients",
+            "dominant_frequencies",
+            "render_dominant_frequencies",
+        ),
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
         ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
         ("activations.mlp.coarseness_distribution", "coarseness", "render_coarseness_distribution"),
         ("activations.mlp.coarseness_by_neuron", "coarseness", "render_coarseness_by_neuron"),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
-        ("activations.attention.head_frequency_clusters", "attention_freq", "render_attention_freq_heatmap"),
-        ("parameters.singular_value_spectrum", "effective_dimensionality", "render_singular_value_spectrum"),
-        ("loss_landscape.perturbation_distribution", "landscape_flatness", "render_perturbation_distribution"),
-        ("activations.mlp.neuron_fourier_heatmap", "neuron_fourier", "render_neuron_fourier_heatmap"),
-        ("activations.mlp.neuron_fourier_heatmap_output", "neuron_fourier", "render_neuron_fourier_heatmap_output"),
+        (
+            "activations.attention.head_frequency_clusters",
+            "attention_freq",
+            "render_attention_freq_heatmap",
+        ),
+        (
+            "parameters.singular_value_spectrum",
+            "effective_dimensionality",
+            "render_singular_value_spectrum",
+        ),
+        (
+            "loss_landscape.perturbation_distribution",
+            "landscape_flatness",
+            "render_perturbation_distribution",
+        ),
+        (
+            "activations.mlp.neuron_fourier_heatmap",
+            "neuron_fourier",
+            "render_neuron_fourier_heatmap",
+        ),
+        (
+            "activations.mlp.neuron_fourier_heatmap_output",
+            "neuron_fourier",
+            "render_neuron_fourier_heatmap_output",
+        ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
 
@@ -309,7 +333,9 @@ def _register_all() -> None:
 
         threshold = kwargs.pop("threshold", 0.9)
         summary = compute_summary_from_dynamics(data["cross_epoch"], data["prime"], threshold)
-        return render_specialization_trajectory(summary, epoch if epoch is not None else 0, **kwargs)
+        return render_specialization_trajectory(
+            summary, epoch if epoch is not None else 0, **kwargs
+        )
 
     def _render_specialization_by_frequency_dynamic(
         data: Any, epoch: int | None, **kwargs: Any
@@ -327,7 +353,10 @@ def _register_all() -> None:
 
     for name, renderer in [
         ("activations.mlp.neuron_frequency_range", _render_specialization_trajectory_dynamic),
-        ("activations.mlp.neuron_frequency_specialization", _render_specialization_by_frequency_dynamic),
+        (
+            "activations.mlp.neuron_frequency_specialization",
+            _render_specialization_by_frequency_dynamic,
+        ),
         ("activations.mlp.neuron_freq_trajectory", _render_neuron_freq_trajectory),
         ("activations.mlp.switch_count_distribution", _render_switch_count_distribution),
         ("activations.mlp.commitment_timeline", _render_commitment_timeline),
@@ -447,7 +476,9 @@ def _register_all() -> None:
             load_data=_load_global_centroid_pca,
             renderer=_render_centroid_global_pca,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("global_centroid_pca", ArtifactKind.CROSS_EPOCH)],
+            required_analyzers=[
+                AnalyzerRequirement("global_centroid_pca", ArtifactKind.CROSS_EPOCH)
+            ],
         )
     )
 
@@ -575,7 +606,9 @@ def _register_all() -> None:
     def _render_nucleation_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_nucleation_heatmap(data, epoch=0, **kwargs)
 
-    def _render_nucleation_frequency_gains(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+    def _render_nucleation_frequency_gains(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
         return viz.render_nucleation_frequency_gains(data, epoch=0, **kwargs)
 
     _nucleation_req = [AnalyzerRequirement("fourier_nucleation", ArtifactKind.EPOCH)]
@@ -660,9 +693,7 @@ def _register_all() -> None:
         return {
             "neuron_dynamics": variant.artifacts.load_cross_epoch("neuron_dynamics"),
             "attn_fourier_epochs": variant.artifacts.load_epochs("attention_fourier"),
-            "embedding_w_e": variant.artifacts.load_epochs(
-                "parameter_snapshot", fields=["W_E"]
-            ),
+            "embedding_w_e": variant.artifacts.load_epochs("parameter_snapshot", fields=["W_E"]),
             "eff_dim_summary": variant.artifacts.load_summary("effective_dimensionality"),
             "prime": int(variant.model_config["prime"]),
         }

@@ -209,8 +209,13 @@ class TestFourierNucleationAnalyzerOutput:
         analyzer = FourierNucleationAnalyzer(iterations=3)
         result = analyzer.analyze(model, None, None, {"params": {"prime": prime}})  # type: ignore[arg-type]
         expected_keys = {
-            "aggregate_energy", "neuron_peak_freq", "neuron_committed_count",
-            "frequencies", "prime", "iterations", "sharpness",
+            "aggregate_energy",
+            "neuron_peak_freq",
+            "neuron_committed_count",
+            "frequencies",
+            "prime",
+            "iterations",
+            "sharpness",
         }
         assert expected_keys == set(result.keys())
 
@@ -281,8 +286,14 @@ class TestFourierNucleationIntegration:
             "description": "Test family",
             "class_type": "miscope.families.implementations.modulo_addition_1layer.ModuloAddition1LayerFamily",
             "architecture": {
-                "n_layers": 1, "n_heads": 4, "d_model": 128, "d_head": 32,
-                "d_mlp": 512, "act_fn": "relu", "normalization_type": None, "n_ctx": 3,
+                "n_layers": 1,
+                "n_heads": 4,
+                "d_model": 128,
+                "d_head": 32,
+                "d_mlp": 512,
+                "act_fn": "relu",
+                "normalization_type": None,
+                "n_ctx": 3,
             },
             "domain_parameters": {
                 "prime": {"type": "int", "description": "Modulus", "default": 113},
@@ -314,6 +325,7 @@ class TestFourierNucleationIntegration:
         pipeline.run()
 
         import os
+
         artifact_path = os.path.join(
             pipeline.artifacts_dir, "fourier_nucleation", "epoch_00000.npz"
         )

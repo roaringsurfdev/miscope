@@ -216,30 +216,22 @@ class TestDataViewCatalog:
 
 class TestBoundDataView:
     def test_data_returns_dataview(self, simple_dataview_def, mock_variant):
-        bound = BoundDataView(
-            dataview_def=simple_dataview_def, variant=mock_variant, epoch=None
-        )
+        bound = BoundDataView(dataview_def=simple_dataview_def, variant=mock_variant, epoch=None)
         result = bound.data()
         assert isinstance(result, DataView)
 
     def test_schema_no_io(self, simple_dataview_def, mock_variant, simple_schema):
-        bound = BoundDataView(
-            dataview_def=simple_dataview_def, variant=mock_variant, epoch=None
-        )
+        bound = BoundDataView(dataview_def=simple_dataview_def, variant=mock_variant, epoch=None)
         assert bound.schema is simple_schema
         mock_variant.artifacts.load_epoch.assert_not_called()
         mock_variant.artifacts.load_cross_epoch.assert_not_called()
 
     def test_epoch_bound(self, simple_dataview_def, mock_variant):
-        bound = BoundDataView(
-            dataview_def=simple_dataview_def, variant=mock_variant, epoch=500
-        )
+        bound = BoundDataView(dataview_def=simple_dataview_def, variant=mock_variant, epoch=500)
         assert bound._epoch == 500
 
     def test_repr(self, simple_dataview_def, mock_variant):
-        bound = BoundDataView(
-            dataview_def=simple_dataview_def, variant=mock_variant, epoch=100
-        )
+        bound = BoundDataView(dataview_def=simple_dataview_def, variant=mock_variant, epoch=100)
         r = repr(bound)
         assert "test.simple" in r
         assert "100" in r

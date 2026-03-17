@@ -434,14 +434,11 @@ class Variant:
         training_fraction: float = 0.3,
         device: str | torch.device | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-
-       return (
-            self._family.generate_training_dataset(
-                self._params,
-                training_fraction=training_fraction,
-                data_seed=self._params["data_seed"],
-                device=device,
-            )
+        return self._family.generate_training_dataset(
+            self._params,
+            training_fraction=training_fraction,
+            data_seed=self._params["data_seed"],
+            device=device,
         )
 
     def train(

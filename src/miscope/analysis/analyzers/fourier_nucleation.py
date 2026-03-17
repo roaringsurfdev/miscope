@@ -47,7 +47,9 @@ def _build_fourier_basis(prime: int) -> tuple[np.ndarray, np.ndarray, np.ndarray
     return frequencies, cos_basis, sin_basis
 
 
-def _project(R: np.ndarray, cos_basis: np.ndarray, sin_basis: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _project(
+    R: np.ndarray, cos_basis: np.ndarray, sin_basis: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Project neuron response matrix onto Fourier basis.
 
     Args:
@@ -94,7 +96,7 @@ def _sharpen(
 
     # Per-neuron threshold: energy at the keep_count-th rank (descending)
     sorted_energy = np.sort(energy, axis=1)[:, ::-1]  # (d_mlp, n_freqs) desc
-    threshold = sorted_energy[:, keep_count - 1:keep_count]  # (d_mlp, 1)
+    threshold = sorted_energy[:, keep_count - 1 : keep_count]  # (d_mlp, 1)
 
     keep_mask = (energy >= threshold).astype(np.float64)  # (d_mlp, n_freqs)
 
@@ -177,7 +179,7 @@ class FourierNucleationAnalyzer:
 
         # W_in is (d_model, d_mlp) in TransformerLens convention.
         # Neuron response to each token: (W_E[:prime] @ W_in).T = (d_mlp, prime)
-        R = (W_E[:prime] @ W_in)  # (prime, d_mlp) → transposed below
+        R = W_E[:prime] @ W_in  # (prime, d_mlp) → transposed below
         R = R.T  # (d_mlp, prime)
 
         frequencies, cos_basis, sin_basis = _build_fourier_basis(prime)
@@ -201,8 +203,13 @@ class FourierNucleationAnalyzer:
 
             if it < n_iters:
                 current_R = _sharpen(
-                    current_R, proj_cos, proj_sin, energy,
-                    cos_basis, sin_basis, self.sharpness,
+                    current_R,
+                    proj_cos,
+                    proj_sin,
+                    energy,
+                    cos_basis,
+                    sin_basis,
+                    self.sharpness,
                 )
 
         return {

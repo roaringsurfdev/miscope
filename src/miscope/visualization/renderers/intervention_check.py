@@ -81,8 +81,7 @@ def render_hook_verification_chart(result: dict[str, Any]) -> go.Figure:
             window_status = f"epoch {epoch} — after window (window: {epoch_start}–{epoch_end})"
     else:
         window_status = (
-            f"epoch {epoch} — ramp factor {ramp_factor:.3f} "
-            f"(window: {epoch_start}–{epoch_end})"
+            f"epoch {epoch} — ramp factor {ramp_factor:.3f} (window: {epoch_start}–{epoch_end})"
         )
 
     # Target frequency summary

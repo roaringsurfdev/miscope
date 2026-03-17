@@ -407,6 +407,7 @@ class TestInterventionVariant:
 
     def test_name_uses_label(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = InterventionVariant(base_variant, iv_config)
         assert iv.name == "v1"
 
@@ -415,29 +416,39 @@ class TestInterventionVariant:
             InterventionVariant,
             compute_intervention_id,
         )
-        config = {"type": "frequency_gain", "target_frequencies": [4], "gain": {"4": 0.3},
-                  "epoch_start": 1500, "epoch_end": 6500}
+
+        config = {
+            "type": "frequency_gain",
+            "target_frequencies": [4],
+            "gain": {"4": 0.3},
+            "epoch_start": 1500,
+            "epoch_end": 6500,
+        }
         iv = InterventionVariant(base_variant, config)
         assert iv.name == compute_intervention_id(config)
         assert len(iv.name) == 8
 
     def test_variant_dir_nested_under_parent(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = InterventionVariant(base_variant, iv_config)
         assert iv.variant_dir == base_variant.variant_dir / "interventions" / "v1"
 
     def test_checkpoints_dir(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = InterventionVariant(base_variant, iv_config)
         assert iv.checkpoints_dir == iv.variant_dir / "checkpoints"
 
     def test_parent_reference(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = InterventionVariant(base_variant, iv_config)
         assert iv.parent is base_variant
 
     def test_intervention_config_copy(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = InterventionVariant(base_variant, iv_config)
         returned = iv.intervention_config
         assert returned == iv_config
@@ -446,6 +457,7 @@ class TestInterventionVariant:
 
     def test_create_intervention_variant_returns_iv(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv = base_variant.create_intervention_variant(iv_config)
         assert isinstance(iv, InterventionVariant)
         assert iv.name == "v1"
@@ -461,6 +473,7 @@ class TestInterventionVariant:
 
     def test_interventions_discovers_from_filesystem(self, base_variant, iv_config):
         import json as _json
+
         # Simulate a migrated intervention: write config.json into interventions/v1/
         iv_dir = base_variant.variant_dir / "interventions" / "v1"
         iv_dir.mkdir(parents=True)
@@ -476,12 +489,14 @@ class TestInterventionVariant:
 
     def test_hash_stable(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv1 = InterventionVariant(base_variant, iv_config)
         iv2 = InterventionVariant(base_variant, iv_config)
         assert hash(iv1) == hash(iv2)
 
     def test_eq(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
+
         iv1 = InterventionVariant(base_variant, iv_config)
         iv2 = InterventionVariant(base_variant, iv_config)
         assert iv1 == iv2

@@ -125,13 +125,13 @@ def _compute_condition_numbers(
     cos_vals = np.cos(angles)  # (n_freqs, n_train)
     sin_vals = np.sin(angles)  # (n_freqs, n_train)
 
-    g_aa = (cos_vals ** 2).sum(axis=1)   # (n_freqs,)
+    g_aa = (cos_vals**2).sum(axis=1)  # (n_freqs,)
     g_ab = (cos_vals * sin_vals).sum(axis=1)
-    g_bb = (sin_vals ** 2).sum(axis=1)
+    g_bb = (sin_vals**2).sum(axis=1)
 
     # 2×2 symmetric eigenvalues: (tr/2) ± sqrt((tr/2 - a)^2 + b^2)
     half_tr = (g_aa + g_bb) / 2.0
-    disc = np.sqrt(np.maximum(((g_aa - g_bb) / 2.0) ** 2 + g_ab ** 2, 0.0))
+    disc = np.sqrt(np.maximum(((g_aa - g_bb) / 2.0) ** 2 + g_ab**2, 0.0))
     lambda_max = half_tr + disc
     lambda_min = half_tr - disc
 

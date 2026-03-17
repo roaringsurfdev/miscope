@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 _TOP_N_CONVERGENCE = 8  # Frequencies to track in convergence traces
-_TOP_N_GAINS = 12       # Frequencies to show in gains chart
+_TOP_N_GAINS = 12  # Frequencies to show in gains chart
 
 
 def render_nucleation_heatmap(
@@ -40,8 +40,8 @@ def render_nucleation_heatmap(
         Plotly Figure with three panels: heatmap, neuron histogram, convergence.
     """
     agg_energy = epoch_data["aggregate_energy"]  # (n_iters+1, n_freqs)
-    peak_freq = epoch_data["neuron_peak_freq"]   # (n_iters+1, d_mlp)
-    frequencies = epoch_data["frequencies"]      # (n_freqs,)
+    peak_freq = epoch_data["neuron_peak_freq"]  # (n_iters+1, d_mlp)
+    frequencies = epoch_data["frequencies"]  # (n_freqs,)
     prime = int(epoch_data["prime"])
     n_iters = int(epoch_data["iterations"])
 
@@ -55,7 +55,8 @@ def render_nucleation_heatmap(
     top_freqs = frequencies[top_idx].tolist()
 
     fig = make_subplots(
-        rows=2, cols=2,
+        rows=2,
+        cols=2,
         row_heights=[0.6, 0.4],
         subplot_titles=[
             f"Spectral Energy — All Iterations (p={prime})",
@@ -79,7 +80,8 @@ def render_nucleation_heatmap(
             colorbar=dict(title="Norm. Energy", len=0.55, y=0.78),
             hovertemplate="Iter %{y}, k=%{x}<br>Energy: %{z:.3f}<extra></extra>",
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
 
     # Highlight top frequencies with vertical annotations
@@ -89,7 +91,8 @@ def render_nucleation_heatmap(
             line_width=1,
             line_dash="dot",
             line_color="rgba(255, 200, 80, 0.5)",
-            row=1, col=1,  # type: ignore[arg-type]
+            row=1,
+            col=1,  # type: ignore[arg-type]
         )
 
     # --- Row 2 left: Neuron peak histogram (final iteration) ---
@@ -110,7 +113,8 @@ def render_nucleation_heatmap(
             hovertemplate="k=%{x}<br>Neurons: %{y}<extra></extra>",
             showlegend=False,
         ),
-        row=2, col=1,
+        row=2,
+        col=1,
     )
 
     # --- Row 2 right: Convergence traces ---
@@ -127,10 +131,15 @@ def render_nucleation_heatmap(
                 line=dict(color=color, width=2),
                 hovertemplate=f"k={k}<br>Iter %{{x}}<br>Energy: %{{y:.3f}}<extra></extra>",
             ),
-            row=2, col=2,
+            row=2,
+            col=2,
         )
 
-    title = f"Fourier Nucleation — Epoch {epoch}" if epoch is not None else "Fourier Nucleation — Epoch 0"
+    title = (
+        f"Fourier Nucleation — Epoch {epoch}"
+        if epoch is not None
+        else "Fourier Nucleation — Epoch 0"
+    )
     sharpness = float(epoch_data.get("sharpness", 0.7))
 
     fig.update_layout(
@@ -146,9 +155,12 @@ def render_nucleation_heatmap(
             *fig.layout.annotations,  # type: ignore[attr-defined]
             dict(
                 text=f"Sharpness: {int(sharpness * 100)}% | Iterations: {n_iters}",
-                xref="paper", yref="paper",
-                x=1.0, y=1.01,
-                xanchor="right", yanchor="bottom",
+                xref="paper",
+                yref="paper",
+                x=1.0,
+                y=1.01,
+                xanchor="right",
+                yanchor="bottom",
                 showarrow=False,
                 font=dict(size=9, color="#3a5858"),
             ),
@@ -185,7 +197,7 @@ def render_nucleation_frequency_gains(
         Plotly Figure with a bar chart of energy gains per frequency.
     """
     agg_energy = epoch_data["aggregate_energy"]  # (n_iters+1, n_freqs)
-    frequencies = epoch_data["frequencies"]      # (n_freqs,)
+    frequencies = epoch_data["frequencies"]  # (n_freqs,)
     prime = int(epoch_data["prime"])
 
     gains = agg_energy[-1] - agg_energy[0]  # (n_freqs,)
@@ -196,8 +208,7 @@ def render_nucleation_frequency_gains(
     top_gains = gains[sorted_idx]
 
     bar_colors = [
-        "rgba(255, 200, 80, 0.9)" if g > 0.05 else "rgba(30, 160, 160, 0.5)"
-        for g in top_gains
+        "rgba(255, 200, 80, 0.9)" if g > 0.05 else "rgba(30, 160, 160, 0.5)" for g in top_gains
     ]
 
     fig = go.Figure(
@@ -209,7 +220,11 @@ def render_nucleation_frequency_gains(
         )
     )
 
-    title = f"Emerging Frequencies — Epoch {epoch} (p={prime})" if epoch is not None else f"Emerging Frequencies — Epoch 0 (p={prime})"
+    title = (
+        f"Emerging Frequencies — Epoch {epoch} (p={prime})"
+        if epoch is not None
+        else f"Emerging Frequencies — Epoch 0 (p={prime})"
+    )
 
     fig.update_layout(
         title=dict(text=title, x=0.5),
@@ -229,7 +244,13 @@ def render_nucleation_frequency_gains(
 def _make_frequency_colors(top_freqs: list[int], top_idx: np.ndarray) -> list[str]:
     """Assign distinguishable colors to top frequencies."""
     palette = [
-        "#1ea0a0", "#ffc850", "#e06080", "#80c050",
-        "#a060e0", "#50b0e0", "#e09020", "#60e0a0",
+        "#1ea0a0",
+        "#ffc850",
+        "#e06080",
+        "#80c050",
+        "#a060e0",
+        "#50b0e0",
+        "#e09020",
+        "#60e0a0",
     ]
     return [palette[i % len(palette)] for i in range(len(top_freqs))]

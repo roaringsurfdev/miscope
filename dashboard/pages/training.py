@@ -218,7 +218,9 @@ def register_training_page_callbacks(app: Dash) -> None:
         prime = defaults.get("prime", 113)
         seed = defaults.get("seed", 999)
         data_seed = defaults.get("data_seed", 598)
-        variant_name = family.get_variant_directory_name({"prime": prime, "seed": seed, "data_seed": data_seed})
+        variant_name = family.get_variant_directory_name(
+            {"prime": prime, "seed": seed, "data_seed": data_seed}
+        )
         return f"Variant: {variant_name}", prime, seed
 
     @app.callback(
@@ -229,7 +231,9 @@ def register_training_page_callbacks(app: Dash) -> None:
         State("training-family-dropdown", "value"),
         prevent_initial_call=True,
     )
-    def on_params_change(prime: int | None, seed: int | None, data_seed: int | None, family_name: str | None):
+    def on_params_change(
+        prime: int | None, seed: int | None, data_seed: int | None, family_name: str | None
+    ):
         if not family_name or prime is None or seed is None:
             return no_update
         try:

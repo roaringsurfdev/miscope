@@ -192,7 +192,9 @@ def render_head_alignment_trajectory(
         width=width,
         template="plotly_white",
         hovermode="x unified",
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.01, font=dict(size=10)),
+        legend=dict(
+            orientation="v", yanchor="top", y=1, xanchor="left", x=1.01, font=dict(size=10)
+        ),
         margin=dict(l=60, r=150, t=50, b=50),
     )
     fig.update_yaxes(title_text="Dominant Freq k", row=1, col=1)

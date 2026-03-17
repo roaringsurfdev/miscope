@@ -73,9 +73,7 @@ def _make_nd_data(
         dominant_freq[:, i] = i % n_freq
     max_frac = np.full((n_epochs, d_mlp), 0.9, dtype=np.float32)
     switch_counts = np.zeros(d_mlp, dtype=np.int32)
-    commitment_epochs = np.linspace(
-        commitment_epoch_range[0], commitment_epoch_range[1], d_mlp
-    )
+    commitment_epochs = np.linspace(commitment_epoch_range[0], commitment_epoch_range[1], d_mlp)
     threshold = np.array([3.0 / n_freq])
     return {
         "epochs": epochs,
@@ -353,7 +351,5 @@ class TestRenderLossCurveOverlay:
 
     def test_failure_mode_coloring_accepted(self):
         v = self._make_variant_with_losses([2.0, 0.5, 0.05, 0.001])
-        fig = render_loss_curve_overlay(
-            [v], failure_modes={v.name: "healthy"}
-        )
+        fig = render_loss_curve_overlay([v], failure_modes={v.name: "healthy"})
         assert isinstance(fig, go.Figure)

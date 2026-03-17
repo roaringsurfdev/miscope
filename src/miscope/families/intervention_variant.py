@@ -146,7 +146,10 @@ class InterventionVariant(Variant):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, InterventionVariant):
             return NotImplemented
-        return self._parent == other._parent and self._intervention_config == other._intervention_config
+        return (
+            self._parent == other._parent
+            and self._intervention_config == other._intervention_config
+        )
 
     def __hash__(self) -> int:
         # Avoid hashing the intervention dict (contains unhashable nested dicts)

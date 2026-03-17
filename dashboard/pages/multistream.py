@@ -4,7 +4,10 @@ from dash import Dash, Input, Output, State, dcc, html
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
 _VIEW_LIST = {
-    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
+    "training-loss-curves": {
+        "view_name": "training.metadata.loss_curves",
+        "view_type": "epoch_selector",
+    },
     # REQ_066: Multi-stream specialization
     "multi-stream-specialization": {
         "view_name": "multi_stream_specialization",
@@ -83,7 +86,11 @@ def create_multistream_page_layout(app: Dash) -> html.Div:
                     # --- Loss ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
                     # --- Multi-stream specialization (REQ_066) ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("multi-stream-specialization", "1400px"))),
+                    dbc.Row(
+                        dbc.Col(
+                            _graph_manager.create_graph("multi-stream-specialization", "1400px")
+                        )
+                    ),
                 ],
             ),
         ]
@@ -125,7 +132,10 @@ def register_multistream_page_callbacks(app: Dash) -> None:
         return f"Attention Floor: {int(floor * 100)}%"
 
     @app.callback(
-        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("multi_stream_thresholds")],
+        [
+            Output(pid, "figure")
+            for pid in _graph_manager.get_graph_output_list("multi_stream_thresholds")
+        ],
         Input("variant-selector-store", "modified_timestamp"),
         Input("multi-stream-mlp-threshold-slider", "value"),
         Input("multi-stream-emb-threshold-slider", "value"),

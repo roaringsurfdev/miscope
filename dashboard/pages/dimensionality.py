@@ -8,12 +8,18 @@ from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
 
 # Page for showing dimensionality metrics in one place
 _VIEW_LIST = {
-    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
+    "training-loss-curves": {
+        "view_name": "training.metadata.loss_curves",
+        "view_type": "epoch_selector",
+    },
     "neuron_frequency_range": {
         "view_name": "activations.mlp.neuron_frequency_range",
         "view_type": "epoch_selector",
     },
-    "spec-freq-plot": {"view_name": "activations.mlp.neuron_frequency_specialization", "view_type": "epoch_selector"},
+    "spec-freq-plot": {
+        "view_name": "activations.mlp.neuron_frequency_specialization",
+        "view_type": "epoch_selector",
+    },
     "attn-spec-plot": {
         "view_name": "activations.attention.frequency_clusters",
         "view_type": "epoch_selector",
@@ -46,7 +52,10 @@ _VIEW_LIST = {
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "velocity-plot": {"view_name": "parameters.pca.component_velocity", "view_type": "epoch_selector"},
+    "velocity-plot": {
+        "view_name": "parameters.pca.component_velocity",
+        "view_type": "epoch_selector",
+    },
     "dim-trajectory-plot": {
         "view_name": "parameters.effective_dimensionality",
         "view_type": "epoch_selector",
@@ -104,7 +113,9 @@ def create_dimensionality_page_layout(app: Dash) -> html.Div:
                     # --- Loss ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
                     # --- Neuron Specialization  ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("neuron_frequency_range", "350px"))),
+                    dbc.Row(
+                        dbc.Col(_graph_manager.create_graph("neuron_frequency_range", "350px"))
+                    ),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("spec-freq-plot", "450px"))),
                     # --- Attention Specialization (summary, click-to-navigate) ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attn-spec-plot", "450px"))),
@@ -133,10 +144,12 @@ def create_dimensionality_page_layout(app: Dash) -> html.Div:
                     dbc.Row(
                         [
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-3d-scatter", "350px"), width=6
+                                _graph_manager.create_graph("parameters-pca-3d-scatter", "350px"),
+                                width=6,
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-pc1-pc2", "350px"), width=6
+                                _graph_manager.create_graph("parameters-pca-pc1-pc2", "350px"),
+                                width=6,
                             ),
                         ]
                     ),

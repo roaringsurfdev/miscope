@@ -104,7 +104,9 @@ class AnalysisPageGraphManager:
                 view_name = self.view_list[view_item].get("view_name")
                 if view_name in variant_server_state.available_views:
                     if view_kwargs:
-                        figures.append(variant_server_state.context.view(view_name).figure(**view_kwargs))
+                        figures.append(
+                            variant_server_state.context.view(view_name).figure(**view_kwargs)
+                        )
                     else:
                         figures.append(variant_server_state.context.view(view_name).figure())
                 else:

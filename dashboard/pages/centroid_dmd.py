@@ -6,7 +6,10 @@ from dashboard.components.analysis_page import _SITE_OPTIONS, AnalysisPageGraphM
 # Page for showing dimensionality metrics in one place
 views = ["geometry.centroid_pca", "geometry.dmd_reconstruction", "geometry.dmd_eigenvalues"]
 _VIEW_LIST = {
-    "training-loss-curves": {"view_name": "training.metadata.loss_curves", "view_type": "epoch_selector"},
+    "training-loss-curves": {
+        "view_name": "training.metadata.loss_curves",
+        "view_type": "epoch_selector",
+    },
     "centroid-global-pca": {
         "view_name": "geometry.global_centroid_pca",
         "view_type": "default_graph",

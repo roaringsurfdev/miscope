@@ -156,7 +156,9 @@ class TestPostDescentRecovery:
         metrics: dict = {}
         _compute_test_loss_trajectory(metrics, losses, ClassificationRules())
         assert metrics["second_descent_onset_epoch"] is None
-        assert "post_descent_recovery" not in metrics or metrics.get("post_descent_recovery") is None
+        assert (
+            "post_descent_recovery" not in metrics or metrics.get("post_descent_recovery") is None
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +182,9 @@ class TestFirstMoverMetrics:
         d_mlp = 10
         # freq_per_neuron: 3 neurons → freq 5, rest → freq 20
         freq_per_neuron = [5, 5, 5, 20, 20, 20, 20, 20, 20, 20]
-        nd = _make_nd_data(n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200])
+        nd = _make_nd_data(
+            n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200]
+        )
         metrics = self._make_metrics()
         rules = ClassificationRules()
         _compute_first_mover_metrics(metrics, nd, prime, rules)
@@ -191,7 +195,9 @@ class TestFirstMoverMetrics:
         prime = 113
         d_mlp = 10
         freq_per_neuron = [5, 5, 5, 20, 20, 20, 20, 20, 20, 20]
-        nd = _make_nd_data(n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200])
+        nd = _make_nd_data(
+            n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200]
+        )
         metrics = self._make_metrics()
         _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
         assert metrics["first_mover_epoch"] == 0
@@ -201,7 +207,9 @@ class TestFirstMoverMetrics:
         prime = 113
         d_mlp = 10
         freq_per_neuron = [5, 5, 5, 20, 20, 20, 20, 20, 20, 20]
-        nd = _make_nd_data(n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100])
+        nd = _make_nd_data(
+            n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
+        )
         metrics = self._make_metrics()
         _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
         assert metrics["first_mover_band"] == "low"
@@ -211,7 +219,9 @@ class TestFirstMoverMetrics:
         prime = 113
         d_mlp = 10
         freq_per_neuron = [5, 5, 5, 20, 20, 20, 20, 20, 20, 20]
-        nd = _make_nd_data(n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100])
+        nd = _make_nd_data(
+            n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
+        )
         metrics = self._make_metrics()
         _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
         assert metrics["first_mover_survived"] is True
@@ -248,7 +258,9 @@ class TestFirstMoverMetrics:
         d_mlp = 10
         # Only 1 neuron per frequency — threshold=2, never reached
         freq_per_neuron = list(range(d_mlp))  # all different frequencies
-        nd = _make_nd_data(n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100])
+        nd = _make_nd_data(
+            n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
+        )
         metrics = self._make_metrics()
         _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
         assert metrics["first_mover_frequency"] is None
@@ -365,7 +377,9 @@ class TestComputeVariantMetricsREQ065:
         prime = 113
         d_mlp = 20
         freq_per_neuron = [5] * 5 + [20] * 15  # 5 neurons on freq=5 → threshold=4
-        nd = _make_nd_data(n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200])
+        nd = _make_nd_data(
+            n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200]
+        )
         variant = _make_variant(test_losses=losses, prime=prime, nd_data=nd)
         metrics = compute_variant_metrics(variant)
         assert metrics["first_mover_frequency"] == 5
@@ -414,7 +428,9 @@ class TestLoadFamilyComparisonREQ065:
         """No error when mixing variants with and without neuron_dynamics."""
         d_mlp = 10
         freq_per_neuron = [5, 5, 5, 20, 20, 20, 20, 20, 20, 20]
-        nd = _make_nd_data(n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200])
+        nd = _make_nd_data(
+            n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200]
+        )
         v_with_nd = _make_variant([2.0, 1.0, 0.5, 0.05, 0.001], nd_data=nd)
         v_no_nd = _make_variant([2.0, 2.0, 1.5, 1.2, 1.0], nd_data=None)
         family = self._make_family([v_with_nd, v_no_nd])

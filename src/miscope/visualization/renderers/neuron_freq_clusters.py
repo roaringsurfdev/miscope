@@ -468,9 +468,9 @@ def compute_summary_from_dynamics(
         "epochs": epochs,
         "specialized_count_total": committed.sum(axis=1).astype(float),
         "specialized_count_low": (committed & (dominant_freq < n_low)).sum(axis=1).astype(float),
-        "specialized_count_mid": (
-            committed & (dominant_freq >= n_low) & (dominant_freq < n_mid)
-        ).sum(axis=1).astype(float),
+        "specialized_count_mid": (committed & (dominant_freq >= n_low) & (dominant_freq < n_mid))
+        .sum(axis=1)
+        .astype(float),
         "specialized_count_high": (committed & (dominant_freq >= n_mid)).sum(axis=1).astype(float),
         "specialized_count_per_freq": per_freq.astype(float),
     }

@@ -77,6 +77,7 @@ def get_variant_choices(registry: FamilyRegistry, family_name: str | None) -> li
 
     return choices
 
+
 def _get_intervention_options(family_name: str | None, variant_name: str | None) -> list[dict]:
     """Return dropdown options for all interventions on the selected variant."""
     if not family_name or not variant_name:
@@ -254,7 +255,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             raise PreventUpdate
 
         if stored_family_name != family_name:
-            app.server.logger.debug("on_family_change: family_name has changed, update dependencies")
+            app.server.logger.debug(
+                "on_family_change: family_name has changed, update dependencies"
+            )
             registry = get_registry()
             choices = get_variant_choices(registry, family_name)
             options = [{"label": display, "value": name} for display, name in choices]
@@ -262,7 +265,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 "variant-selector-store",
                 {"data": {"family_name": family_name, "last_field_updated": "family_name"}},
             )
-            app.server.logger.debug(f"on_family_changed: Store updated -> family_name={family_name}")
+            app.server.logger.debug(
+                f"on_family_changed: Store updated -> family_name={family_name}"
+            )
         else:
             # cancel operation
             app.server.logger.debug("on_family_change: family_name is unchanged, PreventUpdate")
@@ -282,7 +287,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         State("variant-selector-store", "data"),
         prevent_initial_call=True,
     )
-    def on_variant_change(variant_name: str | None, intervention_name: str | None, store_data: dict | None):
+    def on_variant_change(
+        variant_name: str | None, intervention_name: str | None, store_data: dict | None
+    ):
         stored = store_data or {}
         epoch = stored.get("epoch")
         epoch_index = 0
@@ -301,7 +308,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 raise PreventUpdate
 
             if stored_variant_name != variant_name:
-                app.server.logger.debug("on_variant_change: variant_name has changed, update dependencies")
+                app.server.logger.debug(
+                    "on_variant_change: variant_name has changed, update dependencies"
+                )
                 if variant_name is None:
                     # Reset to defaults
                     app.server.logger.debug("on_variant_change: Variant reset")
@@ -312,10 +321,12 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                             "on_variant_change: variant_name changed but family_name is None, PreventUpdate"
                         )
                         raise PreventUpdate
-                    
+
                     load_update = True
             else:
-                app.server.logger.debug("on_variant_change: variant_name is unchanged, PreventUpdate")
+                app.server.logger.debug(
+                    "on_variant_change: variant_name is unchanged, PreventUpdate"
+                )
                 raise PreventUpdate
         else:
             if intervention_name is None and stored_intervention_name is None:
@@ -325,7 +336,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                 raise PreventUpdate
 
             if stored_intervention_name != intervention_name:
-                app.server.logger.debug("on_variant_change: intervention_name has changed, update dependencies")
+                app.server.logger.debug(
+                    "on_variant_change: intervention_name has changed, update dependencies"
+                )
                 if intervention_name is None:
                     # Reset to defaults
                     app.server.logger.debug("on_variant_change: Intervention reset")
@@ -340,10 +353,12 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                             "on_variant_change: intervention_name changed but family_name, variant_name or both not set, PreventUpdate"
                         )
                         raise PreventUpdate
-                    
+
                     load_update = True
             else:
-                app.server.logger.debug("on_variant_change: intervention_name is unchanged, PreventUpdate")
+                app.server.logger.debug(
+                    "on_variant_change: intervention_name is unchanged, PreventUpdate"
+                )
                 raise PreventUpdate
 
         variant_display_name = variant_name
@@ -358,18 +373,22 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             if intervention_name is None:
                 variant_server_state.load_variant(str(stored_family_name), str(variant_name))
                 update_message = f"New variant selected: variant_name: {variant_name}, epoch: {epoch}, max_epochs:{max_epochs}"
-                last_field_updated = "variant_name"                
+                last_field_updated = "variant_name"
             else:
-                variant_server_state.load_variant(str(stored_family_name), str(variant_name), str(intervention_name))
+                variant_server_state.load_variant(
+                    str(stored_family_name), str(variant_name), str(intervention_name)
+                )
                 update_message = f"New intervention selected: intervention_name: {intervention_name}, epoch: {epoch}, max_epochs:{max_epochs}"
-                variant_display_name = f"{variant_display_name}<br/>Intervention: {intervention_name}"
+                variant_display_name = (
+                    f"{variant_display_name}<br/>Intervention: {intervention_name}"
+                )
                 last_field_updated = "intervention_name"
 
             # reset epoch and epoch_index
             # get max epochs for new variant
             max_epochs = max(0, len(variant_server_state.available_epochs) - 1)
-            intervention_options = _get_intervention_options(stored_family_name, variant_name)            
-            
+            intervention_options = _get_intervention_options(stored_family_name, variant_name)
+
             app.server.logger.debug(update_message)
 
             set_props(
@@ -430,7 +449,9 @@ def register_variant_selector_callbacks(app: Dash) -> None:
                         clicked_x = click_data_item["points"][0].get("x")
                         if clicked_x:
                             app.server.logger.debug(f"handling click event: {click_data}")
-                            epoch_index = variant_server_state.get_nearest_epoch_index(int(clicked_x))
+                            epoch_index = variant_server_state.get_nearest_epoch_index(
+                                int(clicked_x)
+                            )
                             epoch = variant_server_state.available_epochs[epoch_index]
                             # Will need to explicitly update the slider since the event
                             # did not come through the slider
@@ -477,9 +498,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         State("variant-selector-store", "data"),
         prevent_initial_call=True,
     )
-    def on_epoch_nav_click(
-        _prev_clicks: int, _next_clicks: int, store_data: dict | None
-    ) -> None:
+    def on_epoch_nav_click(_prev_clicks: int, _next_clicks: int, store_data: dict | None) -> None:
         stored = store_data or {}
         epoch_index = stored.get("epoch_index") or 0
         max_epochs = stored.get("max_epochs") or 0
@@ -503,4 +522,6 @@ def register_variant_selector_callbacks(app: Dash) -> None:
     def on_variant_selector_store_update(timestamp: str | None, store_data: dict | None):
         stored = store_data or {}
         last_field_updated = stored.get("last_field_updated")
-        app.server.logger.debug(f"on_variant_selector_store_update: last_field_updated: {last_field_updated}")
+        app.server.logger.debug(
+            f"on_variant_selector_store_update: last_field_updated: {last_field_updated}"
+        )

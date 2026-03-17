@@ -127,12 +127,14 @@ class TestSplittingReproducibility:
         expected_s = (a_vals + b_vals) % prime
 
         # Run the module
-        result = compute_data_compatibility(prime=prime, data_seed=data_seed,
-                                            training_fraction=training_fraction)
+        result = compute_data_compatibility(
+            prime=prime, data_seed=data_seed, training_fraction=training_fraction
+        )
         assert result["n_training_pairs"] == n_train
         # The s-values are used internally; verify indirectly via n_training_pairs
         # and a direct comparison via the internal helper
         from miscope.analysis.data_compatibility import _reconstruct_training_sums
+
         actual_s = _reconstruct_training_sums(prime, data_seed, training_fraction)
         np.testing.assert_array_equal(actual_s, expected_s)
 

@@ -69,9 +69,7 @@ class AttentionFourierAnalyzer:
             qk_freq_norms[h] = _compute_qk_freq_fractions(
                 W_E_tok, W_Q[h], W_K[h], fourier_basis, n_freq
             )
-            v_freq_norms[h] = _compute_v_freq_fractions(
-                W_E_tok, W_V[h], fourier_basis, n_freq
-            )
+            v_freq_norms[h] = _compute_v_freq_fractions(W_E_tok, W_V[h], fourier_basis, n_freq)
 
         return {
             "qk_freq_norms": qk_freq_norms,
@@ -87,9 +85,9 @@ def _compute_qk_freq_fractions(
     n_freq: int,
 ) -> np.ndarray:
     """Compute per-frequency energy fractions of QK^T in Fourier space."""
-    Q = W_E_tok @ W_Q_h   # (p, d_head)
-    K = W_E_tok @ W_K_h   # (p, d_head)
-    QK = Q @ K.T           # (p, p)
+    Q = W_E_tok @ W_Q_h  # (p, d_head)
+    K = W_E_tok @ W_K_h  # (p, d_head)
+    QK = Q @ K.T  # (p, p)
     QK_fourier = F @ QK @ F.T  # (p+1, p+1)
     energies = _qk_block_norms(QK_fourier, n_freq)
     total = energies.sum().clamp(min=1e-10)
@@ -103,8 +101,8 @@ def _compute_v_freq_fractions(
     n_freq: int,
 ) -> np.ndarray:
     """Compute per-frequency energy fractions of V projection in Fourier space."""
-    V = W_E_tok @ W_V_h   # (p, d_head)
-    V_fourier = F @ V      # (p+1, d_head)
+    V = W_E_tok @ W_V_h  # (p, d_head)
+    V_fourier = F @ V  # (p+1, d_head)
     energies = _v_band_norms(V_fourier, n_freq)
     total = energies.sum().clamp(min=1e-10)
     return (energies / total).cpu().numpy()

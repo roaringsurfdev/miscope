@@ -24,7 +24,7 @@ from miscope.visualization.renderers.band_concentration import (
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
 
-P = 11       # small prime for fast tests
+P = 11  # small prime for fast tests
 N_FREQ = P // 2  # = 5
 N_EPOCHS = 20
 D_MLP = 32
@@ -185,9 +185,7 @@ class TestRankAlignmentTrajectory:
 
         # Commit neurons: group_sizes[k] * 4 neurons for frequency k
         group_sizes = np.arange(1, n_freq + 1)  # [1,2,3,4,5]
-        dominant = np.concatenate(
-            [np.full(s * 4, k) for k, s in enumerate(group_sizes)]
-        )
+        dominant = np.concatenate([np.full(s * 4, k) for k, s in enumerate(group_sizes)])
         d_mlp = len(dominant)  # 4*(1+2+3+4+5) = 60
         dominant_freq = np.tile(dominant, (n_epochs, 1))
         max_frac = np.ones((n_epochs, d_mlp))
@@ -215,9 +213,7 @@ class TestRankAlignmentTrajectory:
         n_epochs, n_freq = 10, N_FREQ
         group_sizes = np.arange(1, n_freq + 1)
 
-        dominant = np.concatenate(
-            [np.full(s * 4, k) for k, s in enumerate(group_sizes)]
-        )
+        dominant = np.concatenate([np.full(s * 4, k) for k, s in enumerate(group_sizes)])
         d_mlp = len(dominant)  # 60
         dominant_freq = np.tile(dominant, (n_epochs, 1))
         max_frac = np.ones((n_epochs, d_mlp))
@@ -254,17 +250,17 @@ class TestSlopeCv:
         # All neurons committed from the start, equal per-band count at every epoch
         dominant = np.concatenate([np.full(4, k) for k in range(n_freq)])
         dominant_freq = np.tile(dominant, (n_epochs, 1))
-        #max_frac = np.ones((n_epochs, d_mlp))
+        # max_frac = np.ones((n_epochs, d_mlp))
 
         # Increase total committed at the same rate per frequency by scaling max_frac
         epochs = np.arange(n_epochs) * 100
         # Let committed count per band grow as t (same for all bands)
         # We do this by controlling which neurons are committed per epoch
         # Instead: make per-band counts proportional to epoch index, same slope
-        
-        #rng = np.random.default_rng(99)
-        max_frac_arr = np.ones((n_epochs, d_mlp)) * 0.5  # below threshold        
-        #threshold = 0.9
+
+        # rng = np.random.default_rng(99)
+        max_frac_arr = np.ones((n_epochs, d_mlp)) * 0.5  # below threshold
+        # threshold = 0.9
 
         # For each epoch t, commit t+1 neurons per band (same slope)
         committed_per_band = np.arange(1, n_epochs + 1)  # 1,2,...,n_epochs
@@ -357,7 +353,15 @@ class TestCriticalMassSnapshot:
             cross_epoch, threshold=0.9, prime=P, neuron_count_threshold=5
         )
         assert result is not None
-        for key in ("epoch", "epoch_idx", "active_band_count", "hhi", "max_band_share", "committed_per_freq", "total_committed"):
+        for key in (
+            "epoch",
+            "epoch_idx",
+            "active_band_count",
+            "hhi",
+            "max_band_share",
+            "committed_per_freq",
+            "total_committed",
+        ):
             assert key in result
 
     def test_snapshot_hhi_is_one_for_monopoly(self):
@@ -403,7 +407,6 @@ class TestCrossVariantSummaryIntegration:
 
         from unittest.mock import MagicMock
 
-
         variant = MagicMock()
         variant.name = "test/variant"
         variant.model_config = {"prime": P, "seed": 42}
@@ -441,7 +444,7 @@ class TestRenderConcentrationTrajectory:
 
     def test_custom_title(self):
         fig = render_concentration_trajectory(self._data(), title="Test Title")
-        assert "Test Title" in fig.layout.title.text # type: ignore
+        assert "Test Title" in fig.layout.title.text  # type: ignore
 
     def test_has_traces(self):
         fig = render_concentration_trajectory(self._data())
@@ -465,7 +468,7 @@ class TestRenderRankAlignmentTrajectory:
 
     def test_custom_title(self):
         fig = render_rank_alignment_trajectory(self._data(), title="Custom")
-        assert "Custom" in fig.layout.title.text # type: ignore
+        assert "Custom" in fig.layout.title.text  # type: ignore
 
 
 class TestRenderConcentrationScatter:
@@ -491,4 +494,4 @@ class TestRenderConcentrationScatter:
 
     def test_custom_title(self):
         fig = render_concentration_scatter(self._df(), title="Scatter")
-        assert "Scatter" in fig.layout.title.text # type: ignore
+        assert "Scatter" in fig.layout.title.text  # type: ignore

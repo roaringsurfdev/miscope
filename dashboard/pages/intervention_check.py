@@ -288,8 +288,15 @@ def register_intervention_check_callbacks(app: Dash) -> None:
         options = _get_intervention_options(family_name, variant_name)
         set_props(
             "intervention-check-store",
-            {"data": {"family_name": family_name, "variant_name": variant_name,
-                      "intervention_name": None, "epoch_index": 0, "max_index": 0}},
+            {
+                "data": {
+                    "family_name": family_name,
+                    "variant_name": variant_name,
+                    "intervention_name": None,
+                    "epoch_index": 0,
+                    "max_index": 0,
+                }
+            },
         )
         return options, None
 
@@ -318,8 +325,14 @@ def register_intervention_check_callbacks(app: Dash) -> None:
         max_index = len(checkpoints) - 1
         set_props(
             "intervention-check-store",
-            {"data": {**stored, "intervention_name": intervention_name,
-                      "epoch_index": 0, "max_index": max_index}},
+            {
+                "data": {
+                    **stored,
+                    "intervention_name": intervention_name,
+                    "epoch_index": 0,
+                    "max_index": max_index,
+                }
+            },
         )
         return max_index, 0, f"{intervention_name} — {len(checkpoints)} checkpoints"
 
@@ -336,7 +349,12 @@ def register_intervention_check_callbacks(app: Dash) -> None:
         variant_name = stored.get("variant_name")
         intervention_name = stored.get("intervention_name")
 
-        if not family_name or not variant_name or not intervention_name or not _state.available_checkpoints:
+        if (
+            not family_name
+            or not variant_name
+            or not intervention_name
+            or not _state.available_checkpoints
+        ):
             raise PreventUpdate
 
         epoch_index = max(0, min(epoch_index, len(_state.available_checkpoints) - 1))

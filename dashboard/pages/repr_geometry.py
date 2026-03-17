@@ -60,9 +60,7 @@ def create_repr_geometry_page_layout(app: Dash) -> html.Div:
             # Fisher heatmap | Distance heatmap
             dbc.Row(
                 [
-                    dbc.Col(
-                        _graph_manager.create_graph("fisher-heatmap-plot", "500px"), width=6
-                    ),
+                    dbc.Col(_graph_manager.create_graph("fisher-heatmap-plot", "500px"), width=6),
                     dbc.Col(_graph_manager.create_graph("centroid-dist-plot", "500px"), width=6),
                 ]
             ),

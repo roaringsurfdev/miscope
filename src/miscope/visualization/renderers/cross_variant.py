@@ -96,8 +96,7 @@ def render_metrics_table(
     # Row colors by failure mode
     failure_modes = df["failure_mode"].tolist() if "failure_mode" in df.columns else []
     row_colors = [
-        _FAILURE_MODE_COLORS.get(fm, _FAILURE_MODE_COLORS["unknown"])
-        for fm in failure_modes
+        _FAILURE_MODE_COLORS.get(fm, _FAILURE_MODE_COLORS["unknown"]) for fm in failure_modes
     ]
 
     fig = go.Figure(

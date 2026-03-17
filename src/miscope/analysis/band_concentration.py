@@ -63,7 +63,7 @@ def compute_band_concentration_trajectory(
     n_freq = prime // 2
     epochs = cross_epoch["epochs"]
     dominant_freq = cross_epoch["dominant_freq"]  # (n_epochs, d_mlp)
-    max_frac = cross_epoch["max_frac"]            # (n_epochs, d_mlp)
+    max_frac = cross_epoch["max_frac"]  # (n_epochs, d_mlp)
 
     committed = max_frac >= threshold  # (n_epochs, d_mlp)
 
@@ -111,7 +111,7 @@ def compute_band_concentration_at_epoch(
     """
     n_freq = prime // 2
     dominant_freq = cross_epoch["dominant_freq"][epoch_idx]  # (d_mlp,)
-    max_frac = cross_epoch["max_frac"][epoch_idx]            # (d_mlp,)
+    max_frac = cross_epoch["max_frac"][epoch_idx]  # (d_mlp,)
     committed = max_frac >= threshold
 
     per_freq = np.array(
@@ -122,7 +122,9 @@ def compute_band_concentration_at_epoch(
     return {
         "active_band_count": int((per_freq > 0).sum()),
         "hhi": compute_hhi(per_freq),
-        "max_band_share": float(per_freq.max() / per_freq.sum()) if per_freq.sum() > 0 else float("nan"),
+        "max_band_share": float(per_freq.max() / per_freq.sum())
+        if per_freq.sum() > 0
+        else float("nan"),
         "committed_per_freq": per_freq,
     }
 

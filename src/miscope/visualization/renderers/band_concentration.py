@@ -200,9 +200,19 @@ def render_concentration_scatter(
         subset: pd.DataFrame = df[df["failure_mode"] == mode]  # type: ignore[assignment]
         color = _FAILURE_MODE_COLORS.get(str(mode), "#888")
 
-        x_vals = subset[hhi_col].values if hhi_col in subset.columns else np.full(len(subset), np.nan)
-        y_vals = subset["grokking_onset_epoch"].values if "grokking_onset_epoch" in subset.columns else np.full(len(subset), np.nan)
-        names = subset["variant_name"].values if "variant_name" in subset.columns else [""] * len(subset)
+        x_vals = (
+            subset[hhi_col].values if hhi_col in subset.columns else np.full(len(subset), np.nan)
+        )
+        y_vals = (
+            subset["grokking_onset_epoch"].values
+            if "grokking_onset_epoch" in subset.columns
+            else np.full(len(subset), np.nan)
+        )
+        names = (
+            subset["variant_name"].values
+            if "variant_name" in subset.columns
+            else [""] * len(subset)
+        )
 
         fig.add_trace(
             go.Scatter(

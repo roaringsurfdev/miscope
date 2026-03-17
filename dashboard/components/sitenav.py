@@ -96,6 +96,9 @@ def register_sitenav_callbacks(app: Dash) -> None:
         elif pathname == "/analysis-run":
             return [create_analysis_run_page_nav(app), create_analysis_run_page_layout(app)]
         elif pathname == "/intervention-check":
-            return [create_intervention_check_page_nav(app), create_intervention_check_page_layout(app)]
+            return [
+                create_intervention_check_page_nav(app),
+                create_intervention_check_page_layout(app),
+            ]
         else:
             return [create_visualization_page_nav(app), create_visualization_page_layout(app)]

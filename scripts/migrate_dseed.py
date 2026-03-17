@@ -19,9 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-OLD_PATTERN = re.compile(
-    r"^(modulo_addition_1layer_p\d+_seed\d+)$"
-)
+OLD_PATTERN = re.compile(r"^(modulo_addition_1layer_p\d+_seed\d+)$")
 
 
 def load_data_seed_from_config(variant_dir: Path, fallback: int) -> int:

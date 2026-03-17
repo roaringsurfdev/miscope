@@ -91,7 +91,9 @@ def _check_requirement(req: AnalyzerRequirement, variant: Variant) -> bool:
     if req.kind == ArtifactKind.CROSS_EPOCH:
         return variant.artifacts.has_cross_epoch(req.name)
     if req.kind == ArtifactKind.CROSS_VARIANT:
-        raise NotImplementedError("CROSS_VARIANT availability cannot be checked against a single variant")
+        raise NotImplementedError(
+            "CROSS_VARIANT availability cannot be checked against a single variant"
+        )
     raise ValueError(f"Unknown ArtifactKind: {req.kind}")  # pragma: no cover
 
 
@@ -123,8 +125,7 @@ class ViewCatalog:
     def available_names_for(self, variant: Variant) -> list[str]:
         """Return sorted list of view names whose requirements are met for this variant."""
         return sorted(
-            name for name, view_def in self._views.items()
-            if view_def.is_available_for(variant)
+            name for name, view_def in self._views.items() if view_def.is_available_for(variant)
         )
 
 
@@ -220,7 +221,9 @@ class EpochContext:
         """Return sorted list of dataview names whose requirements are met for this variant."""
         from miscope.views.dataview_catalog import _dataview_catalog
 
-        catalog = self._dataview_catalog if self._dataview_catalog is not None else _dataview_catalog
+        catalog = (
+            self._dataview_catalog if self._dataview_catalog is not None else _dataview_catalog
+        )
         return catalog.available_names_for(self._variant)
 
     def view(self, name: str) -> BoundView:
@@ -267,7 +270,9 @@ class EpochContext:
             _resolve_dataview_epoch,
         )
 
-        catalog = self._dataview_catalog if self._dataview_catalog is not None else _dataview_catalog
+        catalog = (
+            self._dataview_catalog if self._dataview_catalog is not None else _dataview_catalog
+        )
         dataview_def = catalog.get(name)
         epoch = _resolve_dataview_epoch(self._epoch, dataview_def, self._variant)
         return _BoundDataView(dataview_def=dataview_def, variant=self._variant, epoch=epoch)

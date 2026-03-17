@@ -162,7 +162,7 @@ def render_multi_stream_specialization(
         data["embedding_w_e"], prime, threshold_embedding
     )
 
-    #all_active = sorted(set(mlp_active) | set(attn_active) | set(emb_active))
+    # all_active = sorted(set(mlp_active) | set(attn_active) | set(emb_active))
 
     fig = make_subplots(
         rows=4,

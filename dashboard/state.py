@@ -119,7 +119,9 @@ class VariantServerState:
     interventions: list[InterventionVariant] = []
     intervention: InterventionVariant | None = None
 
-    def load_variant(self, family_name: str, variant_name: str, intervention_name: str | None = None) -> bool:
+    def load_variant(
+        self, family_name: str, variant_name: str, intervention_name: str | None = None
+    ) -> bool:
         """Load a variant's metadata and discover its artifacts.
 
         Computes available_views once against the variant's actual artifacts.
@@ -163,7 +165,7 @@ class VariantServerState:
             self.available_views = catalog.available_names_for(variant)
 
         return True
-    
+
     def load_epoch(self, epoch: int) -> bool:
         if epoch in self.available_epochs:
             if self.intervention is not None:

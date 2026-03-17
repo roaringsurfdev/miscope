@@ -117,9 +117,9 @@ def _compute_quality_score(
     #              = F_restricted[i, (c-b)%p]   (since only a=(c-b)%p contributes)
     b_grid = np.arange(p)[:, None]  # (p, 1)
     c_grid = np.arange(p)[None, :]  # (1, p)
-    a_idx = (c_grid - b_grid) % p   # (p, p): a_idx[b, c] = (c-b)%p
+    a_idx = (c_grid - b_grid) % p  # (p, p): a_idx[b, c] = (c-b)%p
 
-    T_Fa = F_restricted[:, a_idx]   # (m, p, p): T_Fa[i, b, c] = F_restricted[i, a_idx[b,c]]
+    T_Fa = F_restricted[:, a_idx]  # (m, p, p): T_Fa[i, b, c] = F_restricted[i, a_idx[b,c]]
 
     # T_2D[i, j, c] = Σ_b F_restricted[j, b] * T_Fa[i, b, c]
     T_2D = np.einsum("jb,ibc->ijc", F_restricted, T_Fa)  # (m, m, p)

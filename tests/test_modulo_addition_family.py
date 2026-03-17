@@ -45,7 +45,11 @@ def temp_project_dir() -> Path:
             "domain_parameters": {
                 "prime": {"type": "int", "description": "Modulus", "default": 113},
                 "seed": {"type": "int", "description": "Random seed", "default": 999},
-                "data_seed": {"type": "int", "description": "Random seed for train/test split", "default": 598},
+                "data_seed": {
+                    "type": "int",
+                    "description": "Random seed for train/test split",
+                    "default": 598,
+                },
             },
             "analyzers": ["dominant_frequencies", "neuron_activations", "neuron_freq_norm"],
             "visualizations": ["dominant_frequencies_bar"],
@@ -203,14 +207,18 @@ class TestVariantIntegration:
 
     def test_create_variant(self, registry):
         """Test creating a variant."""
-        variant = registry.create_variant("modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598})
+        variant = registry.create_variant(
+            "modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598}
+        )
 
         assert variant.name == "modulo_addition_1layer_p113_seed42_dseed598"
         assert variant.state == VariantState.UNTRAINED
 
     def test_variant_directory_structure(self, registry, temp_project_dir):
         """Test variant directory paths."""
-        variant = registry.create_variant("modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598})
+        variant = registry.create_variant(
+            "modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598}
+        )
 
         expected_base = temp_project_dir / "results" / "modulo_addition_1layer"
         assert variant.variant_dir == expected_base / "modulo_addition_1layer_p113_seed42_dseed598"

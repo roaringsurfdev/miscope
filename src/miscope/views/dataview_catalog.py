@@ -142,8 +142,7 @@ class DataViewCatalog:
     def available_names_for(self, variant: Variant) -> list[str]:
         """Return sorted list of dataview names whose requirements are met for this variant."""
         return sorted(
-            name for name, dv_def in self._dataviews.items()
-            if dv_def.is_available_for(variant)
+            name for name, dv_def in self._dataviews.items() if dv_def.is_available_for(variant)
         )
 
 

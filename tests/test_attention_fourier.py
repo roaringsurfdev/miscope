@@ -23,7 +23,7 @@ from miscope.visualization.renderers.attention_fourier import (
 # Fixtures / Helpers
 # ---------------------------------------------------------------------------
 
-P = 11   # small prime for fast tests
+P = 11  # small prime for fast tests
 N_HEADS = 4
 D_MODEL = 32
 D_HEAD = 8
@@ -82,9 +82,7 @@ def _make_epoch_data(n_heads: int = N_HEADS, n_freq: int = N_FREQ) -> dict:
     return {"qk_freq_norms": qk, "v_freq_norms": v}
 
 
-def _make_stacked_data(
-    n_epochs: int = 8, n_heads: int = N_HEADS, n_freq: int = N_FREQ
-) -> dict:
+def _make_stacked_data(n_epochs: int = 8, n_heads: int = N_HEADS, n_freq: int = N_FREQ) -> dict:
     """Build minimal stacked (multi-epoch) artifact data."""
     rng = np.random.default_rng(1)
     raw = rng.random((n_epochs, n_heads, n_freq)).astype(np.float32)
@@ -148,11 +146,11 @@ class TestAttentionFourierAnalyzer:
         """A head whose Q and K are both aligned to frequency k should produce
         a QK^T dominated by that frequency."""
         p = P
-        #n_freq = p // 2
+        # n_freq = p // 2
         F, _ = _make_fourier_basis_and_names(p)
         k = 2  # target frequency (1-indexed)
         sin_k = F[2 * k - 1]  # (p,)
-        cos_k = F[2 * k]      # (p,)
+        cos_k = F[2 * k]  # (p,)
 
         # Construct a pure-frequency-k weight: Q = [sin_k | cos_k, zeros...]
         d_model = p
@@ -183,6 +181,7 @@ class TestAttentionFourierAnalyzer:
 
 def _make_fourier_basis_and_names(p: int):
     from miscope.analysis.library.fourier import get_fourier_basis
+
     return get_fourier_basis(p)
 
 

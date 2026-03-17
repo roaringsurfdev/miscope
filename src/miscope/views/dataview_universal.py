@@ -131,8 +131,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                 name="velocity",
                 field_type="ndarray",
                 description=(
-                    "Parameter update velocity per epoch (all groups). "
-                    "Shape: (n_epochs,)."
+                    "Parameter update velocity per epoch (all groups). Shape: (n_epochs,)."
                 ),
                 shape_or_columns="(n_epochs,)",
             ),
@@ -156,7 +155,9 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             load_data=_load_pca_trajectory,
             schema=_pca_trajectory_schema,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)],
+            required_analyzers=[
+                AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)
+            ],
         )
     )
 
@@ -221,7 +222,6 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             required_analyzers=[AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH)],
         )
     )
-
 
     # --- Attention Fourier spectrum (per-epoch) (REQ_055) ---
 

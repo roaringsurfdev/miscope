@@ -176,7 +176,9 @@ class TestViewCatalogAvailableNamesFor:
     def test_excludes_unavailable_views(self):
         cat = ViewCatalog()
         cat.register(_make_view("always_available", []))
-        cat.register(_make_view("needs_epoch", [AnalyzerRequirement("dom_freq", ArtifactKind.EPOCH)]))
+        cat.register(
+            _make_view("needs_epoch", [AnalyzerRequirement("dom_freq", ArtifactKind.EPOCH)])
+        )
 
         artifacts = _make_mock_artifacts(available_analyzers=[])
         variant = _make_mock_variant(artifacts)
@@ -186,7 +188,9 @@ class TestViewCatalogAvailableNamesFor:
     def test_includes_available_views(self):
         cat = ViewCatalog()
         cat.register(_make_view("always_available", []))
-        cat.register(_make_view("needs_epoch", [AnalyzerRequirement("dom_freq", ArtifactKind.EPOCH)]))
+        cat.register(
+            _make_view("needs_epoch", [AnalyzerRequirement("dom_freq", ArtifactKind.EPOCH)])
+        )
 
         artifacts = _make_mock_artifacts(available_analyzers=["dom_freq"])
         variant = _make_mock_variant(artifacts)
@@ -211,7 +215,9 @@ class TestViewCatalogAvailableNamesFor:
 
 
 class TestDataViewCatalogAvailableNamesFor:
-    def _make_dataview(self, name: str, required_analyzers: list[AnalyzerRequirement]) -> DataViewDefinition:
+    def _make_dataview(
+        self, name: str, required_analyzers: list[AnalyzerRequirement]
+    ) -> DataViewDefinition:
         return DataViewDefinition(
             name=name,
             load_data=_noop_load,
@@ -222,7 +228,11 @@ class TestDataViewCatalogAvailableNamesFor:
     def test_excludes_unavailable_dataviews(self):
         cat = DataViewCatalog()
         cat.register(self._make_dataview("loss_curve", []))
-        cat.register(self._make_dataview("pca_traj", [AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)]))
+        cat.register(
+            self._make_dataview(
+                "pca_traj", [AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)]
+            )
+        )
 
         artifacts = _make_mock_artifacts(has_cross_epoch={"parameter_trajectory": False})
         variant = _make_mock_variant(artifacts)
@@ -232,7 +242,11 @@ class TestDataViewCatalogAvailableNamesFor:
     def test_includes_available_dataviews(self):
         cat = DataViewCatalog()
         cat.register(self._make_dataview("loss_curve", []))
-        cat.register(self._make_dataview("pca_traj", [AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)]))
+        cat.register(
+            self._make_dataview(
+                "pca_traj", [AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)]
+            )
+        )
 
         artifacts = _make_mock_artifacts(has_cross_epoch={"parameter_trajectory": True})
         variant = _make_mock_variant(artifacts)
