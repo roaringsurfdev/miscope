@@ -91,8 +91,8 @@ def render_nucleation_heatmap(
             line_width=1,
             line_dash="dot",
             line_color="rgba(255, 200, 80, 0.5)",
-            row=1, # type: ignore
-            col=1, # type: ignore[arg-type]
+            row=1,  # type: ignore
+            col=1,  # type: ignore[arg-type]
         )
 
     # --- Row 2 left: Neuron peak histogram (final iteration) ---
