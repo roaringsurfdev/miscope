@@ -418,3 +418,129 @@ fig_pairwise.update_layout(
 fig_pairwise.update_xaxes(title_text="Epoch")
 fig_pairwise.update_yaxes(title_text="Divergence (%)")
 fig_pairwise.show()
+
+
+# %% Plot 8: Train/test loss curves — one figure per prime, grid of model_seed × data_seed
+# Each subplot shows one variant's train (dashed) and test (solid) loss.
+# Reveals grokking timing, failure modes, and how dseeds differ within each prime/mseed pair.
+# Color = data seed (same palette as above). Train = dashed, test = solid.
+
+from collections import defaultdict
+
+prime_groups: dict[int, list[tuple]] = defaultdict(list)
+for g in GROUPS:
+    prime_groups[g[0]].append(g)
+
+for prime, groups in sorted(prime_groups.items()):
+    mseeds = [g[1] for g in groups]
+    dseeds_for_prime = groups[0][2]
+    n_rows, n_cols = len(mseeds), len(dseeds_for_prime)
+
+    subplot_titles = [
+        f"mseed{ms} / dseed{ds}"
+        for ms in mseeds
+        for ds in dseeds_for_prime
+    ]
+
+    fig_loss = make_subplots(
+        rows=n_rows, cols=n_cols,
+        subplot_titles=subplot_titles,
+        shared_xaxes=False,
+    )
+
+    for row_idx, (prime_, mseed, dseeds, _) in enumerate(groups):
+        for col_idx, ds in enumerate(dseeds_for_prime):
+            v = family.get_variant(prime=prime_, seed=mseed, data_seed=ds)
+            epochs_idx = list(range(len(v.test_losses)))
+            color = COLORS[ds]
+            is_first = row_idx == 0 and col_idx == 0
+
+            fig_loss.add_trace(
+                go.Scatter(
+                    x=epochs_idx, y=v.train_losses,
+                    mode="lines", name="train",
+                    line=dict(color=color, dash="dash"), opacity=0.7,
+                    legendgroup="train", showlegend=is_first,
+                ),
+                row=row_idx + 1, col=col_idx + 1,
+            )
+            fig_loss.add_trace(
+                go.Scatter(
+                    x=epochs_idx, y=v.test_losses,
+                    mode="lines", name="test",
+                    line=dict(color=color),
+                    legendgroup="test", showlegend=is_first,
+                ),
+                row=row_idx + 1, col=col_idx + 1,
+            )
+
+    fig_loss.update_layout(
+        title=f"Train/test loss — p{prime}  (train=dashed · test=solid · color=dseed)",
+        height=350 * n_rows,
+    )
+    fig_loss.update_xaxes(title_text="Epoch")
+    fig_loss.update_yaxes(title_text="Loss")
+    fig_loss.show()
+
+# %% Plot 9: Slight modification of Plot 8 to allow more visibility into second descent differences
+# Train/test loss curves — one figure per prime/model_seed, data_seeds on rows
+# Each subplot shows one variant's train (dashed) and test (solid) loss.
+# Reveals grokking timing, failure modes, and how dseeds differ within each prime/mseed pair.
+# Color = data seed (same palette as above). Train = dashed, test = solid.
+
+# TODO: MAKE SAME PLOTS BUT CHANGE GROUPING: One plot per dataseed for all models
+from collections import defaultdict
+#prime_groups: dict[int, list[tuple]] = defaultdict(list)
+
+for prime, seed, dseeds, base_dseed in GROUPS:
+    row_idx = 1
+
+    subplot_titles = [
+        f"dseed{ds}"
+        for ds in dseeds
+    ]
+
+    fig_loss = make_subplots(
+        rows=n_rows, cols=1,
+        subplot_titles=subplot_titles,
+        shared_xaxes=False,
+    )
+
+    for ds in dseeds:
+        v = family.get_variant(prime=prime, seed=seed, data_seed=ds)
+        epochs_idx = list(range(len(v.test_losses)))
+        color = COLORS[ds]
+
+        fig_loss.add_trace(
+            go.Scatter(
+                x=epochs_idx, y=v.train_losses,
+                mode="lines", name="train",
+                line=dict(color=color, dash="dash"), opacity=0.7,
+                legendgroup="train", showlegend=is_first,
+            ),
+            row=row_idx, col=1
+        )
+        fig_loss.add_trace(
+            go.Scatter(
+                x=epochs_idx, y=v.test_losses,
+                mode="lines", name="test",
+                line=dict(color=color),
+                legendgroup="test", showlegend=is_first,
+            ),
+            row=row_idx, col=1
+        )
+
+        fig_loss.update_layout(
+            title=f"Train/test loss — p{prime}/seed{seed}  (train=dashed · test=solid · color=dseed)",
+            height=350 * n_rows,
+        )
+        fig_loss.update_yaxes(type='log')
+        fig_loss.update_xaxes(title_text="Epoch")
+        fig_loss.update_yaxes(title_text="Loss")
+        
+        row_idx+=1
+    
+    fig_loss.show()
+    fig_loss.write_image(f"losses_across_dseeds_p{prime}s{seed}.png", format="png")
+
+# %%
