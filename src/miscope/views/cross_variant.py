@@ -209,7 +209,7 @@ def _load_repr_geometry_metrics(variant: Variant, metrics: dict[str, Any]) -> No
         metrics["final_fisher_discriminant"] = float(fisher[-1])
 
 
-_DEFAULT_CONCENTRATION_THRESHOLD = 0.75
+_DEFAULT_CONCENTRATION_THRESHOLD = 0.7
 _DEFAULT_CRITICAL_MASS_N = 100
 
 
@@ -371,16 +371,18 @@ def _compute_descent_onset_portfolio(
     onset_idx = int(np.searchsorted(epochs, onset_epoch))
     onset_idx = min(onset_idx, len(epochs) - 1)
 
-    committed_mask = max_frac[onset_idx] >= 0.75
-    active_freqs = set(int(f) for f in dominant_freq[onset_idx][committed_mask])
+    committed_mask = max_frac[onset_idx] >= 0.7
+    active_freqs = set(int(f + 1) for f in dominant_freq[onset_idx][committed_mask])
 
     if not active_freqs:
+        metrics["second_descent_onset_committed_frequencies"] = []
         metrics["second_descent_onset_frequency_bands"] = []
         metrics["second_descent_onset_has_low_band"] = False
         metrics["second_descent_onset_band_count"] = 0
         return
 
     bands = [_classify_frequency_band(f, prime) for f in active_freqs]
+    metrics["second_descent_onset_committed_frequencies"] = list(active_freqs)
     metrics["second_descent_onset_frequency_bands"] = bands
     metrics["second_descent_onset_has_low_band"] = "low" in bands
     metrics["second_descent_onset_band_count"] = len(set(bands))

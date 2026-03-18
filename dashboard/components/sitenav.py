@@ -15,10 +15,9 @@ def create_sitenav() -> dbc.NavbarSimple:
         children=[
             dbc.NavItem(dbc.NavLink("Visualization", href="/visualization")),
             dbc.NavItem(dbc.NavLink("Multi-Stream", href="/multistream")),
-            dbc.NavItem(dbc.NavLink("Summary", href="/summary")),
+            dbc.NavItem(dbc.NavLink("Peer Comparison", href="/peer-comparison")),
             dbc.NavItem(dbc.NavLink("Neuron Dynamics", href="/neuron-dynamics")),
             dbc.NavItem(dbc.NavLink("Repr Geometry", href="/repr-geometry")),
-            dbc.NavItem(dbc.NavLink("Dimensionality", href="/dimensionality")),
             dbc.NavItem(dbc.NavLink("Centroid DMD", href="/centroid-dmd")),
             dbc.NavItem(dbc.NavLink("Training", href="/training")),
             dbc.NavItem(dbc.NavLink("Analysis Run", href="/analysis-run")),
@@ -55,6 +54,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_multistream_page_layout,
         create_multistream_page_nav,
     )
+    from dashboard.pages.peer_comparison import (
+        create_peer_comparison_page_layout,
+        create_peer_comparison_page_nav,
+    )
     from dashboard.pages.neuron_dynamics import (
         create_neuron_dynamics_page_layout,
         create_neuron_dynamics_page_nav,
@@ -81,6 +84,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
     def display_page(pathname: str | None) -> list[html.Div]:
         if pathname == "/multistream":
             return [create_multistream_page_nav(app), create_multistream_page_layout(app)]
+        if pathname == "/peer-comparison":
+            return [create_peer_comparison_page_nav(app), create_peer_comparison_page_layout(app)]
         if pathname == "/neuron-dynamics":
             return [create_neuron_dynamics_page_nav(app), create_neuron_dynamics_page_layout(app)]
         elif pathname == "/repr-geometry":

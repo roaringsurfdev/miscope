@@ -215,3 +215,5 @@ fig_unique.update_layout(
     barmode='overlay'
 )
 fig_unique.show()
+
+# %%
