@@ -6,11 +6,22 @@ mode classification) delegates to cross_variant.compute_variant_metrics so
 logic stays in one place.
 
 Public API:
-    CANONICAL_SPECIALIZATION_THRESHOLD: float
+    CANONICAL_SPECIALIZATION_THRESHOLD: float  -- fraction of d_mlp neurons per frequency
+    NEURON_SPECIALIZATION_THRESHOLD: float     -- per-neuron max_frac to be "specialized"
     extract_learned_frequencies(variant, canonical_threshold) -> (list[int], float) | (None, None)
     compute_variant_summary(variant, canonical_threshold, rules) -> dict
     write_variant_summary(variant, canonical_threshold, rules) -> Path
     build_variant_registry(results_dir, family_name) -> Path
+
+Two distinct thresholds:
+- NEURON_SPECIALIZATION_THRESHOLD (0.75): per-neuron quality gate — max_frac must exceed
+  this for a neuron to count as "genuinely specialized" to its dominant frequency.
+  Matches the threshold used by cross_variant._compute_first_mover_metrics.
+- CANONICAL_SPECIALIZATION_THRESHOLD (0.10): frequency-level gate — what fraction of
+  d_mlp neurons must be specialized to that frequency for it to be "learned".
+
+dominant_freq stores np.argmax results (0-indexed).  All public frequency values are
+converted to 1-indexed by adding 1 before reporting.
 """
 
 from __future__ import annotations
@@ -29,6 +40,11 @@ if TYPE_CHECKING:
 
 
 CANONICAL_SPECIALIZATION_THRESHOLD: float = 0.10
+
+# Per-neuron quality gate: max_frac must exceed this for a neuron to count as
+# "genuinely specialized".  Matches the threshold used in cross_variant.py
+# (_compute_first_mover_metrics, _compute_descent_onset_portfolio).
+NEURON_SPECIALIZATION_THRESHOLD: float = 0.75
 
 
 def extract_learned_frequencies(
@@ -54,23 +70,20 @@ def extract_learned_frequencies(
     except FileNotFoundError:
         return None, None
 
-    dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp)
+    dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp) — 0-indexed argmax values
     max_frac = nd["max_frac"]           # (n_epochs, d_mlp)
     d_mlp = dominant_freq.shape[1]
     threshold_count = canonical_threshold * d_mlp
 
-    prime = int(variant.model_config.get("prime", 0))
-    n_freqs = prime // 2 if prime > 0 else dominant_freq.shape[1]
-
-    committed_final = max_frac[-1] >= (
-        float(nd["threshold"][0]) if nd["threshold"].size > 0 else 3.0 / n_freqs
-    )
+    # Use per-neuron quality gate; nd["threshold"] is only the "uncommitted" floor (~0.054)
+    specialized_final = max_frac[-1] >= NEURON_SPECIALIZATION_THRESHOLD
     final_dominant = dominant_freq[-1]
 
     freq_counts: dict[int, int] = {}
     for neuron_idx in range(d_mlp):
-        if committed_final[neuron_idx]:
-            freq = int(final_dominant[neuron_idx])
+        if specialized_final[neuron_idx]:
+            # +1 converts 0-indexed argmax to 1-indexed domain frequency
+            freq = int(final_dominant[neuron_idx]) + 1
             freq_counts[freq] = freq_counts.get(freq, 0) + 1
 
     learned = sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)
@@ -105,17 +118,14 @@ def _committed_frequencies_at_epoch(
     epoch_idx = min(epoch_idx, len(epochs) - 1)
 
     threshold_count = canonical_threshold * d_mlp
-    n_freqs = dominant_freq.shape[1]
 
-    committed_mask = max_frac[epoch_idx] >= (
-        float(nd["threshold"][0]) if nd["threshold"].size > 0 else 3.0 / n_freqs
-    )
+    specialized_mask = max_frac[epoch_idx] >= NEURON_SPECIALIZATION_THRESHOLD
     freq_at_epoch = dominant_freq[epoch_idx]
 
     freq_counts: dict[int, int] = {}
-    for neuron_idx in range(n_freqs):
-        if committed_mask[neuron_idx]:
-            freq = int(freq_at_epoch[neuron_idx])
+    for neuron_idx in range(d_mlp):
+        if specialized_mask[neuron_idx]:
+            freq = int(freq_at_epoch[neuron_idx]) + 1  # 0-indexed → 1-indexed
             freq_counts[freq] = freq_counts.get(freq, 0) + 1
 
     return sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)

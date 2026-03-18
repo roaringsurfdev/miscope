@@ -19,7 +19,6 @@ from miscope.analysis.variant_summary import (
 )
 from miscope.views.cross_variant import ClassificationRules
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -118,24 +117,26 @@ def test_extract_learned_frequencies_returns_none_when_no_artifact():
 
 
 def test_extract_learned_frequencies_basic():
-    # 256 neurons on freq 14, 256 on freq 28 — both should qualify at 0.10 threshold
+    # Raw 0-indexed values 14 and 28; after +1 conversion → domain frequencies 15 and 29.
+    # 256 neurons each, both qualify at 0.10 threshold.
     nd = _make_nd_data(freq_per_neuron=[14 if i < 256 else 28 for i in range(_D_MLP)])
     variant = _make_variant(nd_data=nd)
     freqs, threshold = extract_learned_frequencies(variant, canonical_threshold=0.10)
-    assert set(freqs) == {14, 28}
+    assert set(freqs) == {15, 29}
     assert threshold == 0.10
 
 
 def test_extract_learned_frequencies_threshold_filters_minority():
-    # 460 neurons on freq 14, only 20 on freq 28 — 20/512 ≈ 3.9%, well below 10%
+    # Raw 0-indexed 14 → domain 15; raw 28 → domain 29.
+    # 492 neurons on raw 14, only 20 on raw 28 — 20/512 ≈ 3.9%, well below 10%.
     nd = _make_nd_data(freq_per_neuron=[14 if i < 492 else 28 for i in range(_D_MLP)])
     variant = _make_variant(nd_data=nd)
     freqs, _ = extract_learned_frequencies(variant, canonical_threshold=0.10)
-    assert freqs == [14]  # freq 28 has 20/512 = 3.9%, below threshold
+    assert freqs == [15]  # domain freq 29 has 3.9%, below threshold
 
-    # At a lower threshold (0.03) freq 28 qualifies
+    # At a lower threshold (0.03) domain freq 29 also qualifies
     freqs_loose, _ = extract_learned_frequencies(variant, canonical_threshold=0.03)
-    assert set(freqs_loose) == {14, 28}
+    assert set(freqs_loose) == {15, 29}
 
 
 def test_extract_learned_frequencies_threshold_stored_in_return():
@@ -183,8 +184,8 @@ def test_handshake_failures_identifies_missing_frequency():
     summary = compute_variant_summary(variant, canonical_threshold=0.10)
 
     if summary["committed_frequencies_at_onset"] is not None:
-        # freq 28 was committed at onset, but absent from learned_frequencies
-        assert 28 in summary["handshake_failures"]
+        # Raw 28 → domain freq 29; committed at onset but absent from learned_frequencies
+        assert 29 in summary["handshake_failures"]
         assert summary["handshake_succeeded"] is False
 
 
