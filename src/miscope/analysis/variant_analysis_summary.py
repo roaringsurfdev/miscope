@@ -114,6 +114,39 @@ class VariantAnalysisSummary:
 
         return nearest_checkpoint_epoch_index
 
+    def _get_frequency_bands(self, frequencies: list[int], prime: int) -> list[str]:
+        """Classify a frequency into low / mid / high band relative to prime."""
+        bands = []
+        for freq in frequencies:
+            if freq <= prime // 4:
+                bands.append("low")
+            if freq > 3 * prime // 8:
+                bands.append("high")
+            else:
+                bands.append("mid")
+
+        return list(set(bands))
+
+    def _get_learned_frequencies(self, epoch_index: int) -> list[int]:
+
+        if not self.analysis_data.neurons_loaded:
+            self.analysis_data.load_neuron_data()
+
+        frequencies_over_threshold = []
+        dominant_freq = self.analysis_data.neurons_dominant_frequencies  # (n_epochs, d_mlp)
+        max_frac = self.analysis_data.neurons_frequency_specialization  # (n_epochs, d_mlp)
+
+        if max_frac is not None and dominant_freq is not None:
+            neuron_fracs = max_frac[epoch_index, :]
+            # list of neurons over threshold
+            neurons_over_threshold = list(set(i for i, x in enumerate(neuron_fracs) if x >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY))
+            # total count of neurons over threshold
+            #count_neurons_over_threshold = len(neurons_over_threshold)
+            # frequencies over threshold
+            frequencies_over_threshold = list(set(frequency_idx + 1 for frequency_idx in dominant_freq[epoch_index, neurons_over_threshold]))
+
+        return frequencies_over_threshold
+
     def _load_train_test_loss_metrics(self) -> None:
         
         if not self.analysis_data.losses_loaded:
@@ -156,6 +189,7 @@ class VariantAnalysisSummary:
         self.summary_data["test_loss_final"] = test_loss_final
         self.summary_data["second_descent_onset_epoch"] = second_descent_onset_epoch
 
+    
     def _load_neuron_threshold_key_epochs(self) -> None:
 
         if not self.analysis_data.neurons_loaded:
@@ -197,8 +231,6 @@ class VariantAnalysisSummary:
         self.summary_data["first_mover_frequency"] = first_mover_frequency
         self.summary_data["first_mover_frequency_count_threshold_epoch"] = first_mover_frequency_count_threshold_epoch
         self.summary_data["total_neurons_over_specialization_threshold_epoch"] = total_neurons_over_specialization_threshold_epoch
-
-        return
 
     def _load_effective_dimensionality_key_epochs(self) -> None:
         
@@ -293,6 +325,8 @@ class VariantAnalysisSummary:
     # For each window, gather metrics
     def _load_window_metrics(self, window_name: str) -> None:
         
+        prime = self.variant.params["prime"]
+        
         # load data
         if not self.analysis_data.losses_loaded:
             self.analysis_data.load_loss_data()
@@ -321,7 +355,13 @@ class VariantAnalysisSummary:
             window_metrics["test_loss_end"] = test_losses[end_epoch]
             # start/end metrics to capture:
             #   neuron, attention, embedding frequencies
+            learned_frequencies_start = self._get_learned_frequencies(start_epoch_index)
+            learned_frequencies_end = self._get_learned_frequencies(end_epoch_index)
+            window_metrics["learned_frequencies_start"] = learned_frequencies_start
+            window_metrics["learned_frequencies_end"] = learned_frequencies_end
             #   neuron, attention, embedding frequency bands
+            window_metrics["learned_frequency_bands_start"] = self._get_frequency_bands(learned_frequencies_start, prime)
+            window_metrics["learned_frequency_bands_end"] = self._get_frequency_bands(learned_frequencies_end, prime)
             #   effective dimensionality/SV Participation Ratio
             window_metrics["resid_post_pr_w_in_start"] = self.analysis_data.effective_dimensionality_pr_w_in[start_epoch_index]
             window_metrics["resid_post_pr_w_in_end"] = self.analysis_data.effective_dimensionality_pr_w_in[end_epoch_index]
