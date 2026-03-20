@@ -154,6 +154,36 @@ class VariantAnalysisSummary:
 
         return frequencies_over_threshold
 
+    def _get_committed_frequencies(self, epoch_index: int) -> list[int]:
+        """Return frequencies with population-level commitment at this epoch.
+
+        A frequency is committed when the number of neurons specialized to it
+        (max_frac >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY) meets or exceeds
+        _SPECIALIZATION_FLOOR * d_mlp. This is distinct from learned_frequencies,
+        which fires on any single neuron above threshold.
+        """
+        if not self.analysis_data.neurons_loaded:
+            self.analysis_data.load_neuron_data()
+
+        dominant_freq = self.analysis_data.neurons_dominant_frequencies
+        max_frac = self.analysis_data.neurons_frequency_specialization
+
+        if max_frac is None or dominant_freq is None:
+            return []
+
+        d_mlp = dominant_freq.shape[1]
+        population_threshold = _SPECIALIZATION_FLOOR * d_mlp
+
+        neuron_fracs = max_frac[epoch_index, :]
+        specialized_neurons = [i for i, x in enumerate(neuron_fracs) if x >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY]
+
+        freq_counts: dict[int, int] = {}
+        for neuron_idx in specialized_neurons:
+            freq = int(dominant_freq[epoch_index, neuron_idx]) + 1  # 0-indexed to 1-indexed
+            freq_counts[freq] = freq_counts.get(freq, 0) + 1
+
+        return sorted(f for f, cnt in freq_counts.items() if cnt >= population_threshold)
+
     def _get_variant_preformance_classification(self) -> tuple[str, list[str]]:
         """Classify a variant's failure mode from its metrics.
 
@@ -362,7 +392,6 @@ class VariantAnalysisSummary:
         #   Epoch with min test loss
         train_loss_threshold_first_epoch_nearest = 0
         second_descent_onset_epoch_nearest = 0
-        test_loss_threshold_first_epoch_nearest = 0
 
         first_descent_window = {"start_epoch": 0, "end_epoch": 0}
         plateau_window = {"start_epoch": 0, "end_epoch": 0}
@@ -376,10 +405,16 @@ class VariantAnalysisSummary:
             first_descent_window = {"start_epoch": 0, "end_epoch": train_loss_threshold_first_epoch_nearest}
         
         # Second Descent
-        if self.summary_data["second_descent_onset_epoch"] and self.summary_data["train_loss_threshold_first_epoch"]:
+        # End at the test loss threshold epoch if the model crossed it; otherwise
+        # fall back to the minimum test loss epoch (farthest point of descent reached).
+        if self.summary_data["second_descent_onset_epoch"]:
             second_descent_onset_epoch_nearest = self._get_nearest_checkpoint_epoch(int(self.summary_data["second_descent_onset_epoch"]))
-            test_loss_threshold_first_epoch_nearest = self._get_nearest_checkpoint_epoch(int(self.summary_data["test_loss_threshold_first_epoch"]))
-            second_descent_window = {"start_epoch": second_descent_onset_epoch_nearest, "end_epoch": test_loss_threshold_first_epoch_nearest}
+            test_loss_threshold = self.summary_data["test_loss_threshold_first_epoch"]
+            if test_loss_threshold and test_loss_threshold > 0:
+                second_descent_end_epoch = self._get_nearest_checkpoint_epoch(int(test_loss_threshold))
+            else:
+                second_descent_end_epoch = self._get_nearest_checkpoint_epoch(int(self.summary_data["test_loss_min_epoch"]))
+            second_descent_window = {"start_epoch": second_descent_onset_epoch_nearest, "end_epoch": second_descent_end_epoch}
 
         # Plateau
         plateau_window = {"start_epoch": first_descent_window["end_epoch"], "end_epoch": second_descent_window["start_epoch"]}
@@ -418,6 +453,12 @@ class VariantAnalysisSummary:
         if self.summary_data[f"{window_name}_window"]:
             start_epoch = self.summary_data[f"{window_name}_window"]["start_epoch"]
             end_epoch = self.summary_data[f"{window_name}_window"]["end_epoch"]
+
+            if start_epoch >= end_epoch:
+                self.summary_data[f"{window_name}_window"]["skipped"] = True
+                self.summary_data[f"{window_name}_window"]["skip_reason"] = "start_epoch >= end_epoch"
+                return
+
             start_epoch_index = self._get_nearest_checkpoint_epoch_index(start_epoch)
             end_epoch_index = self._get_nearest_checkpoint_epoch_index(end_epoch)
 
@@ -443,6 +484,13 @@ class VariantAnalysisSummary:
             window_metrics["resid_post_pr_w_out_start"] = self.analysis_data.effective_dimensionality_pr_w_out[start_epoch_index]
             window_metrics["resid_post_pr_w_out_end"] = self.analysis_data.effective_dimensionality_pr_w_out[end_epoch_index]
 
+            #   committed frequencies and handshake dynamics
+            committed_frequencies_start = self._get_committed_frequencies(start_epoch_index)
+            committed_frequencies_end = self._get_committed_frequencies(end_epoch_index)
+            window_metrics["committed_frequencies_start"] = committed_frequencies_start
+            window_metrics["committed_frequencies_end"] = committed_frequencies_end
+            window_metrics["frequency_gains"] = sorted(set(committed_frequencies_end) - set(committed_frequencies_start))
+            window_metrics["frequency_losses"] = sorted(set(committed_frequencies_start) - set(committed_frequencies_end))
             #   circularity
             window_metrics["resid_post_circularity_start"] = self.analysis_data.geometry_resid_post_circularity[start_epoch_index]
             window_metrics["resid_post_circularity_end"] = self.analysis_data.geometry_resid_post_circularity[end_epoch_index]
