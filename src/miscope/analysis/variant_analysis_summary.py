@@ -25,7 +25,7 @@ _SPECIALIZATION_FLOOR: float = 0.10
 
 _EARLY_SECOND_DESCENT_EPOCH: int = 9000
 _LATE_SECOND_DESCENT_EPOCH: int = 12000
-_SUCCESSFUL_TEST_LOSS_THRESHOLD: float = 1.0e-6
+_SUCCESSFUL_TEST_LOSS_THRESHOLD: float = 1.0e-5
 _REBOUND_TEST_LOSS_THRESHOLD: float = 0.2
 
 @dataclass
@@ -41,6 +41,7 @@ class VariantAnalysisData:
     neurons_checkpoints: list[Any] = field(default_factory=list)
     neurons_dominant_frequencies: np.ndarray | None = None
     neurons_frequency_specialization: np.ndarray | None = None
+    neurons_commitment_epochs: np.ndarray | None = None
     
     effective_dimensionality_loaded: bool = False
     effective_dimensionality_pr_epochs: list[Any] = field(default_factory=list)
@@ -65,6 +66,7 @@ class VariantAnalysisData:
         self.neurons_checkpoints = list(neuron_dynamics_data["epochs"])
         self.neurons_dominant_frequencies = neuron_dynamics_data["dominant_freq"]  # (n_epochs, d_mlp)
         self.neurons_frequency_specialization = neuron_dynamics_data["max_frac"]  # (n_epochs, d_mlp)
+        self.neurons_commitment_epochs = neuron_dynamics_data["commitment_epochs"]  # (d_mlp,)
         self.neurons_loaded = True
     
     def load_effective_dimensionality_data(self):
@@ -125,7 +127,7 @@ class VariantAnalysisSummary:
         for freq in frequencies:
             if freq <= prime // 4:
                 bands.append("low")
-            if freq > 3 * prime // 8:
+            elif freq > 3 * prime // 8:
                 bands.append("high")
             else:
                 bands.append("mid")
@@ -298,7 +300,7 @@ class VariantAnalysisSummary:
         self.summary_data["total_neurons_over_specialization_threshold_epoch"] = total_neurons_over_specialization_threshold_epoch
 
     def _load_effective_dimensionality_key_epochs(self) -> None:
-        
+
         if not self.analysis_data.effective_dimensionality_loaded:
             self.analysis_data.load_effective_dimensionality_data()
 
@@ -307,10 +309,18 @@ class VariantAnalysisSummary:
         W_Out = self.analysis_data.effective_dimensionality_pr_w_out
         effective_dimensionality_cross_over_epoch = -1
 
+        # Skip initial period where W_out ≈ W_in at random init; only detect the
+        # meaningful crossover after W_out has first risen clearly above W_in.
+        w_out_rose_above_w_in = False
         n_epochs = len(epochs)
         for epoch_idx in range(n_epochs):
             w_out_value = W_Out[epoch_idx]
             w_in_value = W_In[epoch_idx]
+
+            if not w_out_rose_above_w_in:
+                if w_out_value > w_in_value:
+                    w_out_rose_above_w_in = True
+                continue
 
             if w_out_value <= w_in_value:
                 effective_dimensionality_cross_over_epoch = epochs[epoch_idx]
@@ -352,7 +362,7 @@ class VariantAnalysisSummary:
         #   Epoch with min test loss
         train_loss_threshold_first_epoch_nearest = 0
         second_descent_onset_epoch_nearest = 0
-        train_loss_threshold_first_epoch_nearest = 0
+        test_loss_threshold_first_epoch_nearest = 0
 
         first_descent_window = {"start_epoch": 0, "end_epoch": 0}
         plateau_window = {"start_epoch": 0, "end_epoch": 0}
@@ -368,8 +378,8 @@ class VariantAnalysisSummary:
         # Second Descent
         if self.summary_data["second_descent_onset_epoch"] and self.summary_data["train_loss_threshold_first_epoch"]:
             second_descent_onset_epoch_nearest = self._get_nearest_checkpoint_epoch(int(self.summary_data["second_descent_onset_epoch"]))
-            train_loss_threshold_first_epoch_nearest = self._get_nearest_checkpoint_epoch(int(self.summary_data["train_loss_threshold_first_epoch"]))
-            second_descent_window = {"start_epoch": second_descent_onset_epoch_nearest, "end_epoch": train_loss_threshold_first_epoch_nearest}
+            test_loss_threshold_first_epoch_nearest = self._get_nearest_checkpoint_epoch(int(self.summary_data["test_loss_threshold_first_epoch"]))
+            second_descent_window = {"start_epoch": second_descent_onset_epoch_nearest, "end_epoch": test_loss_threshold_first_epoch_nearest}
 
         # Plateau
         plateau_window = {"start_epoch": first_descent_window["end_epoch"], "end_epoch": second_descent_window["start_epoch"]}
@@ -445,8 +455,68 @@ class VariantAnalysisSummary:
 
         pass
 
+    def _compute_commitment_epochs_at_threshold(self) -> np.ndarray:
+        """Recompute commitment epochs using _NEURON_FRAC_EXPLAINED_BY_FREQUENCY.
+
+        The artifact's stored commitment_epochs use a low threshold (~0.054),
+        which causes many neurons to appear committed from epoch 0 due to random
+        initialization. This recomputes using the same 0.7 threshold used
+        throughout the rest of the summary.
+        """
+        epochs = np.array(self.analysis_data.neurons_checkpoints)
+        dominant_freq = self.analysis_data.neurons_dominant_frequencies
+        max_frac = self.analysis_data.neurons_frequency_specialization
+        if dominant_freq is None or max_frac is None:
+            return np.full(0, np.nan)
+        n_epochs, d_mlp = dominant_freq.shape
+        commitment_epochs = np.full(d_mlp, np.nan)
+        final_freq = dominant_freq[-1]
+
+        for n in range(d_mlp):
+            if max_frac[-1, n] < _NEURON_FRAC_EXPLAINED_BY_FREQUENCY:
+                continue
+            stable_from = n_epochs - 1
+            for t in range(n_epochs - 2, -1, -1):
+                if max_frac[t, n] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY and dominant_freq[t, n] == final_freq[n]:
+                    stable_from = t
+                else:
+                    break
+            commitment_epochs[n] = epochs[stable_from]
+
+        return commitment_epochs
+
+    def _load_competition_and_geometry_summary_metrics(self) -> None:
+
+        if not self.analysis_data.neurons_loaded:
+            self.analysis_data.load_neuron_data()
+
+        commitment_epochs = self._compute_commitment_epochs_at_threshold()
+        competition_window_start = None
+        competition_window_end = None
+        competition_window_duration = None
+
+        committed_values = commitment_epochs[~np.isnan(commitment_epochs)]
+        if len(committed_values) > 0:
+            competition_window_start = int(committed_values.min())
+            competition_window_end = int(committed_values.max())
+            competition_window_duration = competition_window_end - competition_window_start
+
+        self.summary_data["competition_window_start"] = competition_window_start
+        self.summary_data["competition_window_end"] = competition_window_end
+        self.summary_data["competition_window_duration"] = competition_window_duration
+
+        if not self.analysis_data.geometry_loaded:
+            self.analysis_data.load_geometry()
+
+        circularity = self.analysis_data.geometry_resid_post_circularity
+        self.summary_data["max_resid_post_circularity"] = float(max(circularity)) if circularity else None
+
     def _load_metrics(self) -> None:
 
+        self.summary_data["prime"] = self.variant.params["prime"]
+        self.summary_data["model_seed"] = self.variant.params["seed"]
+        self.summary_data["data_seed"] = self.variant.params["data_seed"]
+        self.summary_data["family"] = self.variant.family.name
         self._load_train_test_loss_metrics()
         self._load_neuron_threshold_key_epochs()
         self._load_effective_dimensionality_key_epochs()
@@ -456,6 +526,7 @@ class VariantAnalysisSummary:
         self._load_window_metrics("plateau")
         self._load_window_metrics("cascade")
         self._load_window_metrics("final")
+        self._load_competition_and_geometry_summary_metrics()
         self.summary_data["performance_classification"] = self._get_variant_preformance_classification()
 
     def _write_summary(self) -> Path:
