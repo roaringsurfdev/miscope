@@ -71,7 +71,7 @@ def extract_learned_frequencies(
         return None, None
 
     dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp) — 0-indexed argmax values
-    max_frac = nd["max_frac"]           # (n_epochs, d_mlp)
+    max_frac = nd["max_frac"]  # (n_epochs, d_mlp)
     d_mlp = dominant_freq.shape[1]
     threshold_count = canonical_threshold * d_mlp
 
@@ -222,7 +222,9 @@ def compute_variant_summary(
         "learned_frequency_count": learned_frequency_count,
         "canonical_specialization_threshold": canonical_threshold,
         # Second descent window
-        "second_descent_onset_committed_frequencies": base.get("second_descent_onset_committed_frequencies"),
+        "second_descent_onset_committed_frequencies": base.get(
+            "second_descent_onset_committed_frequencies"
+        ),
         "second_descent_onset_bands": base.get("second_descent_onset_bands"),
         "second_descent_onset_epoch": base.get("second_descent_onset_epoch"),
         "second_descent_completion_epoch": base.get("second_descent_completion_epoch"),

@@ -47,10 +47,7 @@ def _get_axis_variants(anchor: Variant, axis: str) -> list[Variant]:
     registry = get_registry()
     all_variants = registry.get_variants(registry.get_family(anchor.family.name))
     fixed = {k: v for k, v in anchor.params.items() if k != axis}
-    siblings = [
-        v for v in all_variants
-        if all(v.params.get(k) == val for k, val in fixed.items())
-    ]
+    siblings = [v for v in all_variants if all(v.params.get(k) == val for k, val in fixed.items())]
     return sorted(siblings, key=lambda v: v.params.get(axis, 0))
 
 
@@ -69,7 +66,7 @@ def _divergence_from_anchor(
     anchor_w: dict[str, np.ndarray],
     peer_w: dict[str, np.ndarray],
     n: int,
-) -> dict[str, list]:
+) -> dict[str, list[float]]:
     """Compute aggregate, normalized, and per-matrix L2 divergence."""
     agg = np.zeros(n)
     ref_norm = np.zeros(n)
@@ -78,7 +75,7 @@ def _divergence_from_anchor(
         diff = (peer_w[k] - anchor_w[k]).reshape(n, -1)
         l2 = np.linalg.norm(diff, axis=1)
         per_matrix[k] = l2.tolist()
-        agg += l2 ** 2
+        agg += l2**2
         ref_norm += np.linalg.norm(anchor_w[k].reshape(n, -1), axis=1) ** 2
     agg = np.sqrt(agg)
     normalized = (agg / (np.sqrt(ref_norm) + 1e-12) * 100).tolist()
@@ -108,10 +105,17 @@ def _compute_peer_divergences(
 
 def _placeholder_fig(message: str, height: int = 350) -> go.Figure:
     return go.Figure().update_layout(
-        annotations=[dict(
-            text=message, showarrow=False, font_size=13,
-            xref="paper", yref="paper", x=0.5, y=0.5,
-        )],
+        annotations=[
+            dict(
+                text=message,
+                showarrow=False,
+                font_size=13,
+                xref="paper",
+                yref="paper",
+                x=0.5,
+                y=0.5,
+            )
+        ],
         height=height,
     )
 
@@ -120,8 +124,12 @@ def _add_cursor(fig: go.Figure, cursor_epoch: int | float | None) -> None:
     if cursor_epoch is None:
         return
     fig.add_vline(
-        x=cursor_epoch, row="all", col="all",
-        line_dash="dash", line_color="rgba(100,100,100,0.55)", line_width=1,
+        x=cursor_epoch,
+        row="all",
+        col="all",
+        line_dash="dash",
+        line_color="rgba(100,100,100,0.55)",
+        line_width=1,
     )
 
 
@@ -138,57 +146,73 @@ def _build_loss_figure(
         label = f"anchor ({_peer_label(v, axis)})" if is_anchor else _peer_label(v, axis)
         width = 2.5 if is_anchor else 1.5
         epochs_idx = list(range(len(v.test_losses)))
-        fig.add_trace(go.Scatter(
-            x=epochs_idx, y=v.train_losses, mode="lines",
-            name=f"{label} train",
-            line=dict(color=color, dash="dash", width=width), opacity=0.7,
-        ))
-        fig.add_trace(go.Scatter(
-            x=epochs_idx, y=v.test_losses, mode="lines",
-            name=f"{label} test",
-            line=dict(color=color, width=width),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=epochs_idx,
+                y=v.train_losses,
+                mode="lines",
+                name=f"{label} train",
+                line=dict(color=color, dash="dash", width=width),
+                opacity=0.7,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=epochs_idx,
+                y=v.test_losses,
+                mode="lines",
+                name=f"{label} test",
+                line=dict(color=color, width=width),
+            )
+        )
     fig.update_layout(
         title="Train / Test Loss  (train=dashed · test=solid · anchor=bold)",
-        xaxis_title="Epoch", yaxis_title="Loss", height=350,
+        xaxis_title="Epoch",
+        yaxis_title="Loss",
+        height=350,
     )
     _add_cursor(fig, cursor_epoch)
     return fig
 
 
-def _build_divergence_figure(
-    store_data: dict, cursor_epoch: int | float | None
-) -> go.Figure:
+def _build_divergence_figure(store_data: dict, cursor_epoch: int | float | None) -> go.Figure:
     fig = go.Figure()
     for peer in store_data.get("peers", []):
-        fig.add_trace(go.Scatter(
-            x=store_data["epochs"], y=peer["normalized"],
-            mode="lines", name=peer["label"],
-            line=dict(color=peer["color"]),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=store_data["epochs"],
+                y=peer["normalized"],
+                mode="lines",
+                name=peer["label"],
+                line=dict(color=peer["color"]),
+            )
+        )
     fig.update_layout(
         title="Normalized Weight Divergence from Anchor  (% of anchor norm)",
-        xaxis_title="Epoch", yaxis_title="Divergence (%)", height=350,
+        xaxis_title="Epoch",
+        yaxis_title="Divergence (%)",
+        height=350,
     )
     _add_cursor(fig, cursor_epoch)
     return fig
 
 
-def _build_matrix_figure(
-    store_data: dict, cursor_epoch: int | float | None
-) -> go.Figure:
+def _build_matrix_figure(store_data: dict, cursor_epoch: int | float | None) -> go.Figure:
     fig = make_subplots(rows=3, cols=3, subplot_titles=_WEIGHT_KEYS, shared_xaxes=False)
     for midx, matrix_name in enumerate(_WEIGHT_KEYS):
         mrow, mcol = divmod(midx, 3)
         for peer in store_data.get("peers", []):
             fig.add_trace(
                 go.Scatter(
-                    x=store_data["epochs"], y=peer["per_matrix"][matrix_name],
-                    mode="lines", name=peer["label"],
+                    x=store_data["epochs"],
+                    y=peer["per_matrix"][matrix_name],
+                    mode="lines",
+                    name=peer["label"],
                     line=dict(color=peer["color"]),
                     showlegend=(midx == 0),
                 ),
-                row=mrow + 1, col=mcol + 1,
+                row=mrow + 1,
+                col=mcol + 1,
             )
     fig.update_layout(title="Per-Matrix L2 Divergence from Anchor", height=700)
     fig.update_xaxes(title_text="Epoch")
@@ -200,43 +224,46 @@ def _build_matrix_figure(
 
 
 def create_peer_comparison_page_nav(app: Dash) -> html.Div:
-    return html.Div([
-        dbc.Label("Compare Axis", className="fw-bold"),
-        dcc.RadioItems(
-            id="peer-axis-radio",
-            options=_AXIS_OPTIONS,
-            value="data_seed",
-            labelStyle={"display": "block", "marginBottom": "4px"},
-            className="mb-3",
-        ),
-        dbc.Button(
-            "Load Divergence",
-            id="peer-load-button",
-            color="primary",
-            size="sm",
-            className="mb-2 w-100",
-        ),
-        html.Div(id="peer-status-message", className="text-muted small mt-1"),
-        html.Hr(),
-    ])
+    return html.Div(
+        [
+            dbc.Label("Compare Axis", className="fw-bold"),
+            dcc.RadioItems(
+                id="peer-axis-radio",
+                options=_AXIS_OPTIONS,
+                value="data_seed",
+                labelStyle={"display": "block", "marginBottom": "4px"},
+                className="mb-3",
+            ),
+            dbc.Button(
+                "Load Divergence",
+                id="peer-load-button",
+                color="primary",
+                size="sm",
+                className="mb-2 w-100",
+            ),
+            html.Div(id="peer-status-message", className="text-muted small mt-1"),
+            html.Hr(),
+        ]
+    )
 
 
 def create_peer_comparison_page_layout(app: Dash) -> html.Div:
-    return html.Div([
-        html.H4("Peer Variant Comparison", className="mb-3"),
-        dcc.Store(id="peer-comparison-data-store", data={"status": "empty"}),
-        dcc.Store(id="peer-cursor-store", data=None),
-        dbc.Row(dbc.Col(dcc.Graph(id="peer-loss-graph"))),
-        dbc.Row(dbc.Col(dcc.Graph(id="peer-divergence-graph")), className="mt-3"),
-        dbc.Row(dbc.Col(dcc.Graph(id="peer-matrix-graph")), className="mt-3"),
-    ])
+    return html.Div(
+        [
+            html.H4("Peer Variant Comparison", className="mb-3"),
+            dcc.Store(id="peer-comparison-data-store", data={"status": "empty"}),
+            dcc.Store(id="peer-cursor-store", data=None),
+            dbc.Row(dbc.Col(dcc.Graph(id="peer-loss-graph"))),
+            dbc.Row(dbc.Col(dcc.Graph(id="peer-divergence-graph")), className="mt-3"),
+            dbc.Row(dbc.Col(dcc.Graph(id="peer-matrix-graph")), className="mt-3"),
+        ]
+    )
 
 
 # --- Callbacks ---
 
 
 def register_peer_comparison_page_callbacks(app: Dash) -> None:
-
     @app.callback(
         Output("peer-loss-graph", "figure"),
         Input("variant-selector-store", "modified_timestamp"),
