@@ -119,7 +119,7 @@ def test_extract_learned_frequencies_basic():
     nd = _make_nd_data(freq_per_neuron=[14 if i < 256 else 28 for i in range(_D_MLP)])
     variant = _make_variant(nd_data=nd)
     freqs, threshold = extract_learned_frequencies(variant, canonical_threshold=0.10)
-    assert set(freqs) == {15, 29}
+    assert set(freqs) == {15, 29} # type: ignore
     assert threshold == 0.10
 
 
@@ -133,7 +133,7 @@ def test_extract_learned_frequencies_threshold_filters_minority():
 
     # At a lower threshold (0.03) domain freq 29 also qualifies
     freqs_loose, _ = extract_learned_frequencies(variant, canonical_threshold=0.03)
-    assert set(freqs_loose) == {15, 29}
+    assert set(freqs_loose) == {15, 29} # type: ignore
 
 
 def test_extract_learned_frequencies_threshold_stored_in_return():

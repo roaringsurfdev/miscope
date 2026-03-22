@@ -34,7 +34,7 @@ _AXIS_OPTIONS = [
 def _color_for(variant: Variant, axis: str) -> str:
     param_val = variant.params.get(axis)
     palette = _DSEED_COLORS if axis == "data_seed" else _MSEED_COLORS
-    return palette.get(param_val, _FALLBACK_COLORS[0])
+    return palette.get(param_val, _FALLBACK_COLORS[0])  # type: ignore
 
 
 def _peer_label(variant: Variant, axis: str) -> str:
@@ -79,7 +79,7 @@ def _divergence_from_anchor(
         ref_norm += np.linalg.norm(anchor_w[k].reshape(n, -1), axis=1) ** 2
     agg = np.sqrt(agg)
     normalized = (agg / (np.sqrt(ref_norm) + 1e-12) * 100).tolist()
-    return {"aggregate": agg.tolist(), "normalized": normalized, "per_matrix": per_matrix}
+    return {"aggregate": agg.tolist(), "normalized": normalized, "per_matrix": per_matrix} # type: ignore
 
 
 def _compute_peer_divergences(
