@@ -5,6 +5,9 @@ what fraction of each neuron's activation is explained by each frequency.
 
 REQ_042 adds cross-epoch neuron dynamics renderers: frequency trajectory
 heatmap, switch count distribution, and commitment timeline.
+
+render_neuron_freq_distribution: stacked bar chart showing per-neuron
+frequency distribution, sorted by dominant frequency by default.
 """
 
 import colorsys
@@ -98,6 +101,117 @@ def render_freq_clusters(
         template="plotly_white",
         # Minimal margins to maximize data visibility
         margin=dict(l=60, r=80, t=50, b=50),
+    )
+
+    return fig
+
+
+def render_neuron_freq_distribution(
+    epoch_data: dict[str, np.ndarray],
+    epoch: int,
+    threshold: float = 0.10,
+    sort_by: str = "dominant",
+    height: int = 500,
+    width: int = 1100,
+) -> go.Figure:
+    """Stacked bar chart of per-neuron frequency distribution.
+
+    Each bar represents one neuron; segments show each frequency's fraction
+    of that neuron's Fourier norm. Segments below `threshold` are collapsed
+    into a single grey band. Neurons are sorted by dominant frequency by
+    default, making block structure and commitment diffuseness immediately
+    visible.
+
+    Args:
+        epoch_data: Dict containing 'norm_matrix' array of shape (n_freq, d_mlp).
+        epoch: Epoch number (used for title).
+        threshold: Segments below this fraction are collapsed into grey.
+        sort_by: Neuron ordering — "dominant" (group by dominant freq, then
+            by its frac strength), "entropy" (most concentrated first), or
+            "index" (original neuron order).
+        height: Figure height in pixels.
+        width: Figure width in pixels.
+
+    Returns:
+        Plotly Figure with stacked bars.
+    """
+    data = epoch_data["norm_matrix"]  # (n_freq, d_mlp)
+    n_freq, d_mlp = data.shape
+
+    if sort_by == "dominant":
+        dominant_freq = np.argmax(data, axis=0)
+        dominant_frac = data[dominant_freq, np.arange(d_mlp)]
+        order = np.lexsort((-dominant_frac, dominant_freq))
+    elif sort_by == "entropy":
+        p = np.clip(data, 1e-9, None)
+        entropy = -np.sum(p * np.log(p), axis=0)
+        order = np.argsort(entropy)
+    else:
+        order = np.arange(d_mlp)
+
+    data = data[:, order]
+    x_labels = [str(order[i]) for i in range(d_mlp)]
+    tick_step = max(1, d_mlp // 20)
+
+    fig = go.Figure()
+
+    below_thresh = np.where(data < threshold, data, 0.0).sum(axis=0)
+    fig.add_trace(
+        go.Bar(
+            x=x_labels,
+            y=below_thresh,
+            name=f"< {int(threshold * 100)}%",
+            marker_color="rgba(180,180,180,0.6)",
+            hovertemplate="Neuron %{x}<br>Below threshold: %{y:.3f}<extra></extra>",
+        )
+    )
+
+    for freq_idx in range(n_freq):
+        row = data[freq_idx]
+        visible = np.where(row >= threshold, row, 0.0)
+        if visible.sum() == 0:
+            continue
+        hue = freq_idx / max(n_freq, 1)
+        r, g, b = colorsys.hls_to_rgb(hue, 0.55, 0.5)
+        color = f"rgba({int(r * 255)},{int(g * 255)},{int(b * 255)},1.0)"
+        fig.add_trace(
+            go.Bar(
+                x=x_labels,
+                y=visible,
+                name=f"Freq {freq_idx + 1}",
+                marker_color=color,
+                hovertemplate=f"Neuron %{{x}}<br>Freq {freq_idx + 1}: %{{y:.3f}}<extra></extra>",
+            )
+        )
+
+    sort_label = {
+        "dominant": "sorted by dominant freq",
+        "entropy": "sorted by concentration",
+        "index": "original order",
+    }.get(sort_by, sort_by)
+
+    fig.update_layout(
+        barmode="stack",
+        title=f"Neuron Frequency Distribution — Epoch {epoch}  ({sort_label})",
+        xaxis=dict(
+            title="Neuron",
+            tickmode="array",
+            tickvals=x_labels[::tick_step],
+            ticktext=x_labels[::tick_step],
+        ),
+        yaxis_title="Frac Explained",
+        template="plotly_white",
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.01,
+            font=dict(size=10),
+        ),
+        height=height,
+        width=width,
+        margin=dict(l=60, r=120, t=50, b=60),
     )
 
     return fig

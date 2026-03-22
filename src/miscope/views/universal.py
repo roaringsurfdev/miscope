@@ -99,6 +99,11 @@ def _register_all() -> None:
         ),
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
         ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
+        (
+            "activations.mlp.neuron_freq_distribution",
+            "neuron_freq_norm",
+            "render_neuron_freq_distribution",
+        ),
         ("activations.mlp.coarseness_distribution", "coarseness", "render_coarseness_distribution"),
         ("activations.mlp.coarseness_by_neuron", "coarseness", "render_coarseness_by_neuron"),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),

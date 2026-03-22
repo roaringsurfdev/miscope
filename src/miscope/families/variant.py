@@ -196,6 +196,22 @@ class Variant:
 
         return ArtifactLoader(str(self.artifacts_dir))
 
+    def get_artifact_loader(self) -> ArtifactLoader:
+        """Return an ArtifactLoader for this variant's analysis artifacts.
+
+        Use when you need to interact with the loader as an object — e.g.,
+        to query available epochs for a specific analyzer before loading:
+
+            loader = variant.get_artifact_loader()
+            epochs = loader.get_epochs("neuron_freq_norm")
+
+        Equivalent to ``variant.artifacts`` but named as a verb to signal
+        intent: you're acquiring a reusable loader, not loading data.
+        """
+        from miscope.analysis.artifact_loader import ArtifactLoader
+
+        return ArtifactLoader(str(self.artifacts_dir))
+
     @property
     def metadata(self) -> dict[str, Any]:
         """Training metadata (losses, checkpoint epochs, indices).

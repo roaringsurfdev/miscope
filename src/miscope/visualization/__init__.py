@@ -89,6 +89,7 @@ from miscope.visualization.renderers.neuron_freq_clusters import (
     get_specialized_neurons,
     render_freq_clusters,
     render_freq_clusters_comparison,
+    render_neuron_freq_distribution,
     render_specialization_by_frequency,
     render_specialization_trajectory,
 )
@@ -137,6 +138,7 @@ __all__ = [
     # REQ_006: Frequency clusters
     "render_freq_clusters",
     "render_freq_clusters_comparison",
+    "render_neuron_freq_distribution",
     "get_specialized_neurons",
     "get_neuron_specialization",
     # REQ_027: Neuron specialization summary
