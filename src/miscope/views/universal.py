@@ -223,6 +223,58 @@ def _register_all() -> None:
             )
         )
 
+    # --- Group overlay: normalized per-group trajectories on shared axes ---
+
+    def _make_overlay_renderer(col_x: int, col_y: int) -> Any:
+        def renderer(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+            epochs_arr = data["epochs"].tolist()
+            current_epoch = epoch if epoch is not None else epochs_arr[-1]
+            return viz.render_trajectory_group_overlay(
+                data, epochs_arr, current_epoch, col_x=col_x, col_y=col_y, **kwargs
+            )
+
+        return renderer
+
+    for name, col_x, col_y in [
+        ("parameters.pca.group_overlay", 0, 1),
+        ("parameters.pca.group_overlay_pc2_pc3", 1, 2),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_parameter_trajectory,
+                renderer=_make_overlay_renderer(col_x, col_y),
+                epoch_source_analyzer=None,
+                required_analyzers=_pca_req,
+            )
+        )
+
+    # --- Group proximity: pairwise L2 distance between normalized trajectories ---
+
+    def _make_proximity_renderer(col_x: int, col_y: int) -> Any:
+        def renderer(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+            epochs_arr = data["epochs"].tolist()
+            current_epoch = epoch if epoch is not None else epochs_arr[-1]
+            return viz.render_trajectory_proximity(
+                data, epochs_arr, current_epoch, col_x=col_x, col_y=col_y, **kwargs
+            )
+
+        return renderer
+
+    for name, col_x, col_y in [
+        ("parameters.pca.proximity", 0, 1),
+        ("parameters.pca.proximity_pc2_pc3", 1, 2),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_parameter_trajectory,
+                renderer=_make_proximity_renderer(col_x, col_y),
+                epoch_source_analyzer=None,
+                required_analyzers=_pca_req,
+            )
+        )
+
     # --- Explained variance (no cursor) ---
 
     def _render_explained_variance(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
@@ -736,6 +788,37 @@ def _register_all() -> None:
             ],
         )
     )
+
+    # --- Site gradient convergence (REQ_077) ---
+    # Both views load from gradient_site cross_epoch.npz.
+    # Epoch is unused (full training arc); kept in signature for catalog compatibility.
+
+    def _load_gradient_site(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("gradient_site")
+
+    def _render_site_gradient_convergence(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_site_gradient_convergence(data, epoch, **kwargs)
+
+    def _render_site_gradient_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_site_gradient_heatmap(data, epoch, **kwargs)
+
+    _gradient_site_req = [AnalyzerRequirement("gradient_site", ArtifactKind.CROSS_EPOCH)]
+
+    for name, renderer in [
+        ("analysis.gradient.site_convergence", _render_site_gradient_convergence),
+        ("analysis.gradient.site_heatmap", _render_site_gradient_heatmap),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_gradient_site,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_gradient_site_req,
+            )
+        )
 
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.

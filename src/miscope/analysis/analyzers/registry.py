@@ -177,6 +177,7 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
     from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
     from miscope.analysis.analyzers.centroid_dmd import CentroidDMD
+    from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
     from miscope.analysis.analyzers.coarseness import CoarsenessAnalyzer
     from miscope.analysis.analyzers.dominant_frequencies import DominantFrequenciesAnalyzer
     from miscope.analysis.analyzers.effective_dimensionality import EffectiveDimensionalityAnalyzer
@@ -212,6 +213,7 @@ def register_default_analyzers() -> None:
     AnalyzerRegistry.register_cross_epoch(NeuronDynamicsAnalyzer)
     AnalyzerRegistry.register_cross_epoch(GlobalCentroidPCA)
     AnalyzerRegistry.register_cross_epoch(CentroidDMD)
+    AnalyzerRegistry.register_cross_epoch(GradientSiteAnalyzer)
 
 
 # Auto-register default analyzers on import

@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-03-23
+
+### Added
+
+- **Site Gradient Convergence** (REQ_077)
+  - `GradientSiteAnalyzer`: post-hoc per-site per-frequency gradient energy from saved checkpoints
+  - Three sites: embedding (direct), attention (Q/K/V RMS projected through W_E[:p]), MLP (W_E[:p] @ grad_W_in)
+  - Single variant-level `.npz` artifact: direction-normalized energy, raw magnitude, pairwise cosine similarity
+  - Views: `site_gradient_convergence` (similarity + magnitude panels) and `site_gradient_heatmap` (3-panel frequency heatmap)
+  - Window boundaries from `variant_summary.json` marked on all plots; NaN similarity values render as gaps
+
+- **Multi-Stream Specialization** (REQ_066)
+  - `multi_stream_specialization` view: 4-panel trajectory covering MLP neurons, attention aggregate, embedding dims, effective dimensionality
+  - Attention panel uses `attn_active` floor (mean QK^T fraction); `fields=` selective loading in ArtifactLoader
+
+- **Group Trajectory Overlay & Proximity** (REQ_072)
+  - `parameters.pca.group_overlay` / `group_overlay_pc2_pc3`: normalized overlay of embedding/attention/MLP parameter-space trajectories on shared PC axes
+  - `parameters.pca.proximity` / `proximity_pc2_pc3`: pairwise L2 distance over training with epoch cursor; sign-flip correction for PCA orientation ambiguity
+  - Weight trajectory divergence views: per-group and per-weight-matrix PCA, component velocity comparison
+
+- **Intervention Architecture** (REQ_067, REQ_068, REQ_070, REQ_071)
+  - `InterventionVariant` subclass nested under parent: `results/{family}/{parent}/interventions/{label}/`
+  - `FrequencyGainHook`: frequency-selective hook on `hook_attn_out` using W_E-based frequency directions
+  - Intervention Check dashboard page: family→variant→intervention→epoch hierarchy with hook verification
+  - `Variant.interventions` discovers sub-variants from filesystem; `create_intervention_variant()` factory
+
+- **Variant Registry & Peer Comparison** (REQ_074, REQ_076, REQ_057, REQ_065)
+  - `variant_summary.json` per variant: loss metrics, grokking window boundaries, frequency gains/losses, performance classification
+  - `variant_registry.json`: compiled cross-variant aggregate
+  - Peer comparison dashboard page with shared-axis cross-variant views
+
+- **Analytical Views** (REQ_052, REQ_056, REQ_058, REQ_060, REQ_062, REQ_063, REQ_064)
+  - Fourier frequency quality scoring, frequency specialization sequencing, neuron band concentration health
+  - Neuron dynamics runtime threshold, view availability enforcement, Fourier nucleation predictor, data compatibility analyzer
+
+- **Infrastructure** (REQ_054, REQ_061)
+  - DataView catalog: `variant.at(epoch).dataview(name)` for tabular/structured data views
+  - Data seed as domain parameter: `data_seed` in variant params, multi-seed variants supported throughout
+
+- **Dashboard Navigation** (post-v0.7.0)
+  - Site navigation converted to drop-down menus
+  - Visualization and Summary pages preserved at direct URLs; analytical views promoted to dedicated pages
+
+### Architecture Notes
+
+- Non-epoch-keyed artifacts (gradient_site) stored as `artifacts/{name}/{name}.npz`; loaded via `ArtifactLoader.load_variant_artifact()`
+- InterventionVariant is a sub-variant nested under its parent, not a separate family member
+- Sign-flip correction in proximity renderer: `min(dist(A,B), dist(A,-B))` handles PCA orientation ambiguity
+
+### References
+
+- Archived requirements: `requirements/archive/v0.8.0-analysis-and-interventions/`
+- Milestone summary: `requirements/archive/v0.8.0-analysis-and-interventions/MILESTONE_SUMMARY.md`
+
 ## [0.7.0] - 2026-03-03
 
 ### Added

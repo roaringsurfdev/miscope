@@ -16,6 +16,14 @@ _VIEW_LIST = {
         "view_name": "parameters.pca.variance_explained",
         "view_type": "epoch_selector",
     },
+    "gradient_site_convergence": {
+        "view_name": "analysis.gradient.site_convergence",
+        "view_type": "epoch_selector",
+    },
+    "gradient_site_heatmap": {
+        "view_name": "analysis.gradient.site_heatmap",
+        "view_type": "epoch_selector",
+    },
     "centroid-class-pca-summary-plot": {
         "view_name": "geometry.centroid_pca_variance",
         "view_type": "epoch_selector",
@@ -39,6 +47,18 @@ _VIEW_LIST = {
         "view_name": "parameters.pca.pc2_pc3",
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
+    },
+    "parameters-pca-group-overlay-pc1-pc2": {
+        "view_name": "parameters.pca.group_overlay",
+        "view_type": "default_graph",
+    },
+    "parameters-pca-group-overlay-pc2-pc3": {
+        "view_name": "parameters.pca.group_overlay_pc2_pc3",
+        "view_type": "default_graph",
+    },
+    "parameters-pca-group-overlay-proximity": {
+        "view_name": "parameters.pca.proximity",
+        "view_type": "epoch_selector",
     },
     "velocity-plot": {
         "view_name": "parameters.pca.component_velocity",
@@ -100,6 +120,8 @@ def create_dimensionality_page_layout(app: Dash) -> html.Div:
                 [
                     # --- Loss ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("gradient_site_convergence", "600px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("gradient_site_heatmap", "600px"))),
                     dbc.Row(children=[dbc.Col(children=["Parameter Space"]), dbc.Col(children=["Activation Space"])]),
                     dbc.Row(
                         children=[
@@ -140,6 +162,9 @@ def create_dimensionality_page_layout(app: Dash) -> html.Div:
                             ),
                         ]
                     ),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-group-overlay-proximity", "400px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-group-overlay-pc1-pc2", "400px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("parameters-pca-group-overlay-pc2-pc3", "400px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("velocity-plot", "400px"))),
                     # --- Dimensionality (summary + per-epoch) ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("dim-trajectory-plot", "400px"))),

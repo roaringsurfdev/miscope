@@ -47,6 +47,10 @@ from miscope.visualization.renderers.data_compatibility import (
     render_data_compatibility_overlap,
     render_data_compatibility_spectrum,
 )
+from miscope.visualization.renderers.gradient_site import (
+    render_site_gradient_convergence,
+    render_site_gradient_heatmap,
+)
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
     render_dmd_reconstruction,
@@ -100,9 +104,11 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_parameter_trajectory,
     render_parameter_velocity,
     render_trajectory_3d,
+    render_trajectory_group_overlay,
     render_trajectory_pc1_pc3,
     render_trajectory_pc2_pc3,
     render_trajectory_pca_variance,
+    render_trajectory_proximity,
 )
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,
@@ -173,6 +179,8 @@ __all__ = [
     "FLATNESS_METRICS",
     # REQ_029/REQ_038: Parameter trajectory
     "get_group_label",
+    "render_trajectory_group_overlay",
+    "render_trajectory_proximity",
     "render_parameter_trajectory",
     "render_explained_variance",
     "render_parameter_velocity",
@@ -198,4 +206,7 @@ __all__ = [
     # REQ_049: Neuron Fourier decomposition
     "render_neuron_fourier_heatmap",
     "render_neuron_fourier_heatmap_output",
+    # REQ_077: Site gradient convergence
+    "render_site_gradient_convergence",
+    "render_site_gradient_heatmap",
 ]

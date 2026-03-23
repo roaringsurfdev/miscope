@@ -516,6 +516,8 @@ class AnalysisPipeline:
         then runs each cross-epoch analyzer and saves results.
         """
         available_epochs = sorted(self.variant.get_available_checkpoints())
+        # Inject variant so analyzers that load checkpoints directly can access it
+        cross_epoch_context = {**context, "variant": self.variant}
 
         for analyzer in self._cross_epoch_analyzers:
             # Skip if already computed (unless force)
@@ -545,7 +547,7 @@ class AnalysisPipeline:
             result = analyzer.analyze_across_epochs(
                 self.artifacts_dir,
                 available_epochs,
-                context,
+                cross_epoch_context,
             )
             self._save_cross_epoch_artifact(analyzer.name, result)
 

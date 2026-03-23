@@ -594,6 +594,218 @@ def render_trajectory_pca_variance(
     return fig
 
 
+def render_trajectory_group_overlay(
+    cross_epoch_data: dict[str, np.ndarray],
+    epochs: list[int],
+    current_epoch: int,
+    col_x: int = 0,
+    col_y: int = 1,
+    title: str | None = None,
+    height: int = 500,
+) -> go.Figure:
+    """Normalized overlay of embedding, attention, and MLP trajectories on shared axes.
+
+    Each group's trajectory is independently centered and scaled so all three
+    fit in a comparable space. Shape and loop structure are preserved; absolute
+    magnitudes are not (they differ by orders of magnitude across groups).
+
+    Use this to compare trajectory timing and shape — does one group move first?
+    Do they trace similar loops or diverge? — without the scale differences
+    that make direct overlay of raw projections unreadable.
+
+    Args:
+        cross_epoch_data: From ArtifactLoader.load_cross_epoch("parameter_trajectory").
+        epochs: Epoch numbers.
+        current_epoch: Current epoch for highlight marker.
+        col_x: PC column for x-axis (0=PC1, 1=PC2).
+        col_y: PC column for y-axis (1=PC2, 2=PC3).
+        title: Custom title.
+        height: Figure height in pixels.
+    """
+    pc_x, pc_y = col_x + 1, col_y + 1
+    colors = {
+        "embedding": "rgba(31, 119, 180, 1.0)",
+        "attention": "rgba(44, 160, 44, 1.0)",
+        "mlp": "rgba(214, 39, 40, 1.0)",
+    }
+
+    fig = go.Figure()
+
+    for group_name, color in colors.items():
+        proj_key = f"{group_name}__projections"
+        if proj_key not in cross_epoch_data:
+            continue
+        proj = cross_epoch_data[proj_key]
+        nx, ny = _normalize_trajectory(proj[:, col_x], proj[:, col_y])
+
+        fig.add_trace(
+            go.Scatter(
+                x=nx,
+                y=ny,
+                mode="lines",
+                line=dict(color=color.replace("1.0", "0.35"), width=1),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=nx,
+                y=ny,
+                mode="markers",
+                name=_GROUP_LABELS[group_name],
+                marker=dict(size=4, color=epochs, colorscale="Bluered", showscale=False),
+                customdata=epochs,
+                hovertemplate=(
+                    f"{_GROUP_LABELS[group_name]}<br>"
+                    "Epoch %{customdata}<br>"
+                    f"PC{pc_x}: %{{x:.3f}}<br>"
+                    f"PC{pc_y}: %{{y:.3f}}<extra></extra>"
+                ),
+            )
+        )
+
+        if current_epoch in epochs:
+            idx = epochs.index(current_epoch)
+            fig.add_trace(
+                go.Scatter(
+                    x=[nx[idx]],
+                    y=[ny[idx]],
+                    mode="markers",
+                    marker=dict(
+                        size=12,
+                        color=color,
+                        symbol="star",
+                        line=dict(width=1, color="black"),
+                    ),
+                    name=f"{_GROUP_LABELS[group_name]} epoch {current_epoch}",
+                    showlegend=False,
+                    hovertemplate=f"{_GROUP_LABELS[group_name]} epoch {current_epoch}<extra></extra>",
+                )
+            )
+
+    if title is None:
+        title = f"Group Trajectory Overlay (PC{pc_x} vs PC{pc_y}, normalized)"
+
+    fig.update_layout(
+        title=title,
+        xaxis_title=f"PC{pc_x} (normalized)",
+        yaxis_title=f"PC{pc_y} (normalized)",
+        yaxis=dict(scaleanchor="x", scaleratio=1),
+        template="plotly_white",
+        height=height,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=60, r=20, t=50, b=50),
+    )
+
+    return fig
+
+
+def _normalize_trajectory(
+    pc_x: np.ndarray,
+    pc_y: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Center and scale a trajectory so its widest axis spans [-0.5, 0.5].
+
+    Preserves aspect ratio (shape and loop structure) within each group.
+    """
+    cx, cy = pc_x.mean(), pc_y.mean()
+    nx, ny = pc_x - cx, pc_y - cy
+    scale = max(nx.max() - nx.min(), ny.max() - ny.min())
+    if scale > 1e-12:
+        nx, ny = nx / scale, ny / scale
+    return nx, ny
+
+
+def render_trajectory_proximity(
+    cross_epoch_data: dict[str, np.ndarray],
+    epochs: list[int],
+    current_epoch: int,
+    col_x: int = 0,
+    col_y: int = 1,
+    title: str | None = None,
+    height: int = 350,
+) -> go.Figure:
+    """Pairwise L2 distance between normalized group trajectories over training.
+
+    At each epoch, computes the distance between each pair of groups in
+    normalized PC space (same normalization as the group overlay). Distance
+    near zero means the two groups are occupying the same region of their
+    respective parameter spaces at that moment.
+
+    Args:
+        cross_epoch_data: From ArtifactLoader.load_cross_epoch("parameter_trajectory").
+        epochs: Epoch numbers.
+        current_epoch: Current epoch for vertical cursor.
+        col_x: PC column for x-axis (0=PC1, 1=PC2).
+        col_y: PC column for y-axis (1=PC2, 2=PC3).
+        title: Custom title.
+        height: Figure height in pixels.
+    """
+    pc_x, pc_y = col_x + 1, col_y + 1
+
+    groups: dict[str, np.ndarray] = {}
+    for name in ("embedding", "attention", "mlp"):
+        proj_key = f"{name}__projections"
+        if proj_key not in cross_epoch_data:
+            continue
+        proj = cross_epoch_data[proj_key]
+        nx, ny = _normalize_trajectory(proj[:, col_x], proj[:, col_y])
+        groups[name] = np.stack([nx, ny], axis=1)
+
+    pairs = [
+        ("emb_attn", "embedding", "attention", "royalblue", "Embedding \u2194 Attention"),
+        ("emb_mlp",  "embedding", "mlp",       "darkorange", "Embedding \u2194 MLP"),
+        ("attn_mlp", "attention", "mlp",       "seagreen",   "Attention \u2194 MLP"),
+    ]
+
+    fig = go.Figure()
+
+    for _key, a, b, color, label in pairs:
+        if a not in groups or b not in groups:
+            continue
+        dists = np.minimum(
+            np.linalg.norm(groups[a] - groups[b], axis=1),
+            np.linalg.norm(groups[a] + groups[b], axis=1),
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=epochs,
+                y=dists.tolist(),
+                mode="lines",
+                name=label,
+                line=dict(color=color, width=2),
+                hovertemplate=f"{label}<br>Epoch %{{x}}<br>Distance: %{{y:.3f}}<extra></extra>",
+            )
+        )
+
+    fig.add_vline(
+        x=current_epoch,
+        line_dash="solid",
+        line_color="red",
+        line_width=2,
+        annotation_text=f"Epoch {current_epoch}",
+        annotation_position="top right",
+        annotation_font_color="red",
+    )
+
+    if title is None:
+        title = f"Group Trajectory Proximity (PC{pc_x}/PC{pc_y}, normalized)"
+
+    fig.update_layout(
+        title=title,
+        xaxis_title="Epoch",
+        yaxis_title="L2 distance (normalized)",
+        yaxis=dict(rangemode="tozero"),
+        template="plotly_white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=height,
+        margin=dict(l=60, r=20, t=50, b=50),
+    )
+
+    return fig
+
+
 def get_group_label(group: str) -> str:
     """Get display label for a component group key."""
     return _GROUP_LABELS.get(group, group.capitalize())
