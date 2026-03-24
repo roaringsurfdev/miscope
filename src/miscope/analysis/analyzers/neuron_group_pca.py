@@ -26,10 +26,10 @@ class NeuronGroupPCAAnalyzer:
     spread) over all training epochs.
 
     Cross-epoch artifact keys:
-        group_freqs   int32   (n_groups,)           frequency index per group
-        group_sizes   int32   (n_groups,)           neuron count per group
-        pc1_var       float32 (n_epochs, n_groups)  PC1 variance explained
-        mean_spread   float32 (n_epochs, n_groups)  mean L2 distance from centroid
+        group_freqs   int32   (n_groups,)                frequency index per group
+        group_sizes   int32   (n_groups,)                neuron count per group
+        pc_var        float32 (n_epochs, n_groups, 3)    per-component variance explained
+        mean_spread   float32 (n_epochs, n_groups)       mean L2 distance from centroid
         epochs        int32   (n_epochs,)
     """
 
@@ -53,21 +53,21 @@ class NeuronGroupPCAAnalyzer:
 
         n_groups = len(group_freqs)
         n_epochs = len(sorted_epochs)
-        pc1_var = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        pc_var = np.full((n_epochs, n_groups, N_COMPONENTS), np.nan, dtype=np.float32)
         mean_spread = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
 
         for ep_idx, epoch in enumerate(sorted_epochs):
             snap = loader.load_epoch("parameter_snapshot", epoch)
             W_in = snap["W_in"]  # (d_model, d_mlp)
             for g_idx, members in enumerate(group_members):
-                pc1, spread = _group_pca_stats(W_in[:, members])
-                pc1_var[ep_idx, g_idx] = pc1
-                mean_spread[ep_idx, g_idx] = spread
+                pc_var[ep_idx, g_idx], mean_spread[ep_idx, g_idx] = _group_pca_stats(
+                    W_in[:, members]
+                )
 
         return {
             "group_freqs": np.array(group_freqs, dtype=np.int32),
             "group_sizes": np.array([len(m) for m in group_members], dtype=np.int32),
-            "pc1_var": pc1_var,
+            "pc_var": pc_var,
             "mean_spread": mean_spread,
             "epochs": np.array(sorted_epochs, dtype=np.int32),
         }
@@ -102,14 +102,20 @@ def _assign_groups(
     return group_freqs, group_members
 
 
-def _group_pca_stats(group_W: np.ndarray) -> tuple[float, float]:
-    """Compute PC1 variance explained and mean spread for a neuron group.
+N_COMPONENTS = 3
+
+
+def _group_pca_stats(group_W: np.ndarray) -> tuple[np.ndarray, float]:
+    """Compute per-component variance explained and mean spread for a neuron group.
+
+    Returns variance fractions for the top N_COMPONENTS principal components.
+    Groups smaller than N_COMPONENTS get NaN-padded output for missing components.
 
     Args:
         group_W: (d_model, n_group) weight vectors for neurons in the group
 
     Returns:
-        (pc1_var_explained, mean_L2_spread)
+        (pc_var, mean_L2_spread) where pc_var is (N_COMPONENTS,) float32
     """
     centroid = group_W.mean(axis=1, keepdims=True)  # (d_model, 1)
     centered = group_W - centroid  # (d_model, n_group)
@@ -118,9 +124,13 @@ def _group_pca_stats(group_W: np.ndarray) -> tuple[float, float]:
 
     _, s, _ = np.linalg.svd(centered, full_matrices=False)
     total_var = float((s**2).sum())
-    pc1_var = float(s[0] ** 2 / total_var) if total_var > 1e-10 else 1.0
 
-    return pc1_var, spread
+    pc_var = np.full(N_COMPONENTS, np.nan, dtype=np.float32)
+    if total_var > 1e-10:
+        n_valid = min(N_COMPONENTS, len(s))
+        pc_var[:n_valid] = (s[:n_valid] ** 2 / total_var).astype(np.float32)
+
+    return pc_var, spread
 
 
 def _empty_result(epochs: list[int]) -> dict[str, np.ndarray]:
@@ -128,7 +138,7 @@ def _empty_result(epochs: list[int]) -> dict[str, np.ndarray]:
     return {
         "group_freqs": np.array([], dtype=np.int32),
         "group_sizes": np.array([], dtype=np.int32),
-        "pc1_var": np.empty((n, 0), dtype=np.float32),
+        "pc_var": np.empty((n, 0, N_COMPONENTS), dtype=np.float32),
         "mean_spread": np.empty((n, 0), dtype=np.float32),
         "epochs": np.array(epochs, dtype=np.int32),
     }

@@ -20,21 +20,42 @@ def test_group_pca_stats_perfectly_aligned():
     """All neurons pointing in same direction → PC1 var explained = 1.0."""
     direction = np.array([1.0, 0.0, 0.0])
     n_group = 4
-    # Each neuron = direction * random scale + same centroid
     scales = np.array([1.0, 2.0, 1.5, 0.8])
     group_W = np.outer(direction, scales)  # (3, 4)
-    pc1_var, _ = _group_pca_stats(group_W)
-    assert pc1_var == pytest.approx(1.0, abs=1e-5)
+    pc_var, _ = _group_pca_stats(group_W)
+    assert pc_var[0] == pytest.approx(1.0, abs=1e-5)
 
 
 def test_group_pca_stats_uniform_spread():
     """Neurons spread uniformly → PC1 var explained substantially less than 1."""
     rng = np.random.default_rng(42)
     d_model, n_group = 16, 8
-    # Random independent weight vectors
     group_W = rng.standard_normal((d_model, n_group)).astype(np.float64)
-    pc1_var, _ = _group_pca_stats(group_W)
-    assert pc1_var < 0.8
+    pc_var, _ = _group_pca_stats(group_W)
+    assert pc_var[0] < 0.8
+
+
+def test_group_pca_stats_returns_three_components():
+    """Output pc_var has shape (3,)."""
+    group_W = np.random.randn(16, 6).astype(np.float32)
+    pc_var, _ = _group_pca_stats(group_W)
+    assert pc_var.shape == (3,)
+
+
+def test_group_pca_stats_cumulative_le_one():
+    """Cumulative PC1+PC2+PC3 <= 1.0 (fractions of total variance)."""
+    group_W = np.random.randn(16, 8).astype(np.float32)
+    pc_var, _ = _group_pca_stats(group_W)
+    assert float(np.nansum(pc_var)) <= 1.0 + 1e-5
+
+
+def test_group_pca_stats_two_neuron_group():
+    """Group with exactly 2 neurons: PC1 = 1.0 (rank-1 after centering), PC2 = 0, PC3 = NaN."""
+    group_W = np.array([[1.0, 2.0], [3.0, 4.0]])  # (2, 2)
+    pc_var, _ = _group_pca_stats(group_W)
+    assert pc_var[0] == pytest.approx(1.0, abs=1e-5)
+    assert pc_var[1] == pytest.approx(0.0, abs=1e-5)  # zero singular value, not NaN
+    assert np.isnan(pc_var[2])  # SVD only produces min(d,n)=2 values; PC3 slot stays NaN
 
 
 def test_group_pca_stats_spread_zero_for_identical_neurons():
@@ -53,18 +74,18 @@ def test_group_pca_stats_spread_positive_for_different_neurons():
 
 
 def test_group_pca_stats_output_types():
-    """Returns Python floats."""
+    """Returns (ndarray, float)."""
     group_W = np.random.randn(8, 4).astype(np.float32)
-    pc1_var, spread = _group_pca_stats(group_W)
-    assert isinstance(pc1_var, float)
+    pc_var, spread = _group_pca_stats(group_W)
+    assert isinstance(pc_var, np.ndarray)
     assert isinstance(spread, float)
 
 
 def test_group_pca_stats_minimum_group_size():
-    """Two neurons is minimum valid group."""
+    """Two neurons: spread is valid, PC2/PC3 are NaN."""
     group_W = np.array([[1.0, 2.0], [3.0, 4.0]])  # (2, 2)
-    pc1_var, spread = _group_pca_stats(group_W)
-    assert 0.0 <= pc1_var <= 1.0
+    pc_var, spread = _group_pca_stats(group_W)
+    assert 0.0 <= pc_var[0] <= 1.0
     assert spread >= 0.0
 
 
@@ -123,7 +144,7 @@ def test_analyzer_output_shapes():
 
     n_groups = result["group_freqs"].shape[0]
     assert n_groups == 2
-    assert result["pc1_var"].shape == (3, 2)
+    assert result["pc_var"].shape == (3, 2, 3)
     assert result["mean_spread"].shape == (3, 2)
     assert result["epochs"].shape == (3,)
     assert result["group_sizes"].shape == (2,)
@@ -141,7 +162,7 @@ def test_analyzer_output_dtypes():
 
     assert result["group_freqs"].dtype == np.int32
     assert result["group_sizes"].dtype == np.int32
-    assert result["pc1_var"].dtype == np.float32
+    assert result["pc_var"].dtype == np.float32
     assert result["mean_spread"].dtype == np.float32
     assert result["epochs"].dtype == np.int32
 
@@ -175,8 +196,8 @@ def test_analyzer_excludes_singleton_groups():
     assert result["group_sizes"].tolist() == [3]
 
 
-def test_analyzer_pc1_var_range():
-    """PC1 var explained is in [0, 1] for all epochs and groups."""
+def test_analyzer_pc_var_range():
+    """All pc_var fractions are in [0, 1] and cumulative sum <= 1."""
     n_freq, d_mlp = 3, 9
     assignments = [0, 0, 0, 1, 1, 1, 2, 2, 2]
     norm = _make_norm_matrix(n_freq, d_mlp, assignments)
@@ -186,8 +207,12 @@ def test_analyzer_pc1_var_range():
 
     result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
 
-    assert np.all(result["pc1_var"] >= 0.0)
-    assert np.all(result["pc1_var"] <= 1.0 + 1e-5)
+    pc_var = result["pc_var"]
+    valid = ~np.isnan(pc_var)
+    assert np.all(pc_var[valid] >= 0.0)
+    assert np.all(pc_var[valid] <= 1.0 + 1e-5)
+    cumulative = np.nansum(pc_var, axis=2)  # (n_epochs, n_groups)
+    assert np.all(cumulative <= 1.0 + 1e-5)
 
 
 def test_analyzer_spread_nonnegative():
@@ -214,7 +239,7 @@ def test_analyzer_empty_when_no_valid_groups():
     result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
 
     assert len(result["group_freqs"]) == 0
-    assert result["pc1_var"].shape == (1, 0)
+    assert result["pc_var"].shape == (1, 0, 3)
     assert result["mean_spread"].shape == (1, 0)
 
 
@@ -236,10 +261,14 @@ def test_analyzer_epochs_sorted():
 
 def _make_cross_epoch_artifact(n_epochs=5, n_groups=3):
     rng = np.random.default_rng(42)
+    # pc_var: 3 components per group, sum <= 1.0 per (epoch, group)
+    raw = rng.uniform(0.1, 0.4, (n_epochs, n_groups, 3)).astype(np.float32)
+    pc_var = raw / raw.sum(axis=2, keepdims=True)  # normalize so sum == 1
+    pc_var *= rng.uniform(0.5, 0.9, (n_epochs, n_groups, 1)).astype(np.float32)
     return {
         "group_freqs": np.arange(n_groups, dtype=np.int32) * 5,
         "group_sizes": np.full(n_groups, 4, dtype=np.int32),
-        "pc1_var": rng.uniform(0.3, 0.9, (n_epochs, n_groups)).astype(np.float32),
+        "pc_var": pc_var,
         "mean_spread": rng.uniform(0.1, 2.0, (n_epochs, n_groups)).astype(np.float32),
         "epochs": np.linspace(0, 5000, n_epochs, dtype=np.int32),
     }
@@ -254,10 +283,10 @@ def test_render_cohesion_returns_figure():
 
 
 def test_render_cohesion_trace_count():
-    """One trace per group."""
+    """Two traces per group (solid cumulative + dashed PC1)."""
     data = _make_cross_epoch_artifact(n_groups=3)
     fig = render_neuron_group_pca_cohesion(data)
-    assert len(fig.data) == 3
+    assert len(fig.data) == 6
 
 
 def test_render_cohesion_with_epoch_cursor():
@@ -291,7 +320,7 @@ def test_render_empty_data():
     data = {
         "group_freqs": np.array([], dtype=np.int32),
         "group_sizes": np.array([], dtype=np.int32),
-        "pc1_var": np.empty((5, 0), dtype=np.float32),
+        "pc_var": np.empty((5, 0, 3), dtype=np.float32),
         "mean_spread": np.empty((5, 0), dtype=np.float32),
         "epochs": np.array([0, 1000, 2000, 3000, 4000], dtype=np.int32),
     }
