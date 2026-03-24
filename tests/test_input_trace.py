@@ -4,7 +4,7 @@ CoS coverage:
 - Unit: InputTraceAnalyzer produces correct shape output for a minimal model (p=11)
 - Unit: graduation_epochs is -1 for a pair never stable-correct
 - Unit: graduation_epochs is the first epoch of sustained correctness
-- Unit: residue_class_accuracy sums correctly — each pair in exactly one class
+- Unit: residue_class_accuracy covers all pairs — each pair in exactly one class
 - Integration: analyzer runs on a minimal model and artifacts load cleanly
 - Integration: all three views render without error
 """
@@ -16,7 +16,11 @@ import numpy as np
 import pytest
 import torch
 
-from miscope.analysis.analyzers.input_trace import InputTraceAnalyzer, _build_training_probe
+from miscope.analysis.analyzers.input_trace import (
+    InputTraceAnalyzer,
+    _build_split_mask,
+    _per_residue_accuracy,
+)
 from miscope.analysis.analyzers.input_trace_graduation import (
     InputTraceGraduationAnalyzer,
     _compute_graduation_epochs,
@@ -66,6 +70,14 @@ def _make_minimal_context(p: int = SMALL_P, data_seed: int = 42, training_fracti
     }
 
 
+def _make_full_probe(p: int = SMALL_P) -> torch.Tensor:
+    """Create the full p² probe tensor (matches family.generate_analysis_dataset output)."""
+    a = torch.arange(p).repeat_interleave(p)
+    b = torch.arange(p).repeat(p)
+    eq = torch.full((p * p,), p, dtype=torch.long)
+    return torch.stack([a, b, eq], dim=1)
+
+
 # ── Protocol conformance ─────────────────────────────────────────────
 
 
@@ -88,73 +100,90 @@ class TestProtocolConformance:
 class TestInputTraceAnalyzerShapes:
     def test_output_shapes(self):
         p = SMALL_P
-        training_fraction = 0.4
-        data_seed = 42
-
         model = _make_minimal_model(p)
-        context = _make_minimal_context(p, data_seed, training_fraction)
+        context = _make_minimal_context(p)
+        probe = _make_full_probe(p)
 
-        # Build a minimal probe (full grid — analyzer ignores it)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
-        cache = None  # analyzer doesn't use cache
+        result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
 
-        analyzer = InputTraceAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)  # type: ignore[arg-type]
-
-        expected_n_pairs = int(p * p * training_fraction)
-        assert result["predictions"].shape == (expected_n_pairs,)
-        assert result["correct"].shape == (expected_n_pairs,)
-        assert result["confidence"].shape == (expected_n_pairs,)
-        assert result["pair_indices"].shape == (expected_n_pairs, 2)
+        assert result["predictions"].shape == (p * p,)
+        assert result["correct"].shape == (p * p,)
+        assert result["confidence"].shape == (p * p,)
+        assert result["split"].shape == (p * p,)
 
     def test_output_dtypes(self):
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
 
         assert result["predictions"].dtype == np.int16
         assert result["correct"].dtype == bool
         assert result["confidence"].dtype == np.float16
-        assert result["pair_indices"].dtype == np.int16
+        assert result["split"].dtype == bool
 
     def test_predictions_in_valid_range(self):
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
 
         assert result["predictions"].min() >= 0
         assert result["predictions"].max() < p
 
-    def test_pair_indices_in_valid_range(self):
-        p = SMALL_P
-        model = _make_minimal_model(p)
-        context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
-
-        result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
-
-        assert result["pair_indices"].min() >= 0
-        assert result["pair_indices"].max() < p
-
     def test_correct_consistent_with_predictions(self):
-        """correct[i] must match whether predictions[i] == (a+b)%p."""
+        """correct[k] must match whether predictions[k] == (a+b)%p for pair k."""
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
 
-        a = result["pair_indices"][:, 0].astype(np.int32)
-        b = result["pair_indices"][:, 1].astype(np.int32)
+        a = np.arange(p).repeat(p)
+        b = np.tile(np.arange(p), p)
         expected_correct = result["predictions"].astype(np.int32) == (a + b) % p
         np.testing.assert_array_equal(result["correct"], expected_correct)
+
+    def test_split_fraction_matches_training_fraction(self):
+        p = SMALL_P
+        training_fraction = 0.4
+        model = _make_minimal_model(p)
+        context = _make_minimal_context(p, training_fraction=training_fraction)
+        probe = _make_full_probe(p)
+
+        result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
+
+        expected_train = int(p * p * training_fraction)
+        assert result["split"].sum() == expected_train
+
+
+# ── Unit: split mask reconstruction ─────────────────────────────────
+
+
+class TestBuildSplitMask:
+    def test_split_count(self):
+        p = 11
+        split = _build_split_mask(p, 42, 0.4)
+        assert split.sum() == int(p * p * 0.4)
+
+    def test_split_is_bool(self):
+        split = _build_split_mask(11, 42, 0.4)
+        assert split.dtype == bool
+
+    def test_split_deterministic(self):
+        split1 = _build_split_mask(11, 42, 0.4)
+        split2 = _build_split_mask(11, 42, 0.4)
+        np.testing.assert_array_equal(split1, split2)
+
+    def test_different_seeds_differ(self):
+        split1 = _build_split_mask(11, 42, 0.4)
+        split2 = _build_split_mask(11, 999, 0.4)
+        assert not np.array_equal(split1, split2)
 
 
 # ── Unit: summary stats ──────────────────────────────────────────────
@@ -163,85 +192,66 @@ class TestInputTraceAnalyzerShapes:
 class TestSummaryStats:
     def test_summary_keys(self):
         keys = InputTraceAnalyzer().get_summary_keys()
-        assert "residue_class_accuracy" in keys
-        assert "overall_accuracy" in keys
+        assert "test_residue_class_accuracy" in keys
+        assert "train_residue_class_accuracy" in keys
+        assert "test_overall_accuracy" in keys
+        assert "train_overall_accuracy" in keys
 
     def test_residue_class_accuracy_shape(self):
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
         result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
         summary = analyzer.compute_summary(result, context)
 
-        assert summary["residue_class_accuracy"].shape == (p,)
-        assert summary["residue_class_accuracy"].dtype == np.float32
+        assert summary["test_residue_class_accuracy"].shape == (p,)
+        assert summary["train_residue_class_accuracy"].shape == (p,)
 
     def test_each_pair_contributes_to_exactly_one_residue_class(self):
-        """Every training pair must contribute to exactly one residue class,
-        so the weighted sum of per-class accuracies equals overall accuracy."""
+        """Every pair must contribute to exactly one residue class.
+
+        The per-residue class counts (train + test) must sum to p².
+        """
+        p = SMALL_P
+        a_all = np.arange(p).repeat(p)
+        b_all = np.tile(np.arange(p), p)
+        residue = (a_all + b_all) % p
+        class_counts = np.bincount(residue, minlength=p)
+        assert class_counts.sum() == p * p
+
+    def test_overall_accuracy_matches_per_pair_mean(self):
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
         result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
-
-        pair_indices = result["pair_indices"].astype(np.int32)
-        residues = (pair_indices[:, 0] + pair_indices[:, 1]) % p
-
-        # Verify each pair lands in exactly one class
-        class_counts = np.bincount(residues, minlength=p)
-        assert class_counts.sum() == len(pair_indices), "Some pairs uncounted"
-
-        # Verify weighted average of class accuracies equals overall accuracy
         summary = analyzer.compute_summary(result, context)
-        correct = result["correct"].astype(float)
-        expected_overall = correct.mean()
+
+        test_mask = ~result["split"]
+        expected_test_acc = float(result["correct"][test_mask].mean())
         np.testing.assert_allclose(
-            float(summary["overall_accuracy"]),
-            expected_overall,
+            float(summary["test_overall_accuracy"]),
+            expected_test_acc,
             atol=1e-5,
         )
 
+    def test_per_residue_accuracy_helper(self):
+        """Each pair lands in exactly one residue class."""
+        p = 5
+        correct = np.array([True, False, True, True, False] * 5, dtype=bool)[:p * p]
+        a = np.arange(p).repeat(p)
+        b = np.tile(np.arange(p), p)
+        residue = (a + b) % p
+        mask = np.ones(p * p, dtype=bool)
 
-# ── Unit: training probe reconstruction ─────────────────────────────
-
-
-class TestBuildTrainingProbe:
-    def test_probe_shape(self):
-        p = 11
-        probe, pairs, labels = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        n_expected = int(p * p * 0.4)
-        assert probe.shape == (n_expected, 3)
-        assert pairs.shape == (n_expected, 2)
-        assert labels.shape == (n_expected,)
-
-    def test_probe_equals_token_correct(self):
-        p = 11
-        probe, _, _ = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        assert (probe[:, 2] == p).all()
-
-    def test_labels_match_pairs(self):
-        p = 11
-        _, pairs, labels = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        expected = (pairs[:, 0] + pairs[:, 1]) % p
-        torch.testing.assert_close(labels, expected)
-
-    def test_deterministic_with_same_seed(self):
-        p = 11
-        _, pairs1, _ = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        _, pairs2, _ = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        torch.testing.assert_close(pairs1, pairs2)
-
-    def test_different_seeds_produce_different_splits(self):
-        p = 11
-        _, pairs1, _ = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-        _, pairs2, _ = _build_training_probe(p, 999, 0.4, torch.device("cpu"))
-        assert not torch.equal(pairs1, pairs2)
+        acc = _per_residue_accuracy(correct, residue, mask, p)
+        assert acc.shape == (p,)
+        assert (acc >= 0).all() and (acc <= 1).all()
 
 
 # ── Unit: graduation epoch computation ──────────────────────────────
@@ -249,56 +259,28 @@ class TestBuildTrainingProbe:
 
 class TestComputeGraduationEpochs:
     def test_never_graduated_returns_minus_one(self):
-        """A pair never correct in any epoch gets graduation_epoch = -1."""
         correct = np.zeros((5, 3), dtype=bool)
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
         np.testing.assert_array_equal(result, [-1, -1, -1])
 
     def test_isolated_correct_not_graduation(self):
-        """A single correct epoch followed by incorrect does not graduate."""
-        correct = np.array(
-            [
-                [True],
-                [False],
-                [False],
-                [False],
-                [False],
-            ],
-            dtype=bool,
-        )
+        correct = np.array([[True], [False], [False], [False], [False]], dtype=bool)
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
         assert result[0] == -1
 
     def test_graduation_at_first_stable_window(self):
-        """Graduation epoch is the first epoch of a stable window, not later."""
-        # Pair 0: correct at epochs [200, 300, 400] — first stable window starts at index 1
         correct = np.array(
-            [
-                [False],  # epoch 100
-                [True],   # epoch 200 ← first stable window starts here
-                [True],   # epoch 300
-                [True],   # epoch 400
-                [True],   # epoch 500
-            ],
-            dtype=bool,
+            [[False], [True], [True], [True], [True]], dtype=bool
         )
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
         assert result[0] == 200
 
     def test_intermittent_correct_before_stable(self):
-        """A pair correct once early, then stable later: graduation = start of stable run."""
         correct = np.array(
-            [
-                [True],   # epoch 100 — isolated
-                [False],  # epoch 200
-                [True],   # epoch 300 ← stable window starts here
-                [True],   # epoch 400
-                [True],   # epoch 500
-            ],
-            dtype=bool,
+            [[True], [False], [True], [True], [True]], dtype=bool
         )
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
@@ -311,7 +293,6 @@ class TestComputeGraduationEpochs:
         np.testing.assert_array_equal(result, [-1, -1, -1])
 
     def test_multiple_pairs_independent(self):
-        """Each pair's graduation is computed independently."""
         correct = np.array(
             [
                 [True, False],   # epoch 0
@@ -324,7 +305,7 @@ class TestComputeGraduationEpochs:
         )
         epochs = [0, 100, 200, 300, 400]
         result = _compute_graduation_epochs(correct, epochs, window=3)
-        assert result[0] == 0    # stable from index 0 (epochs 0,100,200 all correct)
+        assert result[0] == 0    # stable at epochs 0, 100, 200
         assert result[1] == -1   # pair 1 never has 3 consecutive correct
 
 
@@ -332,46 +313,36 @@ class TestComputeGraduationEpochs:
 
 
 class TestIntegrationArtifactRoundTrip:
-    """Run analyzer → save → load cycle using a minimal model."""
-
     def test_analyzer_artifacts_load_cleanly(self, tmp_path):
         from miscope.analysis.artifact_loader import ArtifactLoader
 
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
-        analyzer = InputTraceAnalyzer()
-        result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
 
-        # Save artifact
-        epoch = 100
         epoch_dir = tmp_path / "input_trace"
         epoch_dir.mkdir()
-        np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)
+        np.savez_compressed(str(epoch_dir / "epoch_00100.npz"), **result)
 
-        # Load and verify
         loader = ArtifactLoader(str(tmp_path))
-        loaded = loader.load_epoch("input_trace", epoch)
+        loaded = loader.load_epoch("input_trace", 100)
 
         assert "predictions" in loaded
         assert "correct" in loaded
         assert "confidence" in loaded
-        assert "pair_indices" in loaded
+        assert "split" in loaded
         np.testing.assert_array_equal(loaded["predictions"], result["predictions"])
 
     def test_graduation_analyzer_runs_on_minimal_data(self, tmp_path):
-        from miscope.analysis.artifact_loader import ArtifactLoader
-
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
-
-        # Save 5 epochs
         epochs = [0, 100, 200, 300, 400]
         epoch_dir = tmp_path / "input_trace"
         epoch_dir.mkdir()
@@ -379,14 +350,12 @@ class TestIntegrationArtifactRoundTrip:
             result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
             np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)
 
-        # Run graduation analyzer
         grad_analyzer = InputTraceGraduationAnalyzer()
         grad_result = grad_analyzer.analyze_across_epochs(str(tmp_path), epochs, context)
 
-        n_pairs = int(p * p * 0.4)
-        assert grad_result["graduation_epochs"].shape == (n_pairs,)
+        assert grad_result["graduation_epochs"].shape == (p * p,)
         assert grad_result["epochs"].shape == (len(epochs),)
-        assert grad_result["pair_indices"].shape == (n_pairs, 2)
+        assert grad_result["split"].shape == (p * p,)
         np.testing.assert_array_equal(grad_result["epochs"], epochs)
 
 
@@ -394,8 +363,6 @@ class TestIntegrationArtifactRoundTrip:
 
 
 class TestViewsRender:
-    """Verify all three renderers produce a Figure without error."""
-
     def test_accuracy_grid_renders(self):
         import plotly.graph_objects as go
 
@@ -404,11 +371,10 @@ class TestViewsRender:
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         epoch_data = InputTraceAnalyzer().analyze(model, probe, None, context)  # type: ignore[arg-type]
-        data = {"epoch_data": epoch_data, "prime": p}
-        fig = render_accuracy_grid(data, epoch=100)
+        fig = render_accuracy_grid({"epoch_data": epoch_data, "prime": p}, epoch=100)
         assert isinstance(fig, go.Figure)
 
     def test_residue_class_timeline_renders(self):
@@ -421,25 +387,29 @@ class TestViewsRender:
         p = SMALL_P
         model = _make_minimal_model(p)
         context = _make_minimal_context(p)
-        probe = torch.zeros((p * p, 3), dtype=torch.long)
+        probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
         epochs = [0, 100, 200]
-        all_class_acc = []
-        all_overall = []
-        for ep in epochs:
+        test_acc_list, train_acc_list, test_ov, train_ov = [], [], [], []
+        for _ in epochs:
             result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
             s = analyzer.compute_summary(result, context)
-            all_class_acc.append(s["residue_class_accuracy"])
-            all_overall.append(s["overall_accuracy"])
+            test_acc_list.append(s["test_residue_class_accuracy"])
+            train_acc_list.append(s["train_residue_class_accuracy"])
+            test_ov.append(s["test_overall_accuracy"])
+            train_ov.append(s["train_overall_accuracy"])
 
         summary = {
             "epochs": np.array(epochs, dtype=np.int32),
-            "residue_class_accuracy": np.stack(all_class_acc),
-            "overall_accuracy": np.array(all_overall, dtype=np.float32),
+            "test_residue_class_accuracy": np.stack(test_acc_list),
+            "train_residue_class_accuracy": np.stack(train_acc_list),
+            "test_overall_accuracy": np.array(test_ov, dtype=np.float32),
+            "train_overall_accuracy": np.array(train_ov, dtype=np.float32),
         }
-        data = {"summary": summary, "prime": p}
-        fig = render_residue_class_accuracy_timeline(data, epoch=100)
+        fig = render_residue_class_accuracy_timeline(
+            {"summary": summary, "prime": p}, epoch=100
+        )
         assert isinstance(fig, go.Figure)
 
     def test_graduation_heatmap_renders(self):
@@ -448,20 +418,15 @@ class TestViewsRender:
         from miscope.visualization.renderers.input_trace import render_pair_graduation_heatmap
 
         p = SMALL_P
-        n_pairs = int(p * p * 0.4)
+        split = _build_split_mask(p, 42, 0.4)
 
         rng = np.random.default_rng(42)
-        _, pairs, _ = _build_training_probe(p, 42, 0.4, torch.device("cpu"))
-
-        graduation_epochs = rng.choice(
-            [-1, 100, 200, 300, 400], size=n_pairs
-        ).astype(np.int32)
+        graduation_epochs = rng.choice([-1, 100, 200, 300, 400], size=p * p).astype(np.int32)
 
         graduation = {
             "graduation_epochs": graduation_epochs,
-            "pair_indices": pairs.numpy().astype(np.int16),
+            "split": split,
             "epochs": np.array([0, 100, 200, 300, 400], dtype=np.int32),
         }
-        data = {"graduation": graduation, "prime": p}
-        fig = render_pair_graduation_heatmap(data, epoch=None)
+        fig = render_pair_graduation_heatmap({"graduation": graduation, "prime": p}, epoch=None)
         assert isinstance(fig, go.Figure)

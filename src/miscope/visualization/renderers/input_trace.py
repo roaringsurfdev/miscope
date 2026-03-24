@@ -1,9 +1,14 @@
 """Input trace renderers — REQ_075.
 
 Three views for the per-input prediction trace:
-  - accuracy_grid: p×p heatmap of correct/incorrect at a single epoch
+  - accuracy_grid: p×p heatmap of correct/incorrect at a single epoch,
+                   distinguishing train from test pairs
   - residue_class_accuracy_timeline: per-class accuracy across training
+                                     (test split is the primary signal)
   - pair_graduation_heatmap: p×p map of graduation epochs
+
+Pair indexing convention: probe order, index k → a = k // p, b = k % p.
+Reshaped to grid: grid.reshape(p, p)[a, b] → grid.T[b, a] for (x=a, y=b) layout.
 """
 
 from typing import Any
@@ -19,52 +24,62 @@ def render_accuracy_grid(
 ) -> go.Figure:
     """p×p heatmap of correct/incorrect predictions at a single checkpoint.
 
-    Training pairs correct = blue, incorrect = light gray, test pairs = white.
-    Anti-diagonal structure (a+b = constant) is visible when the model is
-    learning by residue class.
+    Color encoding:
+      Test correct   = blue   — generalization achieved
+      Test incorrect = light gray — not yet generalized
+      Train correct  = dark gray — memorized (expected after ~epoch 200)
+      Train incorrect = white  — unexpected after early training
+
+    Anti-diagonal structure (a+b = constant) visible when model learns by
+    residue class. All anti-diagonals sharing a color = class-level graduation.
 
     Args:
-        data: Dict with 'epoch_data' (from input_trace per-epoch artifact) and 'prime'
+        data: Dict with 'epoch_data' (input_trace per-epoch artifact) and 'prime'
         epoch: Checkpoint epoch for the title
     """
     prime = int(data["prime"])
     epoch_data = data["epoch_data"]
-    pair_indices = epoch_data["pair_indices"].astype(np.int32)
-    correct = epoch_data["correct"]
+    correct = epoch_data["correct"]   # (p²,) bool
+    split = epoch_data["split"]       # (p²,) bool — True=train
 
-    # 0 = test pair (white), 1 = training incorrect (light gray), 2 = training correct (blue)
-    grid = np.zeros((prime, prime), dtype=np.float32)
-    a_coords = pair_indices[:, 0]
-    b_coords = pair_indices[:, 1]
-    grid[b_coords, a_coords] = 1.0
-    grid[b_coords[correct], a_coords[correct]] = 2.0
+    # 0=train_incorrect, 1=train_correct, 2=test_incorrect, 3=test_correct
+    values = np.where(split, np.where(correct, 1, 0), np.where(correct, 3, 2))
+
+    # Reshape: probe order k → a=k//p, b=k%p → grid[a,b]; transpose for x=a, y=b
+    grid = values.reshape(prime, prime).T  # grid[b, a]
 
     colorscale = [
-        [0.0, "white"],
-        [0.49, "white"],
-        [0.5, "#cccccc"],
-        [0.74, "#cccccc"],
-        [0.75, "#1f77b4"],
-        [1.0, "#1f77b4"],
+        [0.00, "white"],        # train incorrect
+        [0.24, "white"],
+        [0.25, "#888888"],      # train correct (memorized)
+        [0.49, "#888888"],
+        [0.50, "#f0f0f0"],      # test incorrect
+        [0.74, "#f0f0f0"],
+        [0.75, "#1f77b4"],      # test correct (generalized)
+        [1.00, "#1f77b4"],
     ]
 
     epoch_label = epoch if epoch is not None else "?"
-    n_correct = int(correct.sum())
-    n_pairs = len(correct)
-    accuracy = n_correct / n_pairs if n_pairs > 0 else 0.0
+    test_mask = ~split
+    train_mask = split
+    test_acc = correct[test_mask].mean() if test_mask.any() else 0.0
+    train_acc = correct[train_mask].mean() if train_mask.any() else 0.0
 
     fig = go.Figure(
         go.Heatmap(
             z=grid,
             colorscale=colorscale,
             zmin=0,
-            zmax=2,
+            zmax=3,
             showscale=False,
             hovertemplate="a=%{x}, b=%{y}<extra></extra>",
         )
     )
     fig.update_layout(
-        title=f"Training Pair Accuracy — Epoch {epoch_label} ({accuracy:.1%} correct)",
+        title=(
+            f"Prediction Accuracy — Epoch {epoch_label} "
+            f"(test: {test_acc:.1%}, train: {train_acc:.1%})"
+        ),
         xaxis_title="a",
         yaxis_title="b",
         template="plotly_white",
@@ -75,32 +90,36 @@ def render_accuracy_grid(
 def render_residue_class_accuracy_timeline(
     data: dict[str, Any],
     epoch: int | None,
+    split: str = "test",
     **kwargs: Any,
 ) -> go.Figure:
     """Line plot of per-residue-class accuracy across all checkpoints.
 
     One trace per residue class c (0 to p-1), colored circularly.
-    A staircase pattern where classes graduate in discrete steps is the
-    predicted attractor signature of frequency-based learning.
+    Overall accuracy shown as a dashed black line.
+
+    The test split is the primary signal for grokking: a staircase pattern
+    where residue classes graduate in discrete steps is the predicted
+    attractor signature of frequency-based learning.
 
     GCD blind spots: residue classes that are multiples of gcd(committed
     frequency, p) may graduate together — watch for grouped staircases
     corresponding to the model's committed frequency set.
 
     Args:
-        data: Dict with 'summary' (from input_trace summary.npz) and 'prime'
+        data: Dict with 'summary' (input_trace summary.npz) and 'prime'
         epoch: Cursor epoch (shown as vertical line)
+        split: 'test' (default) or 'train'
     """
     prime = int(data["prime"])
     summary = data["summary"]
     epochs_arr = summary["epochs"]
-    residue_accuracy = summary["residue_class_accuracy"]  # (n_epochs, p)
-    overall_accuracy = summary["overall_accuracy"]         # (n_epochs,)
 
-    # Circular colormap via HSV
-    colors = [
-        f"hsl({int(360 * c / prime)}, 70%, 50%)" for c in range(prime)
-    ]
+    split_key = "test" if split == "test" else "train"
+    residue_accuracy = summary[f"{split_key}_residue_class_accuracy"]  # (n_epochs, p)
+    overall_accuracy = summary[f"{split_key}_overall_accuracy"]         # (n_epochs,)
+
+    colors = [f"hsl({int(360 * c / prime)}, 70%, 50%)" for c in range(prime)]
 
     fig = go.Figure()
 
@@ -129,13 +148,11 @@ def render_residue_class_accuracy_timeline(
     )
 
     if epoch is not None:
-        fig.add_vline(
-            x=epoch,
-            line=dict(color="red", width=1, dash="dot"),
-        )
+        fig.add_vline(x=epoch, line=dict(color="red", width=1, dash="dot"))
 
+    split_label = "Test" if split_key == "test" else "Train"
     fig.update_layout(
-        title="Residue Class Accuracy by Epoch",
+        title=f"{split_label} Residue Class Accuracy by Epoch",
         xaxis_title="Epoch",
         yaxis_title="Fraction Correct",
         yaxis=dict(range=[0, 1.05]),
@@ -147,61 +164,80 @@ def render_residue_class_accuracy_timeline(
 def render_pair_graduation_heatmap(
     data: dict[str, Any],
     epoch: int | None,
+    split: str = "test",
     **kwargs: Any,
 ) -> go.Figure:
-    """p×p heatmap of graduation epochs for each training pair.
+    """p×p heatmap of graduation epochs for each pair.
 
     Cell color encodes the epoch at which pair (a, b) first achieved
-    stable correctness. Never-graduated pairs (graduation_epoch = -1) are gray.
-    Test pairs (absent from pair_indices) are white.
+    stable correctness. Never-graduated pairs get gray. Train pairs are
+    shown in a muted overlay when split='test'.
 
     Anti-diagonal structure: if the model learns by residue class, pairs
     with the same sum (a+b = constant) should share similar graduation epochs,
     producing uniformly-colored anti-diagonals.
 
     Args:
-        data: Dict with 'graduation' (from input_trace_graduation cross_epoch) and 'prime'
+        data: Dict with 'graduation' (input_trace_graduation cross_epoch) and 'prime'
         epoch: Unused (summary view; no cursor)
+        split: 'test' (default) show test pairs, 'all' show all pairs
     """
     prime = int(data["prime"])
     graduation = data["graduation"]
-    graduation_epochs = graduation["graduation_epochs"].astype(np.float32)
-    pair_indices = graduation["pair_indices"].astype(np.int32)
+    graduation_epochs = graduation["graduation_epochs"].astype(np.float32)  # (p²,)
+    split_arr = graduation["split"]  # (p²,) True=train
 
+    # For 'test' split: replace train pairs with a sentinel to mute them
+    TRAIN_SENTINEL = -998.0
     NEVER_GRAD = -999.0
-    TEST_PAIR = np.nan
+    TEST_PAIR_NOT_SHOWN = np.nan
 
-    grid = np.full((prime, prime), TEST_PAIR, dtype=np.float32)
-    a_coords = pair_indices[:, 0]
-    b_coords = pair_indices[:, 1]
+    grad_values = np.where(
+        graduation_epochs < 0, NEVER_GRAD, graduation_epochs
+    ).astype(np.float32)
 
-    for i, (a, b) in enumerate(zip(a_coords, b_coords)):
-        g = graduation_epochs[i]
-        grid[b, a] = NEVER_GRAD if g == -1 else g
+    if split == "test":
+        grad_values = np.where(split_arr, TRAIN_SENTINEL, grad_values)
 
-    graduated_vals = graduation_epochs[graduation_epochs >= 0]
+    # Reshape to grid: probe order k → a=k//p, b=k%p; transpose for x=a, y=b
+    grid = grad_values.reshape(prime, prime).T  # grid[b, a]
+
+    # Color scale: TRAIN_SENTINEL → light beige, NEVER_GRAD → gray,
+    # graduated pairs → navy to yellow by epoch
+    graduated_mask = graduation_epochs >= 0
+    if split == "test":
+        graduated_mask = graduated_mask & ~split_arr
+    graduated_vals = graduation_epochs[graduated_mask]
+
     vmin = float(graduated_vals.min()) if len(graduated_vals) > 0 else 0
     vmax = float(graduated_vals.max()) if len(graduated_vals) > 0 else 1
+    epoch_range = vmax - vmin if vmax > vmin else 1.0
+
+    def _remap(v: np.ndarray) -> np.ndarray:
+        """Remap raw graduation values to [0, 1] colorscale range."""
+        return np.where(
+            v == TRAIN_SENTINEL, 0.1,
+            np.where(
+                v == NEVER_GRAD, 0.2,
+                0.3 + 0.7 * (v - vmin) / epoch_range,
+            ),
+        )
+
+    grid_remapped = _remap(grid)
 
     colorscale = [
-        [0.0, "#aaaaaa"],       # never-graduated (gray)
-        [0.001, "#aaaaaa"],
-        [0.001, "navy"],        # earliest graduation (dark)
-        [1.0, "lightyellow"],   # latest graduation (light)
+        [0.00, "#e8e0d0"],   # train pair (muted beige)
+        [0.14, "#e8e0d0"],
+        [0.15, "#aaaaaa"],   # never graduated (gray)
+        [0.29, "#aaaaaa"],
+        [0.30, "navy"],      # earliest graduation
+        [1.00, "lightyellow"],  # latest graduation
     ]
 
-    # Remap: NEVER_GRAD → 0, graduated → rescaled to [0.001, 1.0]
-    epoch_range = vmax - vmin if vmax > vmin else 1.0
-    grid_remapped = np.where(
-        np.isnan(grid),
-        TEST_PAIR,
-        np.where(
-            grid == NEVER_GRAD,
-            0.0,
-            0.001 + 0.999 * (grid - vmin) / epoch_range,
-        ),
-    )
+    tick_vals = [0.1, 0.2, 0.3, 0.65, 1.0]
+    tick_text = ["Train", "Never", str(int(vmin)), str(int((vmin + vmax) / 2)), str(int(vmax))]
 
+    split_label = "Test" if split == "test" else "All"
     fig = go.Figure(
         go.Heatmap(
             z=grid_remapped,
@@ -210,15 +246,15 @@ def render_pair_graduation_heatmap(
             zmax=1,
             showscale=True,
             colorbar=dict(
-                title="Graduation Epoch",
-                tickvals=[0.0, 0.001, 0.5, 1.0],
-                ticktext=["Never", str(int(vmin)), str(int((vmin + vmax) / 2)), str(int(vmax))],
+                title="Graduation<br>Epoch",
+                tickvals=tick_vals,
+                ticktext=tick_text,
             ),
             hovertemplate="a=%{x}, b=%{y}<extra></extra>",
         )
     )
     fig.update_layout(
-        title="Pair Graduation Epochs",
+        title=f"Pair Graduation Epochs ({split_label})",
         xaxis_title="a",
         yaxis_title="b",
         template="plotly_white",

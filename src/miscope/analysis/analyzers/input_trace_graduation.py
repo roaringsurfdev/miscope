@@ -24,9 +24,9 @@ class InputTraceGraduationAnalyzer:
     checkpoints (default: 3). Pairs that never achieve this stability get -1.
 
     Cross-epoch artifact keys:
-        graduation_epochs  int32  (n_pairs,)    first stable-correct epoch, -1 if never
-        epochs             int32  (n_checkpoints,)  epoch numbers in order
-        pair_indices       int16  (n_pairs, 2)  (a, b) for each pair (from epoch 0)
+        graduation_epochs  int32  (p²,)           first stable-correct epoch, -1 if never
+        epochs             int32  (n_checkpoints,) epoch numbers in order
+        split              bool   (p²,)            True = training pair, False = test pair
     """
 
     name = "input_trace_graduation"
@@ -46,15 +46,15 @@ class InputTraceGraduationAnalyzer:
             context: Family-provided analysis context (unused)
 
         Returns:
-            Dict with 'graduation_epochs', 'epochs', 'pair_indices'
+            Dict with 'graduation_epochs', 'epochs', 'split'
         """
         min_stable_window = 3
         loader = ArtifactLoader(artifacts_dir)
         sorted_epochs = sorted(epochs)
 
         first = loader.load_epoch("input_trace", sorted_epochs[0])
-        pair_indices = first["pair_indices"]  # (n_pairs, 2)
-        n_pairs = len(pair_indices)
+        split = first["split"]        # (p²,)
+        n_pairs = len(split)
 
         correct_matrix = np.empty((len(sorted_epochs), n_pairs), dtype=bool)
         for i, epoch in enumerate(sorted_epochs):
@@ -68,7 +68,7 @@ class InputTraceGraduationAnalyzer:
         return {
             "graduation_epochs": graduation_epochs.astype(np.int32),
             "epochs": np.array(sorted_epochs, dtype=np.int32),
-            "pair_indices": pair_indices,
+            "split": split,
         }
 
 
@@ -77,7 +77,7 @@ def _compute_graduation_epochs(
     epochs: list[int],
     window: int,
 ) -> np.ndarray:
-    """Find first epoch index where each pair is correct for `window` consecutive checkpoints.
+    """Find first epoch where each pair is correct for `window` consecutive checkpoints.
 
     Uses a cumulative sum approach to check window sums in one vectorized pass.
 
@@ -95,11 +95,12 @@ def _compute_graduation_epochs(
     if window > n_epochs:
         return np.full(n_pairs, -1, dtype=np.int32)
 
-    # cumsum padded with a zero row for clean window sum computation
+    # cumsum padded with a zero row for clean window sum computation:
+    # padded[i+1] = sum of correct[0:i+1]
+    # window_sums[i] = padded[i+window] - padded[i] = sum of correct[i:i+window]
     cumsum = np.cumsum(correct_matrix.astype(np.int32), axis=0)
     padded = np.vstack([np.zeros((1, n_pairs), dtype=np.int32), cumsum])
 
-    # window_sums[i] = sum of correct_matrix[i : i+window] for each pair
     n_valid = n_epochs - window + 1
     window_sums = padded[window:window + n_valid] - padded[:n_valid]  # (n_valid, n_pairs)
 

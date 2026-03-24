@@ -12,6 +12,7 @@ from dashboard.pages.activation_heatmaps import register_activation_heatmap_page
 from dashboard.pages.analysis_run import register_analysis_run_page_callbacks
 from dashboard.pages.centroid_dmd import register_centroid_dmd_callbacks
 from dashboard.pages.dimensionality import register_dimensionality_page_callbacks
+from dashboard.pages.input_trace import register_input_trace_page_callbacks
 from dashboard.pages.intervention_check import register_intervention_check_callbacks
 from dashboard.pages.loss_landscape import register_loss_landscape_page_callbacks
 from dashboard.pages.multistream import register_multistream_page_callbacks
@@ -51,6 +52,7 @@ def create_app() -> Dash:
     register_training_page_callbacks(app)
     register_visualization_page_callbacks(app)
     register_intervention_check_callbacks(app)
+    register_input_trace_page_callbacks(app)
     return app
 
 
