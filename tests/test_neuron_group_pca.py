@@ -9,6 +9,7 @@ from miscope.analysis.analyzers.neuron_group_pca import (
 )
 from miscope.visualization.renderers.neuron_group_pca import (
     render_neuron_group_pca_cohesion,
+    render_neuron_group_scatter,
     render_neuron_group_spread,
 )
 
@@ -243,6 +244,50 @@ def test_analyzer_empty_when_no_valid_groups():
     assert result["mean_spread"].shape == (1, 0)
 
 
+def test_analyzer_group_bases_shape():
+    """group_bases has shape (n_groups, 3, d_model)."""
+    n_freq, d_mlp, d_model = 3, 6, 16
+    assignments = [0, 0, 1, 1, 2, 2]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [10, 20]
+    W_in_by_epoch = {e: np.random.randn(d_model, d_mlp).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    assert result["group_bases"].shape == (3, 3, d_model)
+    assert result["group_bases"].dtype == np.float32
+
+
+def test_analyzer_group_bases_orthonormal():
+    """Each group's basis rows are orthonormal (within float32 tolerance)."""
+    n_freq, d_mlp, d_model = 2, 6, 32
+    assignments = [0, 0, 0, 1, 1, 1]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100]
+    rng = np.random.default_rng(5)
+    W_in_by_epoch = {100: rng.standard_normal((d_model, d_mlp)).astype(np.float32)}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    bases = result["group_bases"].astype(np.float64)
+    for g_idx in range(2):
+        gram = bases[g_idx] @ bases[g_idx].T  # (3, 3)
+        np.testing.assert_allclose(gram, np.eye(3), atol=1e-4)
+
+
+def test_analyzer_empty_group_bases_shape():
+    """Empty result has group_bases shape (0, 3, 0)."""
+    n_freq, d_mlp = 4, 4
+    assignments = [0, 1, 2, 3]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100]
+    W_in_by_epoch = {100: np.random.randn(8, d_mlp).astype(np.float32)}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    assert result["group_bases"].shape == (0, 3, 0)
+
+
 def test_analyzer_epochs_sorted():
     """Epochs in output are sorted regardless of input order."""
     n_freq, d_mlp = 2, 4
@@ -330,3 +375,73 @@ def test_render_empty_data():
     assert isinstance(fig2, go.Figure)
     assert len(fig1.data) == 0
     assert len(fig2.data) == 0
+
+
+# --- render_neuron_group_scatter tests ---
+
+
+def _make_scatter_data(n_groups=3, d_model=16, d_mlp=12):
+    rng = np.random.default_rng(99)
+    n_freq = n_groups * 2
+    group_freqs = np.arange(n_groups, dtype=np.int32) * 2
+    # Build orthonormal bases via QR
+    bases = np.zeros((n_groups, 3, d_model), dtype=np.float32)
+    for g in range(n_groups):
+        Q, _ = np.linalg.qr(rng.standard_normal((d_model, 3)))
+        bases[g] = Q[:, :3].T.astype(np.float32)
+    # Assign neurons evenly across groups
+    neurons_per_group = d_mlp // n_groups
+    assignments = []
+    for g in range(n_groups):
+        assignments.extend([int(group_freqs[g])] * neurons_per_group)
+    assignments.extend([0] * (d_mlp - len(assignments)))
+    norm_matrix = np.full((n_freq, d_mlp), 0.1 / (n_freq - 1), dtype=np.float32)
+    for n, f in enumerate(assignments):
+        norm_matrix[:, n] = 0.1 / (n_freq - 1)
+        norm_matrix[f, n] = 0.9
+    return {
+        "group_bases": bases,
+        "group_freqs": group_freqs,
+        "W_in": rng.standard_normal((d_model, d_mlp)).astype(np.float32),
+        "norm_matrix": norm_matrix,
+    }
+
+
+def test_render_scatter_returns_figure():
+    import plotly.graph_objects as go
+
+    data = _make_scatter_data()
+    fig = render_neuron_group_scatter(data)
+    assert isinstance(fig, go.Figure)
+
+
+def test_render_scatter_trace_count():
+    """One trace per group."""
+    data = _make_scatter_data(n_groups=4)
+    fig = render_neuron_group_scatter(data)
+    assert len(fig.data) == 4
+
+
+def test_render_scatter_with_epoch():
+    """Epoch label included in title without error."""
+    import plotly.graph_objects as go
+
+    data = _make_scatter_data()
+    fig = render_neuron_group_scatter(data, epoch=5000)
+    assert isinstance(fig, go.Figure)
+    assert "5000" in fig.layout.title.text
+
+
+def test_render_scatter_empty_groups():
+    """Zero groups → empty figure."""
+    import plotly.graph_objects as go
+
+    data = {
+        "group_bases": np.empty((0, 3, 16), dtype=np.float32),
+        "group_freqs": np.array([], dtype=np.int32),
+        "W_in": np.random.randn(16, 8).astype(np.float32),
+        "norm_matrix": np.random.rand(4, 8).astype(np.float32),
+    }
+    fig = render_neuron_group_scatter(data)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 0
