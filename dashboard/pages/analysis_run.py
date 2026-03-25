@@ -120,13 +120,17 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         CentroidDMD,
         DominantFrequenciesAnalyzer,
         EffectiveDimensionalityAnalyzer,
+        FourierFrequencyQualityAnalyzer,
         FourierNucleationAnalyzer,
         GlobalCentroidPCA,
+        InputTraceAnalyzer,
+        InputTraceGraduationAnalyzer,
         LandscapeFlatnessAnalyzer,
         NeuronActivationsAnalyzer,
         NeuronDynamicsAnalyzer,
         NeuronFourierAnalyzer,
         NeuronFreqClustersAnalyzer,
+        NeuronGroupPCAAnalyzer,
         ParameterSnapshotAnalyzer,
         ParameterTrajectoryPCA,
         RepresentationalGeometryAnalyzer,
@@ -153,6 +157,7 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         pipeline.register(AttentionFreqAnalyzer())
         pipeline.register(AttentionPatternsAnalyzer())
         pipeline.register(DominantFrequenciesAnalyzer())
+        pipeline.register(InputTraceAnalyzer())
         pipeline.register(NeuronActivationsAnalyzer())
         pipeline.register(NeuronFreqClustersAnalyzer())
         pipeline.register(ParameterSnapshotAnalyzer())
@@ -161,8 +166,11 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         pipeline.register(RepresentationalGeometryAnalyzer())
         pipeline.register(AttentionFourierAnalyzer())
         pipeline.register(FourierNucleationAnalyzer())
+        pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
         pipeline.register_secondary(NeuronFourierAnalyzer())
+        pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
         pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
+        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
         pipeline.register_cross_epoch(ParameterTrajectoryPCA())
         pipeline.register_cross_epoch(GlobalCentroidPCA())
         pipeline.register_cross_epoch(CentroidDMD())

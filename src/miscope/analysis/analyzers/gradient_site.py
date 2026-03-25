@@ -41,8 +41,9 @@ class GradientSiteAnalyzer:
     name = "gradient_site"
     requires: list[str] = []  # loads checkpoints directly; no per-epoch deps
 
-    def __init__(self, n_interior: int = 2) -> None:
+    def __init__(self, n_interior: int = 2, full_resolution: bool = False) -> None:
         self.n_interior = n_interior
+        self.full_resolution = full_resolution
 
     def analyze_across_epochs(
         self,
@@ -74,8 +75,11 @@ class GradientSiteAnalyzer:
             fourier_basis, _ = get_fourier_basis(prime)
 
         summary = _load_variant_summary(variant)
-        requested = _sample_window_epochs(summary, self.n_interior)
-        sampled_epochs = _snap_to_available(requested, epochs)
+        if self.full_resolution:
+            sampled_epochs = sorted(epochs)
+        else:
+            requested = _sample_window_epochs(summary, self.n_interior)
+            sampled_epochs = _snap_to_available(requested, epochs)
 
         td, tl, *_ = variant.generate_training_dataset()
 

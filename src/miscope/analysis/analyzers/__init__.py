@@ -23,6 +23,7 @@ from miscope.analysis.analyzers.input_trace_graduation import InputTraceGraduati
 from miscope.analysis.analyzers.landscape_flatness import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.neuron_activations import NeuronActivationsAnalyzer
 from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
+from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
 
 # Secondary Analyzers
 from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
@@ -57,4 +58,5 @@ __all__ = [
     "GradientSiteAnalyzer",
     "InputTraceAnalyzer",
     "InputTraceGraduationAnalyzer",
+    "NeuronGroupPCAAnalyzer",
 ]

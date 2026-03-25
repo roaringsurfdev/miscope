@@ -58,7 +58,8 @@
     "neuron_dynamics",
     "global_centroid_pca",
     "centroid_dmd",
-    "input_trace_graduation"
+    "input_trace_graduation",
+    "neuron_group_pca"
   ],
 
   "analysis_dataset": {

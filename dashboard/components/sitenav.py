@@ -26,6 +26,7 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem("Centroid DMD", href="/centroid-dmd"),
                     dbc.DropdownMenuItem("Loss Landscape", href="/loss-landscape"),
                     dbc.DropdownMenuItem("Input Trace", href="/input-trace"),
+                    dbc.DropdownMenuItem("Neuron Groups", href="/neuron-group"),
                 ],
                 nav=True,
                 in_navbar=True,
@@ -110,6 +111,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_input_trace_page_layout,
         create_input_trace_page_nav,
     )
+    from dashboard.pages.neuron_group import (
+        create_neuron_group_page_layout,
+        create_neuron_group_page_nav,
+    )
     from dashboard.pages.visualization import (
         create_visualization_page_layout,
         create_visualization_page_nav,
@@ -155,6 +160,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
             ]
         elif pathname == "/input-trace":
             return [create_input_trace_page_nav(app), create_input_trace_page_layout(app)]
+        elif pathname == "/neuron-group":
+            return [create_neuron_group_page_nav(app), create_neuron_group_page_layout(app)]
         else:
             # Multistream is now the default page.
             return [create_multistream_page_nav(app), create_multistream_page_layout(app)]

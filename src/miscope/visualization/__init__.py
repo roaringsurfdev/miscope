@@ -78,6 +78,20 @@ from miscope.visualization.renderers.input_trace import (
     render_pair_graduation_heatmap,
     render_residue_class_accuracy_timeline,
 )
+from miscope.visualization.renderers.graduation import (
+    render_graduation_cohesion,
+    render_graduation_spread,
+)
+from miscope.visualization.renderers.neuron_group_pca import (
+    render_neuron_group_all_panels,
+    render_neuron_group_pca_cohesion,
+    render_neuron_group_polar_histogram,
+    render_neuron_group_scatter,
+    render_neuron_group_scatter_3d,
+    render_neuron_group_scatter_purity,
+    render_neuron_group_spread,
+    render_neuron_group_trajectory,
+)
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,
     render_flatness_trajectory,
@@ -218,4 +232,16 @@ __all__ = [
     "render_accuracy_grid",
     "render_residue_class_accuracy_timeline",
     "render_pair_graduation_heatmap",
+    # Neuron group PCA coordination
+    "render_neuron_group_pca_cohesion",
+    "render_neuron_group_scatter",
+    "render_neuron_group_spread",
+    "render_neuron_group_scatter_3d",
+    "render_neuron_group_scatter_purity",
+    "render_neuron_group_all_panels",
+    "render_neuron_group_trajectory",
+    "render_neuron_group_polar_histogram",
+    # Residue class graduation
+    "render_graduation_spread",
+    "render_graduation_cohesion",
 ]
