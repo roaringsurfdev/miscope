@@ -34,6 +34,7 @@ def create_sitenav() -> dbc.NavbarSimple:
             ),
             dbc.DropdownMenu(
                 [
+                    dbc.DropdownMenuItem("Variant Registry", href="/variant-table"),
                     dbc.DropdownMenuItem("Peer Comparison", href="/peer-comparison"),
                 ],
                 nav=True,
@@ -115,6 +116,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_training_page_layout,
         create_training_page_nav,
     )
+    from dashboard.pages.variant_table import (
+        create_variant_table_page_layout,
+        create_variant_table_page_nav,
+    )
     from dashboard.pages.visualization import (
         create_visualization_page_layout,
         create_visualization_page_nav,
@@ -162,6 +167,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [create_input_trace_page_nav(app), create_input_trace_page_layout(app)]
         elif pathname == "/neuron-group":
             return [create_neuron_group_page_nav(app), create_neuron_group_page_layout(app)]
+        elif pathname == "/variant-table":
+            return [create_variant_table_page_nav(app), create_variant_table_page_layout(app)]
         else:
             # Multistream is now the default page.
             return [create_multistream_page_nav(app), create_multistream_page_layout(app)]
