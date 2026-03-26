@@ -328,7 +328,7 @@ def test_render_cohesion_trace_count():
     """Two traces per group (solid cumulative + dashed PC1)."""
     data = _make_cross_epoch_artifact(n_groups=3)
     fig = render_neuron_group_pca_cohesion(data)
-    assert len(fig.data) == 6 # pyright: ignore[reportArgumentType]
+    assert len(fig.data) == 6  # pyright: ignore[reportArgumentType]
 
 
 def test_render_cohesion_with_epoch_cursor():
@@ -352,7 +352,7 @@ def test_render_spread_trace_count():
     """One trace per group."""
     data = _make_cross_epoch_artifact(n_groups=4)
     fig = render_neuron_group_spread(data)
-    assert len(fig.data) == 4 # pyright: ignore[reportArgumentType]
+    assert len(fig.data) == 4  # pyright: ignore[reportArgumentType]
 
 
 def test_render_empty_data():
@@ -370,8 +370,8 @@ def test_render_empty_data():
     fig2 = render_neuron_group_spread(data)
     assert isinstance(fig1, go.Figure)
     assert isinstance(fig2, go.Figure)
-    assert len(fig1.data) == 0 # pyright: ignore[reportArgumentType]
-    assert len(fig2.data) == 0 # pyright: ignore[reportArgumentType]
+    assert len(fig1.data) == 0  # pyright: ignore[reportArgumentType]
+    assert len(fig2.data) == 0  # pyright: ignore[reportArgumentType]
 
 
 # --- render_neuron_group_scatter tests ---
@@ -441,4 +441,4 @@ def test_render_scatter_empty_groups():
     }
     fig = render_neuron_group_scatter(data)
     assert isinstance(fig, go.Figure)
-    assert len(fig.data) == 0 # pyright: ignore[reportArgumentType]
+    assert len(fig.data) == 0  # pyright: ignore[reportArgumentType]
