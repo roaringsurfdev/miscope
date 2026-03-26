@@ -1,6 +1,6 @@
 # REQ_075: Per-Input Prediction Trace
 
-**Status:** Active
+**Status:** Complete (v0.8.1)
 **Priority:** Medium
 **Related:** REQ_074 (Variant Outcome Registry), REQ_052 (Frequency Quality Scoring)
 **Last Updated:** 2026-03-15
