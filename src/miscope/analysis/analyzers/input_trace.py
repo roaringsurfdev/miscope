@@ -109,8 +109,8 @@ class InputTraceAnalyzer:
         correct = result["correct"]
         split = result["split"]
 
-        a_all = np.arange(p).repeat(p)       # a = k // p  for k in 0..p²-1
-        b_all = np.tile(np.arange(p), p)     # b = k % p
+        a_all = np.arange(p).repeat(p)  # a = k // p  for k in 0..p²-1
+        b_all = np.tile(np.arange(p), p)  # b = k % p
         residue = (a_all + b_all) % p
 
         test_mask = ~split

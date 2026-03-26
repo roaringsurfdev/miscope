@@ -80,7 +80,9 @@ class NeuronGroupPCAAnalyzer:
         for g_idx, members in enumerate(group_members):
             neuron_group_idx[members] = g_idx
 
-        projections = _compute_all_projections(W_ins, group_bases, group_centers, group_members, d_mlp)
+        projections = _compute_all_projections(
+            W_ins, group_bases, group_centers, group_members, d_mlp
+        )
 
         return {
             "group_freqs": np.array(group_freqs, dtype=np.int32),

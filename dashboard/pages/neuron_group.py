@@ -81,30 +81,33 @@ def create_neuron_group_page_layout(app: Dash) -> html.Div:
     return html.Div(
         children=[
             html.H4("Neuron Group PCA", className="mb-3"),
-
             html.H6("PCA Dynamics", className="text-muted mb-2"),
             dbc.Row(dbc.Col(_graph_manager.create_graph("cohesion-timeline", "440px"))),
             dbc.Row(dbc.Col(_graph_manager.create_graph("spread-timeline", "420px"))),
-
             html.Hr(className="my-3"),
             html.H6("Neuron Positions in PCA Space", className="text-muted mb-2"),
-            dbc.Row([
-                dbc.Col(_graph_manager.create_graph("pca-scatter", "540px"), width=6),
-                dbc.Col(_graph_manager.create_graph("scatter-purity", "540px"), width=6),
-            ]),
-            dbc.Row([
-                dbc.Col(_graph_manager.create_graph("scatter-3d", "560px"), width=6),
-                dbc.Col(_graph_manager.create_graph("polar-histogram", "560px"), width=6),
-            ]),
+            dbc.Row(
+                [
+                    dbc.Col(_graph_manager.create_graph("pca-scatter", "540px"), width=6),
+                    dbc.Col(_graph_manager.create_graph("scatter-purity", "540px"), width=6),
+                ]
+            ),
+            dbc.Row(
+                [
+                    dbc.Col(_graph_manager.create_graph("scatter-3d", "560px"), width=6),
+                    dbc.Col(_graph_manager.create_graph("polar-histogram", "560px"), width=6),
+                ]
+            ),
             dbc.Row(dbc.Col(_graph_manager.create_graph("trajectory", "580px"))),
             dbc.Row(dbc.Col(_graph_manager.create_graph("all-groups", "700px"))),
-
             html.Hr(className="my-3"),
             html.H6("Residue Class Graduation", className="text-muted mb-2"),
-            dbc.Row([
-                dbc.Col(_graph_manager.create_graph("graduation-spread", "480px"), width=6),
-                dbc.Col(_graph_manager.create_graph("graduation-cohesion", "500px"), width=6),
-            ]),
+            dbc.Row(
+                [
+                    dbc.Col(_graph_manager.create_graph("graduation-spread", "480px"), width=6),
+                    dbc.Col(_graph_manager.create_graph("graduation-cohesion", "500px"), width=6),
+                ]
+            ),
         ]
     )
 
@@ -117,7 +120,5 @@ def register_neuron_group_page_callbacks(app: Dash) -> None:
         Input("variant-selector-store", "modified_timestamp"),
         State("variant-selector-store", "data"),
     )
-    def on_neuron_group_data_change(
-        _modified_timestamp: str | None, variant_data: dict | None
-    ):
+    def on_neuron_group_data_change(_modified_timestamp: str | None, variant_data: dict | None):
         return _graph_manager.update_graphs(variant_data, None)

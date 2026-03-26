@@ -78,6 +78,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_dimensionality_page_layout,
         create_dimensionality_page_nav,
     )
+    from dashboard.pages.input_trace import (
+        create_input_trace_page_layout,
+        create_input_trace_page_nav,
+    )
     from dashboard.pages.intervention_check import (
         create_intervention_check_page_layout,
         create_intervention_check_page_nav,
@@ -94,6 +98,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_neuron_dynamics_page_layout,
         create_neuron_dynamics_page_nav,
     )
+    from dashboard.pages.neuron_group import (
+        create_neuron_group_page_layout,
+        create_neuron_group_page_nav,
+    )
     from dashboard.pages.peer_comparison import (
         create_peer_comparison_page_layout,
         create_peer_comparison_page_nav,
@@ -106,14 +114,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
     from dashboard.pages.training import (
         create_training_page_layout,
         create_training_page_nav,
-    )
-    from dashboard.pages.input_trace import (
-        create_input_trace_page_layout,
-        create_input_trace_page_nav,
-    )
-    from dashboard.pages.neuron_group import (
-        create_neuron_group_page_layout,
-        create_neuron_group_page_nav,
     )
     from dashboard.pages.visualization import (
         create_visualization_page_layout,

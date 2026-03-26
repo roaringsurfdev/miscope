@@ -53,7 +53,7 @@ class InputTraceGraduationAnalyzer:
         sorted_epochs = sorted(epochs)
 
         first = loader.load_epoch("input_trace", sorted_epochs[0])
-        split = first["split"]        # (p²,)
+        split = first["split"]  # (p²,)
         n_pairs = len(split)
 
         correct_matrix = np.empty((len(sorted_epochs), n_pairs), dtype=bool)
@@ -102,7 +102,7 @@ def _compute_graduation_epochs(
     padded = np.vstack([np.zeros((1, n_pairs), dtype=np.int32), cumsum])
 
     n_valid = n_epochs - window + 1
-    window_sums = padded[window:window + n_valid] - padded[:n_valid]  # (n_valid, n_pairs)
+    window_sums = padded[window : window + n_valid] - padded[:n_valid]  # (n_valid, n_pairs)
 
     window_stable = window_sums == window  # (n_valid, n_pairs) bool
 

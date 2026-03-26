@@ -39,8 +39,8 @@ def render_accuracy_grid(
     """
     prime = int(data["prime"])
     epoch_data = data["epoch_data"]
-    correct = epoch_data["correct"]   # (p²,) bool
-    split = epoch_data["split"]       # (p²,) bool — True=train
+    correct = epoch_data["correct"]  # (p²,) bool
+    split = epoch_data["split"]  # (p²,) bool — True=train
 
     # 0=train_incorrect, 1=train_correct, 2=test_incorrect, 3=test_correct
     values = np.where(split, np.where(correct, 1, 0), np.where(correct, 3, 2))
@@ -49,13 +49,13 @@ def render_accuracy_grid(
     grid = values.reshape(prime, prime).T  # grid[b, a]
 
     colorscale = [
-        [0.00, "white"],        # train incorrect
+        [0.00, "white"],  # train incorrect
         [0.24, "white"],
-        [0.25, "#888888"],      # train correct (memorized)
+        [0.25, "#888888"],  # train correct (memorized)
         [0.49, "#888888"],
-        [0.50, "#f0f0f0"],      # test incorrect
+        [0.50, "#f0f0f0"],  # test incorrect
         [0.74, "#f0f0f0"],
-        [0.75, "#1f77b4"],      # test correct (generalized)
+        [0.75, "#1f77b4"],  # test correct (generalized)
         [1.00, "#1f77b4"],
     ]
 
@@ -117,7 +117,7 @@ def render_residue_class_accuracy_timeline(
 
     split_key = "test" if split == "test" else "train"
     residue_accuracy = summary[f"{split_key}_residue_class_accuracy"]  # (n_epochs, p)
-    overall_accuracy = summary[f"{split_key}_overall_accuracy"]         # (n_epochs,)
+    overall_accuracy = summary[f"{split_key}_overall_accuracy"]  # (n_epochs,)
 
     colors = [f"hsl({int(360 * c / prime)}, 70%, 50%)" for c in range(prime)]
 
@@ -190,11 +190,9 @@ def render_pair_graduation_heatmap(
     # For 'test' split: replace train pairs with a sentinel to mute them
     TRAIN_SENTINEL = -998.0
     NEVER_GRAD = -999.0
-    TEST_PAIR_NOT_SHOWN = np.nan
+    # TEST_PAIR_NOT_SHOWN = np.nan
 
-    grad_values = np.where(
-        graduation_epochs < 0, NEVER_GRAD, graduation_epochs
-    ).astype(np.float32)
+    grad_values = np.where(graduation_epochs < 0, NEVER_GRAD, graduation_epochs).astype(np.float32)
 
     if split == "test":
         grad_values = np.where(split_arr, TRAIN_SENTINEL, grad_values)
@@ -216,9 +214,11 @@ def render_pair_graduation_heatmap(
     def _remap(v: np.ndarray) -> np.ndarray:
         """Remap raw graduation values to [0, 1] colorscale range."""
         return np.where(
-            v == TRAIN_SENTINEL, 0.1,
+            v == TRAIN_SENTINEL,
+            0.1,
             np.where(
-                v == NEVER_GRAD, 0.2,
+                v == NEVER_GRAD,
+                0.2,
                 0.3 + 0.7 * (v - vmin) / epoch_range,
             ),
         )
@@ -226,11 +226,11 @@ def render_pair_graduation_heatmap(
     grid_remapped = _remap(grid)
 
     colorscale = [
-        [0.00, "#e8e0d0"],   # train pair (muted beige)
+        [0.00, "#e8e0d0"],  # train pair (muted beige)
         [0.14, "#e8e0d0"],
-        [0.15, "#aaaaaa"],   # never graduated (gray)
+        [0.15, "#aaaaaa"],  # never graduated (gray)
         [0.29, "#aaaaaa"],
-        [0.30, "navy"],      # earliest graduation
+        [0.30, "navy"],  # earliest graduation
         [1.00, "lightyellow"],  # latest graduation
     ]
 

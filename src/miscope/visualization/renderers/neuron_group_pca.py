@@ -64,9 +64,7 @@ def render_neuron_group_pca_cohesion(
                 line=dict(color=color, width=2),
                 legendgroup=str(freq),
                 hovertemplate=(
-                    f"freq={freq + 1} n={size}<br>"
-                    "epoch=%{x}<br>"
-                    "PC1+2+3=%{y:.3f}<extra></extra>"
+                    f"freq={freq + 1} n={size}<br>epoch=%{{x}}<br>PC1+2+3=%{{y:.3f}}<extra></extra>"
                 ),
             )
         )
@@ -75,14 +73,12 @@ def render_neuron_group_pca_cohesion(
                 x=epochs.tolist(),
                 y=pc1_only,
                 mode="lines",
-                name=f"PC1 only",
+                name="PC1 only",
                 line=dict(color=color, width=1, dash="dash"),
                 legendgroup=str(freq),
                 showlegend=False,
                 hovertemplate=(
-                    f"freq={freq + 1} n={size}<br>"
-                    "epoch=%{x}<br>"
-                    "PC1=%{y:.3f}<extra></extra>"
+                    f"freq={freq + 1} n={size}<br>epoch=%{{x}}<br>PC1=%{{y:.3f}}<extra></extra>"
                 ),
             )
         )
@@ -92,7 +88,7 @@ def render_neuron_group_pca_cohesion(
 
     fig.update_layout(
         title="Within-group variance explained — top 3 PCs (W_in)<br>"
-              "<sup>Solid = PC1+PC2+PC3 cumulative &nbsp;|&nbsp; Dashed = PC1 alone</sup>",
+        "<sup>Solid = PC1+PC2+PC3 cumulative &nbsp;|&nbsp; Dashed = PC1 alone</sup>",
         xaxis_title="Epoch",
         yaxis_title="Cumulative variance explained",
         yaxis=dict(range=[0, 1.05]),
@@ -152,9 +148,7 @@ def render_neuron_group_scatter(
                 name=f"freq {freq + 1} (n={len(members)})",
                 marker=dict(color=color, size=5, opacity=0.7),
                 hovertemplate=(
-                    f"freq={freq + 1}<br>"
-                    "PC1=%{x:.3f}<br>"
-                    "PC2=%{y:.3f}<extra></extra>"
+                    f"freq={freq + 1}<br>PC1=%{{x:.3f}}<br>PC2=%{{y:.3f}}<extra></extra>"
                 ),
             )
         )
@@ -240,16 +234,22 @@ def render_neuron_group_spread(
 # ---------------------------------------------------------------------------
 
 
-def _needs_rerun_figure(msg: str = "Rerun neuron_group_pca analyzer to populate projections") -> go.Figure:
+def _needs_rerun_figure(
+    msg: str = "Rerun neuron_group_pca analyzer to populate projections",
+) -> go.Figure:
     fig = go.Figure()
     fig.add_annotation(
         text=msg,
-        xref="paper", yref="paper",
-        x=0.5, y=0.5, showarrow=False,
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
         font=dict(size=14, color="gray"),
     )
-    fig.update_layout(template="plotly_white", height=400,
-                      xaxis=dict(visible=False), yaxis=dict(visible=False))
+    fig.update_layout(
+        template="plotly_white", height=400, xaxis=dict(visible=False), yaxis=dict(visible=False)
+    )
     return fig
 
 
@@ -294,13 +294,17 @@ def render_neuron_group_scatter_3d(
             continue
         g_pts = pts[members]
         color = _freq_color(int(freq), n_freq)
-        fig.add_trace(go.Scatter3d(
-            x=g_pts[:, 0].tolist(), y=g_pts[:, 1].tolist(), z=g_pts[:, 2].tolist(),
-            mode="markers",
-            name=f"freq {freq + 1} (n={len(members)})",
-            marker=dict(color=color, size=4, opacity=0.85),
-            hovertemplate=f"freq={freq + 1}<br>PC1=%{{x:.3f}}<br>PC2=%{{y:.3f}}<br>PC3=%{{z:.3f}}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter3d(
+                x=g_pts[:, 0].tolist(),
+                y=g_pts[:, 1].tolist(),
+                z=g_pts[:, 2].tolist(),
+                mode="markers",
+                name=f"freq {freq + 1} (n={len(members)})",
+                marker=dict(color=color, size=4, opacity=0.85),
+                hovertemplate=f"freq={freq + 1}<br>PC1=%{{x:.3f}}<br>PC2=%{{y:.3f}}<br>PC3=%{{z:.3f}}<extra></extra>",
+            )
+        )
 
     fig.update_layout(
         title=f"Neuron group 3D scatter (PC1×PC2×PC3) — epoch {actual_epoch}",
@@ -348,19 +352,24 @@ def render_neuron_group_scatter_purity(
         for i in grouped
     ]
 
-    fig = go.Figure(go.Scatter(
-        x=pts[grouped, 0].tolist(), y=pts[grouped, 1].tolist(),
-        mode="markers",
-        text=group_labels,
-        hovertemplate="%{text}<extra></extra>",
-        marker=dict(
-            color=purity[grouped].tolist(),
-            colorscale="RdYlGn",
-            cmin=0, cmax=1,
-            size=7, opacity=0.85,
-            colorbar=dict(title="Purity", thickness=14),
-        ),
-    ))
+    fig = go.Figure(
+        go.Scatter(
+            x=pts[grouped, 0].tolist(),
+            y=pts[grouped, 1].tolist(),
+            mode="markers",
+            text=group_labels,
+            hovertemplate="%{text}<extra></extra>",
+            marker=dict(
+                color=purity[grouped].tolist(),
+                colorscale="RdYlGn",
+                cmin=0,
+                cmax=1,
+                size=7,
+                opacity=0.85,
+                colorbar=dict(title="Purity", thickness=14),
+            ),
+        )
+    )
 
     fig.update_layout(
         title=f"Neuron group scatter — purity (epoch {actual_epoch})",
@@ -410,9 +419,11 @@ def render_neuron_group_all_panels(
     n_rows = (n_groups + n_cols - 1) // n_cols
 
     fig = make_subplots(
-        rows=n_rows, cols=n_cols,
+        rows=n_rows,
+        cols=n_cols,
         subplot_titles=[f"freq {f + 1} (n={s})" for f, s in zip(group_freqs, group_sizes)],
-        horizontal_spacing=0.06, vertical_spacing=0.12,
+        horizontal_spacing=0.06,
+        vertical_spacing=0.12,
     )
 
     for g_idx, freq in enumerate(group_freqs):
@@ -422,16 +433,25 @@ def render_neuron_group_all_panels(
         g_pts = pts[members]
         g_purity = purity[members]
 
-        fig.add_trace(go.Scatter(
-            x=g_pts[:, 0].tolist(), y=g_pts[:, 1].tolist(),
-            mode="markers",
-            showlegend=False,
-            hovertemplate=f"freq={freq + 1}<br>PC1=%{{x:.3f}}<br>PC2=%{{y:.3f}}<extra></extra>",
-            marker=dict(
-                color=g_purity.tolist(), colorscale="RdYlGn",
-                cmin=0, cmax=1, size=9, opacity=0.85,
+        fig.add_trace(
+            go.Scatter(
+                x=g_pts[:, 0].tolist(),
+                y=g_pts[:, 1].tolist(),
+                mode="markers",
+                showlegend=False,
+                hovertemplate=f"freq={freq + 1}<br>PC1=%{{x:.3f}}<br>PC2=%{{y:.3f}}<extra></extra>",
+                marker=dict(
+                    color=g_purity.tolist(),
+                    colorscale="RdYlGn",
+                    cmin=0,
+                    cmax=1,
+                    size=9,
+                    opacity=0.85,
+                ),
             ),
-        ), row=row, col=col)
+            row=row,
+            col=col,
+        )
 
     fig.update_layout(
         title=f"All frequency groups — PC1×PC2 (epoch {actual_epoch})",
@@ -483,38 +503,47 @@ def render_neuron_group_trajectory(
             y_lines.extend(path[:, 1].tolist())
             y_lines.append(None)
 
-        fig.add_trace(go.Scatter(
-            x=x_lines, y=y_lines,
-            mode="lines",
-            name=f"freq {freq + 1} (n={size})",
-            line=dict(color=color, width=1),
-            opacity=0.45,
-            legendgroup=str(freq),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x_lines,
+                y=y_lines,
+                mode="lines",
+                name=f"freq {freq + 1} (n={size})",
+                line=dict(color=color, width=1),
+                opacity=0.45,
+                legendgroup=str(freq),
+            )
+        )
 
         # Start markers (epoch 0)
-        fig.add_trace(go.Scatter(
-            x=[projections[0, i, 0] for i in members],
-            y=[projections[0, i, 1] for i in members],
-            mode="markers",
-            marker=dict(color="steelblue", symbol="circle", size=6, opacity=0.7),
-            showlegend=False, legendgroup=str(freq),
-            hovertemplate=f"freq={freq + 1}<br>epoch 0<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[projections[0, i, 0] for i in members],
+                y=[projections[0, i, 1] for i in members],
+                mode="markers",
+                marker=dict(color="steelblue", symbol="circle", size=6, opacity=0.7),
+                showlegend=False,
+                legendgroup=str(freq),
+                hovertemplate=f"freq={freq + 1}<br>epoch 0<extra></extra>",
+            )
+        )
 
         # End markers (final epoch)
-        fig.add_trace(go.Scatter(
-            x=[projections[-1, i, 0] for i in members],
-            y=[projections[-1, i, 1] for i in members],
-            mode="markers",
-            marker=dict(color="crimson", symbol="diamond", size=7, opacity=0.9),
-            showlegend=False, legendgroup=str(freq),
-            hovertemplate=f"freq={freq + 1}<br>epoch {int(epochs[-1])}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[projections[-1, i, 0] for i in members],
+                y=[projections[-1, i, 1] for i in members],
+                mode="markers",
+                marker=dict(color="crimson", symbol="diamond", size=7, opacity=0.9),
+                showlegend=False,
+                legendgroup=str(freq),
+                hovertemplate=f"freq={freq + 1}<br>epoch {int(epochs[-1])}<extra></extra>",
+            )
+        )
 
     fig.update_layout(
         title="Neuron group trajectories in PCA space (PC1 × PC2)<br>"
-              "<sup>Blue circles = epoch 0 &nbsp;|&nbsp; Red diamonds = final epoch</sup>",
+        "<sup>Blue circles = epoch 0 &nbsp;|&nbsp; Red diamonds = final epoch</sup>",
         xaxis_title="PC1",
         yaxis_title="PC2",
         yaxis=dict(scaleanchor="x", scaleratio=1),
@@ -564,7 +593,8 @@ def render_neuron_group_polar_histogram(
     specs = [[{"type": "polar"}] * n_cols for _ in range(n_rows)]
 
     fig = make_subplots(
-        rows=n_rows, cols=n_cols,
+        rows=n_rows,
+        cols=n_cols,
         specs=specs,
         subplot_titles=[f"freq {f + 1} (n={s})" for f, s in zip(group_freqs, group_sizes)],
     )
@@ -587,14 +617,18 @@ def render_neuron_group_polar_histogram(
         counts, _ = np.histogram(angles, bins=bin_edges)
         color = _freq_color(int(freq), n_freq)
 
-        fig.add_trace(go.Barpolar(
-            r=counts.tolist(),
-            theta=bin_centers_deg.tolist(),
-            width=[bin_width_deg] * n_bins,
-            marker_color=color,
-            opacity=0.8,
-            showlegend=False,
-        ), row=row, col=col)
+        fig.add_trace(
+            go.Barpolar(
+                r=counts.tolist(),
+                theta=bin_centers_deg.tolist(),
+                width=[bin_width_deg] * n_bins,
+                marker_color=color,
+                opacity=0.8,
+                showlegend=False,
+            ),
+            row=row,
+            col=col,
+        )
 
     fig.update_layout(
         title=f"Neuron group PCA angle distribution — epoch {actual_epoch}",

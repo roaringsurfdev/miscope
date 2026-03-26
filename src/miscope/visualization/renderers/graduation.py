@@ -65,25 +65,34 @@ def render_graduation_spread(
 
     if not sorted_classes:
         fig = go.Figure()
-        fig.add_annotation(text="No graduated test pairs", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="gray"))
+        fig.add_annotation(
+            text="No graduated test pairs",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font=dict(size=14, color="gray"),
+        )
         return fig
 
     fig = go.Figure()
     for c in sorted_classes:
-        fig.add_trace(go.Box(
-            y=class_epochs[c].tolist(),
-            name=str(c),
-            marker_color="steelblue",
-            line_color="steelblue",
-            showlegend=False,
-            boxpoints="outliers",
-            hovertemplate=f"class {c}<br>%{{y}}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Box(
+                y=class_epochs[c].tolist(),
+                name=str(c),
+                marker_color="steelblue",
+                line_color="steelblue",
+                showlegend=False,
+                boxpoints="outliers",
+                hovertemplate=f"class {c}<br>%{{y}}<extra></extra>",
+            )
+        )
 
     fig.update_layout(
         title=f"Residue class graduation spread (p={prime})<br>"
-              "<sup>Pairs grouped by (a+b) % p, sorted by median graduation epoch</sup>",
+        "<sup>Pairs grouped by (a+b) % p, sorted by median graduation epoch</sup>",
         xaxis_title="Residue class (sorted by median graduation epoch)",
         yaxis_title="Graduation epoch",
         xaxis=dict(showticklabels=False),
@@ -139,17 +148,19 @@ def render_graduation_cohesion(
         valid = np.where(pairs >= 0, pairs.astype(float), np.nan)
         heatmap_z[row_idx, : len(valid)] = valid
 
-    fig = go.Figure(go.Heatmap(
-        z=heatmap_z,
-        colorscale="Viridis",
-        colorbar=dict(title="Graduation epoch"),
-        hovertemplate="class rank=%{y}<br>pair rank=%{x}<br>epoch=%{z}<extra></extra>",
-    ))
+    fig = go.Figure(
+        go.Heatmap(
+            z=heatmap_z,
+            colorscale="Viridis",
+            colorbar=dict(title="Graduation epoch"),
+            hovertemplate="class rank=%{y}<br>pair rank=%{x}<br>epoch=%{z}<extra></extra>",
+        )
+    )
 
     fig.update_layout(
         title=f"Residue class cohesion heatmap (p={prime})<br>"
-              "<sup>Rows = classes sorted by mean graduation epoch | "
-              "Columns = pairs sorted by graduation epoch</sup>",
+        "<sup>Rows = classes sorted by mean graduation epoch | "
+        "Columns = pairs sorted by graduation epoch</sup>",
         xaxis_title="Pair rank within class",
         yaxis_title="Residue class rank",
         template="plotly_white",

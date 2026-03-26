@@ -13,14 +13,13 @@ from miscope.visualization.renderers.neuron_group_pca import (
     render_neuron_group_spread,
 )
 
-
 # --- _group_pca_stats unit tests ---
 
 
 def test_group_pca_stats_perfectly_aligned():
     """All neurons pointing in same direction → PC1 var explained = 1.0."""
     direction = np.array([1.0, 0.0, 0.0])
-    n_group = 4
+    # n_group = 4
     scales = np.array([1.0, 2.0, 1.5, 0.8])
     group_W = np.outer(direction, scales)  # (3, 4)
     pc_var, _ = _group_pca_stats(group_W)
@@ -126,9 +125,7 @@ def _run_analyzer(loader, epochs):
         "miscope.analysis.analyzers.neuron_group_pca.ArtifactLoader",
         return_value=loader,
     ):
-        return analyzer.analyze_across_epochs(
-            artifacts_dir="/fake", epochs=epochs, context={}
-        )
+        return analyzer.analyze_across_epochs(artifacts_dir="/fake", epochs=epochs, context={})
 
 
 def test_analyzer_output_shapes():
@@ -331,7 +328,7 @@ def test_render_cohesion_trace_count():
     """Two traces per group (solid cumulative + dashed PC1)."""
     data = _make_cross_epoch_artifact(n_groups=3)
     fig = render_neuron_group_pca_cohesion(data)
-    assert len(fig.data) == 6
+    assert len(fig.data) == 6 # pyright: ignore[reportArgumentType]
 
 
 def test_render_cohesion_with_epoch_cursor():
@@ -355,7 +352,7 @@ def test_render_spread_trace_count():
     """One trace per group."""
     data = _make_cross_epoch_artifact(n_groups=4)
     fig = render_neuron_group_spread(data)
-    assert len(fig.data) == 4
+    assert len(fig.data) == 4 # pyright: ignore[reportArgumentType]
 
 
 def test_render_empty_data():
@@ -373,8 +370,8 @@ def test_render_empty_data():
     fig2 = render_neuron_group_spread(data)
     assert isinstance(fig1, go.Figure)
     assert isinstance(fig2, go.Figure)
-    assert len(fig1.data) == 0
-    assert len(fig2.data) == 0
+    assert len(fig1.data) == 0 # pyright: ignore[reportArgumentType]
+    assert len(fig2.data) == 0 # pyright: ignore[reportArgumentType]
 
 
 # --- render_neuron_group_scatter tests ---
@@ -419,7 +416,7 @@ def test_render_scatter_trace_count():
     """One trace per group."""
     data = _make_scatter_data(n_groups=4)
     fig = render_neuron_group_scatter(data)
-    assert len(fig.data) == 4
+    assert len(fig.data) == 4  # pyright: ignore[reportArgumentType]
 
 
 def test_render_scatter_with_epoch():
@@ -444,4 +441,4 @@ def test_render_scatter_empty_groups():
     }
     fig = render_neuron_group_scatter(data)
     assert isinstance(fig, go.Figure)
-    assert len(fig.data) == 0
+    assert len(fig.data) == 0 # pyright: ignore[reportArgumentType]

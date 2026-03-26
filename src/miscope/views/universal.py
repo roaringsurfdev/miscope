@@ -896,7 +896,9 @@ def _register_all() -> None:
         return variant.artifacts.load_cross_epoch("neuron_group_pca")
 
     def _render_group_pca_cohesion(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_pca_cohesion
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_pca_cohesion,
+        )
 
         return render_neuron_group_pca_cohesion(data, epoch, **kwargs)
 
@@ -971,7 +973,9 @@ def _register_all() -> None:
         return render_neuron_group_trajectory(data, epoch, **kwargs)
 
     def _render_group_polar_histogram(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_polar_histogram
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_polar_histogram,
+        )
 
         return render_neuron_group_polar_histogram(data, epoch, **kwargs)
 
@@ -998,7 +1002,9 @@ def _register_all() -> None:
         return {**cross, "norm_matrix": norm["norm_matrix"]}
 
     def _render_group_scatter_purity(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_scatter_purity
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_scatter_purity,
+        )
 
         return render_neuron_group_scatter_purity(data, epoch, **kwargs)
 

@@ -7,7 +7,7 @@ Three views for per-input prediction trace analysis:
 """
 
 import dash_bootstrap_components as dbc
-from dash import Dash, Input, Output, State, dcc, html
+from dash import Dash, Input, Output, State, html
 
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
@@ -44,9 +44,7 @@ def create_input_trace_page_layout(app: Dash) -> html.Div:
         children=[
             html.H4("Per-Input Prediction Trace", className="mb-3"),
             dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
-            dbc.Row(
-                dbc.Col(_graph_manager.create_graph("residue-class-timeline", "500px"))
-            ),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("residue-class-timeline", "500px"))),
             dbc.Row(
                 [
                     dbc.Col(_graph_manager.create_graph("accuracy-grid", "600px"), width=6),
@@ -66,8 +64,6 @@ def register_input_trace_page_callbacks(app: Dash) -> None:
         Input("variant-selector-store", "modified_timestamp"),
         State("variant-selector-store", "data"),
     )
-    def on_input_trace_data_change(
-        modified_timestamp: str | None, variant_data: dict | None
-    ):
+    def on_input_trace_data_change(modified_timestamp: str | None, variant_data: dict | None):
         app.server.logger.debug("on_input_trace_data_change")
         return _graph_manager.update_graphs(variant_data, None)

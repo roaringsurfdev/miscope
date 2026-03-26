@@ -9,11 +9,7 @@ CoS coverage:
 - Integration: all three views render without error
 """
 
-import os
-import tempfile
-
 import numpy as np
-import pytest
 import torch
 
 from miscope.analysis.analyzers.input_trace import (
@@ -243,7 +239,7 @@ class TestSummaryStats:
     def test_per_residue_accuracy_helper(self):
         """Each pair lands in exactly one residue class."""
         p = 5
-        correct = np.array([True, False, True, True, False] * 5, dtype=bool)[:p * p]
+        correct = np.array([True, False, True, True, False] * 5, dtype=bool)[: p * p]
         a = np.arange(p).repeat(p)
         b = np.tile(np.arange(p), p)
         residue = (a + b) % p
@@ -271,17 +267,13 @@ class TestComputeGraduationEpochs:
         assert result[0] == -1
 
     def test_graduation_at_first_stable_window(self):
-        correct = np.array(
-            [[False], [True], [True], [True], [True]], dtype=bool
-        )
+        correct = np.array([[False], [True], [True], [True], [True]], dtype=bool)
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
         assert result[0] == 200
 
     def test_intermittent_correct_before_stable(self):
-        correct = np.array(
-            [[True], [False], [True], [True], [True]], dtype=bool
-        )
+        correct = np.array([[True], [False], [True], [True], [True]], dtype=bool)
         epochs = [100, 200, 300, 400, 500]
         result = _compute_graduation_epochs(correct, epochs, window=3)
         assert result[0] == 300
@@ -295,9 +287,9 @@ class TestComputeGraduationEpochs:
     def test_multiple_pairs_independent(self):
         correct = np.array(
             [
-                [True, False],   # epoch 0
-                [True, False],   # epoch 100
-                [True, True],    # epoch 200
+                [True, False],  # epoch 0
+                [True, False],  # epoch 100
+                [True, True],  # epoch 200
                 [False, False],  # epoch 300 — pair 0 breaks here
                 [False, False],  # epoch 400
             ],
@@ -305,8 +297,8 @@ class TestComputeGraduationEpochs:
         )
         epochs = [0, 100, 200, 300, 400]
         result = _compute_graduation_epochs(correct, epochs, window=3)
-        assert result[0] == 0    # stable at epochs 0, 100, 200
-        assert result[1] == -1   # pair 1 never has 3 consecutive correct
+        assert result[0] == 0  # stable at epochs 0, 100, 200
+        assert result[1] == -1  # pair 1 never has 3 consecutive correct
 
 
 # ── Integration: artifact round-trip ────────────────────────────────
@@ -325,7 +317,7 @@ class TestIntegrationArtifactRoundTrip:
 
         epoch_dir = tmp_path / "input_trace"
         epoch_dir.mkdir()
-        np.savez_compressed(str(epoch_dir / "epoch_00100.npz"), **result)
+        np.savez_compressed(str(epoch_dir / "epoch_00100.npz"), **result)  # pyright: ignore[reportArgumentType]
 
         loader = ArtifactLoader(str(tmp_path))
         loaded = loader.load_epoch("input_trace", 100)
@@ -348,7 +340,7 @@ class TestIntegrationArtifactRoundTrip:
         epoch_dir.mkdir()
         for epoch in epochs:
             result = analyzer.analyze(model, probe, None, context)  # type: ignore[arg-type]
-            np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)
+            np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)  # pyright: ignore[reportArgumentType]
 
         grad_analyzer = InputTraceGraduationAnalyzer()
         grad_result = grad_analyzer.analyze_across_epochs(str(tmp_path), epochs, context)
@@ -407,9 +399,7 @@ class TestViewsRender:
             "test_overall_accuracy": np.array(test_ov, dtype=np.float32),
             "train_overall_accuracy": np.array(train_ov, dtype=np.float32),
         }
-        fig = render_residue_class_accuracy_timeline(
-            {"summary": summary, "prime": p}, epoch=100
-        )
+        fig = render_residue_class_accuracy_timeline({"summary": summary, "prime": p}, epoch=100)
         assert isinstance(fig, go.Figure)
 
     def test_graduation_heatmap_renders(self):

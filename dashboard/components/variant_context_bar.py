@@ -13,7 +13,6 @@ import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
 from dash.exceptions import PreventUpdate
 
-
 _CONTEXT_BAR_STYLE = {
     "position": "sticky",
     "top": "56px",
@@ -118,7 +117,9 @@ def _build_context_children(variant) -> list:
 
     if milestone_parts:
         children.append(
-            html.Span(" | ".join(milestone_parts), className="text-muted", style={"whiteSpace": "nowrap"})
+            html.Span(
+                " | ".join(milestone_parts), className="text-muted", style={"whiteSpace": "nowrap"}
+            )
         )
         children.append(html.Span("|", style=_DIVIDER_STYLE))
 
@@ -164,7 +165,6 @@ def create_variant_context_bar() -> html.Div:
 
 
 def register_variant_context_bar_callbacks(app: Dash) -> None:
-
     @app.callback(
         Output("variant-context-bar-content", "children"),
         Input("variant-selector-store", "modified_timestamp"),
