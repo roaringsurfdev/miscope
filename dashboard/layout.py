@@ -9,6 +9,7 @@ The visualization layout (sidebar + plots) moved to create_visualization_layout(
 
 from dash import Dash, dcc, html
 
+from dashboard.components.export_panel import create_export_notification
 from dashboard.components.leftnav import create_collapsed_sidebar, create_sidebar
 from dashboard.components.sitenav import create_sitenav
 from dashboard.components.variant_context_bar import create_variant_context_bar
@@ -54,6 +55,7 @@ def create_default_layout(app: Dash) -> html.Div:
             dcc.Location(id="url", refresh=False),
             create_sitenav(),
             create_variant_context_bar(),
+            create_export_notification(),
             html.Div(
                 id="default_page_layout",
                 children=[

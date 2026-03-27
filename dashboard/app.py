@@ -4,6 +4,7 @@ import logging
 import dash_bootstrap_components as dbc
 from dash import Dash
 
+from dashboard.components.export_panel import register_export_callbacks
 from dashboard.components.leftnav import register_left_nav_callbacks
 from dashboard.components.sitenav import register_sitenav_callbacks
 from dashboard.components.variant_context_bar import register_variant_context_bar_callbacks
@@ -38,6 +39,7 @@ def create_app() -> Dash:
     app.title = "MechInterp Scope"
     app.layout = create_default_layout(app)
     # core application callbacks
+    register_export_callbacks(app)
     register_left_nav_callbacks(app)
     register_sitenav_callbacks(app)
     register_variant_selector_callbacks(app)
