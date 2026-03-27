@@ -22,6 +22,7 @@ def get_view_name(graph_id: str) -> str | None:
     """Return the view_name registered for a graph ID, or None."""
     return _GRAPH_REGISTRY.get(graph_id)
 
+
 _SITE_OPTIONS = [
     {"label": "All Sites", "value": "all"},
     {"label": "Post-Embed", "value": "resid_pre"},

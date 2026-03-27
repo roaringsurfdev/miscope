@@ -7,9 +7,7 @@ Clicking a row selects that variant globally via variant-selector-store.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dash_table, html, set_props
 from dash.exceptions import PreventUpdate
 
@@ -85,7 +83,9 @@ def _load_table_rows() -> list[dict]:
                 }
             )
 
-    rows.sort(key=lambda r: (r["family"], r["prime"] or 0, r["model_seed"] or 0, r["data_seed"] or 0))
+    rows.sort(
+        key=lambda r: (r["family"], r["prime"] or 0, r["model_seed"] or 0, r["data_seed"] or 0)
+    )
     return rows
 
 
@@ -140,7 +140,7 @@ def create_variant_table_page_layout(app: Dash) -> html.Div:
             ),
             dash_table.DataTable(
                 id="variant-table",
-                columns=_COLUMNS,
+                columns=_COLUMNS,  # pyright: ignore[reportArgumentType]
                 data=rows,
                 hidden_columns=["_variant_name"],
                 sort_action="native",
@@ -163,7 +163,7 @@ def create_variant_table_page_layout(app: Dash) -> html.Div:
                     "textAlign": "left",
                     "whiteSpace": "normal",
                 },
-                style_data_conditional=style_data_conditional,
+                style_data_conditional=style_data_conditional,  # pyright: ignore[reportArgumentType]
             ),
             html.Div(id="variant-table-status", className="text-muted small mt-2"),
         ],
@@ -204,7 +204,9 @@ def register_variant_table_page_callbacks(app: Dash) -> None:
             return f"Could not load variant: {variant_name}"
 
         max_epochs = max(0, len(variant_server_state.available_epochs) - 1)
-        epoch = variant_server_state.available_epochs[0] if variant_server_state.available_epochs else 0
+        epoch = (
+            variant_server_state.available_epochs[0] if variant_server_state.available_epochs else 0
+        )
 
         set_props(
             "variant-selector-store",

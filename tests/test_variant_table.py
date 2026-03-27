@@ -11,10 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -131,7 +128,9 @@ def test_on_row_selected_updates_store(monkeypatch):
     monkeypatch.setattr(vt, "variant_server_state", mock_state)
 
     set_props_calls: list[tuple] = []
-    monkeypatch.setattr(vt, "set_props", lambda *args, **kwargs: set_props_calls.append((args, kwargs)))
+    monkeypatch.setattr(
+        vt, "set_props", lambda *args, **kwargs: set_props_calls.append((args, kwargs))
+    )
 
     # Simulate the logic inside the on_row_selected callback directly.
     row = {
