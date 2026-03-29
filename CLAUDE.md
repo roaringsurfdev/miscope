@@ -189,6 +189,41 @@ When a set of requirements is complete, follow this process:
 - CHANGELOG.md provides quick context (< 100 lines per milestone)
 - Archived requirements preserve decision rationale for archaeology
 
+### Fieldnotes (Research Notebook)
+
+The `fieldnotes/` directory is an Astro-based research notebook published to GitHub Pages. Writing happens here, where the work is done, using this Claude Code context.
+
+**Purpose:** Share research in progress — findings, patterns, surprises — not polished articles. The work comes first; writing follows when something is worth naming.
+
+**Directory structure:**
+```
+fieldnotes/
+  src/content/posts/    # Published entries (built into the site)
+  src/content/drafts/   # Work in progress — not collected, never published
+  src/pages/            # Astro pages and routing
+  public/figures/       # Exported figures (Plotly HTML, images, frame sequences)
+```
+
+**Draft → publish workflow:**
+Moving a file from `drafts/` to `posts/` is the publishing act. It requires a deliberate commit. Nothing in `drafts/` is ever built or deployed.
+
+**Claude's role in writing:**
+- Help draft and review fieldnotes entries when asked
+- Writing happens in this Claude Code context — no context-switching to other tools
+
+**When to surface a fieldnotes prompt:**
+At natural milestones — requirement completions, significant findings, moments where something surprising happened — Claude asks: *"This might be worth a fieldnotes entry — want to capture it while it's fresh?"*
+
+Triggers: visual results that unlock understanding, findings that contradict prior assumptions, patterns that have become clear, moments where a model does something unexpected.
+
+**Figure export path:**
+Python generates figures in `src/miscope/` context; they land in `fieldnotes/public/figures/`. Plotly `write_html()` exports embed as iframes in MDX. Frame sequences go in subdirectories for slider-based animations.
+
+**Deployment:**
+GitHub Actions builds `fieldnotes/` on push to `main` and deploys to GitHub Pages.
+URL: `https://GITHUB_USERNAME.github.io/MIScope/` — replace `GITHUB_USERNAME` in `fieldnotes/astro.config.mjs` before first deploy.
+To enable: go to repo Settings → Pages → Source → GitHub Actions.
+
 ## Project Structure
 
 ```
@@ -196,7 +231,8 @@ src/miscope/           # Installable API package (import miscope.*)
   analysis/            # Pipeline, analyzers, artifacts, protocols
   families/            # Family registry, variants, model families
   visualization/       # Renderers, export
-dashboard_v2/          # Consumer — Dash dashboard
+dashboard/             # Consumer — Dash dashboard
+fieldnotes/            # Research notebook (Astro, published to GitHub Pages)
 tests/                 # Test suite
 notebooks/             # Research notebooks
 model_families/        # JSON config + data

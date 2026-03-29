@@ -20,6 +20,7 @@ Analysis Left Navigation
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
 
+from dashboard.components.export_panel import create_export_panel
 from dashboard.components.variant_selector import get_variant_selector
 
 _SIDEBAR_STYLE = {
@@ -76,6 +77,7 @@ def create_sidebar(app: Dash) -> html.Div:
                 id="page_left_nav",
                 children=[],
             ),
+            create_export_panel(),
         ],
         style=_SIDEBAR_STYLE,
     )

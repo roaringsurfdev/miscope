@@ -520,14 +520,22 @@ class AnalysisPipeline:
         cross_epoch_context = {**context, "variant": self.variant}
 
         for analyzer in self._cross_epoch_analyzers:
-            # Skip if already computed (unless force)
+            # Skip if already computed (unless force or stale)
             cross_epoch_path = os.path.join(
                 self.artifacts_dir,
                 analyzer.name,
                 "cross_epoch.npz",
             )
             if os.path.exists(cross_epoch_path) and not force:
-                continue
+                from miscope.analysis.freshness import cross_epoch_is_stale
+
+                if not cross_epoch_is_stale(
+                    cross_epoch_path,
+                    list(analyzer.requires),
+                    self.artifacts_dir,
+                    available_epochs,
+                ):
+                    continue
 
             # Validate dependencies
             for required in analyzer.requires:

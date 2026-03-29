@@ -94,6 +94,7 @@ def create_analysis_run_page_layout(app: Dash) -> html.Div:
                                 color="primary",
                                 className="w-100",
                             ),
+                            html.Div(id="analysis-run-freshness-indicator", className="mt-3"),
                         ],
                         md=7,
                     ),
@@ -176,6 +177,15 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         pipeline.register_cross_epoch(CentroidDMD())
         pipeline.run(progress_callback=progress_callback)
 
+        # Regenerate variant_summary.json and variant_registry.json
+        analysis_progress.update(0.97, "Regenerating variant summary...")
+        from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
+        from miscope.analysis.variant_summary import build_variant_registry
+
+        VariantAnalysisSummary(variant).analyze()
+        results_dir = variant.variant_dir.parent.parent
+        build_variant_registry(results_dir, family_name)
+
         refresh_registry()
         analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")
 
@@ -240,6 +250,77 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
         )
         thread.start()
         return False, True, "Starting analysis...", {"display": "block"}
+
+    @app.callback(
+        Output("analysis-run-freshness-indicator", "children"),
+        Input("analysis-run-variant-dropdown", "value"),
+        State("analysis-run-family-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def show_freshness_indicator(
+        variant_name: str | None, family_name: str | None
+    ) -> html.Div | dbc.Alert:
+        if not variant_name or not family_name:
+            return html.Div()
+        try:
+            from miscope.analysis.freshness import check_freshness
+
+            registry = get_registry()
+            family = registry.get_family(family_name)
+            variants = registry.get_variants(family)
+            variant = next((v for v in variants if v.name == variant_name), None)
+            if variant is None:
+                return html.Div()
+            report = check_freshness(variant)
+            if report.any_stale:
+                stale_per = [fe.analyzer_name for fe in report.per_epoch if not fe.is_fresh]
+                stale_cross = [ce.analyzer_name for ce in report.cross_epoch if not ce.is_fresh]
+                stale_items = stale_per + stale_cross
+                if report.summary_stale:
+                    stale_items.append("variant_summary.json")
+                detail = ", ".join(stale_items[:4])
+                if len(stale_items) > 4:
+                    detail += f" (+{len(stale_items) - 4} more)"
+                return dbc.Alert(
+                    [
+                        html.Strong("⚠ Stale artifacts detected: "),
+                        html.Span(detail),
+                        dbc.Collapse(
+                            html.Pre(
+                                report.format(),
+                                style={
+                                    "fontSize": "0.75rem",
+                                    "marginTop": "8px",
+                                    "marginBottom": "0",
+                                },
+                            ),
+                            id="analysis-run-freshness-detail",
+                            is_open=False,
+                        ),
+                        html.A(
+                            " (show details)",
+                            id="analysis-run-freshness-toggle",
+                            href="#",
+                            style={"fontSize": "0.8rem"},
+                        ),
+                    ],
+                    color="warning",
+                    className="mt-2 mb-0 py-2",
+                )
+            return dbc.Alert(
+                "✓ All artifacts are fresh.", color="success", className="mt-2 mb-0 py-2"
+            )
+        except Exception:
+            return html.Div()
+
+    @app.callback(
+        Output("analysis-run-freshness-detail", "is_open"),
+        Input("analysis-run-freshness-toggle", "n_clicks"),
+        State("analysis-run-freshness-detail", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_freshness_detail(n_clicks: int | None, is_open: bool) -> bool:
+        return not is_open
 
     @app.callback(
         Output("analysis-run-progress-bar", "value"),

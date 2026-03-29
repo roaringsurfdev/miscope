@@ -297,6 +297,7 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         stored_variant_name = stored.get("variant_name")
         stored_family_name = stored.get("family_name")
         stored_intervention_name = stored.get("intervention_name")
+        intervention_options = []
 
         load_update = False
 

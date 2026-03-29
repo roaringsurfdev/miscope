@@ -42,7 +42,7 @@ from miscope.analysis.analyzers import (
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
-FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
+FORCE = False  # Re-run even if artifacts exist (needed for new summary keys)
 COOLING_NEEDED = False
 COOLING_PERIOD = 4 * 60 # timer to allow machine to cool between runs
 
@@ -57,10 +57,7 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = [
-    'modulo_addition_1layer_p107_seed999_dseed598',
-    'modulo_addition_1layer_p101_seed485_dseed42', 
-]
+include_list = []
 for i, variant in enumerate(variants):
     print(f"\n{'='*60}")
     print(f"[{i+1}/{len(variants)}] {variant.name}")

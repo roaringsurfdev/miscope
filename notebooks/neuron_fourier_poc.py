@@ -26,9 +26,9 @@ from miscope.analysis.artifact_loader import ArtifactLoader
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 #HEALTHY = dict(prime=113, seed=999)
-HEALTHY = dict(prime=109, seed=485)
+HEALTHY = dict(prime=109, seed=485, data_seed=598)
 #ANOMALOUS = dict(prime=59, seed=485)
-ANOMALOUS = dict(prime=113, seed=999)
+ANOMALOUS = dict(prime=113, seed=999, data_seed=598)
 
 family = load_family(FAMILY_NAME)
 
@@ -85,9 +85,9 @@ def alignment_progress_series(
     return progress
 
 
-def load_fourier(family, prime: int, seed: int) -> dict:
+def load_fourier(family, prime: int, seed: int, data_seed: int) -> dict:
     """Load all neuron_fourier epochs for a variant. Returns stacked dict."""
-    variant = family.get_variant(prime=prime, seed=seed)
+    variant = family.get_variant(prime=prime, seed=seed, data_seed=data_seed)
     loader = ArtifactLoader(variant.artifacts_dir)
     stacked = loader.load_epochs("neuron_fourier")
     # freq_indices is constant across epochs — keep only the first copy
@@ -118,8 +118,8 @@ print(f"  Epoch range: {int(epochs_h[0])} – {int(epochs_h[-1])}")
 variant_h = family.get_variant(**HEALTHY)
 final_epoch_h = int(epochs_h[-1])
 
-fig_input  = variant_h.at(final_epoch_h).view("neuron_fourier_heatmap").figure()
-fig_output = variant_h.at(final_epoch_h).view("neuron_fourier_heatmap_output").figure()
+fig_input  = variant_h.at(final_epoch_h).view("activations.mlp.neuron_fourier_heatmap").figure()
+fig_output = variant_h.at(final_epoch_h).view("activations.mlp.neuron_fourier_heatmap_output").figure()
 
 fig_input.show()
 fig_output.show()
@@ -311,7 +311,7 @@ fig_align_compare.show()
 # Heatmap for anomalous at final epoch
 variant_a = family.get_variant(**ANOMALOUS)
 final_epoch_a = int(epochs_a[-1])
-variant_a.at(final_epoch_a).view("neuron_fourier_heatmap").show()
+variant_a.at(final_epoch_a).view("activations.mlp.neuron_fourier_heatmap").show()
 
 
 # %% --- Section 6: Margin vs. Switching — Phase and Magnitude Predictors ---

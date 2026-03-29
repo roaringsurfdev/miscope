@@ -9,6 +9,7 @@ This package provides:
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.freshness import FreshnessReport, check_freshness
 from miscope.analysis.pipeline import AnalysisPipeline
 from miscope.analysis.protocols import (
     AnalysisRunConfig,
@@ -24,5 +25,7 @@ __all__ = [
     "AnalysisRunConfig",
     "ArtifactLoader",
     "CrossEpochAnalyzer",
+    "FreshnessReport",
     "SecondaryAnalyzer",
+    "check_freshness",
 ]
