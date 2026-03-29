@@ -528,6 +528,7 @@ class AnalysisPipeline:
             )
             if os.path.exists(cross_epoch_path) and not force:
                 from miscope.analysis.freshness import cross_epoch_is_stale
+
                 if not cross_epoch_is_stale(
                     cross_epoch_path,
                     list(analyzer.requires),

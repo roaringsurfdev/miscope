@@ -181,6 +181,7 @@ def _run_analysis_thread(family_name: str, variant_name: str) -> None:
         analysis_progress.update(0.97, "Regenerating variant summary...")
         from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
         from miscope.analysis.variant_summary import build_variant_registry
+
         VariantAnalysisSummary(variant).analyze()
         results_dir = variant.variant_dir.parent.parent
         build_variant_registry(results_dir, family_name)
@@ -258,11 +259,12 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
     )
     def show_freshness_indicator(
         variant_name: str | None, family_name: str | None
-    ) -> html.Div:
+    ) -> html.Div | dbc.Alert:
         if not variant_name or not family_name:
             return html.Div()
         try:
             from miscope.analysis.freshness import check_freshness
+
             registry = get_registry()
             family = registry.get_family(family_name)
             variants = registry.get_variants(family)
@@ -284,7 +286,14 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
                         html.Strong("⚠ Stale artifacts detected: "),
                         html.Span(detail),
                         dbc.Collapse(
-                            html.Pre(report.format(), style={"fontSize": "0.75rem", "marginTop": "8px", "marginBottom": "0"}),
+                            html.Pre(
+                                report.format(),
+                                style={
+                                    "fontSize": "0.75rem",
+                                    "marginTop": "8px",
+                                    "marginBottom": "0",
+                                },
+                            ),
                             id="analysis-run-freshness-detail",
                             is_open=False,
                         ),
@@ -298,7 +307,9 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
                     color="warning",
                     className="mt-2 mb-0 py-2",
                 )
-            return dbc.Alert("✓ All artifacts are fresh.", color="success", className="mt-2 mb-0 py-2")
+            return dbc.Alert(
+                "✓ All artifacts are fresh.", color="success", className="mt-2 mb-0 py-2"
+            )
         except Exception:
             return html.Div()
 
