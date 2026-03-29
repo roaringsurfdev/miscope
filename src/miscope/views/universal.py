@@ -818,6 +818,253 @@ def _register_all() -> None:
             )
         )
 
+    # --- Input trace views (REQ_075) ---
+    # accuracy_grid: per-epoch, needs prime from model_config
+    # residue_class_timeline: summary, needs prime from model_config
+    # graduation_heatmap: cross-epoch, needs prime from model_config
+
+    def _load_input_trace_epoch(variant: Variant, epoch: int | None) -> dict:
+        return {
+            "epoch_data": variant.artifacts.load_epoch("input_trace", epoch),  # type: ignore[arg-type]
+            "prime": int(variant.model_config["prime"]),
+        }
+
+    def _render_accuracy_grid(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.input_trace import render_accuracy_grid
+
+        return render_accuracy_grid(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="input_trace.accuracy_grid",
+            load_data=_load_input_trace_epoch,
+            renderer=_render_accuracy_grid,
+            epoch_source_analyzer="input_trace",
+            required_analyzers=[AnalyzerRequirement("input_trace", ArtifactKind.EPOCH)],
+        )
+    )
+
+    def _load_input_trace_summary(variant: Variant, epoch: int | None) -> dict:
+        return {
+            "summary": variant.artifacts.load_summary("input_trace"),
+            "prime": int(variant.model_config["prime"]),
+        }
+
+    def _render_residue_class_timeline(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.input_trace import (
+            render_residue_class_accuracy_timeline,
+        )
+
+        return render_residue_class_accuracy_timeline(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="input_trace.residue_class_timeline",
+            load_data=_load_input_trace_summary,
+            renderer=_render_residue_class_timeline,
+            epoch_source_analyzer=None,
+            required_analyzers=[AnalyzerRequirement("input_trace", ArtifactKind.SUMMARY)],
+        )
+    )
+
+    def _load_input_trace_graduation(variant: Variant, epoch: int | None) -> dict:
+        return {
+            "graduation": variant.artifacts.load_cross_epoch("input_trace_graduation"),
+            "prime": int(variant.model_config["prime"]),
+        }
+
+    def _render_graduation_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.input_trace import render_pair_graduation_heatmap
+
+        return render_pair_graduation_heatmap(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="input_trace.graduation_heatmap",
+            load_data=_load_input_trace_graduation,
+            renderer=_render_graduation_heatmap,
+            epoch_source_analyzer=None,
+            required_analyzers=[
+                AnalyzerRequirement("input_trace_graduation", ArtifactKind.CROSS_EPOCH)
+            ],
+        )
+    )
+
+    # --- Neuron group PCA coordination views ---
+
+    def _load_neuron_group_pca(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("neuron_group_pca")
+
+    def _render_group_pca_cohesion(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_pca_cohesion,
+        )
+
+        return render_neuron_group_pca_cohesion(data, epoch, **kwargs)
+
+    def _render_group_spread(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_spread
+
+        return render_neuron_group_spread(data, epoch, **kwargs)
+
+    def _load_neuron_group_scatter(variant: Variant, epoch: int | None) -> dict:
+        cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
+        norm = variant.artifacts.load_epoch("neuron_freq_norm", epoch)  # type: ignore[arg-type]
+        snap = variant.artifacts.load_epoch("parameter_snapshot", epoch)  # type: ignore[arg-type]
+        return {
+            "group_bases": cross["group_bases"],
+            "group_freqs": cross["group_freqs"],
+            "W_in": snap["W_in"],
+            "norm_matrix": norm["norm_matrix"],
+        }
+
+    def _render_group_scatter(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_scatter
+
+        return render_neuron_group_scatter(data, epoch, **kwargs)
+
+    _ngpca_req = [AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH)]
+    _ngpca_scatter_req = [
+        AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
+        AnalyzerRequirement("neuron_freq_norm", ArtifactKind.EPOCH),
+        AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
+    ]
+
+    _catalog.register(
+        ViewDefinition(
+            name="neuron_group.scatter",
+            load_data=_load_neuron_group_scatter,
+            renderer=_render_group_scatter,
+            epoch_source_analyzer="parameter_snapshot",
+            required_analyzers=_ngpca_scatter_req,
+        )
+    )
+
+    _catalog.register(
+        ViewDefinition(
+            name="neuron_group.pca_cohesion",
+            load_data=_load_neuron_group_pca,
+            renderer=_render_group_pca_cohesion,
+            epoch_source_analyzer=None,
+            required_analyzers=_ngpca_req,
+        )
+    )
+
+    _catalog.register(
+        ViewDefinition(
+            name="neuron_group.spread",
+            load_data=_load_neuron_group_pca,
+            renderer=_render_group_spread,
+            epoch_source_analyzer=None,
+            required_analyzers=_ngpca_req,
+        )
+    )
+
+    # --- Neuron group projection views (require 'projections' field from analyzer v2) ---
+
+    def _render_group_scatter_3d(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_scatter_3d
+
+        return render_neuron_group_scatter_3d(data, epoch, **kwargs)
+
+    def _render_group_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_trajectory
+
+        return render_neuron_group_trajectory(data, epoch, **kwargs)
+
+    def _render_group_polar_histogram(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_polar_histogram,
+        )
+
+        return render_neuron_group_polar_histogram(data, epoch, **kwargs)
+
+    for name, renderer in [
+        ("neuron_group.scatter_3d", _render_group_scatter_3d),
+        ("neuron_group.trajectory", _render_group_trajectory),
+        ("neuron_group.polar_histogram", _render_group_polar_histogram),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_neuron_group_pca,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_ngpca_req,
+            )
+        )
+
+    # --- Neuron group purity views (cross_epoch + per-epoch neuron_freq_norm) ---
+
+    def _load_neuron_group_with_purity(variant: Variant, epoch: int | None) -> dict:
+        cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
+        norm = variant.artifacts.load_epoch("neuron_freq_norm", epoch)  # type: ignore[arg-type]
+        return {**cross, "norm_matrix": norm["norm_matrix"]}
+
+    def _render_group_scatter_purity(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_neuron_group_scatter_purity,
+        )
+
+        return render_neuron_group_scatter_purity(data, epoch, **kwargs)
+
+    def _render_group_all_panels(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_neuron_group_all_panels
+
+        return render_neuron_group_all_panels(data, epoch, **kwargs)
+
+    _ngpca_purity_req = [
+        AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
+        AnalyzerRequirement("neuron_freq_norm", ArtifactKind.EPOCH),
+    ]
+
+    for name, renderer in [
+        ("neuron_group.scatter_purity", _render_group_scatter_purity),
+        ("neuron_group.all_groups", _render_group_all_panels),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_neuron_group_with_purity,
+                renderer=renderer,
+                epoch_source_analyzer="neuron_freq_norm",
+                required_analyzers=_ngpca_purity_req,
+            )
+        )
+
+    # --- Residue class graduation views ---
+
+    def _load_graduation(variant: Variant, epoch: int | None) -> dict:
+        cross = variant.artifacts.load_cross_epoch("input_trace_graduation")
+        prime = int(variant.model_config["prime"])
+        return {"data": cross, "prime": prime}
+
+    def _render_graduation_spread(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.graduation import render_graduation_spread
+
+        return render_graduation_spread(data["data"], data["prime"], **kwargs)
+
+    def _render_graduation_cohesion(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.graduation import render_graduation_cohesion
+
+        return render_graduation_cohesion(data["data"], data["prime"], **kwargs)
+
+    _grad_req = [AnalyzerRequirement("input_trace_graduation", ArtifactKind.CROSS_EPOCH)]
+
+    for name, renderer in [
+        ("neuron_group.graduation_spread", _render_graduation_spread),
+        ("neuron_group.graduation_cohesion", _render_graduation_cohesion),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_graduation,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_grad_req,
+            )
+        )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

@@ -16,12 +16,29 @@ sys.path.append(parent_dir)
 
 from miscope import load_family
 from miscope.analysis import AnalysisPipeline
-from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
-#from miscope.analysis.analyzers.attention_fourier import AttentionFourierAnalyzer
-#from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
-#from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
-#from miscope.analysis.analyzers.dominant_frequencies import DominantFrequenciesAnalyzer
-#from miscope.analysis.analyzers.fourier_frequency_quality import FourierFrequencyQualityAnalyzer
+#from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
+from miscope.analysis.analyzers import (
+    AttentionFourierAnalyzer,
+    AttentionFreqAnalyzer,
+    AttentionPatternsAnalyzer,
+    CentroidDMD,
+    DominantFrequenciesAnalyzer,
+    EffectiveDimensionalityAnalyzer,
+    FourierFrequencyQualityAnalyzer,
+    FourierNucleationAnalyzer,
+    GlobalCentroidPCA,
+    InputTraceAnalyzer,
+    InputTraceGraduationAnalyzer,
+    LandscapeFlatnessAnalyzer,
+    NeuronActivationsAnalyzer,
+    NeuronDynamicsAnalyzer,
+    NeuronFourierAnalyzer,
+    NeuronFreqClustersAnalyzer,
+    NeuronGroupPCAAnalyzer,
+    ParameterSnapshotAnalyzer,
+    ParameterTrajectoryPCA,
+    RepresentationalGeometryAnalyzer,
+)
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
@@ -40,7 +57,10 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = []
+include_list = [
+    'modulo_addition_1layer_p107_seed999_dseed598',
+    'modulo_addition_1layer_p101_seed485_dseed42', 
+]
 for i, variant in enumerate(variants):
     print(f"\n{'='*60}")
     print(f"[{i+1}/{len(variants)}] {variant.name}")
@@ -51,7 +71,7 @@ for i, variant in enumerate(variants):
         results.append((variant.name, "skipped", 0))
         continue
 
-    if variant.name in exclude_list:
+    if (variant.name in exclude_list) or (len(include_list) > 0 and variant.name not in include_list):
         print("  SKIPPED: In exclude list")
         results.append((variant.name, "skipped", 0))
         continue
@@ -63,8 +83,28 @@ for i, variant in enumerate(variants):
 
     try:
         pipeline = AnalysisPipeline(variant)
-        pipeline.register_cross_epoch(GradientSiteAnalyzer())
-        #pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
+        pipeline = AnalysisPipeline(variant)
+        pipeline.register(AttentionFreqAnalyzer())
+        pipeline.register(AttentionPatternsAnalyzer())
+        pipeline.register(DominantFrequenciesAnalyzer())
+        pipeline.register(InputTraceAnalyzer())
+        pipeline.register(NeuronActivationsAnalyzer())
+        pipeline.register(NeuronFreqClustersAnalyzer())
+        pipeline.register(ParameterSnapshotAnalyzer())
+        pipeline.register(EffectiveDimensionalityAnalyzer())
+        pipeline.register(LandscapeFlatnessAnalyzer())
+        pipeline.register(RepresentationalGeometryAnalyzer())
+        pipeline.register(AttentionFourierAnalyzer())
+        pipeline.register(FourierNucleationAnalyzer())
+        pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
+        pipeline.register_secondary(NeuronFourierAnalyzer())
+        pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
+        pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
+        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
+        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(GlobalCentroidPCA())
+        pipeline.register_cross_epoch(CentroidDMD())
+        pipeline.run(progress_callback=progress_callback)
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

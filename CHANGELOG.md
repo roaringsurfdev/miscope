@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-03-26
+
+### Added
+
+- **Per-Input Prediction Trace** (REQ_075)
+  - `InputTraceAnalyzer`: per-checkpoint predictions, correctness, confidence, and train/test split for all p² pairs
+  - `InputTraceGraduationAnalyzer`: cross-epoch summary — `graduation_epochs` (first stable-correct epoch per pair), `residue_class_accuracy` (per-class accuracy trajectory), `overall_accuracy_by_epoch`
+  - Views: `input_trace.accuracy_grid` (per-epoch p×p correctness heatmap), `input_trace.residue_class_timeline` (per-class accuracy over training), `input_trace.graduation_heatmap` (graduation epoch by pair with anti-diagonal structure)
+  - Full test suite: unit tests for shapes, graduation stability logic, residue-class counting; integration tests for artifact round-trip and all three views
+
+- **Neuron Group PCA**
+  - `NeuronGroupPCAAnalyzer`: within-frequency-group coordination in W_in; tracks top-3 PC variance explained per group across training
+  - Dashboard Neuron Groups page: scatter, trajectory, phase, and graduation views
+  - Off-by-one fix: neuron group frequency labels now match system convention
+
+- **Phase Diagram Notebook**
+  - Research notebook exploring variant classification in frequency × timing space
+  - Early prediction cell: validates that early-epoch frequency commitments predict final grokking structure
+
+- **Dashboard**
+  - Variant context bar: displays active variant metadata inline with page content
+
+### References
+
+- Archived requirements: `requirements/archive/v0.8.1-prediction-trace-and-neuron-groups/`
+- Milestone summary: `requirements/archive/v0.8.1-prediction-trace-and-neuron-groups/MILESTONE_SUMMARY.md`
+
 ## [0.8.0] - 2026-03-23
 
 ### Added

@@ -11,6 +11,7 @@ from dash import Dash, dcc, html
 
 from dashboard.components.leftnav import create_collapsed_sidebar, create_sidebar
 from dashboard.components.sitenav import create_sitenav
+from dashboard.components.variant_context_bar import create_variant_context_bar
 
 # ---------------------------------------------------------------------------
 # Shared style constants
@@ -25,7 +26,7 @@ _PAGE_CONTENT_STYLE = {
 
 _FLEX_WRAPPER_STYLE = {
     "display": "flex",
-    "height": "calc(100vh - 56px)",
+    "height": "calc(100vh - 96px)",  # 56px navbar + 40px context bar
     "overflow": "hidden",
 }
 
@@ -52,6 +53,7 @@ def create_default_layout(app: Dash) -> html.Div:
         [
             dcc.Location(id="url", refresh=False),
             create_sitenav(),
+            create_variant_context_bar(),
             html.Div(
                 id="default_page_layout",
                 children=[

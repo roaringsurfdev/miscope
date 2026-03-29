@@ -44,7 +44,8 @@
     "landscape_flatness",
     "repr_geometry",
     "attention_fourier",
-    "fourier_nucleation"
+    "fourier_nucleation",
+    "input_trace"
   ],
 
   "secondary_analyzers": [
@@ -56,7 +57,9 @@
     "parameter_trajectory",
     "neuron_dynamics",
     "global_centroid_pca",
-    "centroid_dmd"
+    "centroid_dmd",
+    "input_trace_graduation",
+    "neuron_group_pca"
   ],
 
   "analysis_dataset": {

@@ -18,6 +18,8 @@ from miscope.analysis.analyzers.fourier_frequency_quality import FourierFrequenc
 from miscope.analysis.analyzers.fourier_nucleation import FourierNucleationAnalyzer
 from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
 from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
+from miscope.analysis.analyzers.input_trace import InputTraceAnalyzer
+from miscope.analysis.analyzers.input_trace_graduation import InputTraceGraduationAnalyzer
 from miscope.analysis.analyzers.landscape_flatness import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.neuron_activations import NeuronActivationsAnalyzer
 from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
@@ -25,6 +27,7 @@ from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
 # Secondary Analyzers
 from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
+from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
 from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
 
 # Cross-epoch Analyzers
@@ -53,4 +56,7 @@ __all__ = [
     "CentroidDMD",
     "CoarsenessAnalyzer",
     "GradientSiteAnalyzer",
+    "InputTraceAnalyzer",
+    "InputTraceGraduationAnalyzer",
+    "NeuronGroupPCAAnalyzer",
 ]
