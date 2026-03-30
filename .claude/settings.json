@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -c '\"\"width\"\"' /home/megano/projects/mechinterp/training-dynamics-workbench/fieldnotes/public/figures/multistream_p113_s999_ds598.html)"
+      "Bash(grep -c '\"\"width\"\"' /home/megano/projects/mechinterp/training-dynamics-workbench/fieldnotes/public/figures/multistream_p113_s999_ds598.html)",
+      "Bash(git remote:*)"
     ]
   }
 }
