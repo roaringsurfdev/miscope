@@ -482,6 +482,13 @@ def _render_trajectory_2d(
         template="plotly_white",
         height=height,
         margin=dict(l=60, r=20, t=50, b=50),
+        legend_orientation="h",
+        legend=dict(
+            yanchor="top",
+            y=1.02,
+            xanchor="center",
+            x=0.5
+        )
     )
 
     return fig
