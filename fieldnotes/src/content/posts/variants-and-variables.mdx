@@ -4,13 +4,26 @@ date: 2026-03-29
 description: "Motivation behind creating a strategy for training Variants."
 tags: ["infrastructure", "methodology"]
 ---
+
+export const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 My first sustained investigation into Mechanistic Interpretability has been the study of the Modulo Addition model from Neel Nanda's [Progress measures for grokking via mechanistic interpretability](https://arxiv.org/abs/2301.05217) (2023).
 
 In order to faithfully reproduce his experiment and to understand how he was interpreting the model, I recreated his [Walkthrough notebook](https://colab.research.google.com/github/neelnanda-io/TransformerLens/blob/main/demos/Grokking_Demo.ipynb) in my own project. I chose to copy the notebook line-by-line to allow me to slow down and study each cell, and in doing so, I encountered two early surprises: differences in model frequency selection and the impact of the random variable used as the data seed.
 
-In Nanda's Walkthrough notebook, the frequencies learned by the model are hard-coded in a list. As I ran my reproduction of his notebook, I discovered that the frequencies my model was learning were different. At first, I assumed I had made an error in copying the source code over, but after a bit of investigation, it seemed more likely that my environment might be the cause. Random number generation on my machine might create different results than those produced on a Colab server. In order to deal with this discrepancy, I chose to carefully refactor the logic around specific frequencies to allow the code to derive the learned frequencies based on the model's training, instead of manually changing the values based on visual inspection of the graphs. This change would allow me to handle nuanced differences between seeds used to initialize the model.
+In Nanda's Walkthrough notebook, the frequencies learned by the model (17, 25, 32, and 47) are hard-coded in a list. As I ran my reproduction of his notebook, I discovered that the frequencies my model was learning were different: 9, 33, 38, and 55. At first, I assumed I had made an error in copying the source code over, but after a bit of investigation, it seemed more likely that my environment might be the cause. Random number generation on my machine might create different results than those produced on a Colab server. In order to deal with this discrepancy, I chose to carefully refactor the logic around specific frequencies to allow the code to derive the learned frequencies based on the model's training, instead of manually changing the values based on visual inspection of the graphs. This change would allow me to handle nuanced differences between seeds used to initialize the model.
 
 The second surprise centered around the random seed used in choosing the training/test split. At first, thinking that the important factor regarding the use of seeds was that I keep them constant, I used the same seed for the model initialization and the train/test split. My model failed to train as expected, but this time, instead of different frequency selection, I was seeing much worse performance. After a bit of investigation, I realized that the model seed and the data seed needed to be treated separately, and I reverted the data seed back to what Nanda had used in the walkthrough notebook.
+
+<figure>
+  <iframe src={`${base}/figures/loss_p113_s999_ds598.html`} title="Training curves — p=113, seed=999, data_seed=598" width="100%" height="350" loading="lazy" style="border:none; display:block;" />
+  <figcaption>p=113, seed=999, data_seed=598 — the configuration that trains successfully.</figcaption>
+</figure>
+
+<figure>
+  <iframe src={`${base}/figures/loss_p113_s999_ds999.html`} title="Training curves — p=113, seed=999, data_seed=999" width="100%" height="350" loading="lazy" style="border:none; display:block;" />
+  <figcaption>p=113, seed=999, data_seed=999 — the same model seed, different data seed. Test loss rebounds and never recovers.</figcaption>
+</figure>
 
 Before starting my exploration of the Modulo Addition model, I had intended to train across multiple prime numbers, but now I had at least two additional variables that were showing a real impact on model training outcomes: model initialization seed and the data seed used in generating the train/test split data. In order to capture the notion that each of these models were variations of a single model architecture based on the original Modulo Addition model from Nanda's research, I chose to start building around what I now refer to as Model Variants.
 

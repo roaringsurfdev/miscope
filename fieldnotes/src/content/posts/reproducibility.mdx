@@ -5,17 +5,57 @@ description: "Designing for reproducibility in a mechanistic interpretability re
 tags: ["infrastructure", "methodology", "research goals"]
 ---
 
-As a software engineer, I have spent my career thinking about the design of stable systems, and one of the most fundamental features of a stable system is reproducibility. Reproducibility is also a core value of experimental research. Reproducibility creates trust. Trust in a product or platform. Trust in experimental results.
+import VariantViewer from '../../components/VariantViewer.astro';
 
-While Jupyter Notebooks are incredibly powerful for exploratory analysis or ad hoc research, I found the use of them for deeper research to be unsettling. A single variable change, a cell run out of order, or even visualizations created based on the wrong dataset could create inaccurate interpretations of the subject I was studying.
+<VariantViewer
+  variants={[
+    {
+      label: "p=113 / seed=999 / ds=598",
+      figures: [{ file: "multistream_p113_s999_ds598.html", height: 1350 }],
+    },
+    {
+      label: "p=109 / seed=485 / ds=598",
+      figures: [{ file: "multistream_p109_s485_ds598.html", height: 1350 }],
+    },
+    {
+      label: "p=101 / seed=999 / ds=598",
+      figures: [{ file: "multistream_p101_s999_ds598.html", height: 1350 }],
+    },
+  ]}
+  caption="Multi-stream frequency specialization across training. Each panel tracks a different weight stream — MLP neurons, attention heads, embedding dimensions, and effective dimensionality. Select a variant above to compare."
+/>
 
-In my research, I want to be able to study models as they evolve over training, not their final output. This means that I need to be able to analyze models across multiple checkpoints, sometimes over one hundred per model. There was no way I was going to feel confident in my results by running experiments in notebooks. I needed something more stable. More reliably reproducible.
+As a software engineer, I have spent my career thinking about the design of stable systems, and one of the most fundamental features of a stable system is reproducibility across environments. Reproducibility is also a core value of experimental research. Reproducibility creates trust. Trust in a product or platform. Trust in experimental results.
 
-I have been iterating on a platform that allows me to encapsulate model analysis into three separate concerns: **training** - which generates static checkpoint files, **analyzers** - which convert checkpoint files into analysis artifacts, and **views** - which transform analysis artifacts into visualizations.
+While Jupyter Notebooks are incredibly powerful for exploratory analysis or ad hoc research, I found the use of them for deeper research to be a bit nerve wrecking. Often, core aspects of model analysis are mingled throughout a notebook. A model is defined and trained in a few cells. Computations are run against training data in other cells. And finally, visualizations are crafted in still others. If I wanted to make a change to the way the data was analyzed, I risked breaking every visualization that relied on that data. If I wanted to change model inputs - for example, changing the base prime number for the Modulo Addition model - I risked breaking every cell in the notebook. If I wanted to be able to see the same visualization on a different model, I might need to copy and paste code into another cell or notebook and test to make sure I hadn't introduced errors.
 
-Within each concern, an act is performed once using centralized, testable, and encapsulated code. A model checkpoint is exported once using a shared class for all models that share the same architecture. Analysis artifacts are generated using Analyzer classes that are designed to run on model checkpoints agnostically. And visualizations are defined once in code available immediately across all models. In addition to supporting reproducibility, the run-once paradigm allows me to leverage longer running analysis functions such as PCA, since all of the cost is paid once upfront.
+ In short, a single variable change, a cell run out of order, or even visualizations created based on the wrong dataset could create inaccurate interpretations of the subject I was studying. In software engineering, we learn to minimize and encapsulate these touch-points so that our solutions run reliably. Repeatably.
 
-Another side effect of keeping each of these concerns separate is that it allows me to evolve them independently. If I decide that a model would benefit from more training time, all I need to do is re-run training with a new checkpoint schedule and re-run the analysis on the newly created checkpoints. If I want to add another visualization that uses an existing analysis artifact, I do not need to re-run any training or analysis artifact generation. And if I want to add a legend to an existing visualization or add support for an epoch-cursor, that change is made in one place with no need to re-run training or analysis.
+In my research, I want to be able to study models as they evolve over training, not their final output. This means that I need to be able to analyze variations of a single model architecture, or Variants, across multiple checkpoints captured during training, sometimes over one hundred per Variant. And in order to compare analysis across checkpoints and across variations, I would need my data and visualizations to be as consistent as possible. There was no way I was going to feel confident in my results by running experiments in notebooks. I needed something more stable. More reliably reproducible. 
+
+To solve this problem, I needed to be able to lock down three things: training, analysis, and visualization. My approach for supporting re-use in training and analysis was to generate static outputs on disk wherever possible in a run-once, re-use repeatably paradigm. During training, checkpoints and training metadata are stored in safetensor files and json files respectively. During analysis, tensors, arrays, and summary data are exported to npz files and json files. From a reproducibility standpoint, this means that I can add new analysis functions that are guaranteed to run against the same underlying checkpoint data. I can also create visualizations that leverage the same underlying analysis data.
+
+For visualizations, I opted for use of the Plotly library across all visualizations. Using Plotly, I am able to create views on the analysis data that generate standard `figure` objects that can be rendered in notebooks, in a web front-end, or exported to disk. The same visualizations I use to analyze models can then be re-used in write-ups about them. If I want to add a legend to an existing visualization or add support for an epoch-cursor, that change is made in one place with no need to re-run training or analysis.
+
+Two unintended benefits of this approach have been the ability to take on longer running analysis functions, such as PCA, and a more exploratory attitude towards trying different analysis approaches. Instead of being concerned with re-running a notebook that recomputes PCA against all weight matrices across multiple checkpoints in a model, I simply kick off a process once, capture the results in static files, and subsequent loads of the data are essentially free. Instead of trying to figure out whether a particular analysis frame might be useful or worth the effort, I am able to fairly easily add analysis and visualizations to the pipeline first and then see if they produce meaningful results. Because visualizations and artifacts are stable, I find that it's much easier to return to a set of originally uninspiring analysis and view it within the context of new findings.
+
+<VariantViewer
+  variants={[
+    {
+      label: "p=113 / seed=999 / ds=598",
+      figures: [{ file: "pca_3d_p113_s999_ds598.html", height: 620 }],
+    },
+    {
+      label: "p=109 / seed=485 / ds=598",
+      figures: [{ file: "pca_3d_p109_s485_ds598.html", height: 620 }],
+    },
+    {
+      label: "p=101 / seed=999 / ds=598",
+      figures: [{ file: "pca_3d_p101_s999_ds598.html", height: 620 }],
+    },
+  ]}
+  caption="Parameter trajectory through PCA space — all weight groups (embedding, attention, MLP) projected onto the first three principal components. The trajectory traces the path taken during training; color encodes epoch. Select a variant above to compare."
+/>
 
 This three-stage pipeline, from training to analysis to visualization, allows me to spend more time interpreting the analysis rather than worrying about whether inconsistencies have crept in. When I encounter surprising or unexpected results in the visualizations, they are more likely to be real results. And those surprises give me more leads to follow into deeper analysis of how models learn.
 

@@ -762,9 +762,9 @@ def _register_all() -> None:
             render_multi_stream_specialization,
         )
 
-        threshold_mlp = kwargs.pop("threshold_mlp", 0.5)
-        threshold_embedding = kwargs.pop("threshold_embedding", 0.5)
-        attn_floor = kwargs.pop("attn_floor", 0.02)
+        threshold_mlp = kwargs.pop("threshold_mlp", 0.7)
+        threshold_embedding = kwargs.pop("threshold_embedding", 0.2)
+        attn_floor = kwargs.pop("attn_floor", 0.07)
         return render_multi_stream_specialization(
             data,
             epoch,

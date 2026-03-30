@@ -111,9 +111,9 @@ def _compute_embedding_dim_counts(
 def render_multi_stream_specialization(
     data: dict,
     epoch: int | None,
-    threshold_mlp: float = 0.5,
-    threshold_embedding: float = 0.5,
-    attn_floor: float = 0.02,
+    threshold_mlp: float = 0.7,
+    threshold_embedding: float = 0.2,
+    attn_floor: float = 0.07,
     title: str | None = None,
     height: int = 1400,
     width: int = 950,
