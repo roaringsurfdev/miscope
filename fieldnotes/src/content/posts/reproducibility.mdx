@@ -17,7 +17,7 @@ To solve this problem, I needed to be able to lock down three things: training, 
 
 For visualizations, I've adopted Plotly for the core visualization library so that all visualizations are consistent in look, feel, and interactivity. By leveraging Plotly's standard figure objects, I am able to re-use the same views in notebooks, in web front-ends, or exported to disk. Changes made to individual visualizations have no impact on the underlying data.
 
-The following 4 panel visualization was created using this platform. In the top 3 panels, the appropriate frequency basis for each prime is projected onto MLP, Attention, and Embedding weight matrices to compute the frequency fraction explained for each. This combined view was inspired by patterns I was seeing across multiple models in frequency specialization leading into second descent. The effective dimensionality view at the bottom was added so that I could line up events in frequency specialization with changes in dimensionality.
+The following 4 panel visualization was created using this platform. In the top 3 panels, the Fourier basis for each prime is used to measure how much of each weight stream's variance each frequency explains. The top three panels show, respectively, how many MLP neurons, how strongly attention heads, and how many embedding dimensions are committed to each frequency as training progresses. This combined view was inspired by patterns I was seeing across multiple models in frequency specialization leading into second descent. The effective dimensionality panel at the bottom was added so that I could line up events in frequency specialization with changes in dimensionality.
 
 <VariantViewer
   variants={[
@@ -37,7 +37,7 @@ The following 4 panel visualization was created using this platform. In the top 
   caption="Multi-stream frequency specialization across training. Each panel tracks a different weight stream — MLP neurons, attention heads, embedding dimensions, and effective dimensionality. Select a variant above to compare."
 />
 
-One major unintended benefit to this approach is that I don't have to be stingy with analysis - at least not with small toy models. Analysis functions that might take a long time to compute, such as PCA analysis across all checkpoints and weight matrices, runs once. All subsequent loads of that PCA data are instant. As I build up a collection of visualizations that seem most impactful, I can exercise more discrimination on larger models in the future.
+One major unintended benefit to this approach is that I don't have to be stingy with analysis - at least not with small toy models. Analysis functions that might take a long time to compute, such as PCA analysis across all checkpoints and weight matrices, run once. All subsequent loads of that PCA data are instant. As I build up a collection of visualizations that seem most impactful, I can exercise more discrimination on larger models in the future.
 
 <VariantViewer
   variants={[
