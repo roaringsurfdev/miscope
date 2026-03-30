@@ -5,7 +5,25 @@ description: "Designing for reproducibility in a mechanistic interpretability re
 tags: ["infrastructure", "methodology", "research goals"]
 ---
 
-[Insert the Multi-Stream View for p113, seed=999, data_seed=598. If possible, it would be great if the dynamic epoch cursor were supported in the web-page, though this isn't necessary at this time. Another stretch goal would be to show 3 example Variants so that the reader can develop a feel for how reproducibility helps interpretability. Given the fact that the Multi-Stream view already has multiple sub-plots, I think it might be more helpful to be able to allow the reader to click on a specific variant to see that variant's visualization instead of stacking each visualization in rows.]
+import VariantViewer from '../../components/VariantViewer.astro';
+
+<VariantViewer
+  variants={[
+    {
+      label: "p=113 / seed=999 / ds=598",
+      figures: [{ file: "multistream_p113_s999_ds598.html", height: 1350 }],
+    },
+    {
+      label: "p=109 / seed=485 / ds=598",
+      figures: [{ file: "multistream_p109_s485_ds598.html", height: 1350 }],
+    },
+    {
+      label: "p=101 / seed=999 / ds=598",
+      figures: [{ file: "multistream_p101_s999_ds598.html", height: 1350 }],
+    },
+  ]}
+  caption="Multi-stream frequency specialization across training. Each panel tracks a different weight stream — MLP neurons, attention heads, embedding dimensions, and effective dimensionality. Select a variant above to compare."
+/>
 
 As a software engineer, I have spent my career thinking about the design of stable systems, and one of the most fundamental features of a stable system is reproducibility across environments. Reproducibility is also a core value of experimental research. Reproducibility creates trust. Trust in a product or platform. Trust in experimental results.
 
@@ -21,7 +39,23 @@ For visualizations, I opted for use of the Plotly library across all visualizati
 
 Two unintended benefits of this approach have been the ability to take on longer running analysis functions, such as PCA, and a more exploratory attitude towards trying different analysis approaches. Instead of being concerned with re-running a notebook that recomputes PCA against all weight matrices across multiple checkpoints in a model, I simply kick off a process once, capture the results in static files, and subsequent loads of the data are essentially free. Instead of trying to figure out whether a particular analysis frame might be useful or worth the effort, I am able to fairly easily add analysis and visualizations to the pipeline first and then see if they produce meaningful results. Because visualizations and artifacts are stable, I find that it's much easier to return to a set of originally uninspiring analysis and view it within the context of new findings.
 
-[Insert 4 panel plot of PCA trajectory for p113, s999, s598 here. If it's possible to show three examples of the Multi-Stream view above, I'd like to use the same approach here.]
+<VariantViewer
+  variants={[
+    {
+      label: "p=113 / seed=999 / ds=598",
+      figures: [{ file: "pca_3d_p113_s999_ds598.html", height: 620 }],
+    },
+    {
+      label: "p=109 / seed=485 / ds=598",
+      figures: [{ file: "pca_3d_p109_s485_ds598.html", height: 620 }],
+    },
+    {
+      label: "p=101 / seed=999 / ds=598",
+      figures: [{ file: "pca_3d_p101_s999_ds598.html", height: 620 }],
+    },
+  ]}
+  caption="Parameter trajectory through PCA space — all weight groups (embedding, attention, MLP) projected onto the first three principal components. The trajectory traces the path taken during training; color encodes epoch. Select a variant above to compare."
+/>
 
 This three-stage pipeline, from training to analysis to visualization, allows me to spend more time interpreting the analysis rather than worrying about whether inconsistencies have crept in. When I encounter surprising or unexpected results in the visualizations, they are more likely to be real results. And those surprises give me more leads to follow into deeper analysis of how models learn.
 
