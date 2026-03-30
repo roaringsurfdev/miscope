@@ -1,0 +1,45 @@
+## Model Family
+
+A model architecture and training setup treated as a class of experiments. A family defines the structure (number of layers, attention heads, MLP width), the task, and the set of parameters that vary across runs. The Modulo Addition family, for example, trains a one-layer transformer to compute `(a + b) mod p` for a fixed prime `p`.
+
+Families are *context providers* — they supply the probe construction and interpretive frame for analysis. They do not own analytical views, which are universal instruments that apply to any transformer.
+
+## Variant
+
+A specific instantiation of a Model Family, defined by its variable parameters. For the Modulo Addition family, the key variables are the prime `p`, the model initialization seed, and the data seed. Two runs with different primes or different seeds are distinct Variants.
+
+Variants are the unit of comparison in MIScope. All artifacts, checkpoints, and analyses are stored and indexed per-Variant.
+
+## Analyzer
+
+A component that runs against a trained model's checkpoints to produce artifacts — numerical summaries of some aspect of model structure or behavior at each training epoch. Examples include the Fourier frequency analyzer (which tracks which frequencies the model is using) and the parameter snapshot analyzer (which records weight matrices).
+
+Analyzers are registered with the analysis pipeline and run in sequence. Their outputs are stored as `.npz` files under `artifacts/` within each Variant's results directory.
+
+## Artifact
+
+The output of an Analyzer — a file containing numerical data about the model at one or more training epochs. Per-epoch artifacts capture a snapshot at a single checkpoint; cross-epoch artifacts aggregate across the full training run.
+
+Artifacts are the primary data source for all views and visualizations in MIScope.
+
+## Grokking
+
+A training phenomenon where a model first memorizes the training data (achieving low training loss but high test loss), then after a prolonged plateau, suddenly generalizes (test loss drops sharply). Named and characterized in the mechanistic interpretability literature.
+
+In the Modulo Addition setting, grokking corresponds to the model transitioning from memorization to learning a Fourier-based algorithm for modular arithmetic.
+
+## Late-Grokker
+
+A Variant that reaches the second descent significantly later than typical for its family. "Late" is defined relative to the distribution of grokking epochs across all Variants in the family — not an absolute epoch count. Late-grokkers often show distinct frequency competition dynamics during the plateau phase.
+
+## First Mover
+
+A frequency that establishes strong representation in the model early in training — before the cascade window — and that survives into the final learned solution. First movers tend to anchor the frequency portfolio around which other frequencies organize.
+
+## Thrasher Model
+
+A Variant characterized by unstable frequency competition during training: frequencies are acquired and then abandoned repeatedly before the model settles on a final solution. Thrashers typically have longer plateaus and may be Late-Grokkers. The name reflects the back-and-forth switching visible in neuron frequency trajectory plots.
+
+## Data Seed
+
+The random seed used to generate the train/test split for a Variant's training data. Distinct from the model initialization seed. The data seed determines which `(a, b)` pairs the model sees during training versus evaluation. Different data seeds for the same prime and model seed can produce meaningfully different training dynamics.

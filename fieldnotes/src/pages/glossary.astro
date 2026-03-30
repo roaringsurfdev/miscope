@@ -1,0 +1,39 @@
+---
+import { render } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import { glob } from 'astro/loaders';
+import { defineCollection, z } from 'astro:content';
+
+// Load glossary MDX directly
+const glossaryFile = await import('../content/glossary.mdx');
+const { Content } = glossaryFile;
+---
+
+<Base title="Glossary" description="Domain terms used across MIScope Fieldnotes.">
+  <div class="post-header">
+    <h1>Glossary</h1>
+    <p style="font-family: var(--font-ui); font-size: 0.9rem; color: var(--color-text-secondary); margin: 0;">
+      Domain terms used across MIScope Fieldnotes. Updated as new concepts are introduced.
+    </p>
+  </div>
+
+  <div class="glossary-content">
+    <Content />
+  </div>
+</Base>
+
+<style>
+  .glossary-content :global(h2) {
+    font-size: 1.05rem;
+    margin-top: 2rem;
+    margin-bottom: 0.4rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .glossary-content :global(p) {
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 0;
+  }
+</style>
