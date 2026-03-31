@@ -23,6 +23,7 @@ from dashboard.pages.neuron_group import register_neuron_group_page_callbacks
 from dashboard.pages.peer_comparison import register_peer_comparison_page_callbacks
 from dashboard.pages.repr_geometry import register_repr_geometry_page_callbacks
 from dashboard.pages.summary import register_summary_page_callbacks
+from dashboard.pages.checkpoint_schedule import register_checkpoint_schedule_page_callbacks
 from dashboard.pages.training import register_training_page_callbacks
 from dashboard.pages.variant_table import register_variant_table_page_callbacks
 from dashboard.pages.visualization import register_visualization_page_callbacks
@@ -55,6 +56,7 @@ def create_app() -> Dash:
     register_loss_landscape_page_callbacks(app)
     register_multistream_page_callbacks(app)
     register_peer_comparison_page_callbacks(app)
+    register_checkpoint_schedule_page_callbacks(app)
     register_training_page_callbacks(app)
     register_visualization_page_callbacks(app)
     register_intervention_check_callbacks(app)

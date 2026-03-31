@@ -1,6 +1,20 @@
 # REQ_015: Checkpoint Editor Using Train/Test Loss Curve
 
-**Status:** Future
+**Status:** CANCELLED — Superseded by REQ_083
+**Superseded by:** REQ_083 (Checkpoint Schedule Manager — Retrain Existing Variants)
+**Cancelled:** 2026-03-30
+
+## Why This Requirement Was Cancelled
+
+REQ_015 was written during the Gradio era and addressed a different problem: visually selecting which *existing* checkpoints to *analyze*. The real need that emerged is different — retraining a variant with a denser checkpoint schedule to capture fast reorganization events (e.g., second descent in grokking models) that sparse checkpointing misses entirely.
+
+REQ_083 supersedes this with the correct framing: a dedicated page for retraining existing variants with a visual range-based checkpoint schedule builder, integrated with the global variant selector to eliminate the error-prone manual parameter entry that motivated this requirement in the first place.
+
+This requirement should not be resurrected without first reviewing REQ_083.
+
+---
+
+**Original Status:** Future
 **Priority:** Medium
 **Estimated Effort:** High (potential mini-release)
 **Related:** REQ_014 (Click-to-Navigate)

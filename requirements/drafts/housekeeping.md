@@ -1,6 +1,9 @@
 ### Housekeeping tasks and requirements
 *This is a space for tracking tasks and requirements that help keep the codebase clean and healthy*
 
+## README.md and other project support documents are out of date.
+The new fieldnotes journal has a link to the github repo. As I continue to post and share to fieldnotes, there's increasing chance that traffic might flow to the repo. I'd like to make sure that README.md and DOMAIN_MODEL.md are up to date. I'd also like to make the demo notebooks more prominent so that they're easier to find for someone coming to the repo for the first time.
+
 ## Node20 deprecated
 Migrate CI Action(s) to use Node24
 
@@ -16,6 +19,5 @@ From GitHub:
 We are currently running into repeated failed CI Runs due to ruff and pyright failures. Before pushing to remote, we need to make sure ruff and pyright errors are cleared/addressed.
 
 ## Out-of-date requirements
-* REQ_014 has already been completed.
-* REQ_017 was exercised during work to run interventions (REQ_067-068). We are not currently using mutliple families (Interventions were moved to subclass status instead of separate Model Family), but the architecture supports this.
-* REQ_019 was implemented under the coarseness work in v0.2.1
+
+**REQ_015** (Checkpoint Editor Using Train/Test Loss Curve) — Cancelled 2026-03-30. Superseded by REQ_083. REQ_015 addressed analysis checkpoint *selection* for an already-trained model and was written against Gradio. The real problem is retraining with a denser schedule to capture events like second descent. Do not resurface REQ_015.
