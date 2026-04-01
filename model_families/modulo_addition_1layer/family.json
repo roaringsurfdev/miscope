@@ -3,7 +3,6 @@
   "display_name": "Modulo Addition (1 Layer)",
   "description": "Single-layer transformer trained on modular arithmetic. Based on Neel Nanda's grokking experiment.",
   "class_type": "miscope.families.implementations.modulo_addition_1layer.ModuloAddition1LayerFamily",
-
   "architecture": {
     "n_layers": 1,
     "n_heads": 4,
@@ -14,7 +13,6 @@
     "normalization_type": null,
     "n_ctx": 3
   },
-
   "domain_parameters": {
     "prime": {
       "type": "int",
@@ -32,7 +30,6 @@
       "default": 598
     }
   },
-
   "analyzers": [
     "attention_freq",
     "attention_patterns",
@@ -47,26 +44,23 @@
     "fourier_nucleation",
     "input_trace"
   ],
-
   "secondary_analyzers": [
     "neuron_fourier",
     "fourier_frequency_quality"
   ],
-
   "cross_epoch_analyzers": [
     "parameter_trajectory",
     "neuron_dynamics",
     "global_centroid_pca",
     "centroid_dmd",
     "input_trace_graduation",
-    "neuron_group_pca"
+    "neuron_group_pca",
+    "transient_frequency"
   ],
-
   "analysis_dataset": {
     "type": "modulo_addition_grid",
     "description": "Full (a, b) input grid for modular arithmetic"
   },
-
   "probes": {
     "probe": {
       "name": "modulo_addition_grid",
@@ -74,7 +68,6 @@
       "method": "get_default_probe"
     }
   },
-
   "variants": {
     "variant": {
       "name": "",
@@ -87,6 +80,5 @@
       "state": 0
     }
   },
-
   "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}_dseed{data_seed}"
 }

@@ -90,6 +90,47 @@ def extract_learned_frequencies(
     return learned, canonical_threshold
 
 
+def _extract_transient_fields(variant: Variant) -> dict[str, Any]:
+    """Return transient frequency summary fields from the transient_frequency artifact.
+
+    All fields are None when the artifact is absent.
+    """
+    result: dict[str, Any] = {
+        "transient_frequencies": None,
+        "transient_frequency_count": None,
+        "homeless_neuron_count": None,
+        "homeless_neuron_fraction": None,
+        "transient_detection_threshold": None,
+    }
+    try:
+        tf = variant.artifacts.load_cross_epoch("transient_frequency")
+    except FileNotFoundError:
+        return result
+
+    ever_qualified = tf["ever_qualified_freqs"]  # (n_transient,) 0-indexed
+    is_final = tf["is_final"]                    # (n_transient,) bool
+    homeless_count = tf["homeless_count"]         # (n_transient,) int32
+
+    transient_mask = ~is_final
+    transient_freqs = sorted(int(f) + 1 for f in ever_qualified[transient_mask])
+    total_homeless = int(homeless_count[transient_mask].sum())
+
+    # d_mlp from peak_members shape; fall back to None if unavailable
+    try:
+        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        d_mlp = nd["dominant_freq"].shape[1]
+        homeless_fraction = total_homeless / d_mlp if d_mlp > 0 else None
+    except FileNotFoundError:
+        homeless_fraction = None
+
+    result["transient_frequencies"] = transient_freqs
+    result["transient_frequency_count"] = len(transient_freqs)
+    result["homeless_neuron_count"] = total_homeless
+    result["homeless_neuron_fraction"] = homeless_fraction
+    result["transient_detection_threshold"] = float(tf["_transient_canonical_threshold"])
+    return result
+
+
 def _extract_max_resid_post_circularity(variant: Variant) -> float | None:
     """Return maximum resid_post circularity across all checkpoints, or None."""
     try:
@@ -205,6 +246,7 @@ def compute_variant_summary(
     )
 
     max_circularity = _extract_max_resid_post_circularity(variant)
+    transient = _extract_transient_fields(variant)
 
     prime = int(variant.model_config.get("prime", 0))
     model_seed = variant.model_config.get("seed")
@@ -233,6 +275,12 @@ def compute_variant_summary(
         "committed_frequencies_at_onset": handshake["committed_frequencies_at_onset"],
         "handshake_failures": handshake["handshake_failures"],
         "handshake_succeeded": handshake["handshake_succeeded"],
+        # Transient frequency analysis
+        "transient_frequencies": transient["transient_frequencies"],
+        "transient_frequency_count": transient["transient_frequency_count"],
+        "homeless_neuron_count": transient["homeless_neuron_count"],
+        "homeless_neuron_fraction": transient["homeless_neuron_fraction"],
+        "transient_detection_threshold": transient["transient_detection_threshold"],
         # Outcome metrics
         "failure_mode": base.get("failure_mode"),
         "max_resid_post_circularity": max_circularity,

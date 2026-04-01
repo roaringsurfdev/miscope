@@ -28,6 +28,7 @@ from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
 from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
 from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
+from miscope.analysis.analyzers.transient_frequency import TransientFrequencyAnalyzer
 from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
 
 # Cross-epoch Analyzers
@@ -59,4 +60,5 @@ __all__ = [
     "InputTraceAnalyzer",
     "InputTraceGraduationAnalyzer",
     "NeuronGroupPCAAnalyzer",
+    "TransientFrequencyAnalyzer",
 ]

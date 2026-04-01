@@ -1065,6 +1065,90 @@ def _register_all() -> None:
             )
         )
 
+    # --- Transient frequency views ---
+
+    def _load_transient(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("transient_frequency")
+
+    def _load_transient_with_win(variant: Variant, epoch: int | None) -> dict:
+        """Load transient artifact plus W_in for all snapshot epochs.
+
+        Loads W_in at every available snapshot epoch so that both peak_scatter
+        (needs only peak epoch) and pc1_cohesion (needs every epoch) can share
+        this loader.  The full set is typically 50-150 epochs — similar cost to
+        loading a cross-epoch parameter_snapshot artifact.
+        """
+        tf = variant.artifacts.load_cross_epoch("transient_frequency")
+        snap_epochs = variant.artifacts.get_epochs("parameter_snapshot")
+        w_in_by_epoch = {}
+        for ep in snap_epochs:
+            snap = variant.artifacts.load_epoch("parameter_snapshot", ep)
+            w_in_by_epoch[int(ep)] = snap["W_in"]
+        return {"transient": tf, "w_in_by_epoch": w_in_by_epoch}
+
+    def _render_transient_committed_counts(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        from miscope.visualization.renderers.transient_frequency import (
+            render_transient_committed_counts,
+        )
+
+        return render_transient_committed_counts(data, epoch, **kwargs)
+
+    def _render_transient_peak_scatter(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        from miscope.visualization.renderers.transient_frequency import (
+            render_transient_peak_scatter,
+        )
+
+        return render_transient_peak_scatter(data["transient"], data["w_in_by_epoch"], epoch, **kwargs)
+
+    def _render_transient_pc1_cohesion(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        from miscope.visualization.renderers.transient_frequency import (
+            render_transient_pc1_cohesion,
+        )
+
+        return render_transient_pc1_cohesion(data["transient"], data["w_in_by_epoch"], epoch, **kwargs)
+
+    _transient_req = [AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH)]
+    _transient_win_req = [
+        AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH),
+        AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
+    ]
+
+    _catalog.register(
+        ViewDefinition(
+            name="transient.committed_counts",
+            load_data=_load_transient,
+            renderer=_render_transient_committed_counts,
+            epoch_source_analyzer=None,
+            required_analyzers=_transient_req,
+        )
+    )
+
+    _catalog.register(
+        ViewDefinition(
+            name="transient.peak_scatter",
+            load_data=_load_transient_with_win,
+            renderer=_render_transient_peak_scatter,
+            epoch_source_analyzer=None,
+            required_analyzers=_transient_win_req,
+        )
+    )
+
+    _catalog.register(
+        ViewDefinition(
+            name="transient.pc1_cohesion",
+            load_data=_load_transient_with_win,
+            renderer=_render_transient_pc1_cohesion,
+            epoch_source_analyzer=None,
+            required_analyzers=_transient_win_req,
+        )
+    )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 
