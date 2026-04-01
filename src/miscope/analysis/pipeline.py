@@ -208,7 +208,11 @@ class AnalysisPipeline:
     def get_completed_epochs(self, analyzer_name: str) -> list[int]:
         """Return list of epochs with completed analysis for given analyzer.
 
-        Determines completion from file existence on disk.
+        Determines completion from file existence on disk.  For cross-epoch
+        analyzers that produce only cross_epoch.npz (no per-epoch files), the
+        available checkpoint epochs are returned when cross_epoch.npz exists,
+        so that downstream cross-epoch analyzers can treat the dependency as
+        satisfied.
 
         Args:
             analyzer_name: Name of the analyzer
@@ -228,7 +232,18 @@ class AnalysisPipeline:
                     epochs.append(int(epoch_str))
                 except ValueError:
                     continue
-        return sorted(epochs)
+
+        if epochs:
+            return sorted(epochs)
+
+        # No per-epoch files — check for a cross-epoch artifact.  If present,
+        # report the available checkpoint epochs so cross-epoch-to-cross-epoch
+        # dependencies are satisfied.
+        cross_epoch_path = os.path.join(analyzer_dir, "cross_epoch.npz")
+        if os.path.exists(cross_epoch_path):
+            return sorted(self.variant.get_available_checkpoints())
+
+        return []
 
     def _build_work_queue(
         self, target_epochs: list[int], force: bool

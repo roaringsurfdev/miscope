@@ -553,3 +553,55 @@ class TestPipelineSummaryStatistics:
         summary_path = os.path.join(pipeline.artifacts_dir, "summary_mock", "summary.npz")
         summary = dict(np.load(summary_path))
         np.testing.assert_array_equal(summary["epochs"], [0, 49])
+
+
+class TestGetCompletedEpochsCrossEpoch:
+    """get_completed_epochs recognizes cross-epoch artifacts as satisfying dependencies."""
+
+    def test_returns_empty_when_no_artifacts(self, trained_variant):
+        """Returns empty list when analyzer directory is absent."""
+        pipeline = AnalysisPipeline(trained_variant)
+        result = pipeline.get_completed_epochs("nonexistent_analyzer")
+        assert result == []
+
+    def test_returns_per_epoch_files_when_present(self, trained_variant):
+        """Returns epoch numbers from epoch_NNNNN.npz files as before."""
+        pipeline = AnalysisPipeline(trained_variant)
+        pipeline.register(MockAnalyzer("epoch_test"))
+        pipeline.run()
+        completed = pipeline.get_completed_epochs("epoch_test")
+        assert len(completed) > 0
+        assert all(isinstance(e, int) for e in completed)
+
+    def test_cross_epoch_artifact_satisfies_dependency(self, trained_variant):
+        """When only cross_epoch.npz exists, returns available checkpoint epochs."""
+        pipeline = AnalysisPipeline(trained_variant)
+
+        # Manually write a cross_epoch.npz with no per-epoch files
+        cross_only_dir = os.path.join(pipeline.artifacts_dir, "cross_only_analyzer")
+        os.makedirs(cross_only_dir, exist_ok=True)
+        np.savez_compressed(
+            os.path.join(cross_only_dir, "cross_epoch.npz"),
+            data=np.array([1.0]),
+        )
+
+        result = pipeline.get_completed_epochs("cross_only_analyzer")
+        expected = sorted(trained_variant.get_available_checkpoints())
+        assert result == expected
+
+    def test_per_epoch_takes_precedence_over_cross_epoch(self, trained_variant):
+        """When both per-epoch and cross_epoch files exist, per-epoch files win."""
+        pipeline = AnalysisPipeline(trained_variant)
+        pipeline.register(MockAnalyzer("mixed_analyzer"))
+        pipeline.run()
+
+        mixed_dir = os.path.join(pipeline.artifacts_dir, "mixed_analyzer")
+        np.savez_compressed(
+            os.path.join(mixed_dir, "cross_epoch.npz"),
+            data=np.array([1.0]),
+        )
+
+        # Should still return just the per-epoch files, not all checkpoints
+        result = pipeline.get_completed_epochs("mixed_analyzer")
+        expected = sorted(trained_variant.get_available_checkpoints())
+        assert result == expected
