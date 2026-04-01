@@ -23,6 +23,7 @@ _PAGE_CONTENT_STYLE = {
     "padding": "20px",
     "overflowY": "auto",
     "height": "100vh",
+    "padding-bottom": "50px",
 }
 
 _FLEX_WRAPPER_STYLE = {
