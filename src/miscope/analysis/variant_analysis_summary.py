@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,6 +27,48 @@ _EARLY_SECOND_DESCENT_EPOCH: int = 9000
 _LATE_SECOND_DESCENT_EPOCH: int = 12000
 _SUCCESSFUL_TEST_LOSS_THRESHOLD: float = 1.0e-5
 _REBOUND_TEST_LOSS_THRESHOLD: float = 0.2
+
+# Fraction of d_mlp neurons specialized to a frequency for it to be "learned".
+_CANONICAL_SPECIALIZATION_THRESHOLD: float = 0.10
+
+
+def _classify_frequency_band(freq: int, prime: int) -> str:
+    """Classify a 1-indexed frequency into low / mid / high band relative to prime."""
+    if freq <= prime // 4:
+        return "low"
+    if freq > 3 * prime // 8:
+        return "high"
+    return "mid"
+
+
+def build_variant_registry(results_dir: Path | str, family_name: str) -> Path:
+    """Aggregate all existing variant_summary.json files into variant_registry.json.
+
+    Scans all subdirectories of results_dir/family_name for variant_summary.json
+    files and assembles them into a single registry array, adding a variant_id
+    field ("{prime}_{model_seed}_{data_seed}") to each entry.
+
+    Args:
+        results_dir: Root results directory.
+        family_name: Name of the model family subdirectory.
+
+    Returns:
+        Path to the written variant_registry.json file.
+    """
+    family_dir = Path(results_dir) / family_name
+    registry: list[dict[str, Any]] = []
+
+    for summary_path in sorted(family_dir.glob("*/variant_summary.json")):
+        entry = json.loads(summary_path.read_text())
+        prime = entry.get("prime", "?")
+        model_seed = entry.get("model_seed", "?")
+        data_seed = entry.get("data_seed", "?")
+        entry["variant_id"] = f"{prime}_{model_seed}_{data_seed}"
+        registry.append(entry)
+
+    output_path = family_dir / "variant_registry.json"
+    output_path.write_text(json.dumps(registry, indent=2))
+    return output_path
 
 
 @dataclass
@@ -301,6 +344,12 @@ class VariantAnalysisSummary:
                 second_descent_onset_epoch = i
                 break
 
+        second_descent_survived = (
+            test_loss_final <= _SUCCESSFUL_TEST_LOSS_THRESHOLD
+            if second_descent_onset_epoch is not None
+            else None
+        )
+
         # store metrics
         self.summary_data["train_loss_min"] = train_loss_min
         self.summary_data["train_loss_min_epoch"] = train_loss_min_epoch
@@ -310,9 +359,12 @@ class VariantAnalysisSummary:
         self.summary_data["test_loss_min_epoch"] = test_loss_min_epoch
         self.summary_data["test_loss_max"] = test_loss_max
         self.summary_data["test_loss_max_epoch"] = test_loss_max_epoch
+        self.summary_data["peak_test_loss_epoch"] = test_loss_max_epoch  # alias
         self.summary_data["test_loss_threshold_first_epoch"] = test_loss_threshold_first_epoch
         self.summary_data["test_loss_final"] = test_loss_final
+        self.summary_data["final_test_loss"] = test_loss_final  # alias
         self.summary_data["second_descent_onset_epoch"] = second_descent_onset_epoch
+        self.summary_data["second_descent_survived"] = second_descent_survived
 
     def _load_neuron_threshold_key_epochs(self) -> None:
         if not self.analysis_data.neurons_loaded:
@@ -663,11 +715,166 @@ class VariantAnalysisSummary:
             float(max(circularity)) if circularity else None
         )
 
+    def _load_learned_frequencies(self) -> None:
+        """Populate learned_frequencies and related fields from neuron_dynamics."""
+        try:
+            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
+        except FileNotFoundError:
+            self.summary_data["learned_frequencies"] = None
+            self.summary_data["learned_frequency_count"] = None
+            self.summary_data["canonical_specialization_threshold"] = _CANONICAL_SPECIALIZATION_THRESHOLD
+            return
+
+        dominant_freq = nd["dominant_freq"]
+        max_frac = nd["max_frac"]
+        d_mlp = dominant_freq.shape[1]
+        threshold_count = _CANONICAL_SPECIALIZATION_THRESHOLD * d_mlp
+        specialized_final = max_frac[-1] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
+
+        freq_counts: dict[int, int] = {}
+        for i in range(d_mlp):
+            if specialized_final[i]:
+                freq = int(dominant_freq[-1, i]) + 1  # 0-indexed → 1-indexed
+                freq_counts[freq] = freq_counts.get(freq, 0) + 1
+
+        learned = sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)
+        self.summary_data["learned_frequencies"] = learned
+        self.summary_data["learned_frequency_count"] = len(learned)
+        self.summary_data["canonical_specialization_threshold"] = _CANONICAL_SPECIALIZATION_THRESHOLD
+
+    def _load_handshake_metrics(self) -> None:
+        """Populate committed_frequencies_at_onset and handshake failure fields."""
+        onset_epoch = self.summary_data.get("second_descent_onset_epoch")
+        learned = self.summary_data.get("learned_frequencies")
+
+        if onset_epoch is None or learned is None:
+            self.summary_data["committed_frequencies_at_onset"] = None
+            self.summary_data["handshake_failures"] = None
+            self.summary_data["handshake_succeeded"] = None
+            return
+
+        try:
+            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
+        except FileNotFoundError:
+            self.summary_data["committed_frequencies_at_onset"] = None
+            self.summary_data["handshake_failures"] = None
+            self.summary_data["handshake_succeeded"] = None
+            return
+
+        dominant_freq = nd["dominant_freq"]
+        max_frac = nd["max_frac"]
+        epochs = nd["epochs"]
+        d_mlp = dominant_freq.shape[1]
+        threshold_count = _CANONICAL_SPECIALIZATION_THRESHOLD * d_mlp
+
+        epoch_idx = min(int(np.searchsorted(epochs, onset_epoch)), len(epochs) - 1)
+        specialized_mask = max_frac[epoch_idx] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
+
+        freq_counts: dict[int, int] = {}
+        for i in range(d_mlp):
+            if specialized_mask[i]:
+                freq = int(dominant_freq[epoch_idx, i]) + 1
+                freq_counts[freq] = freq_counts.get(freq, 0) + 1
+
+        committed = sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)
+        failures = [f for f in committed if f not in set(learned)]
+        self.summary_data["committed_frequencies_at_onset"] = committed
+        self.summary_data["handshake_failures"] = failures
+        self.summary_data["handshake_succeeded"] = len(failures) == 0
+
+    def _load_descent_onset_portfolio(self) -> None:
+        """Populate second_descent_onset frequency portfolio fields."""
+        onset_epoch = self.summary_data.get("second_descent_onset_epoch")
+        prime = self.summary_data.get("prime", 0)
+
+        if onset_epoch is None:
+            self.summary_data["second_descent_onset_committed_frequencies"] = None
+            self.summary_data["second_descent_onset_frequency_bands"] = None
+            self.summary_data["second_descent_onset_has_low_band"] = None
+            self.summary_data["second_descent_onset_band_count"] = None
+            return
+
+        try:
+            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
+        except FileNotFoundError:
+            self.summary_data["second_descent_onset_committed_frequencies"] = None
+            self.summary_data["second_descent_onset_frequency_bands"] = None
+            self.summary_data["second_descent_onset_has_low_band"] = None
+            self.summary_data["second_descent_onset_band_count"] = None
+            return
+
+        epochs = nd["epochs"]
+        dominant_freq = nd["dominant_freq"]
+        max_frac = nd["max_frac"]
+        epoch_idx = min(int(np.searchsorted(epochs, onset_epoch)), len(epochs) - 1)
+
+        committed_mask = max_frac[epoch_idx] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
+        active_freqs = sorted(set(int(f) + 1 for f in dominant_freq[epoch_idx][committed_mask]))
+        bands = [_classify_frequency_band(f, prime) for f in active_freqs]
+
+        self.summary_data["second_descent_onset_committed_frequencies"] = active_freqs
+        self.summary_data["second_descent_onset_frequency_bands"] = bands
+        self.summary_data["second_descent_onset_has_low_band"] = "low" in bands
+        self.summary_data["second_descent_onset_band_count"] = len(set(bands))
+
+    def _load_transient_metrics(self) -> None:
+        """Populate transient frequency fields from transient_frequency artifact."""
+        try:
+            tf = self.variant.artifacts.load_cross_epoch("transient_frequency")
+        except FileNotFoundError:
+            self.summary_data["transient_frequencies"] = None
+            self.summary_data["transient_frequency_count"] = None
+            self.summary_data["homeless_neuron_count"] = None
+            self.summary_data["homeless_neuron_fraction"] = None
+            self.summary_data["transient_detection_threshold"] = None
+            return
+
+        ever_qualified = tf["ever_qualified_freqs"]
+        is_final = tf["is_final"]
+        homeless_count = tf["homeless_count"]
+        transient_mask = ~is_final
+        transient_freqs = sorted(int(f) + 1 for f in ever_qualified[transient_mask])
+        total_homeless = int(homeless_count[transient_mask].sum())
+
+        try:
+            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
+            d_mlp = nd["dominant_freq"].shape[1]
+            homeless_fraction = total_homeless / d_mlp if d_mlp > 0 else None
+        except FileNotFoundError:
+            homeless_fraction = None
+
+        self.summary_data["transient_frequencies"] = transient_freqs
+        self.summary_data["transient_frequency_count"] = len(transient_freqs)
+        self.summary_data["homeless_neuron_count"] = total_homeless
+        self.summary_data["homeless_neuron_fraction"] = homeless_fraction
+        self.summary_data["transient_detection_threshold"] = float(tf["_transient_canonical_threshold"])
+
+    def _load_failure_mode(self) -> None:
+        """Populate failure_mode and failure_mode_reasons using cross_variant classifier."""
+        from miscope.views.cross_variant import ClassificationRules, classify_failure_mode
+
+        rules = ClassificationRules()
+        onset = self.summary_data.get("second_descent_onset_epoch")
+        final_loss = self.summary_data.get("test_loss_final")
+
+        cv_metrics = {
+            "second_descent_onset_epoch": onset,
+            "final_test_loss": final_loss,
+            "post_descent_test_loss_increase": self.summary_data.get(
+                "post_descent_test_loss_increase"
+            ),
+            "frequency_band_count": None,
+        }
+        failure_mode, reasons = classify_failure_mode(cv_metrics, rules)
+        self.summary_data["failure_mode"] = failure_mode
+        self.summary_data["failure_mode_reasons"] = reasons
+
     def _load_metrics(self) -> None:
         self.summary_data["prime"] = self.variant.params["prime"]
         self.summary_data["model_seed"] = self.variant.params["seed"]
         self.summary_data["data_seed"] = self.variant.params["data_seed"]
         self.summary_data["family"] = self.variant.family.name
+        self.summary_data["computed_at"] = datetime.now(UTC).isoformat()
         self._load_train_test_loss_metrics()
         self._load_neuron_threshold_key_epochs()
         self._load_effective_dimensionality_key_epochs()
@@ -678,6 +885,11 @@ class VariantAnalysisSummary:
         self._load_window_metrics("cascade")
         self._load_window_metrics("final")
         self._load_competition_and_geometry_summary_metrics()
+        self._load_learned_frequencies()
+        self._load_handshake_metrics()
+        self._load_descent_onset_portfolio()
+        self._load_transient_metrics()
+        self._load_failure_mode()
         self.summary_data["performance_classification"] = (
             self._get_variant_preformance_classification()
         )

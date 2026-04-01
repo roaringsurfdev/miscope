@@ -27,6 +27,7 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem("Loss Landscape", href="/loss-landscape"),
                     dbc.DropdownMenuItem("Input Trace", href="/input-trace"),
                     dbc.DropdownMenuItem("Neuron Groups", href="/neuron-group"),
+                    dbc.DropdownMenuItem("Transient Frequencies", href="/transient-frequencies"),
                 ],
                 nav=True,
                 in_navbar=True,
@@ -121,6 +122,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_training_page_layout,
         create_training_page_nav,
     )
+    from dashboard.pages.transient_frequency import (
+        create_transient_page_layout,
+        create_transient_page_nav,
+    )
     from dashboard.pages.variant_table import (
         create_variant_table_page_layout,
         create_variant_table_page_nav,
@@ -179,6 +184,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [create_neuron_group_page_nav(app), create_neuron_group_page_layout(app)]
         elif pathname == "/variant-table":
             return [create_variant_table_page_nav(app), create_variant_table_page_layout(app)]
+        elif pathname == "/transient-frequencies":
+            return [create_transient_page_nav(app), create_transient_page_layout(app)]
         else:
             # Multistream is now the default page.
             return [create_multistream_page_nav(app), create_multistream_page_layout(app)]

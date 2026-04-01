@@ -1,27 +1,15 @@
-"""REQ_074: Variant Outcome Registry.
+"""DEPRECATED: Variant Outcome Registry (REQ_074).
 
-Computes a per-variant summary JSON and aggregates them into a family-level
-variant_registry.json.  All heavy lifting (second descent detection, failure
-mode classification) delegates to cross_variant.compute_variant_metrics so
-logic stays in one place.
+This module is superseded by VariantAnalysisSummary in variant_analysis_summary.py.
+Do not add new logic here.  build_variant_registry is re-exported from the new
+module for backward compatibility.  The write functions below will be removed once
+all callers are updated.
 
-Public API:
-    CANONICAL_SPECIALIZATION_THRESHOLD: float  -- fraction of d_mlp neurons per frequency
-    NEURON_SPECIALIZATION_THRESHOLD: float     -- per-neuron max_frac to be "specialized"
-    extract_learned_frequencies(variant, canonical_threshold) -> (list[int], float) | (None, None)
-    compute_variant_summary(variant, canonical_threshold, rules) -> dict
-    write_variant_summary(variant, canonical_threshold, rules) -> Path
-    build_variant_registry(results_dir, family_name) -> Path
-
-Two distinct thresholds:
-- NEURON_SPECIALIZATION_THRESHOLD (0.75): per-neuron quality gate — max_frac must exceed
-  this for a neuron to count as "genuinely specialized" to its dominant frequency.
-  Matches the threshold used by cross_variant._compute_first_mover_metrics.
-- CANONICAL_SPECIALIZATION_THRESHOLD (0.10): frequency-level gate — what fraction of
-  d_mlp neurons must be specialized to that frequency for it to be "learned".
-
-dominant_freq stores np.argmax results (0-indexed).  All public frequency values are
-converted to 1-indexed by adding 1 before reporting.
+Previously public API (use variant_analysis_summary.py instead):
+    build_variant_registry(results_dir, family_name) -> Path  [re-exported]
+    write_variant_summary   -- DEPRECATED, use VariantAnalysisSummary.analyze()
+    compute_variant_summary -- DEPRECATED
+    extract_learned_frequencies -- DEPRECATED
 """
 
 from __future__ import annotations
@@ -316,35 +304,6 @@ def write_variant_summary(
     return output_path
 
 
-def build_variant_registry(results_dir: Path | str, family_name: str) -> Path:
-    """Aggregate all existing variant_summary.json files into variant_registry.json.
-
-    Scans all subdirectories of results_dir/family_name for variant_summary.json
-    files and assembles them into a single registry array, adding a variant_id
-    field ("{prime}_{model_seed}_{data_seed}") to each entry.
-
-    Reads from already-written summaries only — does not re-run any artifact
-    analysis.  If a variant's summary is updated, re-running this call refreshes
-    its entry while leaving other entries unchanged.
-
-    Args:
-        results_dir: Root results directory.
-        family_name: Name of the model family subdirectory.
-
-    Returns:
-        Path to the written variant_registry.json file.
-    """
-    family_dir = Path(results_dir) / family_name
-    registry: list[dict[str, Any]] = []
-
-    for summary_path in sorted(family_dir.glob("*/variant_summary.json")):
-        entry = json.loads(summary_path.read_text())
-        prime = entry.get("prime", "?")
-        model_seed = entry.get("model_seed", "?")
-        data_seed = entry.get("data_seed", "?")
-        entry["variant_id"] = f"{prime}_{model_seed}_{data_seed}"
-        registry.append(entry)
-
-    output_path = family_dir / "variant_registry.json"
-    output_path.write_text(json.dumps(registry, indent=2))
-    return output_path
+from miscope.analysis.variant_analysis_summary import (  # noqa: E402
+    build_variant_registry as build_variant_registry,
+)

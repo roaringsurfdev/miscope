@@ -1,4 +1,4 @@
-"""Tests for REQ_074: Variant Outcome Registry."""
+"""Tests for REQ_074: Variant Outcome Registry and VariantAnalysisSummary migration."""
 
 from __future__ import annotations
 
@@ -9,6 +9,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
+from miscope.analysis.variant_analysis_summary import build_variant_registry as build_registry_new
 from miscope.analysis.variant_summary import (
     build_variant_registry,
     compute_variant_summary,
@@ -346,3 +348,145 @@ def test_build_variant_registry_one_entry_per_variant(tmp_path):
     variant_ids = {e["variant_id"] for e in registry}
     assert "113_485_598" in variant_ids
     assert "113_999_598" in variant_ids
+
+
+# ---------------------------------------------------------------------------
+# VariantAnalysisSummary: new migrated fields
+# ---------------------------------------------------------------------------
+
+def _make_vas_variant(
+    nd_data: dict | None = None,
+    tf_data: dict | None = None,
+    prime: int = _PRIME,
+    seed: int = 485,
+    data_seed: int = 598,
+) -> MagicMock:
+    """Build a minimal mock for VariantAnalysisSummary method testing."""
+    variant = MagicMock()
+    variant.params = {"prime": prime, "seed": seed, "data_seed": data_seed}
+    variant.family.name = "modulo_addition_1layer"
+    variant.get_available_checkpoints.return_value = list(range(0, 5000, 100))
+
+    def mock_cross_epoch(name):
+        if name == "neuron_dynamics" and nd_data is not None:
+            return nd_data
+        if name == "transient_frequency" and tf_data is not None:
+            return tf_data
+        raise FileNotFoundError(name)
+
+    variant.artifacts.load_cross_epoch.side_effect = mock_cross_epoch
+    return variant
+
+
+def _make_vas(variant: MagicMock) -> VariantAnalysisSummary:
+    """Construct a VariantAnalysisSummary with an empty summary_data dict."""
+    vas = VariantAnalysisSummary.__new__(VariantAnalysisSummary)
+    vas.variant = variant
+    vas.summary_data = {
+        "prime": variant.params["prime"],
+        "second_descent_onset_epoch": None,
+        "learned_frequencies": None,
+    }
+    return vas
+
+
+def test_vas_learned_frequencies_populated():
+    nd = _make_nd_data(committed_fraction=1.0)
+    variant = _make_vas_variant(nd_data=nd)
+    vas = _make_vas(variant)
+    vas._load_learned_frequencies()
+    assert vas.summary_data["learned_frequencies"] is not None
+    assert vas.summary_data["learned_frequency_count"] == len(vas.summary_data["learned_frequencies"])
+    assert vas.summary_data["canonical_specialization_threshold"] == 0.10
+
+
+def test_vas_learned_frequencies_none_without_artifact():
+    variant = _make_vas_variant(nd_data=None)
+    vas = _make_vas(variant)
+    vas._load_learned_frequencies()
+    assert vas.summary_data["learned_frequencies"] is None
+    assert vas.summary_data["learned_frequency_count"] is None
+
+
+def test_vas_handshake_none_when_no_onset():
+    variant = _make_vas_variant(nd_data=_make_nd_data())
+    vas = _make_vas(variant)
+    vas.summary_data["second_descent_onset_epoch"] = None
+    vas.summary_data["learned_frequencies"] = [15, 29]
+    vas._load_handshake_metrics()
+    assert vas.summary_data["committed_frequencies_at_onset"] is None
+    assert vas.summary_data["handshake_failures"] is None
+    assert vas.summary_data["handshake_succeeded"] is None
+
+
+def test_vas_handshake_identifies_failures():
+    nd = _make_nd_data(committed_fraction=1.0)
+    # Force all neurons to freq 14 at epoch 20 (onset) — freq 28 won't be committed
+    nd["dominant_freq"][20:, :] = 14
+    variant = _make_vas_variant(nd_data=nd)
+    vas = _make_vas(variant)
+    vas.summary_data["second_descent_onset_epoch"] = 20 * 100
+    vas.summary_data["learned_frequencies"] = [29]  # 15 (0-idx 14) is NOT learned
+    vas._load_handshake_metrics()
+    assert 15 in (vas.summary_data["handshake_failures"] or [])
+
+
+def test_vas_descent_onset_portfolio_none_when_no_onset():
+    variant = _make_vas_variant(nd_data=_make_nd_data())
+    vas = _make_vas(variant)
+    vas.summary_data["second_descent_onset_epoch"] = None
+    vas._load_descent_onset_portfolio()
+    assert vas.summary_data["second_descent_onset_committed_frequencies"] is None
+
+
+def test_vas_descent_onset_portfolio_populated_with_onset():
+    nd = _make_nd_data(committed_fraction=1.0)
+    variant = _make_vas_variant(nd_data=nd)
+    vas = _make_vas(variant)
+    vas.summary_data["second_descent_onset_epoch"] = 2000
+    vas._load_descent_onset_portfolio()
+    assert vas.summary_data["second_descent_onset_committed_frequencies"] is not None
+    assert vas.summary_data["second_descent_onset_frequency_bands"] is not None
+    assert isinstance(vas.summary_data["second_descent_onset_band_count"], int)
+
+
+def test_vas_transient_metrics_none_without_artifact():
+    variant = _make_vas_variant(tf_data=None)
+    vas = _make_vas(variant)
+    vas._load_transient_metrics()
+    assert vas.summary_data["transient_frequencies"] is None
+    assert vas.summary_data["transient_frequency_count"] is None
+    assert vas.summary_data["homeless_neuron_count"] is None
+
+
+def test_vas_transient_metrics_populated():
+    tf = {
+        "ever_qualified_freqs": np.array([13, 39], dtype=np.int32),
+        "is_final": np.array([True, False], dtype=bool),
+        "homeless_count": np.array([0, 30], dtype=np.int32),
+        "_transient_canonical_threshold": np.float32(0.05),
+    }
+    nd = _make_nd_data()
+    variant = _make_vas_variant(nd_data=nd, tf_data=tf)
+    vas = _make_vas(variant)
+    vas._load_transient_metrics()
+    assert vas.summary_data["transient_frequencies"] == [40]  # 0-indexed 39 → 1-indexed 40
+    assert vas.summary_data["transient_frequency_count"] == 1
+    assert vas.summary_data["homeless_neuron_count"] == 30
+    assert vas.summary_data["transient_detection_threshold"] == pytest.approx(0.05)
+
+
+def test_vas_failure_mode_populated():
+    variant = _make_vas_variant()
+    vas = _make_vas(variant)
+    vas.summary_data["second_descent_onset_epoch"] = 5000
+    vas.summary_data["test_loss_final"] = 1e-8
+    vas.summary_data["post_descent_test_loss_increase"] = False
+    vas._load_failure_mode()
+    assert vas.summary_data["failure_mode"] is not None
+    assert isinstance(vas.summary_data["failure_mode_reasons"], list)
+
+
+def test_build_registry_importable_from_both_modules(tmp_path):
+    """build_variant_registry must be importable from both old and new locations."""
+    assert build_variant_registry is build_registry_new
