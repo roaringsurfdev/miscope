@@ -38,6 +38,7 @@ from miscope.analysis.analyzers import (
     ParameterSnapshotAnalyzer,
     ParameterTrajectoryPCA,
     RepresentationalGeometryAnalyzer,
+    TransientFrequencyAnalyzer,
 )
 
 # %% configuration
@@ -80,7 +81,6 @@ for i, variant in enumerate(variants):
 
     try:
         pipeline = AnalysisPipeline(variant)
-        pipeline = AnalysisPipeline(variant)
         pipeline.register(AttentionFreqAnalyzer())
         pipeline.register(AttentionPatternsAnalyzer())
         pipeline.register(DominantFrequenciesAnalyzer())
@@ -101,7 +101,7 @@ for i, variant in enumerate(variants):
         pipeline.register_cross_epoch(ParameterTrajectoryPCA())
         pipeline.register_cross_epoch(GlobalCentroidPCA())
         pipeline.register_cross_epoch(CentroidDMD())
-        pipeline.run(progress_callback=progress_callback)
+        pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")
