@@ -22,7 +22,7 @@ from miscope.analysis.library import get_fourier_basis
 # different W_E, data dominates. If they diverge, initialization is steering
 # from step one.
 
-PRIMES = [59, 97, 101, 103, 107, 109, 113, 127]
+PRIMES = [59, 89, 101, 103, 107, 109, 113, 127]
 MODEL_SEEDS = [485, 999]
 REFERENCE_DSEED = 598
 MSEED_COLORS = {485: "mediumseagreen", 999: "mediumpurple"}
