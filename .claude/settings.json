@@ -5,7 +5,8 @@
       "Bash(git remote:*)",
       "Bash(head -5 grep -n \"def names\\\\|_views\\\\|ViewCatalog\" /home/megano/projects/mechinterp/training-dynamics-workbench/src/miscope/views/catalog.py)",
       "Bash(chmod +x /home/megano/projects/mechinterp/training-dynamics-workbench/.git/hooks/pre-push)",
-      "Bash(gh release create v0.8.2 --title 'v0.8.2 — Checkpoint Schedule, Transient Analysis, and Pipeline' --notes ':*)"
+      "Bash(gh release create v0.8.2 --title 'v0.8.2 — Checkpoint Schedule, Transient Analysis, and Pipeline' --notes ':*)",
+      "Bash(break)"
     ]
   }
 }

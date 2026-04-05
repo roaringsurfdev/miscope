@@ -32,18 +32,6 @@ There are at least two ways of solving this, and both might be needed:
 **Mean IPR Analysis**
 Add Mean IPR Analysis from notbooks/neuron_fourier_poc.py to analysis pipeline and renders.
 
-**Fourier Frequency Prediction**
-I would like to be able to evaluate how the top frequencies impact model learning over training - both in terms of frequency changes and initial frequency dominance. One approach: Take the perfect mod-p addition table (as a p × p × p tensor of logits), compute its full Fourier decomposition, then project down to only the components corresponding to your k frequencies. The reconstruction accuracy tells you how much of the "signal" those frequencies can capture.
-This might allow:
-Score the initial dominant frequencies at early checkpoints — do models that happen to initialize with high-quality frequency subsets converge faster or more reliably?
-Track the quality score over training — when a model starts with a poor subset, can you see it trying to swap frequencies, and does it succeed?
-
-**Support for Probe Traces**
-I would like to be able to start evaluating probes through the network based on equivalence classes and residues. Coupled with Fourier Frequency Prediction, I'd like to be able to track failure modes across the network to see what it looks like when a class is poorly separated in the representation geometry. What are the interactions between the Attention Heads and the MLPs?
-
-**Error predictions based on learned frequencies**
-It would be great to be able to compare model accuracy within equivalence classes within the context of information about the quality of frequencies selected by the model and errors in output. This could likely be compared with the Fisher min.
-
 **Per-frequency gradient energy per-checkpoint**
 To be able to watch the accumulation trajectory from epoch 0 to cascade and see whether the winning frequencies had higher gradient energy from the start or whether they diverged later.
 
@@ -57,3 +45,18 @@ We might create a new model family that adds M as one of the domain parameters. 
 
 Another question might be: how early do neurons show periodicity within their activations?
 Another question might be: does Fourier Alignment above threshold predict first mover emergence?
+
+**Formalizing the Saddle Shape in Parameter Trajectory PCA**
+All of the Modulo Addition Variants appear to traverse a saddle-like manifold in weight space over the course of training. 
+
+**Formalizing the Saddle Shape in Neuron Frequency Group PCA**
+There is another saddle shape showing up in the Neuron group PCA 3D Scatter (PC1xPC2xPC3). 
+For p101/s485/ds598, all groups are intermingled.
+For p101/s485/ds999, groups appear to be occupying independent saddle spaces, and Freq 28 appears heavily disorganized (hard to claim it as a saddle)
+For p97/s42/ds598, two pairs of groups appear to be intermingled - a pair per saddle:(2, 22) and (28, 38). The two saddles appear to be orthogonal or near-orthogonal.
+
+**Timaeus/SLT/Developmental Interpretability**
+I've just become aware of the Timaeus project, and a technique called LLC estimation may be relevant to the saddles showing up in the network. Might be worth investigating to determine whether to incorporate analysis from their project into this one.
+
+**Related Research on the Parameter Space Geometry**
+It was brought to my attention that another independent researcher has been doing work that may overlap analysis from this platform. I've included two papers in notes/related_research: 2602.10496.pdf and 2602.16746.pdf

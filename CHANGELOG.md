@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-04-05
+
+### Added
+
+- **Viability Certificate** (REQ_086)
+  - `src/miscope/analysis/viability_certificate.py`: pure-analytical geometry module; no model weights required
+  - Metrics: separation under compression (SVD of centroid cloud), aliasing risk per frequency, gap from ideal set, compression margin
+  - Regime classification: `viable` / `aliasing_failure` / `coverage_concern` / `compression_risk`
+  - Thresholds calibrated against three known cases (p59/s999 healthy, p59/s485 late grokker, p101/s999 aliasing failure)
+  - Pre-computed ideal frequency sets for all corpus (prime, size) pairs in `model_families/modulo_addition_1layer/ideal_frequency_sets.json`; loaded at module init to survive app restarts
+  - `variant_summary`: new `effective_dimensionality_crossover_W_E_pr` field — W_E participation ratio at the dimensionality crossover epoch
+  - Dashboard page under Pre-Training Analysis: Separation Profile, Aliasing Risk, Ideal Set, and Summary tabs; variant loader populates inputs from registry
+
+- **Initialization Gradient Sweep** (REQ_085)
+  - Dashboard page under Pre-Training Analysis: epoch-0 gradient energy per frequency at embedding, attention, and MLP sites
+  - Supports multiple model seeds and data seeds; Site Profiles (overlaid), Difference (A−B bar), and Site Convergence (cosine similarity) tabs
+
+- **Frequency Quality vs Accuracy view** (REQ_053 — final gap)
+  - `input_trace.frequency_quality_vs_accuracy`: cross-epoch overlay of Fourier frequency quality score against test accuracy on a shared [0,1] y-axis
+  - Placed side-by-side with `residue_class_timeline` on the Input Trace page
+
+- **Variant Table page** (REQ_082)
+  - Sortable/filterable table of all variants with key metrics; row click selects variant globally via `variant-selector-store`
+
+- **Dashboard plot export** (REQ_079)
+  - Global graph registry in `analysis_page.py`; per-graph Export button; batch export panel in left nav sidebar
+  - Server-side PNG via Kaleido with canonical filenames; global toast notification (8s auto-dismiss)
+
+### Fixed
+
+- Variant Table: dropdown options not populated on fresh row click (variant would load but left nav showed blank dropdowns)
+- Variant context bar: committed frequencies displayed as k+1 due to double-increment; now shows correct 1-indexed k values
+
+### Architecture
+
+- Pre-Training Analysis top-nav menu grouping Initialization Sweep and Viability Certificate
+- `scripts/precompute_ideal_sets.py`: one-time exhaustive search covering primes 59–127, sizes 2–5; incremental save for recovery from long runs
+
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [0.8.2] - 2026-04-04
 
 ### Added

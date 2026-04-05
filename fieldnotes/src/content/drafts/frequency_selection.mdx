@@ -1,0 +1,70 @@
+Single theme:
+Viability Certificate and Transient Frequency Analysis combined help tell a more complete picture on frequency selection.
+
+Open questions:
+Why would a model lose a load-bearing frequency vs a redundant one?
+What creates the conditions for frequency loss during second descent?
+
+Claude's summary of observations:
+This is a genuinely informative contrast with the p101 case. A few things stand out:
+
+k=36 and k=40 share the same hard pair periodicity. Both have period ≈ 3 (113/40 ≈ 2.83, 113/36 ≈ 3.14, both round to 3). Their predicted hard pairs are identical in the VC output: (0,3), (1,4), (2,5)... Both high frequencies are applying aliasing pressure at the same residue class interval. That's not redundancy in a good sense — it's two frequencies that fail together at the same input pairs.
+
+Frequency 30 was the stabilizer. At 30/56 ≈ 0.536 aliasing risk, it's safely mid-range. Losing it during the second descent concentrates the high-frequency geometry on {36, 40}, both near-threshold and both aliasing at period 3. The model regressed to 98% after losing that stabilizing frequency, even though the final set is classified as viable.
+
+The severity scaling holds. p101 with aliasing_failure (k=50 at Nyquist, risk 1.000) → 7% degradation. p113 with viable-but-near-warning (k=40, risk 0.714) → 2% degradation. The VC correctly distinguishes the regimes and the regression severity tracks the aliasing level continuously. That's a meaningful validation of the threshold placement.
+
+What the VC doesn't capture here: the dynamic event of losing frequency 30. The static certificate is computed on the final frequency set. A "pre-dropout" certificate on {13, 15, 30, 36, 40} might have shown better geometry with higher min distance — and the transition from that set to {13, 15, 36, 40} would show a geometric degradation step. The certificate characterizes where the model landed, not the path it took to get there.
+
+That last point might be worth a fieldnotes observation — the combination of transient frequency analysis (what was lost) and viability certificate (what remains) tells a more complete story than either alone.
+
+
+
+Observations:
+For p101/s485/ds999, the model did achieve accuracy of 100% across all classes by epoch 8300. By epoch 10500, the accuracy started dropping of across multiple classes: 70, 34, 99, 63 - in that order. 63 took the hardest hit, dropping all the way down to 93%.
+Summary:
+Prime	101
+Viability Certificate flags it as an Aliasing failure risk. Frequency 50 shows in red and well above the failure threshold.
+Frequencies	[19, 36, 50]
+W_E participation ratio	22.40
+Ambient min pairwise dist	1.1686
+Ideal set (same size)	[5, 9, 21]
+Ideal min dist	1.3322
+Gap from ideal	12.3%
+Max aliasing risk	1.000
+Mean aliasing risk	0.700
+Centroid subspace dims (2|F|)	6
+Compression margin (PR − 2|F|)	16.4
+
+Predicted hard pairs (top 5 per frequency):
+k=19: (0,5), (1,6), (2,7), (3,8), (4,9)
+k=36: (0,3), (1,4), (2,5), (3,6), (4,7)
+k=50: (0,2), (1,3), (2,4), (3,5), (4,6)
+
+p113/s485/ds999:
+Learned frequencies: 13, 15, 36, 40
+Starts losing frequency 30 in the second descent window
+Residue classes reach 100% accuracy by epoch 18000 (a little over half way down the second descent slope).
+Reside class accuracy drops after epoch 21000 in 103, 4 - in that order. 103 takes the hardest hit, but only drops down to 98%.
+Viability Certificate classifies this model as Viable, but Freqency 40 is at 0.714 and about to cross the warning threshold.
+
+Prime	113
+Frequencies	[13, 15, 36, 40]
+W_E participation ratio	21.01
+Ambient min pairwise dist	1.6653
+Ideal set (same size)	[3, 11, 15, 50]
+Ideal min dist	1.9412
+Gap from ideal	14.2%
+Max aliasing risk	0.714
+Mean aliasing risk	0.464
+Centroid subspace dims (2|F|)	8
+Compression margin (PR − 2|F|)	13.0
+
+Predicted hard pairs (top 5 per frequency):
+k=13: (0,9), (1,10), (2,11), (3,12), (4,13)
+k=15: (0,8), (1,9), (2,10), (3,11), (4,12)
+k=36: (0,3), (1,4), (2,5), (3,6), (4,7)
+k=40: (0,3), (1,4), (2,5), (3,6), (4,7)
+
+
+

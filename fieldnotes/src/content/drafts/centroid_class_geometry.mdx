@@ -1,0 +1,8 @@
+What I expected:
+To see the internal geometry evolve from a point cloud to clear internal ring geometry during second descent.
+
+What we actually see:
+Ring geometry can show up as early as epoch 500 in some models, which is clearly within first descent.
+Instead of steady refinement during second descent, the model appears to be expanding to more dimensions in order to reconstruct and reorganize its internal representation.
+Instead of a clear ring developing during second descent, we observe a model starting with ring geometry and then proceeding through Lissajous-like transformations during the second descent test loss.
+Models can experience geometric disturbances that remain throughout the course of training, which does not surface on the loss curve.

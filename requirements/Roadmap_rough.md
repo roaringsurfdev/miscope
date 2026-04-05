@@ -22,13 +22,6 @@ For plots on fieldnotes, pre-populate the export button with proper file naming 
 ## Fold `create_animation.py` logic into pipeline
 The pipeline currently support exports of visualizations. The logic to export animations should be there, too. This would allow me to get rid of the create_animation.py notebook.
 
-## Fold Initalization Analysis notebooks into the pipeline
-Create a new Initialization Analysis page under Cross-Variant Analysis that surfaces the visualizations from the following notebooks.
-
-- mseed_gradient_comparison.py
-- early_gradient_analysis.py
-
-
 ## Fold Mean IPR Analysis into the pipeline
 Add Mean IPR Analysis from notbooks/neuron_fourier_poc.py to analysis pipeline and renders.
 

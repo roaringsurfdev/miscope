@@ -1,0 +1,13 @@
+---
+title: "Artifact Drift"
+date: 2026-03-29
+description: "On the importance of maintaining data quality"
+tags: ["infrastructure", "methodology"]
+---
+This is just a quick note to capture the importance of infrastructure support for maintaining data artifact quality.
+
+We have recently started capturing cross-variant metrics in order to spot trends in model variant performance and internal geometry formation over training.
+
+The existing Analysis Pipeline had some issues such that iterative training (extending training or adding dense checkpointing) might leave some artifacts in a stale and therefore invalid state.
+
+A recently implemented update will now allow visibility into analysis artifact staleness while also having more robust logic into determining which artifacts need to be re-generated after new model checkpoints are added.

@@ -38,12 +38,3 @@ One of the challenges is that there are multiple ways to compare the models. Som
 - SueYeon Chung's work on neural manifold geometry is directly relevant to formalizing these metrics. Her colleague may have tractable computation methods worth investigating (research task, not engineering task yet).
 - Implementation: compute scalar geometry metrics per variant, visualize as a comparison (small multiples, table, or scatter of metric pairs)
 
-**Anomalous variants identified so far (motivation for this lens):**
-
-| Variant | Anomaly Type | Key Signature |
-|---------|-------------|---------------|
-| p101/999 | Degenerate Fourier solution | Open PC2/PC3 loop, 6:1 cos/sin imbalance |
-| p107/999 | Post-grokking instability | All heads converge to freq 22, then unstable diversification |
-| p59/485 | Incomplete grokking | Open PC2/PC3 loop, missing frequency band, gradient-poor path |
-
-All 3 would be immediately identifiable with the proposed visualizations.
