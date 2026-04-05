@@ -192,10 +192,10 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
     from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
     from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
-    from miscope.analysis.analyzers.transient_frequency import TransientFrequencyAnalyzer
     from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
     from miscope.analysis.analyzers.parameter_trajectory_pca import ParameterTrajectoryPCA
     from miscope.analysis.analyzers.repr_geometry import RepresentationalGeometryAnalyzer
+    from miscope.analysis.analyzers.transient_frequency import TransientFrequencyAnalyzer
 
     AnalyzerRegistry.register(AttentionFourierAnalyzer)
     AnalyzerRegistry.register(AttentionFreqAnalyzer)

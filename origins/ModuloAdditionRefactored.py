@@ -8,6 +8,7 @@
 import os
 
 import einops
+import FourierEvaluation
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
@@ -15,10 +16,9 @@ import plotly.io as pio
 import torch
 import torch.nn.functional as F
 import transformer_lens.utils as utils
-
-import FourierEvaluation
-from miscope.visualization import line
 from ModuloAdditionSpecification import ModuloAdditionSpecification
+
+from miscope.visualization import line
 
 # %% initialize environment and model
 p = 113

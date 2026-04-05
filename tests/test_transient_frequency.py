@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-from typing import Any
 
 import numpy as np
 import plotly.graph_objects as go
@@ -20,7 +19,6 @@ from miscope.visualization.renderers.transient_frequency import (
     render_transient_pc1_cohesion,
     render_transient_peak_scatter,
 )
-
 
 # ── Fixtures ───────────────────────────────────────────────────────────
 
@@ -99,7 +97,7 @@ def artifacts_with_transient():
             max_frac=max_frac,
             epochs=epochs,
         )
-        np.savez_compressed(os.path.join(nd_dir, "cross_epoch.npz"), **nd_data)
+        np.savez_compressed(os.path.join(nd_dir, "cross_epoch.npz"), **nd_data) # type: ignore
         yield tmpdir, n_epochs, n_freq, d_mlp, epochs, dominant_freq, max_frac
 
 
@@ -300,7 +298,7 @@ class TestTransientFrequencyAnalyzer:
 @pytest.fixture
 def sample_transient_artifact():
     """Minimal transient_frequency artifact for renderer tests."""
-    n_epochs, d_mlp = 5, 20
+    n_epochs, _d_mlp = 5, 20
     epochs = np.arange(n_epochs, dtype=np.int32) * 100
 
     ever_qualified = np.array([0, 1], dtype=np.int32)
