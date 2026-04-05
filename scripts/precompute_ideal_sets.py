@@ -86,14 +86,18 @@ def main() -> None:
             key = f"{prime}:{size}"
             if key in results:
                 entry = results[key]
-                print(f"  p={prime} size={size}  [cached] ideal={entry['ideal_set']} dist={entry['ideal_dist']:.4f}")
+                print(
+                    f"  p={prime} size={size}  [cached] ideal={entry['ideal_set']} dist={entry['ideal_dist']:.4f}"
+                )
                 continue
 
             n_subsets = 1
             n = prime // 2
             for i in range(size):
                 n_subsets = n_subsets * (n - i) // (i + 1)
-            print(f"  p={prime} size={size}  searching {n_subsets:,} subsets...", end=" ", flush=True)
+            print(
+                f"  p={prime} size={size}  searching {n_subsets:,} subsets...", end=" ", flush=True
+            )
             t0 = time.time()
             ideal_set, ideal_dist = find_ideal_set(prime, size)
             elapsed = time.time() - t0

@@ -899,9 +899,7 @@ def _register_all() -> None:
         )
         return {"input_summary": input_summary, "quality": quality}
 
-    def _render_freq_quality_vs_accuracy(
-        data: Any, epoch: int | None, **kwargs: Any
-    ) -> go.Figure:
+    def _render_freq_quality_vs_accuracy(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         from miscope.visualization.renderers.input_trace import (
             render_frequency_quality_vs_accuracy,
         )
