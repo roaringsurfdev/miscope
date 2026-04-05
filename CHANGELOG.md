@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-04-04
+
+### Added
+
+- **Transient Frequency Analyzer** (REQ_084)
+  - `TransientFrequencyAnalyzer`: cross-epoch analyzer tracking frequencies that appear and disappear during training
+  - Ragged storage for `peak_members` (variable neuron counts per frequency); `TRANSIENT_CANONICAL_THRESHOLD=0.05` (5%) for detection, `FINAL_CANONICAL_THRESHOLD=0.10` (10%) for stable assignment
+  - Views: `transient.committed_counts`, `transient.peak_scatter`, `transient.pc1_cohesion`
+  - Dashboard Transient Frequencies page: summary badges, committed counts, scatter + PC1 cohesion side-by-side
+  - Key finding: PC1 cohesion asymptote distinguishes recovery (~0.70 plateau) from attrition (~1.0 approach); homeless neurons persist after transient frequencies dissolve
+  - 13/30 variants have transient frequencies; data seed 999 dominates high-homeless cases
+
+- **Checkpoint Schedule Manager** (REQ_083)
+  - Dashboard page for retraining existing variants with a denser checkpoint schedule
+  - Visual range-based schedule builder integrated with the global variant selector
+  - Supersedes REQ_015 (which addressed checkpoint selection, not retraining)
+
+- **Artifact Freshness** (REQ_080)
+  - `FreshnessReport` and `check_freshness()`: three staleness types — epoch-incomplete, epoch-stale, summary-stale
+  - Cross-epoch staleness checked via metadata only (no full artifact load)
+  - Incremental analysis is now the default; `force=True` for full rerun
+  - `VariantAnalysisSummary` and `build_variant_registry` called automatically at end of analysis thread
+
+- **Variant Summary Consolidation**
+  - All per-variant metrics consolidated into `VariantAnalysisSummary`; `variant_registry.json` built from it
+
+### Changed
+
+- **API ergonomics**
+  - `variant.dir` — alias property for `variant_dir` (shorter, more intuitive)
+  - `variant.view("name", **kwargs)` and `EpochContext.view("name", **kwargs)` — kwargs forwarded to renderer; call-site kwargs take precedence over view-level kwargs
+
+- **CI — Node24 migration**
+  - `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` added ahead of June 2026 deadline
+
+- **Pre-push quality gate**
+  - `.git/hooks/pre-push`: ruff check, ruff format, and pyright must pass locally before push
+
+- **Documentation**
+  - README fully updated: v0.8.x status, Dash, uv install, src layout, view catalog API
+  - DOMAIN_MODEL updated: EpochContext, BoundView, ViewCatalog, InterventionVariant, variant.dir
+
+### References
+
+- Archived requirements: `requirements/archive/v0.8.2-checkpoint-schedule-and-transient-analysis/`
+- Milestone summary: `requirements/archive/v0.8.2-checkpoint-schedule-and-transient-analysis/MILESTONE_SUMMARY.md`
+
 ## [0.8.1] - 2026-03-26
 
 ### Added
