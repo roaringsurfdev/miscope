@@ -11,6 +11,7 @@ import json
 from dash import Dash, Input, Output, State, dash_table, html, set_props
 from dash.exceptions import PreventUpdate
 
+from dashboard.components.variant_selector import get_variant_choices
 from dashboard.state import get_registry, variant_server_state
 
 # ---------------------------------------------------------------------------
@@ -222,8 +223,16 @@ def register_variant_table_page_callbacks(app: Dash) -> None:
                 }
             },
         )
+        registry = get_registry()
+        variant_options = [
+            {"label": display, "value": name}
+            for display, name in get_variant_choices(registry, family_name)
+        ]
         set_props("variant-selector-family-dropdown", {"value": family_name})
-        set_props("variant-selector-variant-dropdown", {"value": variant_name})
+        set_props(
+            "variant-selector-variant-dropdown",
+            {"options": variant_options, "value": variant_name},
+        )
 
         return f"Selected: {variant_name}"
 

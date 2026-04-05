@@ -1,6 +1,6 @@
 # REQ_082: Variant Table Page
 
-**Status:** Active
+**Status:** Complete
 **Priority:** Medium
 **Related:** REQ_074 (Variant Registry), REQ_076 (Peer Comparison)
 **Last Updated:** 2026-03-26
@@ -69,3 +69,9 @@ The row corresponding to the currently active variant is visually highlighted so
 - Performance classification labels (`healthy`, `pathological`, etc.) from `variant_summary.json` are the most important single-column signal for finding variants worth studying.
 - A future extension could add sparkline loss curves inline in each row, but this is not in scope for v1.
 - AG Grid (Dash AG Grid) supports row selection highlighting natively and has better performance for larger tables than Dash DataTable — prefer it if it is in the dependency tree.
+
+## Bug Fix (2026-04-05)
+
+When clicking a row without a prior variant selection, the variant dropdown options were empty (`[]`), causing it to show blank even after `set_props` set its value. Root cause: `on_family_change` in `variant_selector.py` raises PreventUpdate when `stored_family == family_name` (the table had just written it), so it never populated options.
+
+Fix: `on_row_selected` in `variant_table.py` now also calls `set_props` on the variant dropdown's `options` (computed from the registry for the selected family), alongside the existing `value` set_props call.

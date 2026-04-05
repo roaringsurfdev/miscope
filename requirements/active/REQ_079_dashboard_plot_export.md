@@ -1,6 +1,6 @@
 # REQ_079: Dashboard Plot Export
 
-**Status:** Active
+**Status:** Complete
 **Priority:** Medium
 **Related:** REQ_047 (View Catalog), REQ_075 (Per-Input Prediction Trace)
 **Last Updated:** 2026-03-24
