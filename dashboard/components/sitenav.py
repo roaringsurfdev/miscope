@@ -56,6 +56,7 @@ def create_sitenav() -> dbc.NavbarSimple:
             dbc.DropdownMenu(
                 [
                     dbc.DropdownMenuItem("Initialization Sweep", href="/initialization-sweep"),
+                    dbc.DropdownMenuItem("Viability Certificate", href="/viability-certificate"),
                 ],
                 nav=True,
                 in_navbar=True,
@@ -142,6 +143,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_variant_table_page_layout,
         create_variant_table_page_nav,
     )
+    from dashboard.pages.viability_certificate import (
+        create_viability_certificate_page_layout,
+        create_viability_certificate_page_nav,
+    )
     from dashboard.pages.visualization import (
         create_visualization_page_layout,
         create_visualization_page_nav,
@@ -202,6 +207,11 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [
                 create_initialization_sweep_page_nav(app),
                 create_initialization_sweep_page_layout(app),
+            ]
+        elif pathname == "/viability-certificate":
+            return [
+                create_viability_certificate_page_nav(app),
+                create_viability_certificate_page_layout(app),
             ]
         else:
             # Multistream is now the default page.

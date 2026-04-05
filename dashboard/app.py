@@ -28,6 +28,7 @@ from dashboard.pages.summary import register_summary_page_callbacks
 from dashboard.pages.training import register_training_page_callbacks
 from dashboard.pages.transient_frequency import register_transient_page_callbacks
 from dashboard.pages.variant_table import register_variant_table_page_callbacks
+from dashboard.pages.viability_certificate import register_viability_certificate_page_callbacks
 from dashboard.pages.visualization import register_visualization_page_callbacks
 
 
@@ -67,6 +68,7 @@ def create_app() -> Dash:
     register_transient_page_callbacks(app)
     register_variant_table_page_callbacks(app)
     register_initialization_sweep_page_callbacks(app)
+    register_viability_certificate_page_callbacks(app)
     return app
 
 

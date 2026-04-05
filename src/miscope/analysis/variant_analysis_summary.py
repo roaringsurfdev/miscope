@@ -88,6 +88,7 @@ class VariantAnalysisData:
 
     effective_dimensionality_loaded: bool = False
     effective_dimensionality_pr_epochs: list[Any] = field(default_factory=list)
+    effective_dimensionality_pr_w_e: list[Any] = field(default_factory=list)
     effective_dimensionality_pr_w_in: list[Any] = field(default_factory=list)
     effective_dimensionality_pr_w_out: list[Any] = field(default_factory=list)
 
@@ -121,6 +122,7 @@ class VariantAnalysisData:
             "effective_dimensionality"
         )
         self.effective_dimensionality_pr_epochs = list(effective_dimensionality_data["epochs"])
+        self.effective_dimensionality_pr_w_e = list(effective_dimensionality_data["pr_W_E"])
         self.effective_dimensionality_pr_w_in = list(effective_dimensionality_data["pr_W_in"])
         self.effective_dimensionality_pr_w_out = list(effective_dimensionality_data["pr_W_out"])
         self.effective_dimensionality_loaded = True
@@ -433,9 +435,11 @@ class VariantAnalysisSummary:
             self.analysis_data.load_effective_dimensionality_data()
 
         epochs = self.analysis_data.effective_dimensionality_pr_epochs
+        W_E = self.analysis_data.effective_dimensionality_pr_w_e
         W_In = self.analysis_data.effective_dimensionality_pr_w_in
         W_Out = self.analysis_data.effective_dimensionality_pr_w_out
         effective_dimensionality_cross_over_epoch = -1
+        effective_dimensionality_crossover_W_E_pr = -1.0
 
         # Skip initial period where W_out ≈ W_in at random init; only detect the
         # meaningful crossover after W_out has first risen clearly above W_in.
@@ -452,10 +456,15 @@ class VariantAnalysisSummary:
 
             if w_out_value <= w_in_value:
                 effective_dimensionality_cross_over_epoch = epochs[epoch_idx]
+                if epoch_idx < len(W_E):
+                    effective_dimensionality_crossover_W_E_pr = float(W_E[epoch_idx])
                 break
 
         self.summary_data["effective_dimensionality_cross_over_epoch"] = (
             effective_dimensionality_cross_over_epoch
+        )
+        self.summary_data["effective_dimensionality_crossover_W_E_pr"] = (
+            effective_dimensionality_crossover_W_E_pr
         )
 
     # For a given variant, capture start and end epochs for pre-defined windows in training
