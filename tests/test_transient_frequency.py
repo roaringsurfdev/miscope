@@ -294,7 +294,7 @@ class TestTransientFrequencyAnalyzer:
                 max_frac=frac,
                 epochs=epochs,
             )
-            np.savez_compressed(os.path.join(nd_dir, "cross_epoch.npz"), **nd_data)
+            np.savez_compressed(os.path.join(nd_dir, "cross_epoch.npz"), **nd_data) # type: ignore
 
             analyzer = TransientFrequencyAnalyzer()
             result = analyzer.analyze_across_epochs(tmpdir, epochs.tolist(), context={})
@@ -361,7 +361,7 @@ class TestRenderTransientCommittedCounts:
 
     def test_has_traces(self, sample_transient_artifact):
         fig = render_transient_committed_counts(sample_transient_artifact, epoch=None)
-        assert len(fig.data) >= 1
+        assert len(fig.data) >= 1 # type: ignore
 
     def test_show_persistent_false(self, sample_transient_artifact):
         fig_all = render_transient_committed_counts(
@@ -370,7 +370,7 @@ class TestRenderTransientCommittedCounts:
         fig_transient_only = render_transient_committed_counts(
             sample_transient_artifact, epoch=None, show_persistent=False
         )
-        assert len(fig_transient_only.data) < len(fig_all.data)
+        assert len(fig_transient_only.data) < len(fig_all.data) # type: ignore
 
 
 class TestRenderTransientPeakScatter:
@@ -394,7 +394,7 @@ class TestRenderTransientPeakScatter:
         )
         assert isinstance(fig, go.Figure)
         # Empty figure has an annotation, not data traces
-        assert len(fig.data) == 0
+        assert len(fig.data) == 0 # type: ignore
 
 
 class TestRenderTransientPc1Cohesion:
@@ -417,4 +417,4 @@ class TestRenderTransientPc1Cohesion:
             sample_transient_artifact, sample_w_in_by_epoch, epoch=None, freq=0
         )
         assert isinstance(fig, go.Figure)
-        assert len(fig.data) >= 1
+        assert len(fig.data) >= 1 # type: ignore
