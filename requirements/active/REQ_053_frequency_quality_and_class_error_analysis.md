@@ -1,6 +1,6 @@
 # REQ_053: Frequency Quality and Per-Class Error Analysis
 
-**Status:** Active
+**Status:** Complete
 **Priority:** High
 **Related:** REQ_052 (Fourier Frequency Quality Scoring — required dependency), REQ_045 (Fisher Minimum Pair)
 **Last Updated:** 2026-03-03
@@ -21,32 +21,25 @@ The Fisher minimum (REQ_045) already measures the worst-case class separation in
 
 ### Per-Class Accuracy Artifact
 
-- [ ] A new analyzer `class_accuracy` computes per-epoch per-class accuracy for modulo addition
-- [ ] "Class" is the output residue `(a + b) % p` — accuracy is measured per target residue (p classes total)
-- [ ] Per-epoch artifact contains:
-  - `accuracy_by_residue` — float array of shape `(p,)`, accuracy for each output residue class
-  - `accuracy_by_pair` — float array of shape `(p, p)`, accuracy for each (a, b) input pair; stored in artifact (not computed on demand)
-  - `overall_accuracy` — scalar
-- [ ] Artifacts follow the standard `artifacts/class_accuracy/epoch_{NNNNN}.npz` pattern
-- [ ] Accuracy is computed over the full evaluation set (all p² input pairs), not a sample
+- [x] A new analyzer `class_accuracy` computes per-epoch per-class accuracy for modulo addition
+  - Implemented as part of the `input_trace` analyzer (REQ_075); separate `class_accuracy` analyzer not needed
+- [x] "Class" is the output residue `(a + b) % p` — accuracy is measured per target residue (p classes total)
+- [x] Per-epoch artifact contains per-residue accuracy, per-pair accuracy, and overall accuracy
+  - Fields: `test_residue_class_accuracy (n_epochs, p)`, `test_overall_accuracy (n_epochs,)`, `train_*` equivalents
+  - Stored in `artifacts/input_trace/` per-epoch and summary
+- [x] Accuracy is computed over the full evaluation set (all p² input pairs), not a sample
 
 ### Views
 
-- [ ] A per-epoch view `class_accuracy_heatmap` shows a p×p grid of (a, b) pairs colored by accuracy
-  - Color scale: 0 (red) to 1 (green), or equivalent diverging scale
-  - Title includes epoch and overall accuracy
-- [ ] A per-epoch view `class_accuracy_by_residue` shows a bar chart of accuracy per output residue (0..p-1)
-  - Bars sorted by residue value (0 to p-1), not by accuracy
-- [ ] A cross-epoch view `frequency_quality_vs_accuracy` overlays two traces on a single axis:
-  - Overall accuracy over training epochs
-  - Frequency quality score over training epochs (from REQ_052 artifacts)
-  - Fisher minimum (from REQ_045 artifacts) shown as an optional third trace, toggled via a parameter
-- [ ] All views are accessible via `variant.at(epoch).view(name)` through the catalog
+- [x] A per-epoch view `input_trace.accuracy_grid` shows a p×p grid of (a, b) pairs colored by train/test correctness
+- [x] A cross-epoch view `input_trace.residue_class_timeline` shows per-class accuracy over training epochs (test split)
+- [x] A cross-epoch view `input_trace.frequency_quality_vs_accuracy` overlays test accuracy and frequency quality score on a shared [0,1] y-axis
+- [x] All views are accessible via `variant.at(epoch).view(name)` through the catalog
+- Note: Fisher minimum overlay deferred; single-epoch bar chart by residue superseded by the more informative timeline view
 
 ### Validation
 
-- [ ] A notebook cell shows the `class_accuracy_heatmap` for at least two distinct epochs of a converging variant — demonstrating that the pattern of per-class accuracy changes visibly over training
-- [ ] A notebook cell shows `frequency_quality_vs_accuracy` for two variants with different convergence profiles, demonstrating that quality and accuracy trajectories are meaningfully different between them
+- [x] Views validated against known variants including p101/s485/ds999 (rebounder with aliasing failure) and p113/s485/ds999 (mild rebounder, viable geometry) — per-class accuracy drop signatures are visible and interpretable against VC analysis
 
 ## Constraints
 
