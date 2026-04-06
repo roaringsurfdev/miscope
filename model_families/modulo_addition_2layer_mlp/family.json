@@ -29,7 +29,6 @@
     "parameter_snapshot",
     "effective_dimensionality",
     "input_trace",
-    "coarseness",
     "repr_geometry"
   ],
   "secondary_analyzers": [
