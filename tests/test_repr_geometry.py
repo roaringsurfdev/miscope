@@ -13,6 +13,7 @@ from miscope.analysis.analyzers.repr_geometry import (
     RepresentationalGeometryAnalyzer,
     _get_summary_keys,
 )
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library.geometry import (
     compute_center_spread,
     compute_circularity,
@@ -261,7 +262,7 @@ class TestRepresentationalGeometryAnalyzer:
         cache = self._make_mock_cache(p)
         model = MagicMock()
 
-        result = analyzer.analyze(model, probe, cache, {"params": {"prime": p}})
+        result = analyzer.analyze(TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}})
 
         # Check all sites have all expected keys
         for site in _SITES:
@@ -287,7 +288,7 @@ class TestRepresentationalGeometryAnalyzer:
         cache = self._make_mock_cache(p, d_model=8, d_mlp=16)
         model = MagicMock()
 
-        result = analyzer.analyze(model, probe, cache, {"params": {"prime": p}})
+        result = analyzer.analyze(TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}})
 
         # Centroid shapes
         assert result["resid_post_centroids"].shape == (p, 8)
@@ -307,7 +308,7 @@ class TestRepresentationalGeometryAnalyzer:
         cache = self._make_mock_cache(p)
         model = MagicMock()
 
-        result = analyzer.analyze(model, probe, cache, {"params": {"prime": p}})
+        result = analyzer.analyze(TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}})
         summary = analyzer.compute_summary(result, {})
 
         # All summary values should be floats
@@ -341,7 +342,7 @@ class TestRepresentationalGeometryAnalyzer:
         cache = self._make_mock_cache(p)
         model = MagicMock()
 
-        result = analyzer.analyze(model, probe, cache, {"params": {"prime": p}})
+        result = analyzer.analyze(TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}})
 
         for site in _SITES:
             r = int(result[f"{site}_fisher_argmin_r"])

@@ -5,18 +5,19 @@ at multiple sites in the network. Tracks how representational structure
 evolves during training.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
-    extract_mlp_activations,
-    extract_residual_stream,
 )
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 from miscope.analysis.library.geometry import (
     _pca_project,
     compute_center_spread,
@@ -77,17 +78,15 @@ class RepresentationalGeometryAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,  # noqa: ARG002
+        bundle: ActivationBundle,
         probe: torch.Tensor,
-        cache: ActivationCache,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute geometric measures at all activation sites.
 
         Args:
-            model: The model (unused — activations come from cache)
+            bundle: Activation bundle from the forward pass.
             probe: Full probe tensor (p^2, 3)
-            cache: Activation cache from forward pass
             context: Analysis context with 'params' containing 'prime'
 
         Returns:
@@ -99,7 +98,7 @@ class RepresentationalGeometryAnalyzer:
 
         result: dict[str, np.ndarray] = {}
         for site_name, site_config in _SITES.items():
-            activations = self._extract_site(cache, site_config)
+            activations = self._extract_site(bundle, site_config)
             site_result = self._compute_site_measures(activations, labels, p)
             for key, value in site_result.items():
                 result[f"{site_name}_{key}"] = value
@@ -140,16 +139,14 @@ class RepresentationalGeometryAnalyzer:
 
     def _extract_site(
         self,
-        cache: ActivationCache,
+        bundle: ActivationBundle,
         site_config: dict,
     ) -> np.ndarray:
-        """Extract activations from cache for a given site."""
+        """Extract activations from bundle for a given site."""
         if site_config["extractor"] == "mlp":
-            acts = extract_mlp_activations(cache, layer=0, position=-1)
+            acts = bundle.mlp_post(0, -1)
         else:
-            acts = extract_residual_stream(
-                cache, layer=0, position=-1, location=site_config["location"]
-            )
+            acts = bundle.residual_stream(0, -1, site_config["location"])
         return acts.detach().cpu().numpy()
 
     def _compute_site_measures(

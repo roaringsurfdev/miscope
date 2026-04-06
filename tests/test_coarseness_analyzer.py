@@ -11,6 +11,7 @@ import torch
 
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import CoarsenessAnalyzer
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library.fourier import compute_neuron_coarseness
 from miscope.families import FamilyRegistry
 
@@ -261,44 +262,45 @@ class TestCoarsenessAnalyzerOutput:
         model.load_state_dict(state_dict)
 
         with torch.inference_mode():
-            _, cache = model.run_with_cache(probe)
+            logits, cache = model.run_with_cache(probe)
 
-        return model, probe, cache, context
+        bundle = TransformerLensBundle(model, cache, logits)
+        return bundle, probe, context
 
     def test_returns_dict(self, model_with_context):
         """analyze returns a dict."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = CoarsenessAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(bundle, probe, context)
         assert isinstance(result, dict)
 
     def test_returns_coarseness_key(self, model_with_context):
         """Result contains 'coarseness' key."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = CoarsenessAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(bundle, probe, context)
         assert "coarseness" in result
 
     def test_coarseness_is_numpy_array(self, model_with_context):
         """Coarseness is a numpy array."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = CoarsenessAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(bundle, probe, context)
         assert isinstance(result["coarseness"], np.ndarray)
 
     def test_coarseness_shape(self, model_with_context):
         """Coarseness has shape (d_mlp,)."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = CoarsenessAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(bundle, probe, context)
         # d_mlp = 512 from architecture
         assert result["coarseness"].shape == (512,)
 
     def test_coarseness_values_in_unit_interval(self, model_with_context):
         """Coarseness values are in [0, 1]."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = CoarsenessAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(bundle, probe, context)
         assert np.all(result["coarseness"] >= 0.0)
         assert np.all(result["coarseness"] <= 1.0)
 

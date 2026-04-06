@@ -5,8 +5,14 @@ across training checkpoints. Used by parameter trajectory and
 effective dimensionality analyzers.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from transformer_lens import HookedTransformer
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 # Weight matrices to extract, in consistent order
 WEIGHT_MATRIX_NAMES = [
@@ -30,36 +36,20 @@ COMPONENT_GROUPS = {
 
 
 def extract_parameter_snapshot(
-    model: HookedTransformer,
+    bundle: ActivationBundle,
 ) -> dict[str, np.ndarray]:
-    """Extract all trainable weight matrices from a model.
+    """Extract all trainable weight matrices from a bundle.
 
     Returns dict mapping weight matrix names to numpy arrays
-    in their original shapes. Only includes parameters with
-    requires_grad=True (excludes frozen biases).
+    in their original shapes.
 
     Args:
-        model: HookedTransformer model at a specific checkpoint.
+        bundle: ActivationBundle providing weight access via bundle.weight(name).
 
     Returns:
         Dict with keys from WEIGHT_MATRIX_NAMES, values are numpy arrays.
     """
-    snapshot = {}
-
-    snapshot["W_E"] = _to_numpy(model.embed.W_E)
-    snapshot["W_pos"] = _to_numpy(model.pos_embed.W_pos)
-
-    block = model.blocks[0]
-    snapshot["W_Q"] = _to_numpy(block.attn.W_Q)  # type: ignore[attr-defined]
-    snapshot["W_K"] = _to_numpy(block.attn.W_K)  # type: ignore[attr-defined]
-    snapshot["W_V"] = _to_numpy(block.attn.W_V)  # type: ignore[attr-defined]
-    snapshot["W_O"] = _to_numpy(block.attn.W_O)  # type: ignore[attr-defined]
-    snapshot["W_in"] = _to_numpy(block.mlp.W_in)  # type: ignore[attr-defined]
-    snapshot["W_out"] = _to_numpy(block.mlp.W_out)  # type: ignore[attr-defined]
-
-    snapshot["W_U"] = _to_numpy(model.unembed.W_U)
-
-    return snapshot
+    return {name: _to_numpy(bundle.weight(name)) for name in WEIGHT_MATRIX_NAMES}
 
 
 ATTENTION_MATRICES = {"W_Q", "W_K", "W_V", "W_O"}
@@ -98,7 +88,7 @@ def compute_participation_ratio(
 
 
 def compute_weight_singular_values(
-    model: HookedTransformer,
+    bundle: ActivationBundle,
 ) -> dict[str, np.ndarray]:
     """Compute singular values of all trainable weight matrices.
 
@@ -106,14 +96,14 @@ def compute_weight_singular_values(
     per head. Each head's matrix is an independent subspace.
 
     Args:
-        model: HookedTransformer model at a specific checkpoint.
+        bundle: ActivationBundle providing weight access.
 
     Returns:
         Dict mapping "sv_{name}" to numpy arrays of singular values.
         Attention matrices: shape (n_heads, d_head).
         Other matrices: shape (min(rows, cols),).
     """
-    snapshot = extract_parameter_snapshot(model)
+    snapshot = extract_parameter_snapshot(bundle)
     result = {}
 
     for name in WEIGHT_MATRIX_NAMES:

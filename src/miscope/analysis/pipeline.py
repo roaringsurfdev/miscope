@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import tqdm.auto as tqdm
 
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.protocols import (
     AnalysisRunConfig,
     Analyzer,
@@ -282,11 +283,13 @@ class AnalysisPipeline:
         model.load_state_dict(state_dict)
 
         with torch.inference_mode():
-            _, cache = model.run_with_cache(probe)
+            logits, cache = model.run_with_cache(probe)
+
+        bundle = TransformerLensBundle(model, cache, logits)
 
         for analyzer, needed_epochs in work_queue:
             if epoch in needed_epochs:
-                result = analyzer.analyze(model, probe, cache, context)
+                result = analyzer.analyze(bundle, probe, context)
                 self._save_epoch_artifact(analyzer.name, epoch, result)
 
                 if summary_collectors and analyzer.name in summary_collectors:

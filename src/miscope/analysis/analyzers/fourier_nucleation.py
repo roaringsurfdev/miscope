@@ -15,12 +15,15 @@ view hardcodes loading epoch 0. Running at later epochs is valid and produces
 a cross-epoch frequency commitment trajectory.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 _COMMIT_THRESHOLD = 0.15  # Fraction of neuron energy at one frequency to count as "committed"
 
@@ -155,17 +158,15 @@ class FourierNucleationAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
+        bundle: ActivationBundle,
+        probe: torch.Tensor,  # noqa: ARG002
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Project neuron response profiles onto Fourier basis, iteratively sharpening.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Unused (protocol conformance)
-            cache: Unused (protocol conformance)
+            bundle: Activation bundle with checkpoint weights.
+            probe: Unused (protocol conformance).
             context: Analysis context; must contain context["params"]["prime"]
 
         Returns:
@@ -174,8 +175,8 @@ class FourierNucleationAnalyzer:
         """
         prime = int(context["params"]["prime"])
 
-        W_in = model.blocks[0].mlp.W_in.detach().cpu().numpy()  # type: ignore[union-attr]  # (d_mlp, d_model)
-        W_E = model.embed.W_E.detach().cpu().numpy()  # (vocab_size, d_model)
+        W_in = bundle.weight("W_in").detach().cpu().numpy()  # (d_model, d_mlp)
+        W_E = bundle.weight("W_E").detach().cpu().numpy()  # (vocab_size, d_model)
 
         # W_in is (d_model, d_mlp) in TransformerLens convention.
         # Neuron response to each token: (W_E[:prime] @ W_in).T = (d_mlp, prime)

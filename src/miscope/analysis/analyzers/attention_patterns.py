@@ -3,18 +3,20 @@
 Captures per-head attention patterns across all position pairs.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import einops
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
-    extract_attention_patterns,
 )
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 
 class AttentionPatternsAnalyzer:
@@ -30,18 +32,16 @@ class AttentionPatternsAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,  # noqa: ARG002
+        bundle: ActivationBundle,
         probe: torch.Tensor,
-        cache: ActivationCache,
         context: dict[str, Any],  # noqa: ARG002
     ) -> dict[str, np.ndarray]:
         """
         Extract attention patterns and reshape to (n_heads, n_pos, n_pos, p, p).
 
         Args:
-            model: The model loaded with checkpoint weights
+            bundle: Activation bundle from the forward pass.
             probe: Full probe tensor (p^2, 3)
-            cache: Activation cache from forward pass
             context: Analysis context (not used by this analyzer)
 
         Returns:
@@ -51,7 +51,7 @@ class AttentionPatternsAnalyzer:
         p = compute_grid_size_from_dataset(probe)
 
         # Shape: (p*p, n_heads, seq_to, seq_from)
-        attn = extract_attention_patterns(cache, layer=0)
+        attn = bundle.attention_pattern(0)
 
         # Reshape batch dim to (p, p) grid for each (head, to_pos, from_pos)
         patterns = einops.rearrange(

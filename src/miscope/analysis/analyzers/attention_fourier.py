@@ -10,12 +10,13 @@ Output per epoch: qk_freq_norms (n_heads, n_freq), v_freq_norms (n_heads, n_freq
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 
 class AttentionFourierAnalyzer:
@@ -34,17 +35,15 @@ class AttentionFourierAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
+        bundle: ActivationBundle,
         probe: torch.Tensor,  # noqa: ARG002
-        cache: ActivationCache,  # noqa: ARG002
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Decompose each head's QK^T and V into Fourier frequency fractions.
 
         Args:
-            model: HookedTransformer with checkpoint weights loaded.
+            bundle: Activation bundle with checkpoint weights.
             probe: Unused (protocol conformance).
-            cache: Unused (protocol conformance).
             context: Must include 'fourier_basis': Tensor (p+1, p).
 
         Returns:
@@ -56,10 +55,10 @@ class AttentionFourierAnalyzer:
         p = fourier_basis.shape[1]
         n_freq = p // 2
 
-        W_E_tok = model.embed.W_E.detach()[:p]  # (p, d_model) — token rows only
-        W_Q = model.blocks[0].attn.W_Q.detach()  # type: ignore[union-attr]  # (n_heads, d_model, d_head)
-        W_K = model.blocks[0].attn.W_K.detach()  # type: ignore[union-attr]  # (n_heads, d_model, d_head)
-        W_V = model.blocks[0].attn.W_V.detach()  # type: ignore[union-attr]  # (n_heads, d_model, d_head)
+        W_E_tok = bundle.weight("W_E").detach()[:p]  # (p, d_model) — token rows only
+        W_Q = bundle.weight("W_Q").detach()  # (n_heads, d_model, d_head)
+        W_K = bundle.weight("W_K").detach()  # (n_heads, d_model, d_head)
+        W_V = bundle.weight("W_V").detach()  # (n_heads, d_model, d_head)
 
         n_heads = W_Q.shape[0]
         qk_freq_norms = np.zeros((n_heads, n_freq), dtype=np.float32)

@@ -3,14 +3,17 @@
 Computes Fourier coefficient norms for embedding weights.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
-from miscope.analysis.library import get_embedding_weights, project_onto_fourier_basis
+from miscope.analysis.library import project_onto_fourier_basis
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 
 class DominantFrequenciesAnalyzer:
@@ -25,18 +28,16 @@ class DominantFrequenciesAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
+        bundle: ActivationBundle,
+        probe: torch.Tensor,  # noqa: ARG002
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """
         Compute Fourier coefficient norms for embedding weights.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: The analysis dataset (not used by this analyzer)
-            cache: Activation cache (not used by this analyzer)
+            bundle: Activation bundle with checkpoint weights.
+            probe: Unused (protocol conformance).
             context: Analysis context containing 'fourier_basis'
 
         Returns:
@@ -45,7 +46,7 @@ class DominantFrequenciesAnalyzer:
         fourier_basis = context["fourier_basis"]
 
         # Get embedding weights, excluding the equals token
-        W_E = get_embedding_weights(model, exclude_special_tokens=1)
+        W_E = bundle.weight("W_E")[:-1]
 
         # Compute norms of embedding projected onto Fourier basis
         coefficients = project_onto_fourier_basis(W_E, fourier_basis)

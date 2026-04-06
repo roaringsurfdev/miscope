@@ -13,6 +13,7 @@ from miscope.analysis.analyzers.attention_fourier import (
     _qk_block_norms,
     _v_band_norms,
 )
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.visualization.renderers.attention_fourier import (
     render_head_alignment_trajectory,
     render_qk_freq_heatmap,
@@ -104,7 +105,7 @@ class TestAttentionFourierAnalyzer:
         model = _make_model()
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         assert "qk_freq_norms" in result
         assert "v_freq_norms" in result
 
@@ -112,7 +113,7 @@ class TestAttentionFourierAnalyzer:
         model = _make_model()
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         assert result["qk_freq_norms"].shape == (N_HEADS, N_FREQ)
         assert result["v_freq_norms"].shape == (N_HEADS, N_FREQ)
 
@@ -120,7 +121,7 @@ class TestAttentionFourierAnalyzer:
         model = _make_model()
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         qk_sums = result["qk_freq_norms"].sum(axis=1)
         v_sums = result["v_freq_norms"].sum(axis=1)
         np.testing.assert_allclose(qk_sums, np.ones(N_HEADS), atol=1e-5)
@@ -130,7 +131,7 @@ class TestAttentionFourierAnalyzer:
         model = _make_model()
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         assert (result["qk_freq_norms"] >= 0).all()
         assert (result["v_freq_norms"] >= 0).all()
 
@@ -138,7 +139,7 @@ class TestAttentionFourierAnalyzer:
         model = _make_model()
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         assert result["qk_freq_norms"].dtype == np.float32
         assert result["v_freq_norms"].dtype == np.float32
 
@@ -173,7 +174,7 @@ class TestAttentionFourierAnalyzer:
 
         context = {"fourier_basis": F}
         analyzer = AttentionFourierAnalyzer()
-        result = analyzer.analyze(model, probe=None, cache=None, context=context)  # type: ignore[arg-type]
+        result = analyzer.analyze(TransformerLensBundle(model, None, None), probe=None, context=context)  # type: ignore[arg-type]
         # Dominant frequency for head 0 should be k (1-indexed → index k-1)
         dominant = int(result["qk_freq_norms"][0].argmax()) + 1
         assert dominant == k, f"Expected dominant freq {k}, got {dominant}"

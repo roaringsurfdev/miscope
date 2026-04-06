@@ -9,12 +9,15 @@ well before train loss reaches zero. This is expected: loss tracks confidence
 the grokking signal lives.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 
 class InputTraceAnalyzer:
@@ -38,17 +41,15 @@ class InputTraceAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
+        bundle: ActivationBundle,
         probe: torch.Tensor,
-        cache: ActivationCache,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Run predictions on all p² pairs and record train/test split.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Full p² analysis grid (p², 3) — used directly
-            cache: Activation cache (unused — separate forward pass to get logits)
+            bundle: Activation bundle — logits from the pipeline's cached forward pass.
+            probe: Full p² analysis grid (p², 3)
             context: Family-provided analysis context with 'params' containing
                      'prime', 'data_seed', 'training_fraction'
 
@@ -59,13 +60,9 @@ class InputTraceAnalyzer:
         p = int(params["prime"])
         data_seed = int(params.get("data_seed", 598))
         training_fraction = float(params.get("training_fraction", 0.3))
-        device = next(model.parameters()).device
 
-        probe_device = probe.to(device)
-        with torch.no_grad():
-            logits = model(probe_device)  # (p², n_ctx, p)
-
-        last_logits = logits[:, -1, :]  # (p², p)
+        last_logits = bundle.logits(-1)  # (p², p)
+        device = last_logits.device
         probs = last_logits.softmax(dim=-1)
         predictions = last_logits.argmax(dim=-1)
 

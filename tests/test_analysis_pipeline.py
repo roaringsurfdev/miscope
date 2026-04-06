@@ -24,7 +24,7 @@ class MockAnalyzer:
     def name(self) -> str:
         return self._name
 
-    def analyze(self, model, probe, cache, context: dict[str, Any]) -> dict[str, np.ndarray]:
+    def analyze(self, bundle, probe, context: dict[str, Any]) -> dict[str, np.ndarray]:
         """Mock analysis - returns simple test data."""
         return {"data": np.ones((10,), dtype=np.float32)}
 
@@ -249,7 +249,7 @@ class TestAnalysisPipelineResumability:
             def name(self):
                 return "counting"
 
-            def analyze(self, model, probe, cache, context):
+            def analyze(self, bundle, probe, context):
                 self.call_count += 1
                 return {"data": np.ones((5,))}
 
@@ -410,7 +410,7 @@ class SummaryMockAnalyzer:
     def name(self) -> str:
         return self._name
 
-    def analyze(self, model, probe, cache, context: dict[str, Any]) -> dict[str, np.ndarray]:
+    def analyze(self, bundle, probe, context: dict[str, Any]) -> dict[str, np.ndarray]:
         """Returns per-epoch artifact data."""
         return {"data": np.random.rand(10).astype(np.float32)}
 

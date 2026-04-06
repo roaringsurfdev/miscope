@@ -8,14 +8,17 @@ Per-epoch artifacts contain the full delta_losses distribution.
 Summary statistics provide flatness metrics for trajectory visualization.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library.landscape import compute_landscape_flatness
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 FLATNESS_SUMMARY_KEYS = [
     "mean_delta_loss",
@@ -56,17 +59,15 @@ class LandscapeFlatnessAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
+        bundle: ActivationBundle,
         probe: torch.Tensor,
-        cache: ActivationCache,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute landscape flatness for a single checkpoint.
 
         Args:
-            model: The model loaded with checkpoint weights.
+            bundle: Activation bundle. Uses raw_model for parameter perturbation.
             probe: The analysis dataset tensor.
-            cache: Unused (protocol conformance).
             context: Must contain 'loss_fn' key.
 
         Returns:
@@ -82,6 +83,10 @@ class LandscapeFlatnessAnalyzer:
                 "prepare_analysis_context() provides it."
             )
 
+        # Landscape flatness requires direct parameter manipulation — the bundle
+        # protocol doesn't cover perturbation. TransformerLensBundle.raw_model
+        # provides the escape hatch for this transformer-specific use case.
+        model = bundle.raw_model  # type: ignore[attr-defined]
         return compute_landscape_flatness(
             model=model,
             probe=probe,
