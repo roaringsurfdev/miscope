@@ -576,7 +576,7 @@ class Variant:
             if progress_callback and epoch % 100 == 0:
                 progress_callback(
                     epoch / num_epochs,
-                    f"Epoch {epoch}/{num_epochs} - Train: {train_loss.item():.4f}, Test: {test_loss.item():.4f}",
+                    f"Epoch {epoch}/{num_epochs} - Train: {train_loss.item():.6f}, Test: {test_loss.item():.6f}",
                 )
 
         # Save final model as latest checkpoint
