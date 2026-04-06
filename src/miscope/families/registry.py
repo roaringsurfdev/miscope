@@ -29,8 +29,10 @@ def register_family_implementation(name: str, cls: type[JsonModelFamily]) -> Non
 def _register_default_implementations() -> None:
     """Register built-in family implementations."""
     from miscope.families.implementations.modulo_addition_1layer import ModuloAddition1LayerFamily
+    from miscope.families.implementations.two_layer_mlp import TwoLayerMLPFamily
 
     register_family_implementation("modulo_addition_1layer", ModuloAddition1LayerFamily)
+    register_family_implementation("modulo_addition_2layer_mlp", TwoLayerMLPFamily)
 
 
 # Register default implementations on module load
