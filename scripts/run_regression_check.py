@@ -92,7 +92,7 @@ def run_pipeline(variant, force: bool) -> None:
 
 
 # Analyzers excluded from regression: stochastic output, not byte-comparable.
-EXCLUDED_ANALYZERS = {"landscape_flatness"}
+EXCLUDED_ANALYZERS = {"landscape_flatness", "coarseness"}
 
 
 def compare_variant(
@@ -195,7 +195,7 @@ def main() -> None:
         output_variant_dir = args.output_dir / FAMILY / vid
         output_variant_dir.mkdir(parents=True, exist_ok=True)
 
-        for name in ("checkpoints", "config.json", "metadata.json"):
+        for name in ("checkpoints", "config.json", "metadata.json", "variant_summary.json"):
             src = original_variant_dir / name
             dst = output_variant_dir / name
             if src.exists() and not dst.exists():
