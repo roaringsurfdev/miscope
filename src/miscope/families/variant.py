@@ -586,7 +586,7 @@ class Variant:
             saved_checkpoint_epochs.append(final_epoch)
 
         # Save config
-        self._save_config(model.cfg, self._params["data_seed"], training_fraction)
+        self._save_config(model, self._params["data_seed"], training_fraction)
 
         # Save metadata
         self._save_metadata(
@@ -639,36 +639,23 @@ class Variant:
 
     def _save_config(
         self,
-        cfg: Any,
+        model: Any,
         data_seed: int,
         training_fraction: float,
     ) -> None:
         """Save model configuration as JSON.
 
+        Delegates to family.build_config_dict() so each family controls
+        what gets written without coupling variant.py to specific model types.
+
         Args:
-            cfg: HookedTransformerConfig object
+            model: Trained model instance
             data_seed: Data split random seed
             training_fraction: Training data fraction
         """
-        config_dict = {
-            "n_layers": cfg.n_layers,
-            "n_heads": cfg.n_heads,
-            "d_model": cfg.d_model,
-            "d_head": cfg.d_head,
-            "d_mlp": cfg.d_mlp,
-            "act_fn": cfg.act_fn,
-            "normalization_type": cfg.normalization_type,
-            "d_vocab": cfg.d_vocab,
-            "d_vocab_out": cfg.d_vocab_out,
-            "n_ctx": cfg.n_ctx,
-            "seed": cfg.seed,
-            # Domain parameters
-            **self._params,
-            # Training parameters
-            "model_seed": self._params.get("seed", cfg.seed),
-            "data_seed": data_seed,
-            "training_fraction": training_fraction,
-        }
+        config_dict = self._family.build_config_dict(
+            model, self._params, data_seed, training_fraction
+        )
         with open(self.config_path, "w") as f:
             json.dump(config_dict, f, indent=2)
 

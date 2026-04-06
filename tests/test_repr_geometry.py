@@ -324,7 +324,7 @@ class TestRepresentationalGeometryAnalyzer:
         p = 5
         analyzer = RepresentationalGeometryAnalyzer()
         probe = self._make_probe(p)
-        labels = analyzer._compute_labels(probe, p)
+        labels = analyzer._compute_labels(probe, p, context={})
 
         # Verify labels are correct: (a + b) mod p
         probe_np = probe.numpy()

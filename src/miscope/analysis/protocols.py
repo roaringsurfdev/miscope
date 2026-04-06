@@ -43,6 +43,16 @@ class ActivationBundle(Protocol):
         """Logits at a token position. Returns (batch, vocab_size)."""
         ...
 
+    def supports_site(self, extractor: str) -> bool:
+        """Return True if this bundle supports the given extraction type.
+
+        extractor values: 'mlp', 'residual', 'attention'
+
+        Analyzers should call this before attempting extraction to gracefully
+        skip sites that the architecture does not provide.
+        """
+        ...
+
 
 @dataclass
 class AnalysisRunConfig:

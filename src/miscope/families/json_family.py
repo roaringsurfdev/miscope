@@ -273,5 +273,32 @@ class JsonModelFamily:
             f"make_probe() not implemented for {self.name}. Use a family-specific implementation."
         )
 
+    def build_config_dict(
+        self,
+        model: Any,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """Build the config.json dict for a trained model.
+
+        Base implementation includes domain params and training metadata.
+        Family subclasses should override to add architecture-specific fields.
+
+        Args:
+            model: Trained model instance (architecture-specific)
+            params: Domain parameter values
+            data_seed: Data split seed used during training
+            training_fraction: Fraction of data used for training
+
+        Returns:
+            Dict suitable for JSON serialization as config.json
+        """
+        return {
+            **params,
+            "data_seed": data_seed,
+            "training_fraction": training_fraction,
+        }
+
     def __repr__(self) -> str:
         return f"JsonModelFamily(name={self.name!r})"

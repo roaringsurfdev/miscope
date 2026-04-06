@@ -134,6 +134,10 @@ class MLPActivationBundle:
         """
         return self._logits
 
+    def supports_site(self, extractor: str) -> bool:
+        """MLP bundles only support 'mlp' extraction; no residual stream or attention."""
+        return extractor == "mlp"
+
 
 class TwoLayerMLPFamily(JsonModelFamily):
     """ModelFamily implementation for the 2-layer MLP on modular addition.
@@ -249,6 +253,25 @@ class TwoLayerMLPFamily(JsonModelFamily):
             test_indices,
         )
 
+    def build_config_dict(
+        self,
+        model: TwoLayerMLP,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """Build config.json dict for a TwoLayerMLP."""
+        return {
+            "architecture": "two_layer_mlp",
+            "vocab_size": model.vocab_size,
+            "d_hidden": model.d_hidden,
+            "act_fn": "relu",
+            **params,
+            "model_seed": params.get("seed"),
+            "data_seed": data_seed,
+            "training_fraction": training_fraction,
+        }
+
     def run_forward_pass(
         self,
         model: TwoLayerMLP,
@@ -311,10 +334,15 @@ class TwoLayerMLPFamily(JsonModelFamily):
             loss = -log_probs.gather(1, labels.unsqueeze(1)).squeeze(1).mean()
             return loss.item()
 
+        a_vals = torch.arange(p).repeat_interleave(p)
+        b_vals = torch.arange(p).repeat(p)
+        labels = ((a_vals + b_vals) % p).numpy()
+
         return {
             "params": params,
             "fourier_basis": fourier_basis,
             "loss_fn": loss_fn,
+            "labels": labels,
         }
 
     def make_probe(

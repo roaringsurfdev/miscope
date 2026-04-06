@@ -79,6 +79,10 @@ class TransformerLensBundle:
         """Logits at a token position. Returns (batch, vocab_size)."""
         return self._logits[:, position, :]
 
+    def supports_site(self, extractor: str) -> bool:
+        """TransformerLens bundles support all extraction types."""
+        return True
+
     # ------------------------------------------------------------------
     # Escape hatch for analyzers requiring direct model access
     # (e.g. LandscapeFlatnessAnalyzer which perturbs model parameters)

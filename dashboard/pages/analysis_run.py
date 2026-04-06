@@ -120,29 +120,7 @@ def create_analysis_run_page_layout(app: Dash) -> html.Div:
 def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: bool = False) -> None:
     """Execute analysis pipeline in a background thread."""
     from miscope.analysis import AnalysisPipeline
-    from miscope.analysis.analyzers import (
-        AttentionFourierAnalyzer,
-        AttentionFreqAnalyzer,
-        AttentionPatternsAnalyzer,
-        CentroidDMD,
-        DominantFrequenciesAnalyzer,
-        EffectiveDimensionalityAnalyzer,
-        FourierFrequencyQualityAnalyzer,
-        FourierNucleationAnalyzer,
-        GlobalCentroidPCA,
-        InputTraceAnalyzer,
-        InputTraceGraduationAnalyzer,
-        LandscapeFlatnessAnalyzer,
-        NeuronActivationsAnalyzer,
-        NeuronDynamicsAnalyzer,
-        NeuronFourierAnalyzer,
-        NeuronFreqClustersAnalyzer,
-        NeuronGroupPCAAnalyzer,
-        ParameterSnapshotAnalyzer,
-        ParameterTrajectoryPCA,
-        RepresentationalGeometryAnalyzer,
-        TransientFrequencyAnalyzer,
-    )
+    from miscope.analysis.analyzers.registry import AnalyzerRegistry
 
     try:
         analysis_progress.update(0.05, "Initializing...")
@@ -162,27 +140,12 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
             analysis_progress.update(0.1 + (pct * 0.9), desc)
 
         pipeline = AnalysisPipeline(variant)
-        pipeline.register(AttentionFreqAnalyzer())
-        pipeline.register(AttentionPatternsAnalyzer())
-        pipeline.register(DominantFrequenciesAnalyzer())
-        pipeline.register(InputTraceAnalyzer())
-        pipeline.register(NeuronActivationsAnalyzer())
-        pipeline.register(NeuronFreqClustersAnalyzer())
-        pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register(EffectiveDimensionalityAnalyzer())
-        pipeline.register(LandscapeFlatnessAnalyzer())
-        pipeline.register(RepresentationalGeometryAnalyzer())
-        pipeline.register(AttentionFourierAnalyzer())
-        pipeline.register(FourierNucleationAnalyzer())
-        pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-        pipeline.register_secondary(NeuronFourierAnalyzer())
-        pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
-        pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
-        pipeline.register_cross_epoch(GlobalCentroidPCA())
-        pipeline.register_cross_epoch(CentroidDMD())
-        pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
+        for analyzer in AnalyzerRegistry.get_for_family(family):
+            pipeline.register(analyzer)
+        for analyzer in AnalyzerRegistry.get_secondary_for_family(family):
+            pipeline.register_secondary(analyzer)
+        for analyzer in AnalyzerRegistry.get_cross_epoch_for_family(family):
+            pipeline.register_cross_epoch(analyzer)
         pipeline.run(progress_callback=progress_callback, force=force_refresh)
 
         # Regenerate variant_summary.json and variant_registry.json
