@@ -32,9 +32,7 @@
     "repr_geometry"
   ],
   "secondary_analyzers": [],
-  "cross_epoch_analyzers": [
-    "gradient_site"
-  ],
+  "cross_epoch_analyzers": [],
   "analysis_dataset": {
     "type": "modulo_addition_grid_onehot",
     "description": "Full (a, b) input grid encoded as one-hot concatenation (size 2p)"

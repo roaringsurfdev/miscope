@@ -149,11 +149,14 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
         pipeline.run(progress_callback=progress_callback, force=force_refresh)
 
         # Regenerate variant_summary.json and variant_registry.json
+        # VariantAnalysisSummary is transformer-specific; skip for other families.
         analysis_progress.update(0.97, "Regenerating variant summary...")
-        from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
         from miscope.analysis.variant_summary import build_variant_registry
 
-        VariantAnalysisSummary(variant).analyze()
+        if family_name == "modulo_addition_1layer":
+            from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
+            VariantAnalysisSummary(variant).analyze()
+
         results_dir = variant.variant_dir.parent.parent
         build_variant_registry(results_dir, family_name)
 
