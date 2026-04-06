@@ -31,14 +31,8 @@
     "input_trace",
     "repr_geometry"
   ],
-  "secondary_analyzers": [
-    "neuron_fourier",
-    "fourier_frequency_quality"
-  ],
+  "secondary_analyzers": [],
   "cross_epoch_analyzers": [
-    "neuron_dynamics",
-    "neuron_group_pca",
-    "transient_frequency",
     "gradient_site"
   ],
   "analysis_dataset": {
