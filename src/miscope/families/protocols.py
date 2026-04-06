@@ -1,11 +1,17 @@
 """Protocol definitions for model families."""
 
-from typing import Any, Protocol, runtime_checkable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import torch
-from transformer_lens import HookedTransformer
 
 from miscope.families.types import AnalysisDatasetSpec, ArchitectureSpec, ParameterSpec
+
+if TYPE_CHECKING:
+    from transformer_lens import HookedTransformer
+
+    from miscope.analysis.protocols import ActivationBundle
 
 
 @runtime_checkable
@@ -183,6 +189,26 @@ class ModelFamily(Protocol):
 
         Returns:
             Probe tensor ready for model.run_with_cache()
+        """
+        ...
+
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> ActivationBundle:
+        """Run a forward pass and return an ActivationBundle.
+
+        This is the pipeline's single entry point for getting activations.
+        TransformerLens families wrap model.run_with_cache(); MLP families
+        use PyTorch forward hooks to capture hidden activations.
+
+        Args:
+            model: Model instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            ActivationBundle wrapping the model and its activations.
         """
         ...
 

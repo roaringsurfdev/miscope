@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import tqdm.auto as tqdm
 
-from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.protocols import (
     AnalysisRunConfig,
     Analyzer,
@@ -282,10 +281,7 @@ class AnalysisPipeline:
         model = self.variant.family.create_model(self.variant.params, device=self._device)
         model.load_state_dict(state_dict)
 
-        with torch.inference_mode():
-            logits, cache = model.run_with_cache(probe)
-
-        bundle = TransformerLensBundle(model, cache, logits)
+        bundle = self.variant.family.run_forward_pass(model, probe)
 
         for analyzer, needed_epochs in work_queue:
             if epoch in needed_epochs:
@@ -300,7 +296,7 @@ class AnalysisPipeline:
                         collector["values"][key].append(value)
 
         # Explicit cleanup to prevent GPU memory accumulation
-        del model, cache, state_dict
+        del model, bundle, state_dict
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 

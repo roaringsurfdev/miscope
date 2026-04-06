@@ -49,7 +49,13 @@ def extract_parameter_snapshot(
     Returns:
         Dict with keys from WEIGHT_MATRIX_NAMES, values are numpy arrays.
     """
-    return {name: _to_numpy(bundle.weight(name)) for name in WEIGHT_MATRIX_NAMES}
+    result = {}
+    for name in WEIGHT_MATRIX_NAMES:
+        try:
+            result[name] = _to_numpy(bundle.weight(name))
+        except KeyError:
+            pass  # Architecture doesn't have this weight (e.g., MLP has no W_E)
+    return result
 
 
 ATTENTION_MATRICES = {"W_Q", "W_K", "W_V", "W_O"}
@@ -107,6 +113,8 @@ def compute_weight_singular_values(
     result = {}
 
     for name in WEIGHT_MATRIX_NAMES:
+        if name not in snapshot:
+            continue  # Weight not available for this architecture
         matrix = snapshot[name]
         key = f"sv_{name}"
 

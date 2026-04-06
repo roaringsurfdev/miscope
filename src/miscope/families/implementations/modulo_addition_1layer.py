@@ -229,6 +229,26 @@ class ModuloAddition1LayerFamily(JsonModelFamily):
             "loss_fn": loss_fn,
         }
 
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> Any:
+        """Run a forward pass and return a TransformerLensBundle.
+
+        Args:
+            model: HookedTransformer instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            TransformerLensBundle wrapping the model, cache, and logits
+        """
+        from miscope.analysis.bundle import TransformerLensBundle
+
+        with torch.inference_mode():
+            logits, cache = model.run_with_cache(probe)
+        return TransformerLensBundle(model, cache, logits)
+
     def make_probe(
         self,
         params: dict[str, Any],
