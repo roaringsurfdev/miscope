@@ -55,7 +55,8 @@
     "centroid_dmd",
     "input_trace_graduation",
     "neuron_group_pca",
-    "transient_frequency"
+    "transient_frequency",
+    "freq_group_weight_geometry"
   ],
   "analysis_dataset": {
     "type": "modulo_addition_grid",

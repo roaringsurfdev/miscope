@@ -129,6 +129,10 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_pca_variance,
     render_trajectory_proximity,
 )
+from miscope.visualization.renderers.freq_group_weight_geometry import (
+    render_weight_geometry_group_snapshot,
+    render_weight_geometry_timeseries,
+)
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,
     render_centroid_global_pca,
@@ -244,4 +248,7 @@ __all__ = [
     # Residue class graduation
     "render_graduation_spread",
     "render_graduation_cohesion",
+    # REQ_090: Frequency group weight geometry
+    "render_weight_geometry_timeseries",
+    "render_weight_geometry_group_snapshot",
 ]

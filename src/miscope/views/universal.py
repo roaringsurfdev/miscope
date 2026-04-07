@@ -1178,6 +1178,41 @@ def _register_all() -> None:
         )
     )
 
+    # --- Frequency group weight geometry (REQ_090) ---
+    # Both views load from freq_group_weight_geometry cross_epoch.npz.
+    # matrix kwarg selects Win or Wout.
+
+    def _load_freq_group_weight_geometry(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("freq_group_weight_geometry")
+
+    def _render_weight_geometry_timeseries(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        matrix = kwargs.pop("matrix", "Win")
+        return viz.render_weight_geometry_timeseries(data, epoch=epoch, matrix=matrix, **kwargs)
+
+    def _render_weight_geometry_group_snapshot(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        matrix = kwargs.pop("matrix", "Win")
+        return viz.render_weight_geometry_group_snapshot(data, epoch=epoch, matrix=matrix, **kwargs)
+
+    _fgwg_req = [AnalyzerRequirement("freq_group_weight_geometry", ArtifactKind.CROSS_EPOCH)]
+
+    for name, renderer in [
+        ("weight_geometry.timeseries", _render_weight_geometry_timeseries),
+        ("weight_geometry.group_snapshot", _render_weight_geometry_group_snapshot),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_freq_group_weight_geometry,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_fgwg_req,
+            )
+        )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

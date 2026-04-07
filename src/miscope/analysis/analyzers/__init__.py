@@ -27,6 +27,7 @@ from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
 # Secondary Analyzers
 from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
+from miscope.analysis.analyzers.freq_group_weight_geometry import FreqGroupWeightGeometryAnalyzer
 from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
 from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
 
@@ -59,6 +60,7 @@ __all__ = [
     "GradientSiteAnalyzer",
     "InputTraceAnalyzer",
     "InputTraceGraduationAnalyzer",
+    "FreqGroupWeightGeometryAnalyzer",
     "NeuronGroupPCAAnalyzer",
     "TransientFrequencyAnalyzer",
 ]

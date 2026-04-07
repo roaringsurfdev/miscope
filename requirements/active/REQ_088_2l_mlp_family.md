@@ -14,11 +14,7 @@ architectures. The 2L MLP is the first target: same modular addition task, same 
 stripped to two fully-connected layers with no attention heads, no positional embedding, and no
 residual stream.
 
-The scientific motivation is a minimal perturbation experiment. If the phase tiling, spoke
-structure, and saddle geometry observed in the transformer persist in the MLP, they are
-properties of gradient descent finding compact representations — not transformer-specific
-mechanisms. If they disappear and the MLP uses a simpler 2D ring, the extra structure is
-localized to transformer components (attention or residual stream composition).
+The scientific motivation is a minimal perturbation experiment. If the manifold that shows up in the Centroid Class PCA is a simple ring with no additional periodicity along the ring, then this structure isn't being created by the MLPs. If phase tiling, spoke structure, and saddle geometry observed in the transformer persist in the MLP, they are properties of gradient descent finding compact representations — not transformer-specific mechanisms. If any of the observed geometries disappear and the MLP uses a simpler 2D ring, the extra structure is localized to transformer components (attention or residual stream composition).
 
 This requirement covers the architecture, training loop, and family registration.
 Analysis views for MLP-specific geometry are out of scope here.

@@ -191,6 +191,9 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
     from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
     from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
+    from miscope.analysis.analyzers.freq_group_weight_geometry import (
+        FreqGroupWeightGeometryAnalyzer,
+    )
     from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
     from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
     from miscope.analysis.analyzers.parameter_trajectory_pca import ParameterTrajectoryPCA
@@ -221,6 +224,7 @@ def register_default_analyzers() -> None:
     AnalyzerRegistry.register_cross_epoch(GradientSiteAnalyzer)
     AnalyzerRegistry.register_cross_epoch(InputTraceGraduationAnalyzer)
     AnalyzerRegistry.register_cross_epoch(NeuronGroupPCAAnalyzer)
+    AnalyzerRegistry.register_cross_epoch(FreqGroupWeightGeometryAnalyzer)
     AnalyzerRegistry.register_cross_epoch(TransientFrequencyAnalyzer)
 
 
