@@ -106,7 +106,9 @@ class TestAttentionFourierAnalyzer:
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         assert "qk_freq_norms" in result
         assert "v_freq_norms" in result
@@ -116,7 +118,9 @@ class TestAttentionFourierAnalyzer:
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         assert result["qk_freq_norms"].shape == (N_HEADS, N_FREQ)
         assert result["v_freq_norms"].shape == (N_HEADS, N_FREQ)
@@ -126,7 +130,9 @@ class TestAttentionFourierAnalyzer:
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         qk_sums = result["qk_freq_norms"].sum(axis=1)
         v_sums = result["v_freq_norms"].sum(axis=1)
@@ -138,7 +144,9 @@ class TestAttentionFourierAnalyzer:
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         assert (result["qk_freq_norms"] >= 0).all()
         assert (result["v_freq_norms"] >= 0).all()
@@ -148,7 +156,9 @@ class TestAttentionFourierAnalyzer:
         context = _make_context()
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         assert result["qk_freq_norms"].dtype == np.float32
         assert result["v_freq_norms"].dtype == np.float32
@@ -185,7 +195,9 @@ class TestAttentionFourierAnalyzer:
         context = {"fourier_basis": F}
         analyzer = AttentionFourierAnalyzer()
         result = analyzer.analyze(
-            TransformerLensBundle(model, None, None), probe=None, context=context
+            TransformerLensBundle(model, None, None),  # type: ignore
+            probe=None,  # type: ignore
+            context=context,  # type: ignore
         )  # type: ignore[arg-type]
         # Dominant frequency for head 0 should be k (1-indexed → index k-1)
         dominant = int(result["qk_freq_norms"][0].argmax()) + 1

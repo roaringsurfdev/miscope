@@ -11,7 +11,7 @@ from miscope.families.types import AnalysisDatasetSpec, ArchitectureSpec, Parame
 if TYPE_CHECKING:
     from transformer_lens import HookedTransformer
 
-    from miscope.analysis.protocols import ActivationBundle
+    from miscope.analysis.protocols import ActivationBundle  # noqa: F401
 
 
 @runtime_checkable
@@ -129,7 +129,7 @@ class ModelFamily(Protocol):
             params: Domain parameter values
 
         Returns:
-            Directory name (e.g., "modulo_addition_1layer_p113_seed42")
+            Directory name (e.g., "modulo_addition_1layer_p113_seed598_dseed_598")
         """
         ...
 
@@ -196,7 +196,7 @@ class ModelFamily(Protocol):
         self,
         model: Any,
         probe: torch.Tensor,
-    ) -> ActivationBundle:
+    ) -> Any:
         """Run a forward pass and return an ActivationBundle.
 
         This is the pipeline's single entry point for getting activations.
@@ -234,5 +234,17 @@ class ModelFamily(Protocol):
 
         Returns:
             Dict containing 'params' and any precomputed analysis context
+        """
+        ...
+
+    def build_config_dict(
+        self,
+        model: Any,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """
+        TODO: Add spec comments for this method
         """
         ...

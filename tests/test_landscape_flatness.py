@@ -165,7 +165,7 @@ class TestLandscapeFlatnessAnalyzerProtocol:
         cache = ActivationCache({}, small_model)
         with pytest.raises(ValueError, match="loss_fn"):
             analyzer.analyze(
-                TransformerLensBundle(small_model, cache, None), # type: ignore
+                TransformerLensBundle(small_model, cache, None),  # type: ignore
                 dummy_probe,
                 context={},  # type: ignore
             )

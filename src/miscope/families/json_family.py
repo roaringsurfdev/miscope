@@ -273,6 +273,28 @@ class JsonModelFamily:
             f"make_probe() not implemented for {self.name}. Use a family-specific implementation."
         )
 
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> Any:
+        """Run a forward pass and return an ActivationBundle.
+
+        This is the pipeline's single entry point for getting activations.
+        TransformerLens families wrap model.run_with_cache(); MLP families
+        use PyTorch forward hooks to capture hidden activations.
+
+        Args:
+            model: Model instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            ActivationBundle wrapping the model and its activations.
+        """
+        raise NotImplementedError(
+            f"run_forward_pass() not implemented for {self.name}. Use a family-specific implementation."
+        )
+
     def build_config_dict(
         self,
         model: Any,

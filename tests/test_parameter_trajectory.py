@@ -109,24 +109,24 @@ class TestExtractParameterSnapshot:
 
     def test_returns_dict(self, model):
         """Returns a dict."""
-        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         assert isinstance(snapshot, dict)
 
     def test_contains_all_weight_names(self, model):
         """Result contains all expected weight matrix names."""
-        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         for name in WEIGHT_MATRIX_NAMES:
             assert name in snapshot, f"Missing weight: {name}"
 
     def test_values_are_numpy(self, model):
         """All values are numpy arrays."""
-        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         for name, arr in snapshot.items():
             assert isinstance(arr, np.ndarray), f"{name} is not numpy"
 
     def test_shapes_match_model(self, model):
         """Extracted shapes match model architecture."""
-        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         assert snapshot["W_E"].shape == (10, 32)  # (d_vocab, d_model)
         assert snapshot["W_pos"].shape == (3, 32)  # (n_ctx, d_model)
         assert snapshot["W_Q"].shape == (4, 32, 8)  # (n_heads, d_model, d_head)

@@ -263,7 +263,7 @@ class TestRepresentationalGeometryAnalyzer:
         # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            TransformerLensBundle(MagicMock(), cache, None),  # type: ignore
             probe,
             {"params": {"prime": p}},  # type: ignore
         )
@@ -293,7 +293,7 @@ class TestRepresentationalGeometryAnalyzer:
         # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            TransformerLensBundle(MagicMock(), cache, None),  # type: ignore
             probe,
             {"params": {"prime": p}},  # type: ignore
         )
@@ -317,7 +317,7 @@ class TestRepresentationalGeometryAnalyzer:
         # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            TransformerLensBundle(MagicMock(), cache, None),  # type: ignore
             probe,
             {"params": {"prime": p}},  # type: ignore
         )
@@ -355,7 +355,7 @@ class TestRepresentationalGeometryAnalyzer:
         # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            TransformerLensBundle(MagicMock(), cache, None),  # type: ignore
             probe,
             {"params": {"prime": p}},  # type: ignore
         )

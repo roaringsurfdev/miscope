@@ -163,8 +163,8 @@ def render_weight_geometry_timeseries(
             fig.add_vline(
                 x=epoch,
                 line=dict(color="orange", width=1, dash="dot"),
-                row=row, # type: ignore
-                col=1, # type: ignore
+                row=row,  # type: ignore
+                col=1,  # type: ignore
             )
 
     fig.update_yaxes(title_text="SNR", row=1, col=1)
