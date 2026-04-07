@@ -32,6 +32,7 @@ class GlobalCentroidPCA:
 
     name = "global_centroid_pca"
     requires = ["repr_geometry"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,
@@ -54,7 +55,11 @@ class GlobalCentroidPCA:
 
         result: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
 
+        first = epoch_artifacts[0] if epoch_artifacts else {}
         for site in _SITES:
+            # Skip sites absent from the artifacts (e.g. residual stream for MLP)
+            if f"{site}_centroids" not in first:
+                continue
             centroids_per_epoch = [a[f"{site}_centroids"] for a in epoch_artifacts]
             pca = compute_global_centroid_pca(centroids_per_epoch)
 

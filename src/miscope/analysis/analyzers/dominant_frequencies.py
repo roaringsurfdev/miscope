@@ -25,6 +25,7 @@ class DominantFrequenciesAnalyzer:
 
     name = "dominant_frequencies"
     description = "Identifies dominant frequencies in learned embeddings"
+    architecture_support = ["transformer"]
 
     def analyze(
         self,

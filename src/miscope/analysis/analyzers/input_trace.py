@@ -38,6 +38,7 @@ class InputTraceAnalyzer:
 
     name = "input_trace"
     description = "Per-pair predictions on all input pairs at each checkpoint"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,

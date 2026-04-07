@@ -38,6 +38,7 @@ class CentroidDMD:
 
     name = "centroid_dmd"
     requires = ["repr_geometry"]  # transitive: global_centroid_pca validated at runtime
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,

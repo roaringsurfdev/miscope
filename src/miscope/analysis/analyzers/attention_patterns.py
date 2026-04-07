@@ -29,6 +29,7 @@ class AttentionPatternsAnalyzer:
 
     name = "attention_patterns"
     description = "Captures per-head attention patterns across all position pairs"
+    architecture_support = ["transformer"]
 
     def analyze(
         self,

@@ -173,7 +173,10 @@ class _MockLoader:
         if name == "neuron_freq_norm":
             return {"norm_matrix": self._norm}
         if name == "parameter_snapshot":
-            snap = {"W_in": self._W_in[epoch]}
+            # Include a dummy W_E so the analyzer recognises the transformer
+            # convention: W_in shape is (d_model, d_mlp), W_out is (d_mlp, d_vocab).
+            W_in = self._W_in[epoch]
+            snap = {"W_in": W_in, "W_E": np.zeros((1, W_in.shape[0]), dtype=np.float32)}
             if self._W_out is not None:
                 snap["W_out"] = self._W_out[epoch]
             return snap

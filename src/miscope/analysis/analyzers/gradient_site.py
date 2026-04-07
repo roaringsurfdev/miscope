@@ -39,6 +39,7 @@ class GradientSiteAnalyzer:
     """
 
     name = "gradient_site"
+    architecture_support = ["transformer"]
     requires: list[str] = []  # loads checkpoints directly; no per-epoch deps
 
     def __init__(self, n_interior: int = 2, full_resolution: bool = False) -> None:

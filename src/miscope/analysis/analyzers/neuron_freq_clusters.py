@@ -31,6 +31,7 @@ class NeuronFreqClustersAnalyzer:
 
     name = "neuron_freq_norm"
     description = "Computes neuron-frequency specialization for clustering"
+    architecture_support = ["transformer", "mlp"]
 
     def __init__(self, specialization_threshold: float = 0.9):
         self.specialization_threshold = specialization_threshold

@@ -46,6 +46,7 @@ class LandscapeFlatnessAnalyzer:
 
     name = "landscape_flatness"
     description = "Measures loss landscape flatness via random weight perturbation"
+    architecture_support = ["transformer"]
 
     def __init__(
         self,

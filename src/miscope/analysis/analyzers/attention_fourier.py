@@ -32,6 +32,7 @@ class AttentionFourierAnalyzer:
 
     name = "attention_fourier"
     description = "Fourier decomposition of QK^T and V per attention head"
+    architecture_support = ["transformer"]
 
     def analyze(
         self,

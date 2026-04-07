@@ -22,6 +22,7 @@ class NeuronDynamicsAnalyzer:
 
     name = "neuron_dynamics"
     requires = ["neuron_freq_norm"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,

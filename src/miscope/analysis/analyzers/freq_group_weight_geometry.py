@@ -59,6 +59,7 @@ class FreqGroupWeightGeometryAnalyzer:
 
     name = "freq_group_weight_geometry"
     requires = ["neuron_freq_norm", "parameter_snapshot"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,
@@ -100,9 +101,11 @@ class FreqGroupWeightGeometryAnalyzer:
 
         for ep_idx, epoch in enumerate(sorted_epochs):
             snap = loader.load_epoch("parameter_snapshot", epoch)
+            is_transformer = "W_E" in snap
 
             if "W_in" in snap:
-                W_in = snap["W_in"].T.astype(np.float64)  # (d_mlp, d_model)
+                # Rows = neurons: transformer (d_model, d_mlp).T; MLP (d_hidden, 2p) as-is
+                W_in = (snap["W_in"].T if is_transformer else snap["W_in"]).astype(np.float64)
                 win_geo = _compute_group_geometry(W_in, group_labels, n_groups)
                 if ep_idx == 0:
                     d = W_in.shape[1]
@@ -118,7 +121,8 @@ class FreqGroupWeightGeometryAnalyzer:
                 Win_circularity[ep_idx] = win_geo["circularity"]
 
             if "W_out" in snap:
-                W_out = snap["W_out"].astype(np.float64)  # (d_mlp, d_vocab)
+                # Rows = neurons: transformer (d_mlp, d_model) as-is; MLP (p, d_hidden).T
+                W_out = (snap["W_out"] if is_transformer else snap["W_out"].T).astype(np.float64)
                 wout_geo = _compute_group_geometry(W_out, group_labels, n_groups)
                 if ep_idx == 0:
                     d = W_out.shape[1]

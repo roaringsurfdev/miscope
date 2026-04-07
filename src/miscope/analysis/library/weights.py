@@ -58,6 +58,29 @@ def extract_parameter_snapshot(
     return result
 
 
+def extract_neuron_weight_matrix(snapshot: dict) -> np.ndarray:
+    """Extract a (d_space, M) neuron weight matrix from a parameter snapshot.
+
+    Returns a column-per-neuron matrix suitable for PCA and geometric analysis,
+    dispatching on architecture based on snapshot contents.
+
+      - Transformer: W_in is (d_model, d_mlp) — columns are already neuron vectors.
+      - MLP:         W_in is (d_hidden, 2p) — rows are neuron vectors; transpose to
+                     (2p, d_hidden) so columns are neuron vectors.
+
+    Args:
+        snapshot: parameter_snapshot dict. Presence of 'W_E' signals transformer.
+
+    Returns:
+        Array of shape (d_space, M) where each column is one neuron's weight vector.
+    """
+    W_in = snapshot["W_in"]
+    if "W_E" in snapshot:
+        return W_in  # (d_model, d_mlp) — columns are neuron vectors
+    else:
+        return W_in.T  # (2p, d_hidden) — transposed so columns are neuron vectors
+
+
 ATTENTION_MATRICES = {"W_Q", "W_K", "W_V", "W_O"}
 
 
