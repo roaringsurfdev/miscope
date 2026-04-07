@@ -54,7 +54,7 @@ def create_repr_geometry_page_layout(app: Dash) -> html.Div:
     return html.Div(
         id="repr_geometry_content",
         children=[
-            html.H4("Geometry", className="mb-3"),
+            html.H4("Geometry - Activations", className="mb-3"),
             # Time-series (full width, tall)
             dbc.Row(dbc.Col(_graph_manager.create_graph("timeseries-plot", "1400px"))),
             # Fisher heatmap | Distance heatmap
