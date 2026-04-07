@@ -21,9 +21,12 @@ _MATRIX_LABELS = {
 }
 
 
-def _freq_color(group_idx: int, n_groups: int) -> str:
-    """Consistent HSL color for group index."""
-    hue = group_idx / max(n_groups, 1)
+def _freq_color(freq_value: int, n_freq: int) -> str:
+    """Consistent HSL color for a frequency value — matches neuron_group_pca convention.
+
+    hue = freq_value / n_freq so the same frequency gets the same color across all views.
+    """
+    hue = freq_value / max(n_freq, 1)
     r, g, b = colorsys.hls_to_rgb(hue, 0.55, 0.5)
     return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
 
@@ -178,6 +181,7 @@ def render_weight_geometry_group_snapshot(
     epoch: int | None = None,
     matrix: str = "Win",
     height: int | None = None,
+    n_freq: int | None = None,
 ) -> go.Figure:
     """Per-group bar chart of radii and effective dimensionality at a selected epoch.
 
@@ -189,10 +193,14 @@ def render_weight_geometry_group_snapshot(
         epoch: target epoch; uses final epoch if None or not found
         matrix: "Win" or "Wout"
         height: total figure height in pixels
+        n_freq: total number of frequency slots in the model (used for color wheel
+            alignment). Defaults to max(group_freqs) + 1 if not provided.
     """
     epochs = data["epochs"]
     group_freqs = data["group_freqs"]
     n_groups = len(group_freqs)
+    if n_freq is None:
+        n_freq = int(max(group_freqs)) + 1 if n_groups > 0 else 1
     prefix = matrix
     label = _MATRIX_LABELS.get(matrix, matrix)
 
@@ -210,7 +218,7 @@ def render_weight_geometry_group_snapshot(
     dims = data.get(f"{prefix}_dimensionality")
 
     group_labels = [f"f{group_freqs[g]}" for g in range(n_groups)]
-    colors = [_freq_color(g, n_groups) for g in range(n_groups)]
+    colors = [_freq_color(int(group_freqs[g]), n_freq) for g in range(n_groups)]
 
     fig = make_subplots(
         rows=1,
@@ -270,6 +278,7 @@ def render_weight_geometry_centroid_pca(
     epoch: int | None = None,
     matrix: str = "Win",
     height: int | None = None,
+    n_freq: int | None = None,
 ) -> go.Figure:
     """2x2 PCA trajectory of frequency group centroids in weight space.
 
@@ -285,12 +294,16 @@ def render_weight_geometry_centroid_pca(
         epoch: epoch to highlight as the current position
         matrix: "Win" or "Wout"
         height: total figure height in pixels
+        n_freq: total number of frequency slots in the model (used for color wheel
+            alignment). Defaults to max(group_freqs) + 1 if not provided.
     """
     from miscope.analysis.library.geometry import compute_global_centroid_pca
 
     epochs = data["epochs"]
     group_freqs = data["group_freqs"]
     n_groups = len(group_freqs)
+    if n_freq is None:
+        n_freq = int(max(group_freqs)) + 1 if n_groups > 0 else 1
     prefix = matrix
     label = _MATRIX_LABELS.get(matrix, matrix)
 
@@ -322,7 +335,7 @@ def render_weight_geometry_centroid_pca(
         projections = np.concatenate([projections, pad], axis=2)
         var_ratio = np.concatenate([var_ratio, np.zeros(3 - n_components)])
 
-    colors = [_freq_color(g, n_groups) for g in range(n_groups)]
+    colors = [_freq_color(int(group_freqs[g]), n_freq) for g in range(n_groups)]
     group_labels = [f"f{group_freqs[g]}" for g in range(n_groups)]
     epochs_list = epochs.tolist()
 
