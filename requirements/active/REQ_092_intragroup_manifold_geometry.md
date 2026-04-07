@@ -122,3 +122,15 @@ it doesn't assume centering.
     first-descent or plateau phenomenon.
 - The surface_fit view is the one that makes these results shareable without requiring
   the viewer to trust a specific camera angle on a 3D scatter.
+- **Open question — curvature trajectories:** Is manifold formation gradual, or does it
+  show phase-transition signatures? The hypothesis: R²_curvature tracks neuron
+  commitment (specialization threshold crossings) rather than just time during second
+  descent — meaning curvature lags slightly behind the rising neuron specialization
+  count, with geometry forming as a consequence of neurons committing rather than
+  concurrently. This is testable from existing artifacts: `neuron_freq_norm` carries the
+  per-neuron specialization signal at every epoch; `neuron_group_pca` projections are
+  already available per epoch. Answering this requires running the quadratic fit per
+  epoch rather than only at the final epoch — a natural extension of this requirement's
+  scope, not a new one. The cross-variant picture (healthy vs. non-grokking vs.
+  anomalous) would show whether trajectory shape (gradual ramp vs. sharp inflection) is
+  a reliable signature of grokking quality.
