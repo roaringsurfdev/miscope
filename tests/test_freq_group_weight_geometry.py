@@ -14,7 +14,6 @@ from miscope.visualization.renderers.freq_group_weight_geometry import (
     render_weight_geometry_timeseries,
 )
 
-
 # --- _compute_group_geometry unit tests ---
 
 

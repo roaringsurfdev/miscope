@@ -69,6 +69,11 @@ from miscope.visualization.renderers.fourier_nucleation import (
     render_nucleation_frequency_gains,
     render_nucleation_heatmap,
 )
+from miscope.visualization.renderers.freq_group_weight_geometry import (
+    render_weight_geometry_centroid_pca,
+    render_weight_geometry_group_snapshot,
+    render_weight_geometry_timeseries,
+)
 from miscope.visualization.renderers.gradient_site import (
     render_site_gradient_convergence,
     render_site_gradient_heatmap,
@@ -128,11 +133,6 @@ from miscope.visualization.renderers.parameter_trajectory import (
     render_trajectory_pc2_pc3,
     render_trajectory_pca_variance,
     render_trajectory_proximity,
-)
-from miscope.visualization.renderers.freq_group_weight_geometry import (
-    render_weight_geometry_centroid_pca,
-    render_weight_geometry_group_snapshot,
-    render_weight_geometry_timeseries,
 )
 from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,

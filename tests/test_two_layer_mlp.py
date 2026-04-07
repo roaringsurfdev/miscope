@@ -13,7 +13,6 @@ from miscope.families.implementations.two_layer_mlp import (
     load_two_layer_mlp_family,
 )
 
-
 P = 13  # Small prime for fast tests
 
 

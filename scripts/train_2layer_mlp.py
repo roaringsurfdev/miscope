@@ -24,9 +24,9 @@ from safetensors.torch import save_file
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from miscope.config import get_config
-from miscope.families.implementations.two_layer_mlp import load_two_layer_mlp_family
-from miscope.families.variant import Variant
+from miscope.config import get_config  # noqa: E402
+from miscope.families.implementations.two_layer_mlp import load_two_layer_mlp_family  # noqa: E402
+from miscope.families.variant import Variant  # noqa: E402
 
 
 def _loss(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -82,7 +82,7 @@ def train(
     # Override d_hidden from CLI if different from family.json default
     family._config["architecture"]["d_hidden"] = d_hidden
 
-    variant = Variant(family, params, cfg.results_dir)
+    variant = Variant(family, params, cfg.results_dir)  # type: ignore
     variant.ensure_directories()
 
     model = family.create_model(params, device=device)

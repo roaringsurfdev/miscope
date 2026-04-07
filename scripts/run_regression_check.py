@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -168,8 +167,8 @@ def main() -> None:
             print(f"ERROR: No matching variants found for: {args.variants}")
             sys.exit(1)
 
-    from miscope.families.registry import FamilyRegistry
     from miscope.config import get_config
+    from miscope.families.registry import FamilyRegistry
 
     cfg = get_config()
     src_registry = FamilyRegistry(cfg.model_families_dir, cfg.results_dir)
@@ -179,7 +178,7 @@ def main() -> None:
 
     for entry in variants_to_check:
         vid = entry["variant_id"]
-        p, s, ds = entry["prime"], entry["model_seed"], entry["data_seed"]
+        # p, s, ds = entry["prime"], entry["model_seed"], entry["data_seed"]
         print(f"\n{'=' * 60}")
         print(f"Variant: {vid}")
         print(f"  Re-running analysis into {args.output_dir}/...")
@@ -204,7 +203,7 @@ def main() -> None:
         out_registry = FamilyRegistry(cfg.model_families_dir, args.output_dir)
         variant = next((v for v in out_registry.get_variants(family) if v.name == vid), None)
         if variant is None:
-            print(f"  ERROR — could not load variant from output dir")
+            print("  ERROR — could not load variant from output dir")
             all_errors.append(f"  ERROR   {vid} — variant load failed")
             continue
 

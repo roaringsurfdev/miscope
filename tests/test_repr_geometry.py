@@ -260,10 +260,12 @@ class TestRepresentationalGeometryAnalyzer:
         analyzer = RepresentationalGeometryAnalyzer()
         probe = self._make_probe(p)
         cache = self._make_mock_cache(p)
-        model = MagicMock()
+        # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}}
+            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            probe,
+            {"params": {"prime": p}},  # type: ignore
         )
 
         # Check all sites have all expected keys
@@ -288,10 +290,12 @@ class TestRepresentationalGeometryAnalyzer:
         analyzer = RepresentationalGeometryAnalyzer()
         probe = self._make_probe(p)
         cache = self._make_mock_cache(p, d_model=8, d_mlp=16)
-        model = MagicMock()
+        # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}}
+            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            probe,
+            {"params": {"prime": p}},  # type: ignore
         )
 
         # Centroid shapes
@@ -310,10 +314,12 @@ class TestRepresentationalGeometryAnalyzer:
         analyzer = RepresentationalGeometryAnalyzer()
         probe = self._make_probe(p)
         cache = self._make_mock_cache(p)
-        model = MagicMock()
+        # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}}
+            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            probe,
+            {"params": {"prime": p}},  # type: ignore
         )
         summary = analyzer.compute_summary(result, {})
 
@@ -346,10 +352,12 @@ class TestRepresentationalGeometryAnalyzer:
         analyzer = RepresentationalGeometryAnalyzer()
         probe = self._make_probe(p)
         cache = self._make_mock_cache(p)
-        model = MagicMock()
+        # model = MagicMock()
 
         result = analyzer.analyze(
-            TransformerLensBundle(MagicMock(), cache, None), probe, {"params": {"prime": p}}
+            TransformerLensBundle(MagicMock(), cache, None), # type: ignore
+            probe,
+            {"params": {"prime": p}},  # type: ignore
         )
 
         for site in _SITES:
