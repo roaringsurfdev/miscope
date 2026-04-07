@@ -95,7 +95,9 @@ class MLPActivationBundle:
             ValueError: If layer != 0.
         """
         if layer != 0:
-            raise ValueError(f"MLPActivationBundle has one hidden layer (layer 0), got layer={layer}")
+            raise ValueError(
+                f"MLPActivationBundle has one hidden layer (layer 0), got layer={layer}"
+            )
         return self._hidden_acts
 
     def weight(self, name: str) -> torch.Tensor:

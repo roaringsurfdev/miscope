@@ -155,6 +155,7 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
 
         if family_name == "modulo_addition_1layer":
             from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
+
             VariantAnalysisSummary(variant).analyze()
 
         results_dir = variant.variant_dir.parent.parent

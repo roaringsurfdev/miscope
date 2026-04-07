@@ -223,4 +223,4 @@ def register_sitenav_callbacks(app: Dash) -> None:
         else:
             # Variant Table is now the default page.
             return [create_variant_table_page_nav(app), create_variant_table_page_layout(app)]
-            #return [create_multistream_page_nav(app), create_multistream_page_layout(app)]
+            # return [create_multistream_page_nav(app), create_multistream_page_layout(app)]

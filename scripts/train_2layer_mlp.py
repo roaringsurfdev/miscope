@@ -87,7 +87,9 @@ def train(
 
     model = family.create_model(params, device=device)
     train_data, train_labels, test_data, test_labels, train_indices, test_indices = (
-        family.generate_training_dataset(params, training_fraction=training_fraction, data_seed=data_seed, device=device)
+        family.generate_training_dataset(
+            params, training_fraction=training_fraction, data_seed=data_seed, device=device
+        )
     )
 
     training_config = family.get_training_config()
@@ -133,7 +135,9 @@ def train(
     # Save final checkpoint
     final_epoch = num_epochs - 1
     if final_epoch not in checkpoint_epochs:
-        checkpoint_path = variant.checkpoints_dir / f"checkpoint_epoch_{final_epoch:05d}.safetensors"
+        checkpoint_path = (
+            variant.checkpoints_dir / f"checkpoint_epoch_{final_epoch:05d}.safetensors"
+        )
         save_file(model.state_dict(), str(checkpoint_path))
         saved_epochs.append(final_epoch)
 
@@ -159,10 +163,18 @@ def train(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train a 2-layer MLP on modular addition")
     parser.add_argument("--prime", type=int, required=True, help="Modulus for addition task")
-    parser.add_argument("--seed", type=int, default=999, help="Model initialization seed (default: 999)")
-    parser.add_argument("--data-seed", type=int, default=598, help="Train/test split seed (default: 598)")
-    parser.add_argument("--d-hidden", type=int, default=512, help="Hidden layer width (default: 512)")
-    parser.add_argument("--training-fraction", type=float, default=0.3, help="Fraction for training (default: 0.3)")
+    parser.add_argument(
+        "--seed", type=int, default=999, help="Model initialization seed (default: 999)"
+    )
+    parser.add_argument(
+        "--data-seed", type=int, default=598, help="Train/test split seed (default: 598)"
+    )
+    parser.add_argument(
+        "--d-hidden", type=int, default=512, help="Hidden layer width (default: 512)"
+    )
+    parser.add_argument(
+        "--training-fraction", type=float, default=0.3, help="Fraction for training (default: 0.3)"
+    )
     parser.add_argument("--device", type=str, default=None, help="Device (cpu/cuda, default: auto)")
     args = parser.parse_args()
 

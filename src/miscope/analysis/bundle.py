@@ -16,15 +16,15 @@ if TYPE_CHECKING:
     from transformer_lens.ActivationCache import ActivationCache
 
 _WEIGHT_LOOKUP: dict[str, Any] = {
-    "W_E":   lambda m: m.embed.W_E,
+    "W_E": lambda m: m.embed.W_E,
     "W_pos": lambda m: m.pos_embed.W_pos,
-    "W_Q":   lambda m: m.blocks[0].attn.W_Q,
-    "W_K":   lambda m: m.blocks[0].attn.W_K,
-    "W_V":   lambda m: m.blocks[0].attn.W_V,
-    "W_O":   lambda m: m.blocks[0].attn.W_O,
-    "W_in":  lambda m: m.blocks[0].mlp.W_in,
+    "W_Q": lambda m: m.blocks[0].attn.W_Q,
+    "W_K": lambda m: m.blocks[0].attn.W_K,
+    "W_V": lambda m: m.blocks[0].attn.W_V,
+    "W_O": lambda m: m.blocks[0].attn.W_O,
+    "W_in": lambda m: m.blocks[0].mlp.W_in,
     "W_out": lambda m: m.blocks[0].mlp.W_out,
-    "W_U":   lambda m: m.unembed.W_U,
+    "W_U": lambda m: m.unembed.W_U,
 }
 
 

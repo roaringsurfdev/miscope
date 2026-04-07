@@ -164,7 +164,9 @@ class TestLandscapeFlatnessAnalyzerProtocol:
         analyzer = LandscapeFlatnessAnalyzer(n_directions=3)
         cache = ActivationCache({}, small_model)
         with pytest.raises(ValueError, match="loss_fn"):
-            analyzer.analyze(TransformerLensBundle(small_model, cache, None), dummy_probe, context={})
+            analyzer.analyze(
+                TransformerLensBundle(small_model, cache, None), dummy_probe, context={}
+            )
 
     def test_summary_keys(self):
         """get_summary_keys returns the 7 expected keys."""

@@ -81,7 +81,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2),
                 hovertemplate="Epoch %{x}<br>SNR: %{y:.3f}<extra></extra>",
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
 
     spread_key = f"{prefix}_center_spread"
@@ -96,7 +97,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2),
                 hovertemplate="Epoch %{x}<br>Center spread: %{y:.4f}<extra></extra>",
             ),
-            row=2, col=1,
+            row=2,
+            col=1,
         )
     if radius_key in data:
         fig.add_trace(
@@ -108,7 +110,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2, dash="dash"),
                 hovertemplate="Epoch %{x}<br>Mean radius: %{y:.4f}<extra></extra>",
             ),
-            row=2, col=1,
+            row=2,
+            col=1,
         )
 
     circ_key = f"{prefix}_circularity"
@@ -122,7 +125,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2),
                 hovertemplate="Epoch %{x}<br>Circularity: %{y:.3f}<extra></extra>",
             ),
-            row=3, col=1,
+            row=3,
+            col=1,
         )
 
     fisher_mean_key = f"{prefix}_fisher_mean"
@@ -137,7 +141,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2),
                 hovertemplate="Epoch %{x}<br>Fisher mean: %{y:.3f}<extra></extra>",
             ),
-            row=4, col=1,
+            row=4,
+            col=1,
         )
     if fisher_min_key in data:
         fig.add_trace(
@@ -149,7 +154,8 @@ def render_weight_geometry_timeseries(
                 line=dict(color=color, width=2, dash="dash"),
                 hovertemplate="Epoch %{x}<br>Fisher min: %{y:.3f}<extra></extra>",
             ),
-            row=4, col=1,
+            row=4,
+            col=1,
         )
 
     if epoch is not None:
@@ -157,7 +163,8 @@ def render_weight_geometry_timeseries(
             fig.add_vline(
                 x=epoch,
                 line=dict(color="orange", width=1, dash="dot"),
-                row=row, col=1,
+                row=row,
+                col=1,
             )
 
     fig.update_yaxes(title_text="SNR", row=1, col=1)
@@ -241,7 +248,8 @@ def render_weight_geometry_group_snapshot(
                 showlegend=False,
                 hovertemplate="Group %{x}<br>Radius: %{y:.4f}<extra></extra>",
             ),
-            row=1, col=1,
+            row=1,
+            col=1,
         )
 
     if dims is not None:
@@ -255,7 +263,8 @@ def render_weight_geometry_group_snapshot(
                 showlegend=False,
                 hovertemplate="Group %{x}<br>Eff. dim: %{y:.2f}<extra></extra>",
             ),
-            row=1, col=2,
+            row=1,
+            col=2,
         )
 
     fig.update_yaxes(title_text="RMS radius", row=1, col=1)
@@ -386,7 +395,8 @@ def render_weight_geometry_centroid_pca(
                     showlegend=False,
                     hoverinfo="skip",
                 ),
-                row=row, col=col,
+                row=row,
+                col=col,
             )
             fig.add_trace(
                 go.Scatter(
@@ -405,7 +415,8 @@ def render_weight_geometry_centroid_pca(
                     customdata=epochs_list,
                     hovertemplate=f"{glabel}<br>Epoch %{{customdata}}<br>{xl}: %{{x:.3f}}<br>{yl}: %{{y:.3f}}<extra></extra>",
                 ),
-                row=row, col=col,
+                row=row,
+                col=col,
             )
             # Highlight current epoch
             fig.add_trace(
@@ -413,21 +424,25 @@ def render_weight_geometry_centroid_pca(
                     x=[traj[ep_idx, pc_a]],
                     y=[traj[ep_idx, pc_b]],
                     mode="markers",
-                    marker=dict(size=10, color=color, symbol="circle",
-                                line=dict(width=2, color="black")),
+                    marker=dict(
+                        size=10, color=color, symbol="circle", line=dict(width=2, color="black")
+                    ),
                     name=glabel,
                     legendgroup=glabel,
                     showlegend=False,
                     hovertemplate=f"{glabel} @ epoch {epochs_list[ep_idx]}<extra></extra>",
                 ),
-                row=row, col=col,
+                row=row,
+                col=col,
             )
             show_legend = False
 
         # 3D trajectory
         fig.add_trace(
             go.Scatter3d(
-                x=traj[:, 0], y=traj[:, 1], z=traj[:, 2],
+                x=traj[:, 0],
+                y=traj[:, 1],
+                z=traj[:, 2],
                 mode="lines+markers",
                 line=dict(color=color, width=3),
                 marker=dict(
@@ -442,21 +457,26 @@ def render_weight_geometry_centroid_pca(
                 customdata=epochs_list,
                 hovertemplate=f"{glabel}<br>Epoch %{{customdata}}<extra></extra>",
             ),
-            row=2, col=2,
+            row=2,
+            col=2,
         )
         # Highlight current epoch in 3D
         fig.add_trace(
             go.Scatter3d(
-                x=[traj[ep_idx, 0]], y=[traj[ep_idx, 1]], z=[traj[ep_idx, 2]],
+                x=[traj[ep_idx, 0]],
+                y=[traj[ep_idx, 1]],
+                z=[traj[ep_idx, 2]],
                 mode="markers",
-                marker=dict(size=8, color=color, symbol="diamond",
-                            line=dict(width=1, color="black")),
+                marker=dict(
+                    size=8, color=color, symbol="diamond", line=dict(width=1, color="black")
+                ),
                 name=glabel,
                 legendgroup=glabel,
                 showlegend=False,
                 hovertemplate=f"{glabel} @ epoch {epochs_list[ep_idx]}<extra></extra>",
             ),
-            row=2, col=2,
+            row=2,
+            col=2,
         )
 
     current_epoch_label = epochs_list[ep_idx]

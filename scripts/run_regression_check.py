@@ -180,7 +180,7 @@ def main() -> None:
     for entry in variants_to_check:
         vid = entry["variant_id"]
         p, s, ds = entry["prime"], entry["model_seed"], entry["data_seed"]
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Variant: {vid}")
         print(f"  Re-running analysis into {args.output_dir}/...")
 
@@ -221,12 +221,14 @@ def main() -> None:
         else:
             print(f"  PASSED — {entry['artifact_count']} artifacts matched")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if all_errors:
         print(f"REGRESSION FAILED — {len(all_errors)} issue(s) across all variants")
         sys.exit(1)
     else:
-        print(f"REGRESSION PASSED — all {sum(v['artifact_count'] for v in variants_to_check)} artifacts matched")
+        print(
+            f"REGRESSION PASSED — all {sum(v['artifact_count'] for v in variants_to_check)} artifacts matched"
+        )
 
 
 if __name__ == "__main__":

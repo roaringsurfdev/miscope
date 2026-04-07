@@ -31,8 +31,15 @@ def test_compute_group_geometry_keys():
     W, labels = _two_group_weights()
     result = _compute_group_geometry(W, labels, n_groups=2)
     expected_keys = {
-        "centroids", "radii", "dimensionality",
-        "center_spread", "mean_radius", "snr", "fisher_mean", "fisher_min", "circularity",
+        "centroids",
+        "radii",
+        "dimensionality",
+        "center_spread",
+        "mean_radius",
+        "snr",
+        "fisher_mean",
+        "fisher_min",
+        "circularity",
     }
     assert expected_keys == set(result.keys())
 
@@ -194,8 +201,17 @@ def test_analyzer_output_keys_win_only():
     W_in = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
     result = _run_analyzer(_MockLoader(norm, W_in), epochs)
 
-    win_keys = {"Win_centroids", "Win_radii", "Win_dimensionality", "Win_center_spread",
-                "Win_mean_radius", "Win_snr", "Win_fisher_mean", "Win_fisher_min", "Win_circularity"}
+    win_keys = {
+        "Win_centroids",
+        "Win_radii",
+        "Win_dimensionality",
+        "Win_center_spread",
+        "Win_mean_radius",
+        "Win_snr",
+        "Win_fisher_mean",
+        "Win_fisher_min",
+        "Win_circularity",
+    }
     assert win_keys.issubset(result.keys())
     assert "epochs" in result
     assert "group_freqs" in result
@@ -237,8 +253,14 @@ def test_analyzer_win_scalar_shapes():
     W_in = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
     result = _run_analyzer(_MockLoader(norm, W_in), epochs)
 
-    for key in ["Win_center_spread", "Win_mean_radius", "Win_snr",
-                "Win_fisher_mean", "Win_fisher_min", "Win_circularity"]:
+    for key in [
+        "Win_center_spread",
+        "Win_mean_radius",
+        "Win_snr",
+        "Win_fisher_mean",
+        "Win_fisher_min",
+        "Win_circularity",
+    ]:
         assert result[key].shape == (4,), f"{key} shape mismatch"
 
 
@@ -312,7 +334,11 @@ def _make_artifact(n_epochs=5, n_groups=3, d_model=16, d_vocab=113):
     group_freqs = np.arange(n_groups, dtype=np.int32) * 7
 
     def scalar(val=None):
-        return rng.uniform(0.1, 2.0, n_epochs).astype(np.float32) if val is None else np.full(n_epochs, val, dtype=np.float32)
+        return (
+            rng.uniform(0.1, 2.0, n_epochs).astype(np.float32)
+            if val is None
+            else np.full(n_epochs, val, dtype=np.float32)
+        )
 
     return {
         "group_freqs": group_freqs,

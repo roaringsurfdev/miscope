@@ -211,7 +211,12 @@ class TestTwoLayerMLPFamily:
         assert name == f"modulo_addition_2layer_mlp_p{P}_seed42_dseed598"
 
     def test_analyzers_excludes_transformer_specific(self, family):
-        transformer_only = {"attention_freq", "attention_fourier", "attention_patterns", "fourier_nucleation"}
+        transformer_only = {
+            "attention_freq",
+            "attention_fourier",
+            "attention_patterns",
+            "fourier_nucleation",
+        }
         assert not transformer_only.intersection(set(family.analyzers))
 
     def test_analyzers_includes_neuron_activations(self, family):
