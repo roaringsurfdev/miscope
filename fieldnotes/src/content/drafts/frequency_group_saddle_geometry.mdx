@@ -1,0 +1,10 @@
+During analysis of neuron frequency groups in weight space, I noticed that many of the neuron groups appear to be occupying a saddle manifold by the end of training.
+
+Attempts have been made to quantify the saddle geometry.
+
+In other analysis, a consistent trend has shown up in which a single first frequency starts to build during the plateau. This first frequency, or first-mover in our framing, seems to have some kind of organizing impact on the model. There might even be an early feedback mechanism between this first frequency and the Attention Heads that creates the conditions for second descent.
+
+Spot-checking on models with early first-movers shows that the first-mover frequencies have more organized geometry before the other neuron frequency groups.
+For models where there is minimal lead time for the first-mover, they usually rise together sigmoidally. In these cases, it appears that there is a correlation between frequencies that have accumulated the most neuron count and geometric organization.
+
+One possible interpretation of grokking from a geometrical organization perspective is that the activation space achieves geometric organization fairly quickly, but the weights take a while to catch up. Grokking is what happens with both spaces align.

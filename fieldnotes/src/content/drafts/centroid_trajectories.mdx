@@ -1,0 +1,24 @@
+---
+title: "The Frequencies Move Like the Loss Landscape"
+date: 2026-04-06
+description: "Watching frequency group centroids trace trajectories through weight space — and what the movement reveals about basin dynamics."
+tags: ["weight-geometry", "grokking", "basin-dynamics", "transient-frequencies"]
+---
+
+The centroid PCA view was built to answer a static question: where do frequency groups end up in weight space, relative to each other? But looking at it epoch-by-epoch, the static question becomes less interesting than the dynamic one.
+
+The trajectories look like the loss landscape. That's not a precise statement, but it's what you see: groups moving, stalling, finding their positions. The geometry assembles in real time. The frequencies line up the way they do in the specialization plots — the same ordering, the same timing — but now you're watching *weight space* reorganize instead of reading the aftermath.
+
+The clearest moment is in p113/seed999/dseed999 — the variant with the transient frequency. One group is off on its own. Its trajectory never comes near the others. It wanders, reaches, and stays lost. In the static plot this reads as an outlier. In the animation it reads as a basin: something that landed in the wrong place and couldn't escape. The other frequencies converge; this one doesn't. The movement makes the isolation obvious in a way the endpoint doesn't.
+
+This connects directly to the basin landing hypothesis: that arrival velocity and preparation matter more than timing. A frequency group that commits early, in a well-shaped basin, pulls its trajectory toward the cluster. One that never commits traces a different path — visible only when you watch the cursor move.
+
+The saddle geometry findings (R² curvature as a second-descent phenomenon) fit the same picture. The within-group shape isn't there at the beginning of second descent — it forms as the group commits. Watching the centroid trajectories, you can see the between-group separation happen first: groups moving apart. The within-group organization comes after. The centroid moves to its place in weight space; then the neurons inside it settle into a surface.
+
+Two questions the animation raises that the static view doesn't:
+
+**Does the transient frequency group's trajectory diverge before or after the other frequencies converge?** The static endpoint shows isolation. The trajectory might show whether the transient was pushed out or simply never arrived.
+
+**Do the trajectories show acceleration signatures near second descent?** If curvature formation is a phase transition rather than a gradual process, the centroid movement might show it — sudden displacement rather than smooth drift.
+
+Both are answerable from existing artifacts. That's for another session.
