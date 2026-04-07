@@ -1,6 +1,6 @@
 # REQ_090: Frequency Group Weight Geometry
 
-**Status:** Active
+**Status:** Complete
 **Priority:** Medium
 **Branch:** feature/req-090-freq-group-weight-geometry
 **Attribution:** Engineering Claude
