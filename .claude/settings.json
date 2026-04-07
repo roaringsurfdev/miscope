@@ -6,7 +6,16 @@
       "Bash(head -5 grep -n \"def names\\\\|_views\\\\|ViewCatalog\" /home/megano/projects/mechinterp/training-dynamics-workbench/src/miscope/views/catalog.py)",
       "Bash(chmod +x /home/megano/projects/mechinterp/training-dynamics-workbench/.git/hooks/pre-push)",
       "Bash(gh release create v0.8.2 --title 'v0.8.2 — Checkpoint Schedule, Transient Analysis, and Pipeline' --notes ':*)",
-      "Bash(break)"
+      "Bash(break)",
+      "Bash(gh release create v0.8.3 --target main --title 'v0.8.3 — Pre-Training Analysis' --notes ':*)",
+      "Read(//home/megano/projects/.claude/projects/-home-megano-projects-mechinterp-training-dynamics-workbench/memory/**)",
+      "Bash(sort -t= -k4 -rn)",
+      "Bash(sed -i 's/InputTraceAnalyzer\\(\\)\\\\.analyze\\(model, probe, None, context\\)/InputTraceAnalyzer\\(\\).analyze\\(_make_bundle\\(model, probe\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_input_trace.py)",
+      "Bash(sed -i 's/analyzer\\\\.analyze\\(model, probe, None, context\\)/analyzer.analyze\\(_make_bundle\\(model, probe\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_input_trace.py)",
+      "Bash(sed -i 's/result = analyzer\\\\.analyze\\(model, dataset, cache, context\\)/result = analyzer.analyze\\(TransformerLensBundle\\(model, cache, logits\\), dataset, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_modulo_addition_family.py)",
+      "Bash(sed -i 's/return analyzer\\\\.analyze\\(None, probe, cache, context\\)/return analyzer.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
+      "Bash(sed -i 's/result_a = analyzer_a\\\\.analyze\\(None, probe, cache, context\\)/result_a = analyzer_a.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
+      "Bash(sed -i 's/result_b = analyzer_b\\\\.analyze\\(None, probe, cache, context\\)/result_b = analyzer_b.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)"
     ]
   }
 }
