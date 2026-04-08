@@ -26,13 +26,24 @@
   },
   "analyzers": [
     "neuron_activations",
+    "neuron_freq_norm",
     "parameter_snapshot",
     "effective_dimensionality",
     "input_trace",
     "repr_geometry"
   ],
-  "secondary_analyzers": [],
-  "cross_epoch_analyzers": [],
+  "secondary_analyzers": [
+    "neuron_fourier"
+  ],
+  "cross_epoch_analyzers": [
+    "parameter_trajectory",
+    "neuron_dynamics",
+    "global_centroid_pca",
+    "input_trace_graduation",
+    "neuron_group_pca",
+    "transient_frequency",
+    "freq_group_weight_geometry"
+  ],
   "analysis_dataset": {
     "type": "modulo_addition_grid_onehot",
     "description": "Full (a, b) input grid encoded as one-hot concatenation (size 2p)"

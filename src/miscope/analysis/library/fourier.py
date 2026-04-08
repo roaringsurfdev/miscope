@@ -181,6 +181,45 @@ def compute_neuron_coarseness(
     return freq_fractions[:k].sum(dim=0)
 
 
+def compose_neuron_fourier_weights(
+    artifact: dict,
+    prime: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compose effective input and output weight vectors for Fourier decomposition.
+
+    Dispatches on architecture based on artifact contents:
+      - Transformer: theta_m = W_E[:p] @ W_in[:, m]  (embedding composed with MLP input)
+                     xi_m    = W_out[m, :] @ W_U      (MLP output composed with unembedding)
+      - MLP:         theta_m = (W_in[m, :p] + W_in[m, p:]) / 2  (average of a/b input halves)
+                     xi_m    = W_out[:, m]             (column m of output weight)
+
+    Args:
+        artifact: parameter_snapshot dict. Transformer artifacts contain 'W_E' and 'W_U';
+                  MLP artifacts contain only 'W_in' and 'W_out'.
+        prime: The prime p. Used to split MLP W_in into a/b halves.
+
+    Returns:
+        (theta, xi): both shape (prime, M) where M = n_neurons.
+            theta[:, m] is neuron m's effective input sensitivity per token.
+            xi[:, m] is neuron m's effective output contribution per logit.
+    """
+    W_in = artifact["W_in"]
+    W_out = artifact["W_out"]
+
+    if "W_E" in artifact:
+        # Transformer path
+        W_E = artifact["W_E"]  # (p+1, d_model)
+        W_U = artifact["W_U"]  # (d_model, p)
+        theta = W_E[:prime] @ W_in  # (p, d_mlp)
+        xi = (W_out @ W_U).T  # (p, d_mlp)
+    else:
+        # MLP path: W_in is (d_hidden, 2p), W_out is (p, d_hidden)
+        theta = (W_in[:, :prime] + W_in[:, prime:]).T / 2  # (p, d_hidden)
+        xi = W_out  # (p, d_hidden) — already in (p, M) form
+
+    return theta, xi
+
+
 def extract_frequency_pairs(
     fourier_coeffs: np.ndarray,
     prime: int,

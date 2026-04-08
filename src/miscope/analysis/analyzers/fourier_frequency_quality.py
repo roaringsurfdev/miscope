@@ -34,6 +34,7 @@ class FourierFrequencyQualityAnalyzer:
 
     name = "fourier_frequency_quality"
     depends_on = "dominant_frequencies"
+    architecture_support = ["transformer"]
 
     def __init__(self, threshold_factor: float = 3.0):
         self.threshold_factor = threshold_factor

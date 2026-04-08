@@ -75,6 +75,7 @@ class RepresentationalGeometryAnalyzer:
 
     name = "repr_geometry"
     description = "Tracks representational geometry evolution across training"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,

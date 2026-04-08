@@ -28,6 +28,7 @@ class NeuronActivationsAnalyzer:
 
     name = "neuron_activations"
     description = "Computes neuron activation heatmaps for (a, b) inputs"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,

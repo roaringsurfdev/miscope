@@ -103,7 +103,11 @@ class _MockArtifactLoader:
         if name == "neuron_freq_norm":
             return {"norm_matrix": self._norm}
         if name == "parameter_snapshot":
-            return {"W_in": self._W_in[epoch]}
+            # Include a dummy W_E so extract_neuron_weight_matrix recognises
+            # the transformer convention: W_in shape is (d_model, d_mlp).
+            W_in = self._W_in[epoch]
+            dummy_W_E = np.zeros((1, W_in.shape[0]), dtype=np.float32)
+            return {"W_in": W_in, "W_E": dummy_W_E}
         raise KeyError(name)
 
 

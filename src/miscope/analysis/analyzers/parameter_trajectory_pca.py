@@ -29,6 +29,7 @@ class ParameterTrajectoryPCA:
 
     name = "parameter_trajectory"
     requires = ["parameter_snapshot"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,
@@ -42,7 +43,11 @@ class ParameterTrajectoryPCA:
 
         result: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
 
+        first_snap = snapshots[0] if snapshots else {}
         for group_name, components in _GROUPS.items():
+            # Skip groups whose weight matrices are all absent (e.g. "embedding" for MLP)
+            if components is not None and not any(k in first_snap for k in components):
+                continue
             n_components = min(10, len(snapshots))
             pca = compute_pca_trajectory(snapshots, components, n_components)
             velocity = compute_parameter_velocity(

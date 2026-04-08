@@ -38,6 +38,7 @@ class CoarsenessAnalyzer:
 
     name = "coarseness"
     description = "Computes per-neuron coarseness (low-frequency energy ratio)"
+    architecture_support = ["transformer", "mlp"]
 
     def __init__(
         self,

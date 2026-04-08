@@ -34,6 +34,7 @@ class AttentionFreqAnalyzer:
 
     name = "attention_freq"
     description = "Frequency decomposition of attention patterns per head"
+    architecture_support = ["transformer"]
 
     def __init__(
         self,

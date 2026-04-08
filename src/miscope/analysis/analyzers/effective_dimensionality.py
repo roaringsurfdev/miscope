@@ -35,6 +35,7 @@ class EffectiveDimensionalityAnalyzer:
 
     name = "effective_dimensionality"
     description = "Computes weight matrix singular values for dimensionality analysis"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,

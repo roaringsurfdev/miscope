@@ -27,6 +27,7 @@ class ParameterSnapshotAnalyzer:
 
     name = "parameter_snapshot"
     description = "Stores weight matrix snapshots for trajectory analysis"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,

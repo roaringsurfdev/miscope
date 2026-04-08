@@ -20,6 +20,7 @@ from miscope.analysis.library.activations import (
     run_with_cache,
 )
 from miscope.analysis.library.fourier import (
+    compose_neuron_fourier_weights,
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
     compute_neuron_coarseness,
@@ -49,6 +50,7 @@ from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     compute_participation_ratio,
     compute_weight_singular_values,
+    extract_neuron_weight_matrix,
     extract_parameter_snapshot,
 )
 
@@ -78,8 +80,11 @@ __all__ = [
     "compute_fourier_alignment",
     "compute_fisher_discriminant",
     "find_circularity_crossovers",
+    # Fourier weight composition
+    "compose_neuron_fourier_weights",
     # Weight matrix functions
     "extract_parameter_snapshot",
+    "extract_neuron_weight_matrix",
     "compute_weight_singular_values",
     "compute_participation_ratio",
     "WEIGHT_MATRIX_NAMES",

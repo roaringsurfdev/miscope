@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.library import extract_neuron_weight_matrix
 
 
 class NeuronGroupPCAAnalyzer:
@@ -40,6 +41,7 @@ class NeuronGroupPCAAnalyzer:
 
     name = "neuron_group_pca"
     requires = ["neuron_freq_norm", "parameter_snapshot"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,
@@ -64,7 +66,7 @@ class NeuronGroupPCAAnalyzer:
         W_ins: list[np.ndarray] = []
         for ep_idx, epoch in enumerate(sorted_epochs):
             snap = loader.load_epoch("parameter_snapshot", epoch)
-            W_in = snap["W_in"]  # (d_model, d_mlp)
+            W_in = extract_neuron_weight_matrix(snap)  # (d_space, M) — architecture-agnostic
             W_ins.append(W_in)
             for g_idx, members in enumerate(group_members):
                 pc_var[ep_idx, g_idx], mean_spread[ep_idx, g_idx] = _group_pca_stats(

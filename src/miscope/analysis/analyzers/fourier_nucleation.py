@@ -151,6 +151,7 @@ class FourierNucleationAnalyzer:
 
     name = "fourier_nucleation"
     description = "Iterative Fourier projection of MLP neuron response profiles"
+    architecture_support = ["transformer"]
 
     def __init__(self, iterations: int = 12, sharpness: float = 0.7):
         self.iterations = iterations
