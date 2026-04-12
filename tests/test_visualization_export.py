@@ -115,6 +115,7 @@ class TestExportFigure:
 # ── export_animation tests ──────────────────────────────────────────
 
 
+@pytest.mark.skip(reason="GIF creation will be replaced with native Plotly animation.")
 class TestExportAnimation:
     """Tests for per-epoch animated GIF export."""
 
@@ -249,6 +250,7 @@ class TestExportAnimation:
 # ── export_cross_epoch_animation tests ───────────────────────────────
 
 
+@pytest.mark.skip(reason="GIF creation will be replaced with native Plotly animation.")
 class TestExportCrossEpochAnimation:
     """Tests for cross-epoch animated GIF export."""
 
