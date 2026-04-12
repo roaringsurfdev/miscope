@@ -13,7 +13,7 @@ from miscope.families.implementations.modulo_addition_embed_mlp import (
     load_modulo_addition_embed_mlp_family,
 )
 
-P = 13       # Small prime for fast tests
+P = 13  # Small prime for fast tests
 D_EMBED = 8  # Small embedding dim for tests
 D_HIDDEN = 32
 
@@ -193,8 +193,8 @@ class TestModuloAdditionEmbedMLPFamily:
         assert len(result) == 6
 
     def test_generate_training_dataset_shapes(self, family, params):
-        train_data, train_l, test_data, test_l, tr_idx, te_idx = (
-            family.generate_training_dataset(params)
+        train_data, train_l, test_data, test_l, tr_idx, te_idx = family.generate_training_dataset(
+            params
         )
         assert len(tr_idx) + len(te_idx) == P * P
         assert train_data.shape == (len(tr_idx), 2)
@@ -271,8 +271,13 @@ class TestModuloAdditionEmbedMLPFamily:
 
     def test_get_training_config_keys(self, family):
         cfg = family.get_training_config()
-        for key in ("learning_rate", "weight_decay", "betas", "num_epochs",
-                    "default_checkpoint_epochs"):
+        for key in (
+            "learning_rate",
+            "weight_decay",
+            "betas",
+            "num_epochs",
+            "default_checkpoint_epochs",
+        ):
             assert key in cfg
 
     def test_get_training_config_he_et_al_settings(self, family):

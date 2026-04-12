@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from miscope.families import (
-    FamilyRegistry,
     BaseModelFamily,
+    FamilyRegistry,
     Variant,
     VariantState,
 )

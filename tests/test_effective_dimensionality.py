@@ -126,7 +126,9 @@ class TestComputeWeightSingularValues:
     def test_non_attention_svs_are_1d(self, model):
         """Non-attention singular values are 1D arrays."""
         result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
-        non_attn = [n for n in WEIGHT_MATRIX_NAMES if n not in ATTENTION_MATRICES and f"sv_{n}" in result]
+        non_attn = [
+            n for n in WEIGHT_MATRIX_NAMES if n not in ATTENTION_MATRICES and f"sv_{n}" in result
+        ]
         for name in non_attn:
             sv = result[f"sv_{name}"]
             assert sv.ndim == 1, f"sv_{name} should be 1D, got {sv.ndim}D"

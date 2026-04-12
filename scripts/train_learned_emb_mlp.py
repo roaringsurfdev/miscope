@@ -24,7 +24,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from miscope.config import get_config  # noqa: E402
-from miscope.families.implementations.modulo_addition_embed_mlp import load_modulo_addition_embed_mlp_family  # noqa: E402
+from miscope.families.implementations.modulo_addition_embed_mlp import (  # noqa: E402
+    load_modulo_addition_embed_mlp_family,  # noqa: E402
+)
 from miscope.families.variant import Variant  # noqa: E402
 
 

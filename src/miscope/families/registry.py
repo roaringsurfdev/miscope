@@ -28,9 +28,11 @@ def register_family_implementation(name: str, cls: type[BaseModelFamily]) -> Non
 
 def _register_default_implementations() -> None:
     """Register built-in family implementations."""
-    from miscope.families.implementations.modulo_addition_embed_mlp import ModuloAdditionEmbedMLPFamily
     from miscope.families.implementations.modulo_addition_1layer import ModuloAddition1LayerFamily
     from miscope.families.implementations.modulo_addition_2l_mlp import ModuloAddition2LMLPFamily
+    from miscope.families.implementations.modulo_addition_embed_mlp import (
+        ModuloAdditionEmbedMLPFamily,
+    )
 
     register_family_implementation("modulo_addition_1layer", ModuloAddition1LayerFamily)
     register_family_implementation("modulo_addition_2layer_mlp", ModuloAddition2LMLPFamily)

@@ -25,7 +25,9 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from miscope.config import get_config  # noqa: E402
-from miscope.families.implementations.modulo_addition_2l_mlp import load_modulo_addition_2l_mlp_family  # noqa: E402
+from miscope.families.implementations.modulo_addition_2l_mlp import (  # noqa: E402
+    load_modulo_addition_2l_mlp_family,  # noqa: E402
+)
 from miscope.families.variant import Variant  # noqa: E402
 
 
@@ -173,7 +175,10 @@ def main() -> None:
         "--d-hidden", type=int, default=512, help="Hidden layer width (default: 512)"
     )
     parser.add_argument(
-        "--training-fraction", type=float, default=0.30, help="Fraction for training (default: 0.30)"
+        "--training-fraction",
+        type=float,
+        default=0.30,
+        help="Fraction for training (default: 0.30)",
     )
     parser.add_argument("--device", type=str, default=None, help="Device (cpu/cuda, default: auto)")
     args = parser.parse_args()

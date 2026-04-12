@@ -24,7 +24,9 @@ _VIEW_LIST = {
     # Multiple filters from the left nav are support. This is just one example.
 }
 
-_graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "[page abbreviation to prevent cross-page control collisions]")
+_graph_manager = AnalysisPageGraphManager(
+    _VIEW_LIST, "[page abbreviation to prevent cross-page control collisions]"
+)
 
 
 def create_PAGE_NAME_page_nav(app: Dash) -> html.Div:
@@ -127,10 +129,7 @@ def register_PAGE_NAME_page_callbacks(app: Dash) -> None:
         return f"[DISPLAY TEXT {INPUT_VAR}]"
 
     @app.callback(
-        [
-            Output(pid, "figure")
-            for pid in _graph_manager.get_graph_output_list("[FILTER_NAME1]")
-        ],
+        [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("[FILTER_NAME1]")],
         Input("variant-selector-store", "modified_timestamp"),
         Input("[FILTER_CONTROL_ID2]", "value"),
         Input("[FILTER_CONTROL_ID2]", "value"),

@@ -136,11 +136,15 @@ class ModuloAdditionEmbedMLPActivationBundle:
         Raises KeyError for unsupported weight names.
         """
         if name not in self._WEIGHT_LOOKUP:
-            raise KeyError(f"Weight '{name}' not available in ModuloAdditionEmbedMLPActivationBundle")
+            raise KeyError(
+                f"Weight '{name}' not available in ModuloAdditionEmbedMLPActivationBundle"
+            )
         return self._WEIGHT_LOOKUP[name](self._model)
 
     def attention_pattern(self, layer: int) -> torch.Tensor:
-        raise NotImplementedError("ModuloAdditionEmbedMLPActivationBundle has no attention patterns")
+        raise NotImplementedError(
+            "ModuloAdditionEmbedMLPActivationBundle has no attention patterns"
+        )
 
     def residual_stream(self, layer: int, position: int, location: str) -> torch.Tensor:
         raise NotImplementedError("ModuloAdditionEmbedMLPActivationBundle has no residual stream")
@@ -389,9 +393,7 @@ def load_modulo_addition_embed_mlp_family(
     model_families_dir: Path | str = "model_families",
 ) -> ModuloAdditionEmbedMLPFamily:
     """Load the learned-embedding MLP family from the standard location."""
-    family_json = (
-        Path(model_families_dir) / "modulo_addition_learned_emb_mlp" / "family.json"
-    )
+    family_json = Path(model_families_dir) / "modulo_addition_learned_emb_mlp" / "family.json"
     family = ModuloAdditionEmbedMLPFamily.from_json(family_json)
     assert isinstance(family, ModuloAdditionEmbedMLPFamily)
     return family

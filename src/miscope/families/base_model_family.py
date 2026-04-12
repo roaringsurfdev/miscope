@@ -316,8 +316,7 @@ class BaseModelFamily:
             NotImplementedError: Must be implemented by subclass
         """
         raise NotImplementedError(
-            f"compute_loss() not implemented for {self.name}. "
-            "Use a family-specific implementation."
+            f"compute_loss() not implemented for {self.name}. Use a family-specific implementation."
         )
 
     def build_config_dict(

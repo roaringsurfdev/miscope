@@ -92,7 +92,13 @@ class TestAttentionFreqAnalyzerOutput:
         context = {"fourier_basis": fourier_basis}
 
         analyzer = AttentionFreqAnalyzer()
-        return analyzer.analyze(ActivationContext(bundle=TransformerLensBundle(None, cache, None), probe=probe, analysis_params=context))
+        return analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
 
     def test_returns_dict(self, analyzer_result):
         assert isinstance(analyzer_result, dict)
@@ -238,7 +244,19 @@ class TestAttentionFreqPositionPair:
         analyzer_a = AttentionFreqAnalyzer(to_position=2, from_position=0)
         analyzer_b = AttentionFreqAnalyzer(to_position=2, from_position=1)
 
-        result_a = analyzer_a.analyze(ActivationContext(bundle=TransformerLensBundle(None, cache, None), probe=probe, analysis_params=context))
-        result_b = analyzer_b.analyze(ActivationContext(bundle=TransformerLensBundle(None, cache, None), probe=probe, analysis_params=context))
+        result_a = analyzer_a.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
+        result_b = analyzer_b.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
 
         assert not np.array_equal(result_a["freq_matrix"], result_b["freq_matrix"])

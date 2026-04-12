@@ -14,7 +14,6 @@ from miscope.analysis.analyzers.repr_geometry import (
     _get_summary_keys,
 )
 from miscope.analysis.bundle import TransformerLensBundle
-from miscope.analysis.protocols import ActivationContext
 from miscope.analysis.library.geometry import (
     compute_center_spread,
     compute_circularity,
@@ -25,6 +24,7 @@ from miscope.analysis.library.geometry import (
     compute_fisher_matrix,
     compute_fourier_alignment,
 )
+from miscope.analysis.protocols import ActivationContext
 from miscope.visualization.renderers.repr_geometry import render_fisher_heatmap
 
 # ── Geometry Library Tests ───────────────────────────────────────────
