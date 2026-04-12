@@ -78,7 +78,7 @@ def create_training_page_layout(app: Dash) -> html.Div:
                                 min=0.1,
                                 max=0.9,
                                 step=0.05,
-                                value=0.75,
+                                value=0.30,
                                 marks={0.1: "0.1", 0.3: "0.3", 0.5: "0.5", 0.7: "0.7", 0.9: "0.9"},
                                 tooltip={"placement": "bottom", "always_visible": False},
                             ),
@@ -86,7 +86,7 @@ def create_training_page_layout(app: Dash) -> html.Div:
                             dbc.Input(
                                 id="training-epochs-input",
                                 type="number",
-                                value=50000,
+                                value=25000,
                                 step=1,
                             ),
                             dbc.Label(
@@ -207,11 +207,12 @@ def register_training_page_callbacks(app: Dash) -> None:
         Output("training-variant-preview", "children"),
         Output("training-prime-input", "value"),
         Output("training-seed-input", "value"),
+        Output("training-data-seed-input", "value"),
         Input("training-family-dropdown", "value"),
     )
-    def on_training_family_change(family_name: str | None) -> tuple[str, int, int]:
+    def on_training_family_change(family_name: str | None) -> tuple[str, int, int, int]:
         if not family_name:
-            return "Select a family", 113, 999
+            return "Select a family", 113, 999, 598
         registry = get_registry()
         family = registry.get_family(family_name)
         defaults = family.get_default_params()
@@ -219,7 +220,7 @@ def register_training_page_callbacks(app: Dash) -> None:
         seed = defaults.get("seed", 999)
         data_seed = defaults.get("data_seed", 598)
         variant_name = family.variant_pattern.format(prime=prime, seed=seed, data_seed=data_seed)
-        return f"Variant: {variant_name}", prime, seed
+        return f"Variant: {variant_name}", prime, seed, data_seed
 
     @app.callback(
         Output("training-variant-preview", "children", allow_duplicate=True),
