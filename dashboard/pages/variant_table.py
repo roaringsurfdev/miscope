@@ -70,6 +70,8 @@ def _load_table_rows() -> list[dict]:
             test_loss_final = rec.get("test_loss_final")
             loss_display = f"{test_loss_final:.2e}" if test_loss_final is not None else "—"
 
+            transient_frequency_count = rec.get("transient_frequency_count")
+
             rows.append(
                 {
                     "_variant_name": variant_name,
@@ -81,6 +83,7 @@ def _load_table_rows() -> list[dict]:
                     "test_loss_final": loss_display,
                     "grokking_epoch": grokking_epoch if grokking_epoch is not None else "—",
                     "committed_freqs": committed_count,
+                    "transient_frequency_count": transient_frequency_count,
                 }
             )
 
@@ -103,6 +106,7 @@ _COLUMNS = [
     {"name": "Test Loss (final)", "id": "test_loss_final"},
     {"name": "Grokking Epoch", "id": "grokking_epoch"},
     {"name": "Committed Freqs", "id": "committed_freqs", "type": "numeric"},
+    {"name": "Transient Freq Count", "id": "transient_frequency_count", "type": "numeric"},
 ]
 
 # ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ from miscope.analysis.analyzers.dominant_frequencies import DominantFrequenciesA
 from miscope.analysis.analyzers.effective_dimensionality import EffectiveDimensionalityAnalyzer
 from miscope.analysis.analyzers.fourier_frequency_quality import FourierFrequencyQualityAnalyzer
 from miscope.analysis.analyzers.fourier_nucleation import FourierNucleationAnalyzer
+from miscope.analysis.analyzers.freq_group_weight_geometry import FreqGroupWeightGeometryAnalyzer
 from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
 from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
 from miscope.analysis.analyzers.input_trace import InputTraceAnalyzer
@@ -59,6 +60,7 @@ __all__ = [
     "GradientSiteAnalyzer",
     "InputTraceAnalyzer",
     "InputTraceGraduationAnalyzer",
+    "FreqGroupWeightGeometryAnalyzer",
     "NeuronGroupPCAAnalyzer",
     "TransientFrequencyAnalyzer",
 ]

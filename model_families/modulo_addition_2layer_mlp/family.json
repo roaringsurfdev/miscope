@@ -1,0 +1,52 @@
+{
+  "name": "modulo_addition_2layer_mlp",
+  "display_name": "Modulo Addition (2-Layer MLP)",
+  "description": "Two-layer MLP trained on modular arithmetic. Same task as the 1-layer transformer but without attention, positional embedding, or residual stream. Input is one-hot (a, b) concatenated (size 2p).",
+  "class_type": "miscope.families.implementations.two_layer_mlp.TwoLayerMLPFamily",
+  "architecture": {
+    "d_hidden": 512,
+    "act_fn": "relu"
+  },
+  "domain_parameters": {
+    "prime": {
+      "type": "int",
+      "description": "Modulus for the addition task",
+      "default": 113
+    },
+    "seed": {
+      "type": "int",
+      "description": "Random seed for model initialization",
+      "default": 999
+    },
+    "data_seed": {
+      "type": "int",
+      "description": "Random seed for train/test split of the (a, b) input grid",
+      "default": 598
+    }
+  },
+  "analyzers": [
+    "neuron_activations",
+    "neuron_freq_norm",
+    "parameter_snapshot",
+    "effective_dimensionality",
+    "input_trace",
+    "repr_geometry"
+  ],
+  "secondary_analyzers": [
+    "neuron_fourier"
+  ],
+  "cross_epoch_analyzers": [
+    "parameter_trajectory",
+    "neuron_dynamics",
+    "global_centroid_pca",
+    "input_trace_graduation",
+    "neuron_group_pca",
+    "transient_frequency",
+    "freq_group_weight_geometry"
+  ],
+  "analysis_dataset": {
+    "type": "modulo_addition_grid_onehot",
+    "description": "Full (a, b) input grid encoded as one-hot concatenation (size 2p)"
+  },
+  "variant_pattern": "modulo_addition_2layer_mlp_p{prime}_seed{seed}_dseed{data_seed}"
+}

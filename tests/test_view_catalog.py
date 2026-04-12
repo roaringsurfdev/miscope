@@ -302,7 +302,7 @@ class TestVariantIntegration:
     @pytest.fixture
     def temp_variant(self):
         """A real Variant backed by a temp filesystem with minimal metadata."""
-        from miscope.families.json_family import JsonModelFamily
+        from miscope.families.base_model_family import BaseModelFamily
         from miscope.families.variant import Variant
 
         config = {
@@ -318,7 +318,7 @@ class TestVariantIntegration:
             "visualizations": [],
             "variant_pattern": "test_family_p{prime}_seed{seed}",
         }
-        family = JsonModelFamily(config)
+        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             variant = Variant(family, {"prime": 113, "seed": 999}, root)

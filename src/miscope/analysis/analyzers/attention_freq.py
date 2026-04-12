@@ -4,20 +4,21 @@ Computes Fourier frequency decomposition of attention patterns per head,
 analogous to neuron_freq_clusters for MLP neurons.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import einops
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
     compute_grid_size_from_dataset,
-    extract_attention_patterns,
 )
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 
 class AttentionFreqAnalyzer:
@@ -32,6 +33,7 @@ class AttentionFreqAnalyzer:
 
     name = "attention_freq"
     description = "Frequency decomposition of attention patterns per head"
+    architecture_support = ["transformer"]
 
     def __init__(
         self,
@@ -43,27 +45,22 @@ class AttentionFreqAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,  # noqa: ARG002
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """Compute frequency variance fractions for each attention head.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Full probe tensor (p^2, 3)
-            cache: Activation cache from forward pass
-            context: Analysis context containing 'fourier_basis'
+            ctx: Analysis context with bundle, probe, and analysis_params.
+                 analysis_params must contain 'fourier_basis'.
 
         Returns:
             Dict with 'freq_matrix' array of shape (n_freq, n_heads)
         """
-        fourier_basis = context["fourier_basis"]
-        p = compute_grid_size_from_dataset(probe)
+        fourier_basis = ctx.analysis_params["fourier_basis"]
+        p = compute_grid_size_from_dataset(ctx.probe)
 
         # Extract attention patterns: (p*p, n_heads, n_pos, n_pos)
-        attn = extract_attention_patterns(cache, layer=0)
+        attn = ctx.bundle.attention_pattern(0)
 
         # Select position pair, e.g. = → a: (p*p, n_heads)
         attn_pair = attn[:, :, self.to_position, self.from_position]

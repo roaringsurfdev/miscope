@@ -217,9 +217,11 @@ __marimo__/
 
 # Project-specific
 /results
+/results_regression
 *.pth
 /temp_artifacts
 /notebooks/animations
 /notebooks/exports
 /articles
 /notes
+/fieldnotes/src/content/drafts/*.mdx

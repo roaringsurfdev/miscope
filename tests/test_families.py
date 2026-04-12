@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from miscope.families import (
+    BaseModelFamily,
     FamilyRegistry,
-    JsonModelFamily,
     Variant,
     VariantState,
 )
@@ -95,16 +95,16 @@ def temp_project_with_artifacts(temp_project_with_checkpoints) -> Path:
     return temp_project_with_checkpoints
 
 
-# --- JsonModelFamily Tests ---
+# --- BaseModelFamily Tests ---
 
 
-class TestJsonModelFamily:
-    """Tests for JsonModelFamily class."""
+class TestBaseModelFamily:
+    """Tests for BaseModelFamily class."""
 
     def test_from_json(self, temp_project_dir):
         """Test loading family from JSON file."""
         family_json = temp_project_dir / "model_families" / "test_family" / "family.json"
-        family = JsonModelFamily.from_json(family_json)
+        family = BaseModelFamily.from_json(family_json)
 
         assert family.name == "test_family"
         assert family.display_name == "Test Family"
@@ -112,7 +112,7 @@ class TestJsonModelFamily:
 
     def test_properties(self, sample_family_config):
         """Test all property accessors."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
 
         assert family.name == "test_family"
         assert family.display_name == "Test Family"
@@ -123,19 +123,9 @@ class TestJsonModelFamily:
         assert family.analyzers == ["dominant_frequencies", "neuron_activations"]
         assert family.variant_pattern == "test_family_p{prime}_seed{seed}"
 
-    def test_get_variant_directory_name(self, sample_family_config):
-        """Test variant directory name generation."""
-        family = JsonModelFamily(sample_family_config)
-
-        name = family.get_variant_directory_name({"prime": 113, "seed": 42})
-        assert name == "test_family_p113_seed42"
-
-        name = family.get_variant_directory_name({"prime": 97, "seed": 999})
-        assert name == "test_family_p97_seed999"
-
     def test_get_default_params(self, sample_family_config):
         """Test getting default parameters."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         defaults = family.get_default_params()
 
         assert defaults == {"prime": 113, "seed": 999}
@@ -148,13 +138,13 @@ class TestJsonModelFamily:
         }
 
         with pytest.raises(KeyError) as exc_info:
-            JsonModelFamily(incomplete_config)
+            BaseModelFamily(incomplete_config)
 
         assert "Missing required fields" in str(exc_info.value)
 
     def test_create_model_not_implemented(self, sample_family_config):
         """Test that create_model raises NotImplementedError."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
 
         with pytest.raises(NotImplementedError):
             family.create_model({"prime": 113, "seed": 42})
@@ -168,7 +158,7 @@ class TestVariant:
 
     def test_variant_properties(self, temp_project_dir, sample_family_config):
         """Test Variant property accessors."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_dir / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -178,7 +168,7 @@ class TestVariant:
 
     def test_variant_paths(self, temp_project_dir, sample_family_config):
         """Test Variant path resolution."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_dir / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -188,7 +178,7 @@ class TestVariant:
 
     def test_variant_state_untrained(self, temp_project_dir, sample_family_config):
         """Test state detection for untrained variant."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_dir / "results"
         # Create variant with non-existent params (no directory)
         variant = Variant(family, {"prime": 97, "seed": 123}, results_dir)
@@ -197,7 +187,7 @@ class TestVariant:
 
     def test_variant_state_trained(self, temp_project_with_checkpoints, sample_family_config):
         """Test state detection for trained variant (has checkpoints, no artifacts)."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_with_checkpoints / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -205,7 +195,7 @@ class TestVariant:
 
     def test_variant_state_analyzed(self, temp_project_with_artifacts, sample_family_config):
         """Test state detection for analyzed variant."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_with_artifacts / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -213,7 +203,7 @@ class TestVariant:
 
     def test_get_available_checkpoints(self, temp_project_with_checkpoints, sample_family_config):
         """Test checkpoint discovery."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_with_checkpoints / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -222,7 +212,7 @@ class TestVariant:
 
     def test_variant_equality(self, sample_family_config):
         """Test Variant equality comparison."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = Path("/tmp/results")
 
         v1 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
@@ -234,7 +224,7 @@ class TestVariant:
 
     def test_variant_hash(self, sample_family_config):
         """Test Variant is hashable (can be used in sets/dicts)."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = Path("/tmp/results")
 
         v1 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
@@ -356,7 +346,7 @@ class TestPathResolution:
 
     def test_family_name_as_directory_key(self, temp_project_dir, sample_family_config):
         """Test that ModelFamily.name is used as directory key."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_dir / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -366,7 +356,7 @@ class TestPathResolution:
 
     def test_consistent_path_structure(self, temp_project_dir, sample_family_config):
         """Test that path structure follows convention."""
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = temp_project_dir / "results"
         variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
 
@@ -389,7 +379,7 @@ class TestInterventionVariant:
 
     @pytest.fixture
     def base_variant(self, sample_family_config, tmp_path):
-        family = JsonModelFamily(sample_family_config)
+        family = BaseModelFamily(sample_family_config)
         results_dir = tmp_path / "results"
         return Variant(family, {"prime": 59, "seed": 485, "data_seed": 598}, results_dir)
 

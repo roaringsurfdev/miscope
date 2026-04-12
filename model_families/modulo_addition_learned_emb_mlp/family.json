@@ -1,0 +1,48 @@
+{
+  "name": "modulo_addition_learned_emb_mlp",
+  "display_name": "Modulo Addition (Learned-Embedding MLP)",
+  "description": "Two-layer MLP with learned input embeddings trained on modular arithmetic. Inputs a and b are each embedded into d_embed-dimensional space and summed before the hidden layer. No attention, no positional embedding, no residual stream. Rung 2 of the architecture ladder: tests whether learned representations alone create geometric pressure without attention routing.",
+  "class_type": "miscope.families.implementations.learned_emb_mlp.LearnedEmbMLPFamily",
+  "architecture": {
+    "d_embed": 16,
+    "d_hidden": 512,
+    "act_fn": "relu"
+  },
+  "domain_parameters": {
+    "prime": {
+      "type": "int",
+      "description": "Modulus for the addition task",
+      "default": 113
+    },
+    "seed": {
+      "type": "int",
+      "description": "Random seed for model initialization",
+      "default": 999
+    },
+    "data_seed": {
+      "type": "int",
+      "description": "Random seed for train/test split of the (a, b) input grid",
+      "default": 598
+    }
+  },
+  "analyzers": [
+    "neuron_activations",
+    "neuron_freq_norm",
+    "parameter_snapshot",
+    "effective_dimensionality",
+    "repr_geometry"
+  ],
+  "secondary_analyzers": [],
+  "cross_epoch_analyzers": [
+    "parameter_trajectory",
+    "neuron_dynamics",
+    "neuron_group_pca",
+    "transient_frequency",
+    "freq_group_weight_geometry"
+  ],
+  "analysis_dataset": {
+    "type": "modulo_addition_grid_indices",
+    "description": "Full (a, b) input grid as integer index pairs (a, b) — not one-hot encoded"
+  },
+  "variant_pattern": "modulo_addition_learned_emb_mlp_p{prime}_seed{seed}_dseed{data_seed}"
+}

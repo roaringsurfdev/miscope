@@ -6,18 +6,20 @@ ratio, stable rank, etc.). Summary statistics provide participation ratios
 for trajectory visualization without loading per-epoch artifacts.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     compute_participation_ratio,
     compute_weight_singular_values,
 )
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 
 class EffectiveDimensionalityAnalyzer:
@@ -32,26 +34,21 @@ class EffectiveDimensionalityAnalyzer:
 
     name = "effective_dimensionality"
     description = "Computes weight matrix singular values for dimensionality analysis"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """Compute singular values of all trainable weight matrices.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Unused (protocol conformance)
-            cache: Unused (protocol conformance)
-            context: Unused (protocol conformance)
+            ctx: Analysis context with bundle (probe and analysis_params unused).
 
         Returns:
             Dict mapping sv_{name} to singular value arrays.
         """
-        return compute_weight_singular_values(model)
+        return compute_weight_singular_values(ctx.bundle)
 
     def get_summary_keys(self) -> list[str]:
         """Declare participation ratio summary keys."""

@@ -39,11 +39,12 @@ from miscope.analysis.analyzers import (
     ParameterTrajectoryPCA,
     RepresentationalGeometryAnalyzer,
     TransientFrequencyAnalyzer,
+    FreqGroupWeightGeometryAnalyzer,
 )
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
-FORCE = False  # Re-run even if artifacts exist (needed for new summary keys)
+FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
 COOLING_NEEDED = False
 COOLING_PERIOD = 4 * 60 # timer to allow machine to cool between runs
 
@@ -58,7 +59,7 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = []
+include_list = ["modulo_addition_1layer_p101_seed999_dseed598"]
 for i, variant in enumerate(variants):
     print(f"\n{'='*60}")
     print(f"[{i+1}/{len(variants)}] {variant.name}")
@@ -102,6 +103,7 @@ for i, variant in enumerate(variants):
         pipeline.register_cross_epoch(GlobalCentroidPCA())
         pipeline.register_cross_epoch(CentroidDMD())
         pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
+        pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

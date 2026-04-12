@@ -3,14 +3,16 @@
 Computes Fourier coefficient norms for embedding weights.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
-from miscope.analysis.library import get_embedding_weights, project_onto_fourier_basis
+from miscope.analysis.library import project_onto_fourier_basis
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 
 class DominantFrequenciesAnalyzer:
@@ -22,30 +24,26 @@ class DominantFrequenciesAnalyzer:
 
     name = "dominant_frequencies"
     description = "Identifies dominant frequencies in learned embeddings"
+    architecture_support = ["transformer"]
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """
         Compute Fourier coefficient norms for embedding weights.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: The analysis dataset (not used by this analyzer)
-            cache: Activation cache (not used by this analyzer)
-            context: Analysis context containing 'fourier_basis'
+            ctx: Analysis context with bundle and analysis_params.
+                 analysis_params must contain 'fourier_basis'.
 
         Returns:
             Dict with 'coefficients' array of shape (n_fourier_components,)
         """
-        fourier_basis = context["fourier_basis"]
+        fourier_basis = ctx.analysis_params["fourier_basis"]
 
         # Get embedding weights, excluding the equals token
-        W_E = get_embedding_weights(model, exclude_special_tokens=1)
+        W_E = ctx.bundle.weight("W_E")[:-1]
 
         # Compute norms of embedding projected onto Fourier basis
         coefficients = project_onto_fourier_basis(W_E, fourier_basis)

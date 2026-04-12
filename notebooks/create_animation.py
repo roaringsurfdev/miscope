@@ -89,24 +89,29 @@ def export_animation(
         fig =ctx.view(view_name).figure(**view_kwargs)
         frame = _fig_to_pil(fig, width, height, scale)
         frames.append(frame)
+        print(f"Frame added for epoch: {epoch}")
 
     _save_gif(frames, output_path, fps)
     return output_path
 
 # %% load model and list variants
 START_EPOCH = 0
-END_EPOCH = 6500
+END_EPOCH = 25000
 
 family = load_family("modulo_addition_1layer")
-variant = family.get_variant(prime=109, seed=485, data_seed=598)
+variant = family.get_variant(prime=113, seed=999, data_seed=999)
 all_checkpoints = variant.get_available_checkpoints()
 checkpoint_range = [epoch for epoch in all_checkpoints if epoch >= START_EPOCH and epoch <= END_EPOCH]
 print(all_checkpoints)
 
-site = "resid_post"
-view_name = "geometry.centroid_pca_variance"
-view_kwargs = {"site": site}
-output_path = os.path.join("animations", f"{variant.name}_{view_name}_{site}.gif")
+# site = "resid_post"
+# view_name = "geometry.centroid_pca_variance"
+# view_kwargs = {"site": site}
+matrix = "Wout"
+view_name = "weight_geometry.centroid_pca"
+view_kwargs = {"matrix": matrix}
+
+output_path = os.path.join("animations", f"{variant.name}_{view_name}_{matrix}.gif")
 
 export_animation(variant, view_name=view_name, output_path=output_path, fps=2, epochs=checkpoint_range, **view_kwargs)
 

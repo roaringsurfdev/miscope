@@ -11,6 +11,7 @@ import pytest
 
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
     compute_pca_trajectory,
@@ -21,6 +22,7 @@ from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     extract_parameter_snapshot,
 )
+from miscope.analysis.protocols import ActivationContext
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,
@@ -67,15 +69,17 @@ class TestWeightMatrixConstants:
     """Tests for weight matrix name constants."""
 
     def test_weight_matrix_names_count(self):
-        """All 9 weight matrices are listed."""
+        """All 9 transformer weight matrices are listed."""
         assert len(WEIGHT_MATRIX_NAMES) == 9
 
     def test_component_groups_cover_all_weights(self):
-        """Component groups cover all weight matrix names."""
+        """Component groups cover all transformer weight matrix names (plus arch-specific extras)."""
         all_from_groups = set()
         for components in COMPONENT_GROUPS.values():
             all_from_groups.update(components)
-        assert all_from_groups == set(WEIGHT_MATRIX_NAMES)
+        # All transformer names must be covered; arch-specific names (embed_a, embed_b)
+        # may also appear in COMPONENT_GROUPS without being in WEIGHT_MATRIX_NAMES.
+        assert set(WEIGHT_MATRIX_NAMES).issubset(all_from_groups)
 
     def test_component_groups_are_disjoint(self):
         """Component groups don't overlap."""
@@ -108,24 +112,24 @@ class TestExtractParameterSnapshot:
 
     def test_returns_dict(self, model):
         """Returns a dict."""
-        snapshot = extract_parameter_snapshot(model)
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         assert isinstance(snapshot, dict)
 
     def test_contains_all_weight_names(self, model):
         """Result contains all expected weight matrix names."""
-        snapshot = extract_parameter_snapshot(model)
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         for name in WEIGHT_MATRIX_NAMES:
             assert name in snapshot, f"Missing weight: {name}"
 
     def test_values_are_numpy(self, model):
         """All values are numpy arrays."""
-        snapshot = extract_parameter_snapshot(model)
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         for name, arr in snapshot.items():
             assert isinstance(arr, np.ndarray), f"{name} is not numpy"
 
     def test_shapes_match_model(self, model):
         """Extracted shapes match model architecture."""
-        snapshot = extract_parameter_snapshot(model)
+        snapshot = extract_parameter_snapshot(TransformerLensBundle(model, None, None))  # type: ignore
         assert snapshot["W_E"].shape == (10, 32)  # (d_vocab, d_model)
         assert snapshot["W_pos"].shape == (3, 32)  # (n_ctx, d_model)
         assert snapshot["W_Q"].shape == (4, 32, 8)  # (n_heads, d_model, d_head)
@@ -305,12 +309,16 @@ class TestRenderers:
 
     @pytest.fixture
     def cross_epoch_data(self):
-        """Create precomputed cross-epoch data with all component groups."""
+        """Create precomputed cross-epoch data with all component groups present in snapshots."""
         snapshots = _make_snapshot_sequence(10)
         epochs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
         data = {"epochs": np.array(epochs)}
+        first = snapshots[0] if snapshots else {}
         groups = {"all": None, **COMPONENT_GROUPS}
         for group_name, components in groups.items():
+            # Skip groups whose keys are absent from the snapshots (e.g. learned_embeddings)
+            if components is not None and not any(k in first for k in components):
+                continue
             pca = compute_pca_trajectory(snapshots, components, n_components=10)
             vel = compute_parameter_velocity(snapshots, components, epochs=epochs)
             data[f"{group_name}__projections"] = pca["projections"]
@@ -571,30 +579,37 @@ class TestParameterSnapshotAnalyzerOutput:
         model.load_state_dict(state_dict)
 
         with torch.inference_mode():
-            _, cache = model.run_with_cache(probe)
+            logits, cache = model.run_with_cache(probe)
 
-        return model, probe, cache, context
+        bundle = TransformerLensBundle(model, cache, logits)
+        return bundle, probe, context
 
     def test_returns_dict(self, model_with_context):
         """analyze returns a dict."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(bundle=bundle, probe=probe, analysis_params=context)
+        )
         assert isinstance(result, dict)
 
     def test_returns_all_weight_names(self, model_with_context):
         """Result contains all weight matrix names."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(bundle=bundle, probe=probe, analysis_params=context)
+        )
         for name in WEIGHT_MATRIX_NAMES:
             assert name in result, f"Missing weight: {name}"
 
     def test_weight_shapes(self, model_with_context):
         """Weight matrices have correct shapes for p=17 model."""
-        model, probe, cache, context = model_with_context
+        bundle, probe, context = model_with_context
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(model, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(bundle=bundle, probe=probe, analysis_params=context)
+        )
         # d_model=128, d_mlp=512, n_heads=4, d_head=32
         assert result["W_E"].shape[1] == 128  # d_model
         assert result["W_in"].shape == (128, 512)  # (d_model, d_mlp)

@@ -19,7 +19,8 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem(
                         "Frequency Specialization", href="/frequency-specialization"
                     ),
-                    dbc.DropdownMenuItem("Geometry", href="/geometry"),
+                    dbc.DropdownMenuItem("Geometry - Activation", href="/geometry_act"),
+                    dbc.DropdownMenuItem("Geometry - Weights", href="/geometry_weight"),
                     dbc.DropdownMenuItem("Neuron Competition", href="/neuron-competition"),
                     dbc.DropdownMenuItem("PCA", href="/pca"),
                     dbc.DropdownMenuItem("Activations", href="/activations"),
@@ -93,6 +94,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
     from dashboard.pages.dimensionality import (
         create_dimensionality_page_layout,
         create_dimensionality_page_nav,
+    )
+    from dashboard.pages.geometry_weights import (
+        create_weight_geometry_page_layout,
+        create_weight_geometry_page_nav,
     )
     from dashboard.pages.initialization_sweep import (
         create_initialization_sweep_page_layout,
@@ -173,8 +178,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [create_peer_comparison_page_nav(app), create_peer_comparison_page_layout(app)]
         if pathname == "/neuron-competition":
             return [create_neuron_dynamics_page_nav(app), create_neuron_dynamics_page_layout(app)]
-        elif pathname == "/geometry":
+        elif pathname == "/geometry_act":
             return [create_repr_geometry_page_nav(app), create_repr_geometry_page_layout(app)]
+        elif pathname == "/geometry_weight":
+            return [create_weight_geometry_page_nav(app), create_weight_geometry_page_layout(app)]
         elif pathname == "/summary":
             return [create_summary_page_nav(app), create_summary_page_layout(app)]
         elif pathname == "/pca":
@@ -214,5 +221,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
                 create_viability_certificate_page_layout(app),
             ]
         else:
-            # Multistream is now the default page.
-            return [create_multistream_page_nav(app), create_multistream_page_layout(app)]
+            # Variant Table is now the default page.
+            return [create_variant_table_page_nav(app), create_variant_table_page_layout(app)]
+            # return [create_multistream_page_nav(app), create_multistream_page_layout(app)]

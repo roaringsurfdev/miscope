@@ -8,9 +8,11 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library import (
     get_fourier_basis,
 )
+from miscope.analysis.protocols import ActivationContext
 
 # ── Mock cache ──────────────────────────────────────────────────────────
 
@@ -90,7 +92,13 @@ class TestAttentionFreqAnalyzerOutput:
         context = {"fourier_basis": fourier_basis}
 
         analyzer = AttentionFreqAnalyzer()
-        return analyzer.analyze(None, probe, cache, context)
+        return analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
 
     def test_returns_dict(self, analyzer_result):
         assert isinstance(analyzer_result, dict)
@@ -236,7 +244,19 @@ class TestAttentionFreqPositionPair:
         analyzer_a = AttentionFreqAnalyzer(to_position=2, from_position=0)
         analyzer_b = AttentionFreqAnalyzer(to_position=2, from_position=1)
 
-        result_a = analyzer_a.analyze(None, probe, cache, context)
-        result_b = analyzer_b.analyze(None, probe, cache, context)
+        result_a = analyzer_a.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
+        result_b = analyzer_b.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
 
         assert not np.array_equal(result_a["freq_matrix"], result_b["freq_matrix"])

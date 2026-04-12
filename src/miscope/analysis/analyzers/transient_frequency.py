@@ -49,6 +49,7 @@ class TransientFrequencyAnalyzer:
 
     name = "transient_frequency"
     requires = ["neuron_dynamics"]
+    architecture_support = ["transformer", "mlp"]
 
     def analyze_across_epochs(
         self,

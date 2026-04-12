@@ -69,6 +69,11 @@ from miscope.visualization.renderers.fourier_nucleation import (
     render_nucleation_frequency_gains,
     render_nucleation_heatmap,
 )
+from miscope.visualization.renderers.freq_group_weight_geometry import (
+    render_weight_geometry_centroid_pca,
+    render_weight_geometry_group_snapshot,
+    render_weight_geometry_timeseries,
+)
 from miscope.visualization.renderers.gradient_site import (
     render_site_gradient_convergence,
     render_site_gradient_heatmap,
@@ -244,4 +249,8 @@ __all__ = [
     # Residue class graduation
     "render_graduation_spread",
     "render_graduation_cohesion",
+    # REQ_090: Frequency group weight geometry
+    "render_weight_geometry_timeseries",
+    "render_weight_geometry_group_snapshot",
+    "render_weight_geometry_centroid_pca",
 ]

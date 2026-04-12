@@ -8,6 +8,14 @@ Once this capability is created for Analysis, it would be ideal to add Asynchron
 
 *Note: This behavior, along with general job management support will likely be built in a separate front-end from the analysis. The Dash framework may be ideal for rendering visualizations, but it might not be the right fit for job management. For ease of use, it may be that links are provided between front-ends.*
 
+### Prevent Retraining Over Existing Variants
+Now that we have the Checkpoint Editor, it should not be legal to retrain a variant from the original Train page. This creates issues where the existing checkpoint schedule can be overwritten in a way that creates downstream problems with analysis becoming out of sync, especially for variants with extended training.
+
+Need to do a sanity check before kicking off training to make sure the variant doesn't already exist (this could be as simple as checking to see if the variant directory exists)
+
+### Analysis/Analyzer Config File
+We started an Analysis Techniques catalog (`notes/analysis_techniques_catalog.md`) a while ago, and now that we're supporting two model types that might need different Analyzers, it will be helpful to convert this document to a first class part of the site. Along with the existing data that has been captured, it would be great if each Analyzer has an indicator for what model(s) it supports.
+
 ### Support for Choosing Subset for Analysis Runs
 The current Analysis Run page on the dashboard runs *all* Analyzers on the selected Variant. I would like the option to run a subset of Analyzers on the selected Variant. This is useful in cases where we are adding a new Analyzer to the pipeline.
 
@@ -18,12 +26,16 @@ Currently, the only way to run analysis across all Variants - or a subset of the
 ### Make the fieldnotes plots more readable for models and researchers
 For plots on fieldnotes, pre-populate the export button with proper file naming to include information about the variant and the view. Consider a hidden image area that will be legible by models since Plotly visualizations are not.
 
- 
-## Fold `create_animation.py` logic into pipeline
-The pipeline currently support exports of visualizations. The logic to export animations should be there, too. This would allow me to get rid of the create_animation.py notebook.
+### Animations
+## Create central assets folder. 
+This repo currently has assets scattered across several folders: `notebooks/animations`, `notebooks/exports`, `results/exports`, `temp_artifacts`. Each of these folders has served as a convenient way to export and share visualization artifacts without having to spend to much time worrying about directory structure. I think we've outgrown that, especially given that many assets should likely be reused on Fieldnotes.
+## Export frames to disk
+Current animation logic creates frames in memory to save out to the animation. Saving them to disk for compilation might help to solve several problems:
+- Generating animations is a long-running process. Interruptions in the process due to errors or environment will force a complete restart of the process.
+- Assets used in animation frames could be reused on an Html animation/slider on Fieldnotes, but they are inaccessible
+- Creating an animation based on a subset of important epochs requires regenerating each epoch frame again.
+## Creating animations is a manual process
+Creating animations for a given variant + view combination requires hard-coding each into a notebook: `create_animation.py`. If I want to see an animation of a given view, it's likely I'll end up wanting to see it across some or all Variants in a given family.
 
-## Fold Mean IPR Analysis into the pipeline
-Add Mean IPR Analysis from notbooks/neuron_fourier_poc.py to analysis pipeline and renders.
-
-## Add Prev/Next buttons to Neuron slider
+### Add Prev/Next buttons to Neuron slider
 Duplicate the prev/next buttons currently used on the Epoch slide for the Neuron ID.

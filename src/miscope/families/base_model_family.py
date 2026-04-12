@@ -1,4 +1,4 @@
-"""JSON-based ModelFamily implementation."""
+"""Base ModelFamily implementation loaded from JSON."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import torch
 from miscope.families.types import AnalysisDatasetSpec, ArchitectureSpec, ParameterSpec
 
 
-class JsonModelFamily:
+class BaseModelFamily:
     """ModelFamily implementation loaded from a family.json file.
 
     This is a data-only implementation that stores configuration.
@@ -34,14 +34,14 @@ class JsonModelFamily:
         self._validate_config()
 
     @classmethod
-    def from_json(cls, path: Path | str) -> JsonModelFamily:
-        """Load a JsonModelFamily from a family.json file.
+    def from_json(cls, path: Path | str) -> BaseModelFamily:
+        """Load a BaseModelFamily from a family.json file.
 
         Args:
             path: Path to family.json
 
         Returns:
-            JsonModelFamily instance
+            BaseModelFamily instance
         """
         path = Path(path)
         with open(path) as f:
@@ -122,17 +122,6 @@ class JsonModelFamily:
         families) should set this to false in their family.json.
         """
         return self._config.get("ui_trainable", True)
-
-    def get_variant_directory_name(self, params: dict[str, Any]) -> str:
-        """Generate variant directory name from parameters.
-
-        Args:
-            params: Domain parameter values
-
-        Returns:
-            Directory name with parameters substituted
-        """
-        return self.variant_pattern.format(**params)
 
     def create_model(self, params: dict[str, Any], device: str | torch.device | None = None) -> Any:
         """Create a model instance.
@@ -273,5 +262,89 @@ class JsonModelFamily:
             f"make_probe() not implemented for {self.name}. Use a family-specific implementation."
         )
 
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> Any:
+        """Run a forward pass and return an ActivationBundle.
+
+        This is the pipeline's single entry point for getting activations.
+        TransformerLens families wrap model.run_with_cache(); MLP families
+        use PyTorch forward hooks to capture hidden activations.
+
+        Args:
+            model: Model instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            ActivationBundle wrapping the model and its activations.
+        """
+        raise NotImplementedError(
+            f"run_forward_pass() not implemented for {self.name}. Use a family-specific implementation."
+        )
+
+    def create_optimizer(
+        self,
+        model: Any,
+    ) -> torch.optim.Optimizer:
+        """Create an AdamW optimizer using this family's training config.
+
+        Args:
+            model: Model instance to optimize.
+
+        Returns:
+            AdamW optimizer configured from get_training_config().
+        """
+        config = self.get_training_config()
+        lr = config.get("learning_rate", 1e-3)
+        wd = config.get("weight_decay", 1.0)
+        betas = config.get("betas", (0.9, 0.98))
+        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd, betas=betas)
+
+    def compute_loss(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute training loss.
+
+        Note: This base implementation raises NotImplementedError.
+        Family-specific subclasses must override this method.
+
+        Raises:
+            NotImplementedError: Must be implemented by subclass
+        """
+        raise NotImplementedError(
+            f"compute_loss() not implemented for {self.name}. Use a family-specific implementation."
+        )
+
+    def build_config_dict(
+        self,
+        model: Any,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """Build the config.json dict for a trained model.
+
+        Base implementation includes domain params and training metadata.
+        Family subclasses should override to add architecture-specific fields.
+
+        Args:
+            model: Trained model instance (architecture-specific)
+            params: Domain parameter values
+            data_seed: Data split seed used during training
+            training_fraction: Fraction of data used for training
+
+        Returns:
+            Dict suitable for JSON serialization as config.json
+        """
+        return {
+            **params,
+            "data_seed": data_seed,
+            "training_fraction": training_fraction,
+        }
+
     def __repr__(self) -> str:
-        return f"JsonModelFamily(name={self.name!r})"
+        return f"BaseModelFamily(name={self.name!r})"

@@ -36,9 +36,9 @@ Example usage:
 """
 
 # Import implementations to trigger registration
+from miscope.families.base_model_family import BaseModelFamily
 from miscope.families.implementations import ModuloAddition1LayerFamily  # noqa: F401
 from miscope.families.intervention_variant import InterventionVariant
-from miscope.families.json_family import JsonModelFamily
 from miscope.families.protocols import ModelFamily
 from miscope.families.registry import FamilyRegistry
 from miscope.families.types import (
@@ -55,7 +55,7 @@ __all__ = [
     # Classes
     "FamilyRegistry",
     "InterventionVariant",
-    "JsonModelFamily",
+    "BaseModelFamily",
     "ModuloAddition1LayerFamily",
     "TrainingResult",
     "Variant",

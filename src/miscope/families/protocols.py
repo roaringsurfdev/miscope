@@ -1,11 +1,17 @@
 """Protocol definitions for model families."""
 
-from typing import Any, Protocol, runtime_checkable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import torch
-from transformer_lens import HookedTransformer
 
-from miscope.families.types import AnalysisDatasetSpec, ArchitectureSpec, ParameterSpec
+from miscope.families.types import AnalysisDatasetSpec, ParameterSpec
+
+if TYPE_CHECKING:
+    from transformer_lens import HookedTransformer
+
+    from miscope.analysis.protocols import ActivationBundle  # noqa: F401
 
 
 @runtime_checkable
@@ -35,11 +41,6 @@ class ModelFamily(Protocol):
     @property
     def description(self) -> str:
         """Brief description of the family."""
-        ...
-
-    @property
-    def architecture(self) -> ArchitectureSpec:
-        """Architectural properties (n_layers, n_heads, etc.)."""
         ...
 
     @property
@@ -116,17 +117,6 @@ class ModelFamily(Protocol):
         """
         ...
 
-    def get_variant_directory_name(self, params: dict[str, Any]) -> str:
-        """Generate variant directory name from parameters.
-
-        Args:
-            params: Domain parameter values
-
-        Returns:
-            Directory name (e.g., "modulo_addition_1layer_p113_seed42")
-        """
-        ...
-
     def generate_training_dataset(
         self,
         params: dict[str, Any],
@@ -186,6 +176,26 @@ class ModelFamily(Protocol):
         """
         ...
 
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> Any:
+        """Run a forward pass and return an ActivationBundle.
+
+        This is the pipeline's single entry point for getting activations.
+        TransformerLens families wrap model.run_with_cache(); MLP families
+        use PyTorch forward hooks to capture hidden activations.
+
+        Args:
+            model: Model instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            ActivationBundle wrapping the model and its activations.
+        """
+        ...
+
     def prepare_analysis_context(
         self,
         params: dict[str, Any],
@@ -208,5 +218,49 @@ class ModelFamily(Protocol):
 
         Returns:
             Dict containing 'params' and any precomputed analysis context
+        """
+        ...
+
+    def create_optimizer(
+        self,
+        model: Any,
+    ) -> torch.optim.Optimizer:
+        """Create an optimizer for model training.
+
+        Args:
+            model: Model instance created by create_model()
+
+        Returns:
+            Configured optimizer for this family's training regime
+        """
+        ...
+
+    def compute_loss(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute training loss from model output logits and target labels.
+
+        Args:
+            logits: Model output. Shape is architecture-dependent:
+                    (batch, seq_len, vocab_size) for transformers,
+                    (batch, vocab_size) for plain MLPs.
+            labels: Target class indices of shape (batch,).
+
+        Returns:
+            Scalar loss tensor.
+        """
+        ...
+
+    def build_config_dict(
+        self,
+        model: Any,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """
+        TODO: Add spec comments for this method
         """
         ...

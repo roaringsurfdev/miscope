@@ -5,8 +5,14 @@ across training checkpoints. Used by parameter trajectory and
 effective dimensionality analyzers.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
-from transformer_lens import HookedTransformer
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle
 
 # Weight matrices to extract, in consistent order
 WEIGHT_MATRIX_NAMES = [
@@ -21,45 +27,71 @@ WEIGHT_MATRIX_NAMES = [
     "W_U",
 ]
 
+# Architecture-specific weight names not in the transformer set.
+# extract_parameter_snapshot tries these in addition to WEIGHT_MATRIX_NAMES.
+ARCH_WEIGHT_NAMES: dict[str, list[str]] = {
+    "modulo_addition_embed_mlp": ["embed_a", "embed_b"],
+}
+
 # Predefined component groups for trajectory/velocity analysis
 COMPONENT_GROUPS = {
     "embedding": ["W_E", "W_pos", "W_U"],
     "attention": ["W_Q", "W_K", "W_V", "W_O"],
     "mlp": ["W_in", "W_out"],
+    "learned_embeddings": ["embed_a", "embed_b"],  # Learned-embedding MLP only
 }
 
 
 def extract_parameter_snapshot(
-    model: HookedTransformer,
+    bundle: ActivationBundle,
 ) -> dict[str, np.ndarray]:
-    """Extract all trainable weight matrices from a model.
+    """Extract all trainable weight matrices from a bundle.
 
     Returns dict mapping weight matrix names to numpy arrays
-    in their original shapes. Only includes parameters with
-    requires_grad=True (excludes frozen biases).
+    in their original shapes. Tries both the standard transformer names
+    (WEIGHT_MATRIX_NAMES) and architecture-specific names (ARCH_WEIGHT_NAMES),
+    silently skipping any that the bundle doesn't expose.
 
     Args:
-        model: HookedTransformer model at a specific checkpoint.
+        bundle: ActivationBundle providing weight access via bundle.weight(name).
 
     Returns:
-        Dict with keys from WEIGHT_MATRIX_NAMES, values are numpy arrays.
+        Dict with available weight matrix names as keys, numpy arrays as values.
     """
-    snapshot = {}
+    all_names = list(WEIGHT_MATRIX_NAMES)
+    for extra in ARCH_WEIGHT_NAMES.values():
+        all_names.extend(extra)
 
-    snapshot["W_E"] = _to_numpy(model.embed.W_E)
-    snapshot["W_pos"] = _to_numpy(model.pos_embed.W_pos)
+    result = {}
+    for name in all_names:
+        try:
+            result[name] = _to_numpy(bundle.weight(name))
+        except KeyError:
+            pass  # Architecture doesn't have this weight
+    return result
 
-    block = model.blocks[0]
-    snapshot["W_Q"] = _to_numpy(block.attn.W_Q)  # type: ignore[attr-defined]
-    snapshot["W_K"] = _to_numpy(block.attn.W_K)  # type: ignore[attr-defined]
-    snapshot["W_V"] = _to_numpy(block.attn.W_V)  # type: ignore[attr-defined]
-    snapshot["W_O"] = _to_numpy(block.attn.W_O)  # type: ignore[attr-defined]
-    snapshot["W_in"] = _to_numpy(block.mlp.W_in)  # type: ignore[attr-defined]
-    snapshot["W_out"] = _to_numpy(block.mlp.W_out)  # type: ignore[attr-defined]
 
-    snapshot["W_U"] = _to_numpy(model.unembed.W_U)
+def extract_neuron_weight_matrix(snapshot: dict) -> np.ndarray:
+    """Extract a (d_space, M) neuron weight matrix from a parameter snapshot.
 
-    return snapshot
+    Returns a column-per-neuron matrix suitable for PCA and geometric analysis,
+    dispatching on architecture based on snapshot contents.
+
+      - Transformer: W_in is (d_model, d_mlp) — columns are already neuron vectors.
+      - MLP:         W_in is (d_hidden, 2p) — rows are neuron vectors; transpose to
+                     (2p, d_hidden) so columns are neuron vectors.
+
+    Args:
+        snapshot: parameter_snapshot dict. Presence of 'W_E' signals transformer.
+
+    Returns:
+        Array of shape (d_space, M) where each column is one neuron's weight vector.
+    """
+    W_in = snapshot["W_in"]
+    if "W_E" in snapshot:
+        return W_in  # (d_model, d_mlp) — columns are neuron vectors
+    else:
+        return W_in.T  # (2p, d_hidden) — transposed so columns are neuron vectors
 
 
 ATTENTION_MATRICES = {"W_Q", "W_K", "W_V", "W_O"}
@@ -98,7 +130,7 @@ def compute_participation_ratio(
 
 
 def compute_weight_singular_values(
-    model: HookedTransformer,
+    bundle: ActivationBundle,
 ) -> dict[str, np.ndarray]:
     """Compute singular values of all trainable weight matrices.
 
@@ -106,17 +138,19 @@ def compute_weight_singular_values(
     per head. Each head's matrix is an independent subspace.
 
     Args:
-        model: HookedTransformer model at a specific checkpoint.
+        bundle: ActivationBundle providing weight access.
 
     Returns:
         Dict mapping "sv_{name}" to numpy arrays of singular values.
         Attention matrices: shape (n_heads, d_head).
         Other matrices: shape (min(rows, cols),).
     """
-    snapshot = extract_parameter_snapshot(model)
+    snapshot = extract_parameter_snapshot(bundle)
     result = {}
 
     for name in WEIGHT_MATRIX_NAMES:
+        if name not in snapshot:
+            continue  # Weight not available for this architecture
         matrix = snapshot[name]
         key = f"sv_{name}"
 

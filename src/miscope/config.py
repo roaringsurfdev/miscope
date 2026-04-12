@@ -1,10 +1,10 @@
-"""Application configuration for the Training Dynamics Workbench.
+"""Application configuration for MIScope.
 
 Provides default paths for results and model families directories,
 with environment variable overrides for non-standard layouts.
 
 Usage:
-    from tdw.config import get_config
+    from miscope.config import get_config
 
     cfg = get_config()
     cfg.results_dir        # Path to results/
@@ -12,9 +12,12 @@ Usage:
     cfg.project_root       # Resolved project root
 
 Environment variable overrides:
-    TDW_RESULTS_DIR         Override results directory path
-    TDW_MODEL_FAMILIES_DIR  Override model families directory path
-    TDW_PROJECT_ROOT        Override project root (all defaults resolve from this)
+    MISCOPE_RESULTS_DIR         Override results directory path
+    MISCOPE_MODEL_FAMILIES_DIR  Override model families directory path
+    MISCOPE_PROJECT_ROOT        Override project root (all defaults resolve from this)
+
+Legacy aliases (still accepted, lower priority than MISCOPE_* vars):
+    TDW_RESULTS_DIR, TDW_MODEL_FAMILIES_DIR, TDW_PROJECT_ROOT
 """
 
 from __future__ import annotations
@@ -37,10 +40,11 @@ def get_config() -> AppConfig:
     """Get application configuration.
 
     Resolves paths in this order:
-    1. Environment variable override (TDW_RESULTS_DIR, etc.)
-    2. Default relative to project root
+    1. MISCOPE_* environment variable override
+    2. TDW_* legacy environment variable (backwards compatibility)
+    3. Default relative to project root
 
-    Project root is resolved from TDW_PROJECT_ROOT env var,
+    Project root is resolved from MISCOPE_PROJECT_ROOT (or TDW_PROJECT_ROOT),
     or by walking up from this file to find pyproject.toml.
 
     Returns:
@@ -48,9 +52,15 @@ def get_config() -> AppConfig:
     """
     project_root = _resolve_project_root()
 
-    results_dir = Path(os.environ.get("TDW_RESULTS_DIR", str(project_root / "results")))
+    results_dir = Path(
+        os.environ.get("MISCOPE_RESULTS_DIR")
+        or os.environ.get("TDW_RESULTS_DIR")
+        or str(project_root / "results")
+    )
     model_families_dir = Path(
-        os.environ.get("TDW_MODEL_FAMILIES_DIR", str(project_root / "model_families"))
+        os.environ.get("MISCOPE_MODEL_FAMILIES_DIR")
+        or os.environ.get("TDW_MODEL_FAMILIES_DIR")
+        or str(project_root / "model_families")
     )
 
     return AppConfig(
@@ -64,11 +74,12 @@ def _resolve_project_root() -> Path:
     """Resolve the project root directory.
 
     Strategy:
-    1. TDW_PROJECT_ROOT environment variable (explicit override)
-    2. Walk up from this file looking for pyproject.toml
-    3. Fall back to current working directory
+    1. MISCOPE_PROJECT_ROOT environment variable (explicit override)
+    2. TDW_PROJECT_ROOT environment variable (legacy alias)
+    3. Walk up from this file looking for pyproject.toml
+    4. Fall back to current working directory
     """
-    env_root = os.environ.get("TDW_PROJECT_ROOT")
+    env_root = os.environ.get("MISCOPE_PROJECT_ROOT") or os.environ.get("TDW_PROJECT_ROOT")
     if env_root:
         return Path(env_root).resolve()
 

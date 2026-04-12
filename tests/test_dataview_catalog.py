@@ -363,7 +363,7 @@ class TestUniversalDataViewLoaders:
     @pytest.fixture
     def temp_variant(self):
         """A real Variant with minimal metadata for integration testing."""
-        from miscope.families.json_family import JsonModelFamily
+        from miscope.families.base_model_family import BaseModelFamily
         from miscope.families.variant import Variant
 
         config = {
@@ -379,7 +379,7 @@ class TestUniversalDataViewLoaders:
             "visualizations": [],
             "variant_pattern": "test_family_p{prime}_seed{seed}",
         }
-        family = JsonModelFamily(config)
+        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             variant = Variant(family, {"prime": 113, "seed": 999}, root)
@@ -421,7 +421,7 @@ class TestUniversalDataViewLoaders:
 class TestVariantDataviewShortcut:
     @pytest.fixture
     def temp_variant(self):
-        from miscope.families.json_family import JsonModelFamily
+        from miscope.families.base_model_family import BaseModelFamily
         from miscope.families.variant import Variant
 
         config = {
@@ -437,7 +437,7 @@ class TestVariantDataviewShortcut:
             "visualizations": [],
             "variant_pattern": "test_family_p{prime}_seed{seed}",
         }
-        family = JsonModelFamily(config)
+        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             variant = Variant(family, {"prime": 113, "seed": 999}, root)

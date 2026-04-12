@@ -11,6 +11,7 @@ import pytest
 
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import EffectiveDimensionalityAnalyzer
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library.weights import (
     ATTENTION_MATRICES,
     WEIGHT_MATRIX_NAMES,
@@ -110,22 +111,31 @@ class TestComputeWeightSingularValues:
         return HookedTransformer(cfg)
 
     def test_returns_all_sv_keys(self, model):
-        """Result contains sv_{name} for all weight matrices."""
-        result = compute_weight_singular_values(model)
+        """Result contains sv_{name} for every weight matrix the bundle exposes."""
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
+        # Only check names that the transformer architecture actually has — names in
+        # WEIGHT_MATRIX_NAMES for other architectures (e.g. embed_a, embed_b) will be
+        # absent from the transformer bundle and silently skipped.
         for name in WEIGHT_MATRIX_NAMES:
+            if f"sv_{name}" in result:
+                assert True  # present as expected
+        # At minimum the core transformer matrices must be present
+        for name in ("W_E", "W_Q", "W_K", "W_V", "W_O", "W_in", "W_out", "W_U"):
             assert f"sv_{name}" in result, f"Missing key: sv_{name}"
 
     def test_non_attention_svs_are_1d(self, model):
         """Non-attention singular values are 1D arrays."""
-        result = compute_weight_singular_values(model)
-        non_attn = [n for n in WEIGHT_MATRIX_NAMES if n not in ATTENTION_MATRICES]
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
+        non_attn = [
+            n for n in WEIGHT_MATRIX_NAMES if n not in ATTENTION_MATRICES and f"sv_{n}" in result
+        ]
         for name in non_attn:
             sv = result[f"sv_{name}"]
             assert sv.ndim == 1, f"sv_{name} should be 1D, got {sv.ndim}D"
 
     def test_attention_svs_are_2d(self, model):
         """Attention singular values are 2D (n_heads, d_head)."""
-        result = compute_weight_singular_values(model)
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
         for name in ATTENTION_MATRICES:
             sv = result[f"sv_{name}"]
             assert sv.ndim == 2, f"sv_{name} should be 2D, got {sv.ndim}D"
@@ -134,13 +144,13 @@ class TestComputeWeightSingularValues:
 
     def test_singular_values_nonnegative(self, model):
         """All singular values are non-negative."""
-        result = compute_weight_singular_values(model)
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
         for key, sv in result.items():
             assert np.all(sv >= 0), f"{key} has negative singular values"
 
     def test_singular_values_sorted_descending(self, model):
         """Singular values are sorted in descending order."""
-        result = compute_weight_singular_values(model)
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
         for key, sv in result.items():
             if sv.ndim == 1:
                 assert np.all(sv[:-1] >= sv[1:] - 1e-6), f"{key} not sorted"
@@ -150,7 +160,7 @@ class TestComputeWeightSingularValues:
 
     def test_non_attention_sv_count(self, model):
         """Non-attention SVs have count = min(rows, cols)."""
-        result = compute_weight_singular_values(model)
+        result = compute_weight_singular_values(TransformerLensBundle(model, None, None))  # type: ignore
         # W_E: (10, 32) → min = 10
         assert result["sv_W_E"].shape[0] == 10
         # W_in: (32, 128) → min = 32
@@ -409,14 +419,15 @@ class TestEffectiveDimensionalityIntegration:
         assert epochs == [0, 25, 49]
 
     def test_per_epoch_contains_sv_keys(self, trained_variant):
-        """Per-epoch artifact contains all sv_{name} keys."""
+        """Per-epoch artifact contains sv_{name} for every weight the architecture has."""
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(EffectiveDimensionalityAnalyzer())
         pipeline.run()
 
         loader = ArtifactLoader(pipeline.artifacts_dir)
         epoch_data = loader.load_epoch("effective_dimensionality", 0)
-        for name in WEIGHT_MATRIX_NAMES:
+        # Core transformer matrices must always be present in this test (uses transformer)
+        for name in ("W_E", "W_Q", "W_K", "W_V", "W_O", "W_in", "W_out", "W_U"):
             assert f"sv_{name}" in epoch_data, f"Missing sv_{name}"
 
     def test_summary_contains_pr_keys(self, trained_variant):

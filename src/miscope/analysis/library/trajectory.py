@@ -7,6 +7,7 @@ trajectory visualization across training checkpoints.
 import numpy as np
 from sklearn.decomposition import PCA
 
+from miscope.analysis.constants import SVD_RANDOM_STATE
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
 
 
@@ -51,7 +52,7 @@ def compute_pca_trajectory(
     vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
 
     n_components = min(n_components, len(snapshots), vectors.shape[1])
-    pca = PCA(n_components=n_components)
+    pca = PCA(n_components=n_components, random_state=SVD_RANDOM_STATE)
     projections = pca.fit_transform(vectors)
 
     return {

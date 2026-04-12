@@ -38,23 +38,23 @@ class TestAppConfig:
         assert cfg.model_families_dir == cfg.project_root / "model_families"
 
     def test_env_override_results_dir(self):
-        """TDW_RESULTS_DIR env var overrides results directory."""
+        """MISCOPE_RESULTS_DIR env var overrides results directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"TDW_RESULTS_DIR": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_RESULTS_DIR": tmpdir}):
                 cfg = get_config()
                 assert cfg.results_dir == Path(tmpdir)
 
     def test_env_override_model_families_dir(self):
-        """TDW_MODEL_FAMILIES_DIR env var overrides model families directory."""
+        """MISCOPE_MODEL_FAMILIES_DIR env var overrides model families directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"TDW_MODEL_FAMILIES_DIR": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_MODEL_FAMILIES_DIR": tmpdir}):
                 cfg = get_config()
                 assert cfg.model_families_dir == Path(tmpdir)
 
     def test_env_override_project_root(self):
-        """TDW_PROJECT_ROOT env var overrides project root."""
+        """MISCOPE_PROJECT_ROOT env var overrides project root."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"TDW_PROJECT_ROOT": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_PROJECT_ROOT": tmpdir}):
                 cfg = get_config()
                 assert cfg.project_root == Path(tmpdir).resolve()
 
@@ -67,8 +67,26 @@ class TestAppConfig:
     def test_env_overrides_independent(self):
         """Each env var override is independent."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"TDW_RESULTS_DIR": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_RESULTS_DIR": tmpdir}):
                 cfg = get_config()
                 # results_dir overridden, model_families_dir uses default
                 assert cfg.results_dir == Path(tmpdir)
                 assert cfg.model_families_dir == cfg.project_root / "model_families"
+
+    def test_legacy_tdw_vars_still_work(self):
+        """TDW_* legacy env vars are still accepted as fallbacks."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {"TDW_RESULTS_DIR": tmpdir}):
+                cfg = get_config()
+                assert cfg.results_dir == Path(tmpdir)
+
+    def test_miscope_vars_take_priority_over_tdw(self):
+        """MISCOPE_* vars take priority over TDW_* legacy vars."""
+        with tempfile.TemporaryDirectory() as tdw_dir:
+            with tempfile.TemporaryDirectory() as miscope_dir:
+                with patch.dict(
+                    os.environ,
+                    {"TDW_RESULTS_DIR": tdw_dir, "MISCOPE_RESULTS_DIR": miscope_dir},
+                ):
+                    cfg = get_config()
+                    assert cfg.results_dir == Path(miscope_dir)

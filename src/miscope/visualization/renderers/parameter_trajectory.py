@@ -344,7 +344,10 @@ def render_component_velocity(
     fig = go.Figure()
 
     for group_name in COMPONENT_GROUPS:
-        velocity = cross_epoch_data[f"{group_name}__velocity"]
+        key = f"{group_name}__velocity"
+        if key not in cross_epoch_data:
+            continue  # Group absent for this architecture
+        velocity = cross_epoch_data[key]
         fig.add_trace(
             go.Scatter(
                 x=velocity_epochs,

@@ -392,7 +392,7 @@ class TestPipelineSecondary:
         assert data["norm"].shape == (1,)
 
 
-# ── JsonModelFamily secondary_analyzers property ─────────────────────
+# ── BaseModelFamily secondary_analyzers property ─────────────────────
 
 
 class TestJsonFamilySecondaryAnalyzers:
@@ -414,9 +414,9 @@ class TestJsonFamilySecondaryAnalyzers:
         with open(family_dir / "family.json", "w") as f:
             json.dump(family_json, f)
 
-        from miscope.families.json_family import JsonModelFamily
+        from miscope.families.base_model_family import BaseModelFamily
 
-        fam = JsonModelFamily.from_json(family_dir / "family.json")
+        fam = BaseModelFamily.from_json(family_dir / "family.json")
         assert fam.secondary_analyzers == ["neuron_fourier"]
 
     def test_secondary_analyzers_defaults_to_empty(self, temp_dirs):
@@ -436,7 +436,7 @@ class TestJsonFamilySecondaryAnalyzers:
         with open(family_dir / "family.json", "w") as f:
             json.dump(family_json, f)
 
-        from miscope.families.json_family import JsonModelFamily
+        from miscope.families.base_model_family import BaseModelFamily
 
-        fam = JsonModelFamily.from_json(family_dir / "family.json")
+        fam = BaseModelFamily.from_json(family_dir / "family.json")
         assert fam.secondary_analyzers == []

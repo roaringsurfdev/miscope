@@ -12,7 +12,7 @@ import pytest
 
 from miscope import LoadedFamily, list_families, load_family
 from miscope.config import AppConfig
-from miscope.families import JsonModelFamily, Variant
+from miscope.families import BaseModelFamily, Variant
 
 # --- Fixtures ---
 
@@ -345,8 +345,8 @@ class TestMakeProbe:
         assert probe[2, 2].item() == 97
 
     def test_make_probe_base_not_implemented(self, sample_family_config):
-        """JsonModelFamily.make_probe raises NotImplementedError."""
-        family = JsonModelFamily(sample_family_config)
+        """BaseModelFamily.make_probe raises NotImplementedError."""
+        family = BaseModelFamily(sample_family_config)
 
         with pytest.raises(NotImplementedError):
             family.make_probe({"prime": 113}, [[3, 29]])

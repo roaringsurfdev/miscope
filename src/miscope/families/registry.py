@@ -7,21 +7,21 @@ import re
 from pathlib import Path
 from typing import Any
 
-from miscope.families.json_family import JsonModelFamily
+from miscope.families.base_model_family import BaseModelFamily
 from miscope.families.protocols import ModelFamily
 from miscope.families.variant import Variant
 
 # Mapping of family names to their implementation classes
-# Families not in this map will use JsonModelFamily (config-only)
-_FAMILY_IMPLEMENTATIONS: dict[str, type[JsonModelFamily]] = {}
+# Families not in this map will use BaseModelFamily (config-only)
+_FAMILY_IMPLEMENTATIONS: dict[str, type[BaseModelFamily]] = {}
 
 
-def register_family_implementation(name: str, cls: type[JsonModelFamily]) -> None:
+def register_family_implementation(name: str, cls: type[BaseModelFamily]) -> None:
     """Register a family implementation class.
 
     Args:
         name: Family name (must match family.json "name" field)
-        cls: Implementation class (must be subclass of JsonModelFamily)
+        cls: Implementation class (must be subclass of BaseModelFamily)
     """
     _FAMILY_IMPLEMENTATIONS[name] = cls
 
@@ -29,8 +29,14 @@ def register_family_implementation(name: str, cls: type[JsonModelFamily]) -> Non
 def _register_default_implementations() -> None:
     """Register built-in family implementations."""
     from miscope.families.implementations.modulo_addition_1layer import ModuloAddition1LayerFamily
+    from miscope.families.implementations.modulo_addition_2l_mlp import ModuloAddition2LMLPFamily
+    from miscope.families.implementations.modulo_addition_embed_mlp import (
+        ModuloAdditionEmbedMLPFamily,
+    )
 
     register_family_implementation("modulo_addition_1layer", ModuloAddition1LayerFamily)
+    register_family_implementation("modulo_addition_2layer_mlp", ModuloAddition2LMLPFamily)
+    register_family_implementation("modulo_addition_learned_emb_mlp", ModuloAdditionEmbedMLPFamily)
 
 
 # Register default implementations on module load
@@ -44,7 +50,7 @@ class FamilyRegistry:
     Each subdirectory with a family.json file is registered as a family.
 
     If a family has a registered implementation class (via register_family_implementation),
-    that class is used instead of the base JsonModelFamily.
+    that class is used instead of the base BaseModelFamily.
 
     Variants are discovered from the results/ directory based on
     the family's variant_pattern.
@@ -86,7 +92,7 @@ class FamilyRegistry:
                 family_name = config.get("name", "")
 
                 # Use registered implementation if available
-                impl_class = _FAMILY_IMPLEMENTATIONS.get(family_name, JsonModelFamily)
+                impl_class = _FAMILY_IMPLEMENTATIONS.get(family_name, BaseModelFamily)
                 family = impl_class.from_json(family_json)
                 self._families[family.name] = family
             except (json.JSONDecodeError, KeyError) as e:

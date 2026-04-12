@@ -14,10 +14,10 @@ import torch
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 
 from miscope.analysis.library import get_fourier_basis
-from miscope.families.json_family import JsonModelFamily
+from miscope.families.base_model_family import BaseModelFamily
 
 
-class ModuloAddition1LayerFamily(JsonModelFamily):
+class ModuloAddition1LayerFamily(BaseModelFamily):
     """Implementation of ModelFamily for 1-layer modular addition transformer.
 
     This family represents single-layer transformers trained on the modular
@@ -223,11 +223,82 @@ class ModuloAddition1LayerFamily(JsonModelFamily):
             loss = -log_probs.gather(1, labels.unsqueeze(1)).squeeze(1).mean()
             return loss.item()
 
+        a_vals = torch.arange(p).repeat_interleave(p)
+        b_vals = torch.arange(p).repeat(p)
+        labels = ((a_vals + b_vals) % p).numpy()
+
         return {
             "params": params,
             "fourier_basis": fourier_basis,
             "loss_fn": loss_fn,
+            "labels": labels,
         }
+
+    def compute_loss(
+        self,
+        logits: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        """Cross-entropy loss on last-position transformer logits.
+
+        Args:
+            logits: Shape (batch, seq_len, vocab_size) from HookedTransformer.
+            labels: Target class indices of shape (batch,).
+
+        Returns:
+            Scalar mean negative log-probability of correct labels.
+        """
+        last_logits = logits[:, -1].to(torch.float64)
+        log_probs = last_logits.log_softmax(dim=-1)
+        correct_log_probs = log_probs.gather(dim=-1, index=labels[:, None])[:, 0]
+        return -correct_log_probs.mean()
+
+    def build_config_dict(
+        self,
+        model: Any,
+        params: dict[str, Any],
+        data_seed: int,
+        training_fraction: float,
+    ) -> dict[str, Any]:
+        """Build config.json dict from HookedTransformerConfig."""
+        cfg = model.cfg
+        return {
+            "n_layers": cfg.n_layers,
+            "n_heads": cfg.n_heads,
+            "d_model": cfg.d_model,
+            "d_head": cfg.d_head,
+            "d_mlp": cfg.d_mlp,
+            "act_fn": cfg.act_fn,
+            "normalization_type": cfg.normalization_type,
+            "d_vocab": cfg.d_vocab,
+            "d_vocab_out": cfg.d_vocab_out,
+            "n_ctx": cfg.n_ctx,
+            "seed": cfg.seed,
+            **params,
+            "model_seed": params.get("seed", cfg.seed),
+            "data_seed": data_seed,
+            "training_fraction": training_fraction,
+        }
+
+    def run_forward_pass(
+        self,
+        model: Any,
+        probe: torch.Tensor,
+    ) -> Any:
+        """Run a forward pass and return a TransformerLensBundle.
+
+        Args:
+            model: HookedTransformer instance created by create_model()
+            probe: Analysis dataset tensor from generate_analysis_dataset()
+
+        Returns:
+            TransformerLensBundle wrapping the model, cache, and logits
+        """
+        from miscope.analysis.bundle import TransformerLensBundle
+
+        with torch.inference_mode():
+            logits, cache = model.run_with_cache(probe)
+        return TransformerLensBundle(model, cache, logits)
 
     def make_probe(
         self,

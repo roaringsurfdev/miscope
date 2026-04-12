@@ -5,45 +5,39 @@ parameter trajectory projection, velocity analysis, and downstream
 geometric analyses (REQ_029).
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library import extract_parameter_snapshot
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 
 class ParameterSnapshotAnalyzer:
     """Stores per-epoch weight matrix snapshots for trajectory analysis.
 
-    Unlike other analyzers, this does not use the forward pass, probe,
-    or activation cache. It extracts weights directly from the model.
-    The probe and cache arguments are accepted (to conform to the
-    Analyzer protocol) but ignored.
+    Extracts weights via the bundle. Probe and analysis_params are unused.
     """
 
     name = "parameter_snapshot"
     description = "Stores weight matrix snapshots for trajectory analysis"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
-        """Extract all trainable weight matrices from the model.
+        """Extract all trainable weight matrices from the bundle.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Unused (protocol conformance)
-            cache: Unused (protocol conformance)
-            context: Unused (protocol conformance)
+            ctx: Analysis context with bundle (probe and analysis_params unused).
 
         Returns:
             Dict mapping weight matrix names to numpy arrays in
             their original shapes (e.g., W_E, W_Q, W_in, etc.)
         """
-        return extract_parameter_snapshot(model)
+        return extract_parameter_snapshot(ctx.bundle)

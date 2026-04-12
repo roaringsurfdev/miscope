@@ -78,7 +78,7 @@ def create_training_page_layout(app: Dash) -> html.Div:
                                 min=0.1,
                                 max=0.9,
                                 step=0.05,
-                                value=0.3,
+                                value=0.30,
                                 marks={0.1: "0.1", 0.3: "0.3", 0.5: "0.5", 0.7: "0.7", 0.9: "0.9"},
                                 tooltip={"placement": "bottom", "always_visible": False},
                             ),
@@ -207,21 +207,20 @@ def register_training_page_callbacks(app: Dash) -> None:
         Output("training-variant-preview", "children"),
         Output("training-prime-input", "value"),
         Output("training-seed-input", "value"),
+        Output("training-data-seed-input", "value"),
         Input("training-family-dropdown", "value"),
     )
-    def on_training_family_change(family_name: str | None) -> tuple[str, int, int]:
+    def on_training_family_change(family_name: str | None) -> tuple[str, int, int, int]:
         if not family_name:
-            return "Select a family", 113, 999
+            return "Select a family", 113, 999, 598
         registry = get_registry()
         family = registry.get_family(family_name)
         defaults = family.get_default_params()
         prime = defaults.get("prime", 113)
         seed = defaults.get("seed", 999)
         data_seed = defaults.get("data_seed", 598)
-        variant_name = family.get_variant_directory_name(
-            {"prime": prime, "seed": seed, "data_seed": data_seed}
-        )
-        return f"Variant: {variant_name}", prime, seed
+        variant_name = family.variant_pattern.format(prime=prime, seed=seed, data_seed=data_seed)
+        return f"Variant: {variant_name}", prime, seed, data_seed
 
     @app.callback(
         Output("training-variant-preview", "children", allow_duplicate=True),
@@ -239,8 +238,8 @@ def register_training_page_callbacks(app: Dash) -> None:
         try:
             registry = get_registry()
             family = registry.get_family(family_name)
-            variant_name = family.get_variant_directory_name(
-                {"prime": int(prime), "seed": int(seed), "data_seed": int(data_seed or 598)}
+            variant_name = family.variant_pattern.format(
+                prime=int(prime), seed=int(seed), data_seed=int(data_seed or 598)
             )
             return f"Variant: {variant_name}"
         except Exception:
@@ -268,6 +267,27 @@ def register_training_page_callbacks(app: Dash) -> None:
             return no_update, no_update, no_update, no_update
         if training_progress.get_state()["running"]:
             return no_update, no_update, "Training already in progress...", no_update
+
+        registry = get_registry()
+        family = registry.get_family(family_name)
+        params = {
+            "prime": int(prime or 113),
+            "seed": int(seed or 999),
+            "data_seed": int(data_seed or 598),
+        }
+        check_variant = registry.create_variant(family, params)
+        checkpoint_count = len(check_variant.get_available_checkpoints())
+        if checkpoint_count > 0:
+            variant_name = family.variant_pattern.format(**params)
+            return (
+                no_update,
+                no_update,
+                f"Blocked: variant '{variant_name}' already has checkpoints.\n\n"
+                f"Training over an existing variant is not allowed. "
+                f"Change the prime, seed, or data seed to create a new variant.",
+                no_update,
+            )
+
         training_progress.start()
         thread = threading.Thread(
             target=_run_training_thread,
@@ -276,8 +296,8 @@ def register_training_page_callbacks(app: Dash) -> None:
                 prime or 113,
                 seed or 999,
                 data_seed or 598,
-                train_fraction or 0.3,
-                num_epochs or 25000,
+                train_fraction or 0.30,
+                num_epochs or 50000,
                 checkpoint_str or "",
             ),
             daemon=True,

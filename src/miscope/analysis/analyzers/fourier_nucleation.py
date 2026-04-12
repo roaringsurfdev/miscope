@@ -15,12 +15,14 @@ view hardcodes loading epoch 0. Running at later epochs is valid and produces
 a cross-epoch frequency commitment trajectory.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 _COMMIT_THRESHOLD = 0.15  # Fraction of neuron energy at one frequency to count as "committed"
 
@@ -148,6 +150,7 @@ class FourierNucleationAnalyzer:
 
     name = "fourier_nucleation"
     description = "Iterative Fourier projection of MLP neuron response profiles"
+    architecture_support = ["transformer"]
 
     def __init__(self, iterations: int = 12, sharpness: float = 0.7):
         self.iterations = iterations
@@ -155,27 +158,22 @@ class FourierNucleationAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """Project neuron response profiles onto Fourier basis, iteratively sharpening.
 
         Args:
-            model: The model loaded with checkpoint weights
-            probe: Unused (protocol conformance)
-            cache: Unused (protocol conformance)
-            context: Analysis context; must contain context["params"]["prime"]
+            ctx: Analysis context with bundle and analysis_params.
+                 analysis_params must contain ctx.analysis_params["params"]["prime"].
 
         Returns:
             Dict with keys: aggregate_energy, neuron_peak_freq, neuron_committed_count,
             frequencies, prime, iterations, sharpness
         """
-        prime = int(context["params"]["prime"])
+        prime = int(ctx.analysis_params["params"]["prime"])
 
-        W_in = model.blocks[0].mlp.W_in.detach().cpu().numpy()  # type: ignore[union-attr]  # (d_mlp, d_model)
-        W_E = model.embed.W_E.detach().cpu().numpy()  # (vocab_size, d_model)
+        W_in = ctx.bundle.weight("W_in").detach().cpu().numpy()  # (d_model, d_mlp)
+        W_E = ctx.bundle.weight("W_E").detach().cpu().numpy()  # (vocab_size, d_model)
 
         # W_in is (d_model, d_mlp) in TransformerLens convention.
         # Neuron response to each token: (W_E[:prime] @ W_in).T = (d_mlp, prime)

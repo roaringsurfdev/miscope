@@ -8,14 +8,16 @@ Per-epoch artifacts contain the full delta_losses distribution.
 Summary statistics provide flatness metrics for trajectory visualization.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library.landscape import compute_landscape_flatness
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationContext
 
 FLATNESS_SUMMARY_KEYS = [
     "mean_delta_loss",
@@ -43,6 +45,7 @@ class LandscapeFlatnessAnalyzer:
 
     name = "landscape_flatness"
     description = "Measures loss landscape flatness via random weight perturbation"
+    architecture_support = ["transformer"]
 
     def __init__(
         self,
@@ -56,36 +59,35 @@ class LandscapeFlatnessAnalyzer:
 
     def analyze(
         self,
-        model: HookedTransformer,
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """Compute landscape flatness for a single checkpoint.
 
         Args:
-            model: The model loaded with checkpoint weights.
-            probe: The analysis dataset tensor.
-            cache: Unused (protocol conformance).
-            context: Must contain 'loss_fn' key.
+            ctx: Analysis context with bundle, probe, and analysis_params.
+                 analysis_params must contain 'loss_fn'.
 
         Returns:
             Dict with baseline_loss, delta_losses, epsilon.
 
         Raises:
-            ValueError: If 'loss_fn' not found in context.
+            ValueError: If 'loss_fn' not found in analysis_params.
         """
-        if "loss_fn" not in context:
+        if "loss_fn" not in ctx.analysis_params:
             raise ValueError(
                 "LandscapeFlatnessAnalyzer requires 'loss_fn' in analysis "
                 "context. Ensure the model family's "
                 "prepare_analysis_context() provides it."
             )
 
+        # Landscape flatness requires direct parameter manipulation — the bundle
+        # protocol doesn't cover perturbation. TransformerLensBundle.raw_model
+        # provides the escape hatch for this transformer-specific use case.
+        model = ctx.bundle.raw_model  # type: ignore[attr-defined]
         return compute_landscape_flatness(
             model=model,
-            probe=probe,
-            loss_fn=context["loss_fn"],
+            probe=ctx.probe,
+            loss_fn=ctx.analysis_params["loss_fn"],
             n_directions=self.n_directions,
             epsilon=self.epsilon,
             seed=self.seed,

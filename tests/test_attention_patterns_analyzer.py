@@ -8,7 +8,9 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
+from miscope.analysis.bundle import TransformerLensBundle
 from miscope.analysis.library.activations import extract_attention_patterns
+from miscope.analysis.protocols import ActivationContext
 
 # ── Library function tests ──────────────────────────────────────────────
 
@@ -96,19 +98,37 @@ class TestAttentionPatternsAnalyzer:
     def test_analyze_returns_dict(self, analyzer, mock_inputs):
         """analyze() returns a dict."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         assert isinstance(result, dict)
 
     def test_analyze_produces_patterns_key(self, analyzer, mock_inputs):
         """analyze() result contains 'patterns' key."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         assert "patterns" in result
 
     def test_output_shape(self, analyzer, mock_inputs):
         """Output shape is (n_heads, n_pos, n_pos, p, p)."""
         probe, cache, context, p, n_heads, seq_len = mock_inputs
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         patterns = result["patterns"]
 
         assert patterns.shape == (n_heads, seq_len, seq_len, p, p)
@@ -116,13 +136,25 @@ class TestAttentionPatternsAnalyzer:
     def test_output_is_numpy(self, analyzer, mock_inputs):
         """Output is numpy array, not torch tensor."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         assert isinstance(result["patterns"], np.ndarray)
 
     def test_values_in_valid_range(self, analyzer, mock_inputs):
         """Attention values are in [0, 1] (softmax outputs)."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         patterns = result["patterns"]
 
         assert patterns.min() >= 0.0
@@ -152,7 +184,13 @@ class TestAttentionPatternsAnalyzer:
         cache = MockCache({("pattern", 0): patterns})
         context = {"params": {"prime": p}}
 
-        result = analyzer.analyze(None, probe, cache, context)
+        result = analyzer.analyze(
+            ActivationContext(
+                bundle=TransformerLensBundle(None, cache, None),
+                probe=probe,
+                analysis_params=context,
+            )
+        )
         reshaped = result["patterns"]
 
         # Check that reshaped[head=0, to=2, from=0, a, b] == (a + b) / (2 * p)

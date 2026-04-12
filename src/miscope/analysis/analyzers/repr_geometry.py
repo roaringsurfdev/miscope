@@ -5,18 +5,19 @@ at multiple sites in the network. Tracks how representational structure
 evolves during training.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-from transformer_lens import HookedTransformer
-from transformer_lens.ActivationCache import ActivationCache
 
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
-    extract_mlp_activations,
-    extract_residual_stream,
 )
+
+if TYPE_CHECKING:
+    from miscope.analysis.protocols import ActivationBundle, ActivationContext
 from miscope.analysis.library.geometry import (
     _pca_project,
     compute_center_spread,
@@ -74,32 +75,30 @@ class RepresentationalGeometryAnalyzer:
 
     name = "repr_geometry"
     description = "Tracks representational geometry evolution across training"
+    architecture_support = ["transformer", "mlp"]
 
     def analyze(
         self,
-        model: HookedTransformer,  # noqa: ARG002
-        probe: torch.Tensor,
-        cache: ActivationCache,
-        context: dict[str, Any],
+        ctx: ActivationContext,
     ) -> dict[str, np.ndarray]:
         """Compute geometric measures at all activation sites.
 
         Args:
-            model: The model (unused — activations come from cache)
-            probe: Full probe tensor (p^2, 3)
-            cache: Activation cache from forward pass
-            context: Analysis context with 'params' containing 'prime'
+            ctx: Analysis context with bundle, probe, and analysis_params.
+                 analysis_params may contain 'labels' or 'params' with 'prime'.
 
         Returns:
             Dict with site-prefixed keys for centroids, radii,
             dimensionality, and global scalar measures.
         """
-        p = compute_grid_size_from_dataset(probe)
-        labels = self._compute_labels(probe, p)
+        p = compute_grid_size_from_dataset(ctx.probe)
+        labels = self._compute_labels(ctx.probe, p, ctx.analysis_params)
 
         result: dict[str, np.ndarray] = {}
         for site_name, site_config in _SITES.items():
-            activations = self._extract_site(cache, site_config)
+            if not ctx.bundle.supports_site(site_config["extractor"]):
+                continue
+            activations = self._extract_site(ctx.bundle, site_config)
             site_result = self._compute_site_measures(activations, labels, p)
             for key, value in site_result.items():
                 result[f"{site_name}_{key}"] = value
@@ -120,10 +119,12 @@ class RepresentationalGeometryAnalyzer:
         Picks out pre-computed scalar keys and computes PCA variance
         fractions from the stored centroid matrices.
         """
-        scalar_keys = [f"{site}_{key}" for site in _SITES for key in _SCALAR_KEYS]
+        # Only summarize sites that were actually computed (varies by architecture)
+        present_sites = [s for s in _SITES if f"{s}_centroids" in result]
+        scalar_keys = [f"{site}_{key}" for site in present_sites for key in _SCALAR_KEYS]
         summary: dict[str, float | np.ndarray] = {key: float(result[key]) for key in scalar_keys}
 
-        for site_name in _SITES:
+        for site_name in present_sites:
             centroids = result[f"{site_name}_centroids"]
             _, var_fracs = _pca_project(centroids, n_components=3)
             for pc_idx, frac in enumerate(var_fracs, 1):
@@ -131,8 +132,21 @@ class RepresentationalGeometryAnalyzer:
 
         return summary
 
-    def _compute_labels(self, probe: torch.Tensor, p: int) -> np.ndarray:
-        """Compute output class labels: (a + b) mod p."""
+    def _compute_labels(
+        self,
+        probe: torch.Tensor,
+        p: int,
+        context: dict[str, Any],
+    ) -> np.ndarray:
+        """Compute output class labels: (a + b) mod p.
+
+        Uses precomputed labels from context when available (required for
+        one-hot encoded probes where probe[:, 0] is not the value of a).
+        Falls back to reading a and b directly from the first two probe columns
+        for token-indexed probes (transformer family format).
+        """
+        if "labels" in context:
+            return context["labels"]
         probe_np = probe.cpu().numpy()
         a = probe_np[:, 0].astype(int)
         b = probe_np[:, 1].astype(int)
@@ -140,16 +154,14 @@ class RepresentationalGeometryAnalyzer:
 
     def _extract_site(
         self,
-        cache: ActivationCache,
+        bundle: ActivationBundle,
         site_config: dict,
     ) -> np.ndarray:
-        """Extract activations from cache for a given site."""
+        """Extract activations from bundle for a given site."""
         if site_config["extractor"] == "mlp":
-            acts = extract_mlp_activations(cache, layer=0, position=-1)
+            acts = bundle.mlp_post(0, -1)
         else:
-            acts = extract_residual_stream(
-                cache, layer=0, position=-1, location=site_config["location"]
-            )
+            acts = bundle.residual_stream(0, -1, site_config["location"])
         return acts.detach().cpu().numpy()
 
     def _compute_site_measures(
