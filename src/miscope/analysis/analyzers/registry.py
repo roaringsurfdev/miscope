@@ -185,6 +185,7 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.freq_group_weight_geometry import (
         FreqGroupWeightGeometryAnalyzer,
     )
+    from miscope.analysis.analyzers.intragroup_manifold import IntraGroupManifoldAnalyzer
     from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
     from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
     from miscope.analysis.analyzers.input_trace import InputTraceAnalyzer
@@ -225,6 +226,7 @@ def register_default_analyzers() -> None:
     AnalyzerRegistry.register_cross_epoch(InputTraceGraduationAnalyzer)
     AnalyzerRegistry.register_cross_epoch(NeuronGroupPCAAnalyzer)
     AnalyzerRegistry.register_cross_epoch(FreqGroupWeightGeometryAnalyzer)
+    AnalyzerRegistry.register_cross_epoch(IntraGroupManifoldAnalyzer)
     AnalyzerRegistry.register_cross_epoch(TransientFrequencyAnalyzer)
 
 

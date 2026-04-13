@@ -74,6 +74,11 @@ from miscope.visualization.renderers.freq_group_weight_geometry import (
     render_weight_geometry_group_snapshot,
     render_weight_geometry_timeseries,
 )
+from miscope.visualization.renderers.intragroup_manifold import (
+    render_intragroup_manifold_summary,
+    render_intragroup_manifold_timeseries,
+    render_intragroup_manifold_surface_fit,
+)
 from miscope.visualization.renderers.gradient_site import (
     render_site_gradient_convergence,
     render_site_gradient_heatmap,
@@ -253,4 +258,8 @@ __all__ = [
     "render_weight_geometry_timeseries",
     "render_weight_geometry_group_snapshot",
     "render_weight_geometry_centroid_pca",
+    # REQ_092: Intra-group manifold geometry
+    "render_intragroup_manifold_summary",
+    "render_intragroup_manifold_timeseries",
+    "render_intragroup_manifold_surface_fit",
 ]

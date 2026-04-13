@@ -1220,6 +1220,38 @@ def _register_all() -> None:
             )
         )
 
+    # --- Intra-group manifold geometry (REQ_092) ---
+    # All three views load from intragroup_manifold cross_epoch.npz.
+
+    def _load_intragroup_manifold(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("intragroup_manifold")
+
+    def _render_intragroup_summary(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_intragroup_manifold_summary(data, epoch=epoch, **kwargs)
+
+    def _render_intragroup_timeseries(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_intragroup_manifold_timeseries(data, epoch=epoch, **kwargs)
+
+    def _render_intragroup_surface_fit(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_intragroup_manifold_surface_fit(data, epoch=epoch, **kwargs)
+
+    _im_req = [AnalyzerRequirement("intragroup_manifold", ArtifactKind.CROSS_EPOCH)]
+
+    for name, renderer in [
+        ("intragroup_manifold.summary", _render_intragroup_summary),
+        ("intragroup_manifold.timeseries", _render_intragroup_timeseries),
+        ("intragroup_manifold.surface_fit", _render_intragroup_surface_fit),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_intragroup_manifold,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_im_req,
+            )
+        )
+
     # --- Loss curve (metadata-based, no artifact loader involved) ---
     # This is the canonical example of a non-artifact view source.
 

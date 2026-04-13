@@ -55,6 +55,7 @@
     "centroid_dmd",
     "input_trace_graduation",
     "neuron_group_pca",
+    "intragroup_manifold",
     "transient_frequency",
     "freq_group_weight_geometry"
   ],

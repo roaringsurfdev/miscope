@@ -47,24 +47,29 @@ is explained by a quadratic function of PC1 and PC2.
 - [ ] New cross-epoch analyzer `IntraGroupManifoldAnalyzer`
   (`name = "intragroup_manifold"`)
 - [ ] `requires = ["neuron_group_pca"]`
-- [ ] Runs quadratic fit for each frequency group at the final epoch
+- [ ] Runs quadratic fit for each frequency group at **every epoch**
 - [ ] Artifact keys:
   - `group_freqs` int32 (n_groups,)
   - `group_sizes` int32 (n_groups,)
-  - `r2_linear` float32 (n_groups,)
-  - `r2_quadratic` float32 (n_groups,)
-  - `r2_curvature` float32 (n_groups,)
-  - `a` float32 (n_groups,)
-  - `b` float32 (n_groups,)
-  - `c` float32 (n_groups,)
-  - `shape` stored as UTF-8 string array or integer label
+  - `epochs` int32 (n_epochs,)
+  - `r2_linear` float32 (n_epochs, n_groups)
+  - `r2_quadratic` float32 (n_epochs, n_groups)
+  - `r2_curvature` float32 (n_epochs, n_groups)
+  - `a` float32 (n_epochs, n_groups)
+  - `b` float32 (n_epochs, n_groups)
+  - `c` float32 (n_epochs, n_groups)
+  - `shape` stored as UTF-8 string array or integer label — **final epoch only** (n_groups,);
+    classification derived from final-epoch `a`, `b` coefficients
 - [ ] Registered in `modulo_addition_1layer` family config under
   `cross_epoch_analyzers`
 
 ### Views
 
-- [ ] `intragroup_manifold.summary` — bar chart per group: R²_curvature height,
-  colored by shape label (saddle / bowl / flat)
+- [ ] `intragroup_manifold.summary` — bar chart per group: R²_curvature height at
+  the final epoch, colored by shape label (saddle / bowl / flat)
+- [ ] `intragroup_manifold.timeseries` — R²_curvature over epochs, one line per
+  frequency group; reveals whether manifold formation is a gradual ramp or a
+  sharp phase-transition event
 - [ ] `intragroup_manifold.surface_fit` — 3D scatter of group neurons with the
   fitted quadratic surface overlaid; group selectable by kwarg
 

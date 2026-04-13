@@ -40,6 +40,7 @@ from miscope.analysis.library.geometry import (
     find_circularity_crossovers,
 )
 from miscope.analysis.library.landscape import compute_landscape_flatness
+from miscope.analysis.library.manifold_geometry import fit_quadratic_surface
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
     compute_pca_trajectory,
@@ -95,4 +96,6 @@ __all__ = [
     "compute_parameter_velocity",
     # Landscape flatness functions
     "compute_landscape_flatness",
+    # Manifold geometry functions
+    "fit_quadratic_surface",
 ]
