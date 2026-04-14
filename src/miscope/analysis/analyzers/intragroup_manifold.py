@@ -94,7 +94,7 @@ class IntraGroupManifoldAnalyzer:
                 b_coeff[ep_idx, g_idx] = result["b"]
                 c_coeff[ep_idx, g_idx] = result["c"]
 
-        shape_int = _compute_final_shapes(r2_curvature, a_coeff, b_coeff, n_groups)
+        shape_int = _compute_final_shapes(r2_curvature, a_coeff, b_coeff, c_coeff, n_groups)
 
         return {
             "group_freqs": group_freqs.astype(np.int32),
@@ -127,22 +127,22 @@ def _compute_final_shapes(
     r2_curvature: np.ndarray,
     a_coeff: np.ndarray,
     b_coeff: np.ndarray,
+    c_coeff: np.ndarray,
     n_groups: int,
 ) -> np.ndarray:
     """Derive shape label from the final epoch's fitted coefficients."""
-    from miscope.analysis.library.manifold_geometry import _FLAT_THRESHOLD
+    from miscope.analysis.library.manifold_geometry import _classify_shape
 
     shape_int = np.zeros(n_groups, dtype=np.int32)
     for g_idx in range(n_groups):
-        r2c = r2_curvature[-1, g_idx]
-        a = a_coeff[-1, g_idx]
-        b = b_coeff[-1, g_idx]
-        if np.isnan(r2c) or r2c < _FLAT_THRESHOLD:
+        r2c = float(r2_curvature[-1, g_idx])
+        a = float(a_coeff[-1, g_idx])
+        b = float(b_coeff[-1, g_idx])
+        c = float(c_coeff[-1, g_idx])
+        if np.isnan(r2c):
             shape_int[g_idx] = _SHAPE_TO_INT["flat/blob"]
-        elif (a > 0) == (b > 0):
-            shape_int[g_idx] = _SHAPE_TO_INT["bowl"]
         else:
-            shape_int[g_idx] = _SHAPE_TO_INT["saddle"]
+            shape_int[g_idx] = _SHAPE_TO_INT[_classify_shape(r2c, a, b, c)]
     return shape_int
 
 

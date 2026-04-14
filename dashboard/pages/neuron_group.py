@@ -34,30 +34,43 @@ _VIEW_LIST = {
         "view_name": "neuron_group.spread",
         "view_type": "epoch_selector",
     },
+    # Intragroup Manifold Analysis
+    "intragroup-manifold-timeline": {
+        "view_name": "intragroup_manifold.timeseries",
+        "view_type": "epoch_selector",
+    },
+    "intragroup-manifold-summary": {
+        "view_name": "intragroup_manifold.summary",
+        "view_type": "default_graph",
+    },
+    "intragroup-manifold-surface-fit": {
+        "view_name": "intragroup_manifold.surface_fit",
+        "view_type": "default_graph",
+    },
     # Neuron positions in PCA space (epoch-parameterized)
     "pca-scatter": {
         "view_name": "neuron_group.scatter",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     "scatter-purity": {
         "view_name": "neuron_group.scatter_purity",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     "scatter-3d": {
         "view_name": "neuron_group.scatter_3d",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     "all-groups": {
         "view_name": "neuron_group.all_groups",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     "trajectory": {
         "view_name": "neuron_group.trajectory",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     "polar-histogram": {
         "view_name": "neuron_group.polar_histogram",
-        "view_type": "epoch_selector",
+        "view_type": "default_graph",
     },
     # Residue class graduation
     "graduation-spread": {
@@ -84,6 +97,9 @@ def create_neuron_group_page_layout(app: Dash) -> html.Div:
             html.H6("PCA Dynamics", className="text-muted mb-2"),
             dbc.Row(dbc.Col(_graph_manager.create_graph("cohesion-timeline", "440px"))),
             dbc.Row(dbc.Col(_graph_manager.create_graph("spread-timeline", "420px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-timeline", "420px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-summary", "600px"))),
+            dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-surface-fit", "600px"))),
             html.Hr(className="my-3"),
             html.H6("Neuron Positions in PCA Space", className="text-muted mb-2"),
             dbc.Row(

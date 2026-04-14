@@ -48,7 +48,7 @@ def fit_quadratic_surface(proj_group: np.ndarray) -> dict[str, float | str]:
     r2_quadratic, (a, b, c) = _fit_quadratic(pc1, pc2, pc3)
 
     r2_curvature = float(np.clip(r2_quadratic - r2_linear, 0.0, 1.0))
-    shape = _classify_shape(r2_curvature, a, b)
+    shape = _classify_shape(r2_curvature, a, b, c)
 
     return {
         "r2_linear": float(r2_linear),
@@ -103,15 +103,16 @@ def _compute_r2(y: np.ndarray, y_hat: np.ndarray) -> float:
     return float(np.clip(1.0 - ss_res / ss_tot, 0.0, 1.0))
 
 
-def _classify_shape(r2_curvature: float, a: float, b: float) -> str:
+def _classify_shape(r2_curvature: float, a: float, b: float, c: float) -> str:
     """Classify manifold shape from curvature R² and quadratic coefficients.
 
-    The cross-term c is intentionally excluded — it encodes saddle/bowl axis
-    rotation, not the bowl vs. saddle distinction itself.
+    Uses the Hessian determinant (4ab − c²) to distinguish bowl from saddle.
+    This is rotation-invariant: a saddle rotated away from the PC axes is
+    correctly detected even when a and b share the same sign.
     """
     if r2_curvature < _FLAT_THRESHOLD:
         return "flat/blob"
-    if (a > 0) == (b > 0):
+    if 4 * a * b - c ** 2 > 0:
         return "bowl"
     return "saddle"
 

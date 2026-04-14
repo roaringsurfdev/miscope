@@ -128,7 +128,8 @@ def test_compute_final_shapes_flat():
     r2_curvature = np.full((n_epochs, n_groups), 0.02, dtype=np.float32)
     a = np.ones((n_epochs, n_groups), dtype=np.float32)
     b = np.ones((n_epochs, n_groups), dtype=np.float32)
-    shape_int = _compute_final_shapes(r2_curvature, a, b, n_groups)
+    c = np.zeros((n_epochs, n_groups), dtype=np.float32)
+    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
     shapes = decode_shapes(shape_int)
     assert all(s == "flat/blob" for s in shapes)
 
@@ -139,9 +140,26 @@ def test_compute_final_shapes_saddle():
     r2_curvature = np.full((n_epochs, n_groups), 0.8, dtype=np.float32)
     a = np.full((n_epochs, n_groups), 1.0, dtype=np.float32)
     b = np.full((n_epochs, n_groups), -1.0, dtype=np.float32)
-    shape_int = _compute_final_shapes(r2_curvature, a, b, n_groups)
+    c = np.zeros((n_epochs, n_groups), dtype=np.float32)
+    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
     shapes = decode_shapes(shape_int)
     assert all(s == "saddle" for s in shapes)
+
+
+def test_compute_final_shapes_rotated_saddle():
+    """A rotated saddle (a > 0, b > 0, c large) is correctly classified as saddle.
+
+    With a=0.5, b=0.5, c=2.0: det(H) = 4ab - c² = 1.0 - 4.0 = -3.0 < 0 → saddle.
+    The old axis-aligned check (a > 0) == (b > 0) would have mis-classified this as bowl.
+    """
+    n_epochs, n_groups = 5, 1
+    r2_curvature = np.full((n_epochs, n_groups), 0.8, dtype=np.float32)
+    a = np.full((n_epochs, n_groups), 0.5, dtype=np.float32)
+    b = np.full((n_epochs, n_groups), 0.5, dtype=np.float32)
+    c = np.full((n_epochs, n_groups), 2.0, dtype=np.float32)
+    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
+    shapes = decode_shapes(shape_int)
+    assert shapes == ["saddle"]
 
 
 # ---------------------------------------------------------------------------
