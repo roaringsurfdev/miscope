@@ -86,6 +86,11 @@ class NeuronGroupPCAAnalyzer:
             W_ins, group_bases, group_centers, group_members, d_mlp
         )
 
+        centroid_traj = _compute_centroid_trajectory(W_ins, group_members)
+        centroid_pca_coords, centroid_pca_var, centroid_pca_basis = _fit_centroid_pca(
+            centroid_traj
+        )
+
         return {
             "group_freqs": np.array(group_freqs, dtype=np.int32),
             "group_sizes": np.array([len(m) for m in group_members], dtype=np.int32),
@@ -96,6 +101,10 @@ class NeuronGroupPCAAnalyzer:
             "projections": projections,
             "neuron_group_idx": neuron_group_idx,
             "epochs": np.array(sorted_epochs, dtype=np.int32),
+            "centroid_traj": centroid_traj,
+            "centroid_pca_coords": centroid_pca_coords,
+            "centroid_pca_var": centroid_pca_var,
+            "centroid_pca_basis": centroid_pca_basis,
         }
 
 
@@ -157,6 +166,66 @@ def _group_pca_stats(group_W: np.ndarray) -> tuple[np.ndarray, float]:
         pc_var[:n_valid] = (s[:n_valid] ** 2 / total_var).astype(np.float32)
 
     return pc_var, spread
+
+
+def _compute_centroid_trajectory(
+    W_ins: list[np.ndarray],
+    group_members: list[np.ndarray],
+) -> np.ndarray:
+    """Compute the W_in group centroid at every epoch.
+
+    Args:
+        W_ins: list of (d_model, d_mlp) snapshots, one per epoch
+        group_members: list of member index arrays, one per group
+
+    Returns:
+        (n_epochs, n_groups, d_model) float32
+    """
+    n_epochs = len(W_ins)
+    n_groups = len(group_members)
+    d_model = W_ins[0].shape[0]
+    traj = np.zeros((n_epochs, n_groups, d_model), dtype=np.float32)
+    for ep_idx, W_in in enumerate(W_ins):
+        for g_idx, members in enumerate(group_members):
+            traj[ep_idx, g_idx] = W_in[:, members].mean(axis=1)
+    return traj
+
+
+def _fit_centroid_pca(
+    centroid_traj: np.ndarray,
+    n_components: int = N_COMPONENTS,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Shared PCA on all group centroids across all epochs.
+
+    Stacks every (epoch, group) centroid into one matrix and fits a single
+    PCA basis, giving a common coordinate frame for comparing group paths.
+
+    Args:
+        centroid_traj: (n_epochs, n_groups, d_model)
+
+    Returns:
+        coords:       (n_epochs, n_groups, n_components) — PCA projections
+        var_explained (n_components,) float32
+        basis:        (n_components, d_model) float32
+    """
+    n_epochs, n_groups, d_model = centroid_traj.shape
+    stacked = centroid_traj.reshape(-1, d_model)            # (n_epochs*n_groups, d_model)
+    center = stacked.mean(axis=0)
+    X = stacked - center
+    _, S, Vt = np.linalg.svd(X, full_matrices=False)
+    k = min(n_components, len(S))
+    basis = Vt[:k].astype(np.float32)                       # (k, d_model)
+    var_explained = np.zeros(n_components, dtype=np.float32)
+    total_var = float((S**2).sum())
+    if total_var > 1e-10:
+        var_explained[:k] = (S[:k] ** 2 / total_var).astype(np.float32)
+    coords = ((centroid_traj - center) @ basis.T).astype(np.float32)  # (n_epochs, n_groups, k)
+    if k < n_components:
+        pad = np.zeros((n_epochs, n_groups, n_components - k), dtype=np.float32)
+        coords = np.concatenate([coords, pad], axis=2)
+        basis_pad = np.zeros((n_components - k, d_model), dtype=np.float32)
+        basis = np.concatenate([basis, basis_pad], axis=0)
+    return coords, var_explained, basis
 
 
 def _compute_group_bases(W_in: np.ndarray, group_members: list[np.ndarray]) -> np.ndarray:
@@ -244,4 +313,8 @@ def _empty_result(epochs: list[int]) -> dict[str, np.ndarray]:
         "projections": np.empty((n, 0, 3), dtype=np.float32),
         "neuron_group_idx": np.array([], dtype=np.int32),
         "epochs": np.array(epochs, dtype=np.int32),
+        "centroid_traj": np.empty((n, 0, 0), dtype=np.float32),
+        "centroid_pca_coords": np.empty((n, 0, N_COMPONENTS), dtype=np.float32),
+        "centroid_pca_var": np.zeros(N_COMPONENTS, dtype=np.float32),
+        "centroid_pca_basis": np.empty((N_COMPONENTS, 0), dtype=np.float32),
     }

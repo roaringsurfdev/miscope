@@ -16,7 +16,8 @@
       "Bash(sed -i 's/return analyzer\\\\.analyze\\(None, probe, cache, context\\)/return analyzer.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
       "Bash(sed -i 's/result_a = analyzer_a\\\\.analyze\\(None, probe, cache, context\\)/result_a = analyzer_a.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
       "Bash(sed -i 's/result_b = analyzer_b\\\\.analyze\\(None, probe, cache, context\\)/result_b = analyzer_b.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
-      "Bash(git cherry-pick:*)"
+      "Bash(git cherry-pick:*)",
+      "Bash(kill %1)"
     ]
   }
 }

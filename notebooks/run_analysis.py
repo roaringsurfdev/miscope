@@ -29,6 +29,7 @@ from miscope.analysis.analyzers import (
     GlobalCentroidPCA,
     InputTraceAnalyzer,
     InputTraceGraduationAnalyzer,
+    IntraGroupManifoldAnalyzer,
     LandscapeFlatnessAnalyzer,
     NeuronActivationsAnalyzer,
     NeuronDynamicsAnalyzer,
@@ -59,7 +60,7 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = ["modulo_addition_1layer_p101_seed999_dseed598"]
+include_list = []
 for i, variant in enumerate(variants):
     print(f"\n{'='*60}")
     print(f"[{i+1}/{len(variants)}] {variant.name}")
@@ -82,28 +83,29 @@ for i, variant in enumerate(variants):
 
     try:
         pipeline = AnalysisPipeline(variant)
-        pipeline.register(AttentionFreqAnalyzer())
-        pipeline.register(AttentionPatternsAnalyzer())
-        pipeline.register(DominantFrequenciesAnalyzer())
-        pipeline.register(InputTraceAnalyzer())
-        pipeline.register(NeuronActivationsAnalyzer())
-        pipeline.register(NeuronFreqClustersAnalyzer())
-        pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register(EffectiveDimensionalityAnalyzer())
-        pipeline.register(LandscapeFlatnessAnalyzer())
-        pipeline.register(RepresentationalGeometryAnalyzer())
-        pipeline.register(AttentionFourierAnalyzer())
-        pipeline.register(FourierNucleationAnalyzer())
-        pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-        pipeline.register_secondary(NeuronFourierAnalyzer())
-        pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
-        pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
-        pipeline.register_cross_epoch(GlobalCentroidPCA())
-        pipeline.register_cross_epoch(CentroidDMD())
-        pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
-        pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
+        # pipeline.register(AttentionFreqAnalyzer())
+        # pipeline.register(AttentionPatternsAnalyzer())
+        # pipeline.register(DominantFrequenciesAnalyzer())
+        # pipeline.register(InputTraceAnalyzer())
+        # pipeline.register(NeuronActivationsAnalyzer())
+        # pipeline.register(NeuronFreqClustersAnalyzer())
+        # pipeline.register(ParameterSnapshotAnalyzer())
+        # pipeline.register(EffectiveDimensionalityAnalyzer())
+        # pipeline.register(LandscapeFlatnessAnalyzer())
+        # pipeline.register(RepresentationalGeometryAnalyzer())
+        # pipeline.register(AttentionFourierAnalyzer())
+        # pipeline.register(FourierNucleationAnalyzer())
+        # pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
+        # pipeline.register_secondary(NeuronFourierAnalyzer())
+        # pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
+        # pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
+        # pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
+        # pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        # pipeline.register_cross_epoch(GlobalCentroidPCA())
+        # pipeline.register_cross_epoch(CentroidDMD())
+        # pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
+        # pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
+        pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

@@ -27,6 +27,99 @@ _SITE_LABELS = {
 }
 
 _ALL_SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
+_ACTIVE_SITES = ["attn_out", "mlp_out", "resid_post"]   # resid_pre is always 0, excluded by default
+
+
+def render_pc_budget(
+    summary_data: dict,
+    current_epoch: int | None = None,
+    **kwargs,
+) -> go.Figure:
+    """PC3 and ring-plane (PC1+PC2) variance fraction per activation site over training.
+
+    Row 1 — PC3 variance fraction: how much of the class centroid variance lies
+    in the third principal direction.  Low = centroids are flat in the ring plane;
+    high = centroids have spread into a third dimension.
+
+    Row 2 — PC1+PC2 variance fraction: how well the ring plane captures the
+    centroid structure.  High = tight ring; dropping = structure is 3D or diffuse.
+
+    Sites shown: attn_out (green), mlp_out (red), resid_post (purple).
+    resid_pre is omitted — it is identically zero for all training epochs.
+
+    Args:
+        summary_data: From ArtifactLoader.load_summary("repr_geometry").
+        current_epoch: Optional epoch cursor (vertical dashed line).
+    """
+    epochs = summary_data["epochs"]
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        subplot_titles=[
+            "PC3 variance fraction  (3D budget)",
+            "PC1+PC2 variance fraction  (ring-plane budget)",
+        ],
+    )
+
+    for site in _ACTIVE_SITES:
+        pc1_key = f"{site}_pca_var_pc1"
+        if pc1_key not in summary_data:
+            continue
+        pc1 = summary_data[pc1_key]
+        pc2 = summary_data[f"{site}_pca_var_pc2"]
+        pc3 = summary_data[f"{site}_pca_var_pc3"]
+        color = _SITE_COLORS[site]
+        label = _SITE_LABELS[site]
+
+        # PC3 minimum marker
+        min_idx = int(np.argmin(pc3))
+
+        fig.add_trace(go.Scatter(
+            x=epochs.tolist(), y=pc3.tolist(),
+            mode="lines", name=label,
+            legendgroup=site, showlegend=True,
+            line=dict(color=color, width=2.5),
+            hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC3: %{{y:.3f}}<extra></extra>",
+        ), row=1, col=1)
+
+        fig.add_trace(go.Scatter(
+            x=[int(epochs[min_idx])], y=[float(pc3[min_idx])],
+            mode="markers",
+            marker=dict(color=color, size=9, symbol="x", line=dict(width=2)),
+            showlegend=False, legendgroup=site,
+            hovertemplate=f"{label} min<br>ep=%{{x}}<br>%{{y:.3f}}<extra></extra>",
+        ), row=1, col=1)
+
+        fig.add_trace(go.Scatter(
+            x=epochs.tolist(), y=(pc1 + pc2).tolist(),
+            mode="lines", name=label,
+            legendgroup=site, showlegend=False,
+            line=dict(color=color, width=2.5),
+            hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC1+PC2: %{{y:.3f}}<extra></extra>",
+        ), row=2, col=1)
+
+    if current_epoch is not None:
+        for row in [1, 2]:
+            fig.add_vline(
+                x=current_epoch,
+                line=dict(color="rgba(0,0,0,0.35)", width=1.5, dash="dash"),
+                row=row, col=1,
+            )
+
+    fig.update_yaxes(title_text="PC3 fraction", row=1, col=1)
+    fig.update_yaxes(title_text="PC1+PC2 fraction", row=2, col=1)
+    fig.update_xaxes(title_text="Epoch", row=2, col=1)
+    fig.update_layout(
+        title="PC budget by activation site<br>"
+              "<sup>× = PC3 minimum per site  |  Dashed = epoch cursor</sup>",
+        template="plotly_white",
+        height=540,
+        margin=dict(l=60, r=20, t=80, b=60),
+        legend=dict(orientation="h", y=1.06),
+    )
+    return fig
 
 
 def render_geometry_timeseries(

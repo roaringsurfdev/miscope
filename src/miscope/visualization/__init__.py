@@ -17,6 +17,7 @@ Usage:
     fig.show()  # or pass to Gradio
 """
 
+from miscope.visualization.common import get_frequency_color
 from miscope.visualization.line_plot import line
 from miscope.visualization.renderers.attention_fourier import (
     render_head_alignment_trajectory,
@@ -74,11 +75,6 @@ from miscope.visualization.renderers.freq_group_weight_geometry import (
     render_weight_geometry_group_snapshot,
     render_weight_geometry_timeseries,
 )
-from miscope.visualization.renderers.intragroup_manifold import (
-    render_intragroup_manifold_summary,
-    render_intragroup_manifold_timeseries,
-    render_intragroup_manifold_surface_fit,
-)
 from miscope.visualization.renderers.gradient_site import (
     render_site_gradient_convergence,
     render_site_gradient_heatmap,
@@ -91,6 +87,11 @@ from miscope.visualization.renderers.input_trace import (
     render_accuracy_grid,
     render_pair_graduation_heatmap,
     render_residue_class_accuracy_timeline,
+)
+from miscope.visualization.renderers.intragroup_manifold import (
+    render_intragroup_manifold_summary,
+    render_intragroup_manifold_surface_fit,
+    render_intragroup_manifold_timeseries,
 )
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,
@@ -117,6 +118,8 @@ from miscope.visualization.renderers.neuron_freq_clusters import (
     render_specialization_trajectory,
 )
 from miscope.visualization.renderers.neuron_group_pca import (
+    render_group_centroid_paths,
+    render_group_centroid_timeseries,
     render_neuron_group_all_panels,
     render_neuron_group_pca_cohesion,
     render_neuron_group_polar_histogram,
@@ -147,9 +150,11 @@ from miscope.visualization.renderers.repr_geometry import (
     render_centroid_pca_variance_summary,
     render_fisher_heatmap,
     render_geometry_timeseries,
+    render_pc_budget,
 )
 
 __all__ = [
+    "get_frequency_color",
     # REQ_012: Line plot utility (replaces neel-plotly)
     "line",
     # REQ_052: Fourier frequency quality

@@ -25,7 +25,7 @@ from miscope.analysis.library.geometry import (
     compute_fourier_alignment,
 )
 from miscope.analysis.protocols import ActivationContext
-from miscope.visualization.renderers.repr_geometry import render_fisher_heatmap
+from miscope.visualization.renderers.repr_geometry import render_fisher_heatmap, render_pc_budget
 
 # ── Geometry Library Tests ───────────────────────────────────────────
 
@@ -487,3 +487,48 @@ class TestRenderFisherHeatmap:
     def test_title_contains_min_pair(self, epoch_data):
         fig = render_fisher_heatmap(epoch_data, epoch=100, site="resid_post")
         assert "Min pair" in fig.layout.title.text  # type: ignore[attr-defined]
+
+
+# ── render_pc_budget smoke tests ──────────────────────────────────
+
+
+def _make_summary_data(n_epochs=20):
+    """Build minimal summary_data dict matching render_pc_budget expectations."""
+    rng = np.random.default_rng(77)
+    epochs = np.linspace(0, 10000, n_epochs, dtype=np.int32)
+    data: dict = {"epochs": epochs}
+    for site in ["attn_out", "mlp_out", "resid_post"]:
+        raw = rng.uniform(0.05, 0.4, (n_epochs, 3)).astype(np.float32)
+        raw = raw / raw.sum(axis=1, keepdims=True)
+        data[f"{site}_pca_var_pc1"] = raw[:, 0]
+        data[f"{site}_pca_var_pc2"] = raw[:, 1]
+        data[f"{site}_pca_var_pc3"] = raw[:, 2]
+    return data
+
+
+class TestRenderPcBudget:
+    def test_returns_figure(self):
+        fig = render_pc_budget(_make_summary_data())
+        assert isinstance(fig, go.Figure)
+
+    def test_has_two_rows(self):
+        """Each active site contributes 2 traces in row1 (line + min marker) and 1 in row2."""
+        fig = render_pc_budget(_make_summary_data())
+        # 3 sites × (1 pc3 line + 1 min marker + 1 pc1+pc2 line) = 9 traces
+        assert len(fig.data) == 9  # pyright: ignore[reportArgumentType]
+
+    def test_with_epoch_cursor(self):
+        fig = render_pc_budget(_make_summary_data(), current_epoch=5000)
+        assert isinstance(fig, go.Figure)
+
+    def test_missing_site_skipped(self):
+        """Sites with missing keys are silently skipped."""
+        data = _make_summary_data()
+        # Remove mlp_out keys to simulate missing site
+        for key in list(data.keys()):
+            if key.startswith("mlp_out_"):
+                del data[key]
+        fig = render_pc_budget(data)
+        assert isinstance(fig, go.Figure)
+        # Only 2 sites remain: attn_out and resid_post → 6 traces
+        assert len(fig.data) == 6  # pyright: ignore[reportArgumentType]

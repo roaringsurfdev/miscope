@@ -479,6 +479,19 @@ def _register_all() -> None:
         )
     )
 
+    def _render_pc_budget(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_pc_budget(data, current_epoch=epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="geometry.pc_budget",
+            load_data=_load_repr_geometry_summary,
+            renderer=_render_pc_budget,
+            epoch_source_analyzer=None,
+            required_analyzers=[AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY)],
+        )
+    )
+
     def _load_repr_geometry_epoch(variant: Variant, epoch: int | None) -> dict:
         return {
             "epoch_data": variant.artifacts.load_epoch("repr_geometry", epoch),  # type: ignore[arg-type]
@@ -1012,6 +1025,35 @@ def _register_all() -> None:
         ("neuron_group.scatter_3d", _render_group_scatter_3d),
         ("neuron_group.trajectory", _render_group_trajectory),
         ("neuron_group.polar_histogram", _render_group_polar_histogram),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_neuron_group_pca,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_ngpca_req,
+            )
+        )
+
+    # --- Group centroid trajectory views ---
+    # Both load centroid_pca_coords and centroid_pca_var from neuron_group_pca.
+
+    def _render_group_centroid_timeseries(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import (
+            render_group_centroid_timeseries,
+        )
+
+        return render_group_centroid_timeseries(data, epoch, **kwargs)
+
+    def _render_group_centroid_paths(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        from miscope.visualization.renderers.neuron_group_pca import render_group_centroid_paths
+
+        return render_group_centroid_paths(data, epoch, **kwargs)
+
+    for name, renderer in [
+        ("neuron_group.centroid_pc_timeseries", _render_group_centroid_timeseries),
+        ("neuron_group.centroid_paths", _render_group_centroid_paths),
     ]:
         _catalog.register(
             ViewDefinition(

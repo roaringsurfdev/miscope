@@ -42,9 +42,15 @@ from miscope.analysis.library.geometry import (
 from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.analysis.library.manifold_geometry import fit_quadratic_surface
 from miscope.analysis.library.trajectory import (
+    compute_arc_length,
+    compute_curvature_profile,
     compute_parameter_velocity,
     compute_pca_trajectory,
+    compute_signed_loop_area,
+    detect_self_intersection,
+    fit_centroid_pca,
     flatten_snapshot,
+    normalize_per_group,
 )
 from miscope.analysis.library.weights import (
     COMPONENT_GROUPS,
@@ -94,6 +100,14 @@ __all__ = [
     "flatten_snapshot",
     "compute_pca_trajectory",
     "compute_parameter_velocity",
+    # Trajectory shape quantification
+    "compute_arc_length",
+    "detect_self_intersection",
+    "compute_signed_loop_area",
+    "compute_curvature_profile",
+    # Group centroid helpers
+    "fit_centroid_pca",
+    "normalize_per_group",
     # Landscape flatness functions
     "compute_landscape_flatness",
     # Manifold geometry functions

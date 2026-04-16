@@ -637,3 +637,194 @@ def render_neuron_group_polar_histogram(
         margin=dict(l=20, r=20, t=60, b=20),
     )
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Group centroid trajectory views
+# ---------------------------------------------------------------------------
+
+
+def render_group_centroid_timeseries(
+    data: dict,
+    epoch: int | None = None,
+    **kwargs,
+) -> go.Figure:
+    """PC1, PC2, PC3 of each frequency group's centroid over training.
+
+    The centroid is the mean W_in column vector for the group's neurons.
+    Coordinates come from a shared PCA fit jointly on all groups × all epochs,
+    so paths are directly comparable across groups.
+
+    Three-row subplot: one row per PC component.
+    Variance explained by the shared basis is shown in each row title.
+    Epoch cursor drawn as a vertical line when provided.
+
+    Args:
+        data: cross_epoch artifact from neuron_group_pca (requires centroid_pca_coords)
+        epoch: optional epoch cursor
+    """
+    epochs = data["epochs"]
+    group_freqs = data["group_freqs"]
+    group_sizes = data["group_sizes"]
+    coords = data["centroid_pca_coords"]   # (n_epochs, n_groups, 3)
+    var_exp = data["centroid_pca_var"]     # (3,)
+    n_groups = len(group_freqs)
+    n_freq = int(group_freqs.max()) + 1 if n_groups > 0 else 1
+
+    row_titles = [
+        f"PC1 ({float(var_exp[0]):.1%} var)",
+        f"PC2 ({float(var_exp[1]):.1%} var)",
+        f"PC3 ({float(var_exp[2]):.1%} var)",
+    ]
+    fig = make_subplots(
+        rows=3, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        subplot_titles=row_titles,
+    )
+
+    for g_idx, (freq, size) in enumerate(zip(group_freqs, group_sizes)):
+        color = _freq_color(int(freq), n_freq)
+        label = f"freq {int(freq) + 1} (n={size})"
+        for comp, row in enumerate([1, 2, 3]):
+            fig.add_trace(
+                go.Scatter(
+                    x=epochs.tolist(),
+                    y=coords[:, g_idx, comp].tolist(),
+                    mode="lines",
+                    name=label,
+                    legendgroup=str(freq),
+                    showlegend=(comp == 0),
+                    line=dict(color=color, width=2),
+                    hovertemplate=(
+                        f"{label}<br>epoch=%{{x}}<br>PC{comp + 1}=%{{y:.3f}}<extra></extra>"
+                    ),
+                ),
+                row=row, col=1,
+            )
+
+    if epoch is not None:
+        for row in [1, 2, 3]:
+            fig.add_vline(
+                x=epoch,
+                line=dict(color="rgba(0,0,0,0.3)", width=1, dash="dash"),
+                row=row, col=1,
+            )
+
+    fig.update_xaxes(title_text="Epoch", row=3, col=1)
+    for row in [1, 2, 3]:
+        fig.update_yaxes(title_text="Centroid coord", row=row, col=1)
+
+    fig.update_layout(
+        title="Group centroid trajectories in shared W_in PCA space<br>"
+              "<sup>Shared basis fit jointly on all groups × all epochs</sup>",
+        template="plotly_white",
+        height=620,
+        margin=dict(l=60, r=20, t=80, b=60),
+        legend=dict(orientation="v", x=1.02, y=1),
+    )
+    return fig
+
+
+def render_group_centroid_paths(
+    data: dict,
+    epoch: int | None = None,
+    **kwargs,
+) -> go.Figure:
+    """PC1 vs PC2 centroid paths for each frequency group.
+
+    Each group traces a path through the shared W_in PCA plane as training
+    progresses. Marker color encodes epoch (blue=early, red=late).
+    Open circle = epoch 0, filled circle = final epoch.
+
+    Args:
+        data: cross_epoch artifact from neuron_group_pca (requires centroid_pca_coords)
+        epoch: optional epoch cursor (vertical line skipped for 2D scatter)
+    """
+    epochs = data["epochs"]
+    group_freqs = data["group_freqs"]
+    group_sizes = data["group_sizes"]
+    coords = data["centroid_pca_coords"]   # (n_epochs, n_groups, 3)
+    var_exp = data["centroid_pca_var"]     # (3,)
+    n_groups = len(group_freqs)
+    n_freq = int(group_freqs.max()) + 1 if n_groups > 0 else 1
+
+    # Epoch normalized to [0, 1] for colorscale
+    ep_arr = np.asarray(epochs, dtype=float)
+    if ep_arr.max() > ep_arr.min():
+        col_scale = ((ep_arr - ep_arr.min()) / (ep_arr.max() - ep_arr.min())).tolist()
+    else:
+        col_scale = [0.5] * len(ep_arr)
+
+    fig = go.Figure()
+
+    for g_idx, (freq, size) in enumerate(zip(group_freqs, group_sizes)):
+        color = _freq_color(int(freq), n_freq)
+        label = f"freq {int(freq) + 1} (n={size})"
+        x = coords[:, g_idx, 0].tolist()
+        y = coords[:, g_idx, 1].tolist()
+
+        fig.add_trace(go.Scatter(
+            x=x, y=y,
+            mode="lines+markers",
+            name=label,
+            line=dict(color=color, width=2),
+            marker=dict(
+                size=6,
+                color=col_scale,
+                colorscale="RdYlBu_r",
+                cmin=0, cmax=1,
+                showscale=False,
+            ),
+            customdata=epochs.tolist(),
+            hovertemplate=(
+                f"{label}<br>epoch=%{{customdata}}<br>"
+                "PC1=%{x:.3f}  PC2=%{y:.3f}<extra></extra>"
+            ),
+        ))
+
+        # Start/end markers
+        fig.add_trace(go.Scatter(
+            x=[x[0]], y=[y[0]],
+            mode="markers",
+            marker=dict(color=color, size=10, symbol="circle-open", line=dict(width=2)),
+            showlegend=False,
+            hovertemplate=f"{label} start (ep {int(epochs[0])})<extra></extra>",
+        ))
+        fig.add_trace(go.Scatter(
+            x=[x[-1]], y=[y[-1]],
+            mode="markers",
+            marker=dict(color=color, size=10, symbol="circle"),
+            showlegend=False,
+            hovertemplate=f"{label} end (ep {int(epochs[-1])})<extra></extra>",
+        ))
+
+    # Invisible colorbar trace for epoch scale
+    fig.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode="markers",
+        marker=dict(
+            colorscale="RdYlBu_r", cmin=0, cmax=1,
+            color=[0], showscale=True,
+            colorbar=dict(
+                title="epoch",
+                tickvals=[0, 0.5, 1],
+                ticktext=[str(int(ep_arr.min())), str(int(ep_arr.mean())), str(int(ep_arr.max()))],
+                len=0.5, x=1.02,
+            ),
+        ),
+        showlegend=False,
+    ))
+
+    fig.update_layout(
+        title="Group centroid paths — PC1 vs PC2 (shared W_in PCA)<br>"
+              "<sup>Open circle = epoch 0  |  Filled = final epoch  |  "
+              f"Marker color = training progress</sup>",
+        xaxis_title=f"PC1 ({float(var_exp[0]):.1%} var)",
+        yaxis_title=f"PC2 ({float(var_exp[1]):.1%} var)",
+        template="plotly_white",
+        height=540,
+        margin=dict(l=60, r=80, t=80, b=60),
+        legend=dict(x=1.08, y=1),
+    )
+    return fig

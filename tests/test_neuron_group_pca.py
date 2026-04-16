@@ -8,6 +8,8 @@ from miscope.analysis.analyzers.neuron_group_pca import (
     _group_pca_stats,
 )
 from miscope.visualization.renderers.neuron_group_pca import (
+    render_group_centroid_paths,
+    render_group_centroid_timeseries,
     render_neuron_group_pca_cohesion,
     render_neuron_group_scatter,
     render_neuron_group_spread,
@@ -305,18 +307,30 @@ def test_analyzer_epochs_sorted():
 # --- Renderer smoke tests ---
 
 
-def _make_cross_epoch_artifact(n_epochs=5, n_groups=3):
+def _make_cross_epoch_artifact(n_epochs=5, n_groups=3, d_model=16):
     rng = np.random.default_rng(42)
     # pc_var: 3 components per group, sum <= 1.0 per (epoch, group)
     raw = rng.uniform(0.1, 0.4, (n_epochs, n_groups, 3)).astype(np.float32)
     pc_var = raw / raw.sum(axis=2, keepdims=True)  # normalize so sum == 1
     pc_var *= rng.uniform(0.5, 0.9, (n_epochs, n_groups, 1)).astype(np.float32)
+
+    # centroid trajectory and shared PCA fields (new)
+    centroid_traj = rng.standard_normal((n_epochs, n_groups, d_model)).astype(np.float32)
+    centroid_pca_coords = rng.standard_normal((n_epochs, n_groups, 3)).astype(np.float32)
+    var_raw = rng.uniform(0.3, 0.5, 3).astype(np.float32)
+    centroid_pca_var = (var_raw / var_raw.sum()).astype(np.float32)
+    centroid_pca_basis = rng.standard_normal((3, d_model)).astype(np.float32)
+
     return {
         "group_freqs": np.arange(n_groups, dtype=np.int32) * 5,
         "group_sizes": np.full(n_groups, 4, dtype=np.int32),
         "pc_var": pc_var,
         "mean_spread": rng.uniform(0.1, 2.0, (n_epochs, n_groups)).astype(np.float32),
         "epochs": np.linspace(0, 5000, n_epochs, dtype=np.int32),
+        "centroid_traj": centroid_traj,
+        "centroid_pca_coords": centroid_pca_coords,
+        "centroid_pca_var": centroid_pca_var,
+        "centroid_pca_basis": centroid_pca_basis,
     }
 
 
@@ -446,3 +460,187 @@ def test_render_scatter_empty_groups():
     fig = render_neuron_group_scatter(data)
     assert isinstance(fig, go.Figure)
     assert len(fig.data) == 0  # pyright: ignore[reportArgumentType]
+
+
+# --- Analyzer: centroid trajectory and shared PCA keys ---
+
+
+def test_analyzer_centroid_traj_shape():
+    """centroid_traj has shape (n_epochs, n_groups, d_model)."""
+    n_freq, d_mlp, d_model = 3, 9, 16
+    assignments = [0, 0, 0, 1, 1, 1, 2, 2, 2]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100, 200, 300]
+    rng = np.random.default_rng(11)
+    W_in_by_epoch = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    n_groups = len(result["group_freqs"])
+    assert result["centroid_traj"].shape == (3, n_groups, d_model)
+    assert result["centroid_traj"].dtype == np.float32
+
+
+def test_analyzer_centroid_pca_coords_shape():
+    """centroid_pca_coords has shape (n_epochs, n_groups, 3)."""
+    n_freq, d_mlp, d_model = 2, 6, 16
+    assignments = [0, 0, 0, 1, 1, 1]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [10, 20, 30, 40]
+    rng = np.random.default_rng(22)
+    W_in_by_epoch = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    n_groups = len(result["group_freqs"])
+    assert result["centroid_pca_coords"].shape == (4, n_groups, 3)
+    assert result["centroid_pca_coords"].dtype == np.float32
+
+
+def test_analyzer_centroid_pca_var_shape():
+    """centroid_pca_var has shape (3,) and sums to <= 1."""
+    n_freq, d_mlp, d_model = 2, 6, 16
+    assignments = [0, 0, 0, 1, 1, 1]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100, 200]
+    rng = np.random.default_rng(33)
+    W_in_by_epoch = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    var = result["centroid_pca_var"]
+    assert var.shape == (3,)
+    assert var.dtype == np.float32
+    assert float(var.sum()) <= 1.0 + 1e-5
+    assert np.all(var >= 0.0)
+
+
+def test_analyzer_centroid_pca_basis_shape():
+    """centroid_pca_basis has shape (3, d_model)."""
+    n_freq, d_mlp, d_model = 2, 6, 32
+    assignments = [0, 0, 0, 1, 1, 1]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100, 200]
+    rng = np.random.default_rng(44)
+    W_in_by_epoch = {e: rng.standard_normal((d_model, d_mlp)).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    assert result["centroid_pca_basis"].shape == (3, d_model)
+    assert result["centroid_pca_basis"].dtype == np.float32
+
+
+def test_analyzer_centroid_traj_values():
+    """centroid_traj[ep, g] equals mean of group member columns in W_in."""
+    n_freq, d_mlp, d_model = 2, 6, 8
+    assignments = [0, 0, 0, 1, 1, 1]
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100]
+    rng = np.random.default_rng(55)
+    W_in = rng.standard_normal((d_model, d_mlp)).astype(np.float32)
+    W_in_by_epoch = {100: W_in}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    # Group 0 has neurons 0-2, group 1 has neurons 3-5 (sorted by freq)
+    for g_idx, members in enumerate([[0, 1, 2], [3, 4, 5]]):
+        expected = W_in[:, members].mean(axis=1)
+        np.testing.assert_allclose(
+            result["centroid_traj"][0, g_idx], expected, atol=1e-5
+        )
+
+
+def test_analyzer_empty_centroid_fields():
+    """Empty result has correct shapes for centroid fields."""
+    n_freq, d_mlp = 4, 4
+    assignments = [0, 1, 2, 3]  # each freq has 1 neuron → no valid groups
+    norm = _make_norm_matrix(n_freq, d_mlp, assignments)
+    epochs = [100, 200]
+    W_in_by_epoch = {e: np.random.randn(8, d_mlp).astype(np.float32) for e in epochs}
+
+    result = _run_analyzer(_MockArtifactLoader(norm, W_in_by_epoch), epochs)
+
+    assert result["centroid_traj"].shape == (2, 0, 0)
+    assert result["centroid_pca_coords"].shape == (2, 0, 3)
+    assert result["centroid_pca_var"].shape == (3,)
+    assert result["centroid_pca_basis"].ndim == 2
+
+
+# --- render_group_centroid_timeseries smoke tests ---
+
+
+def test_render_centroid_timeseries_returns_figure():
+    import plotly.graph_objects as go
+
+    data = _make_cross_epoch_artifact()
+    fig = render_group_centroid_timeseries(data)
+    assert isinstance(fig, go.Figure)
+
+
+def test_render_centroid_timeseries_trace_count():
+    """One trace per group per PC component = n_groups * 3."""
+    n_groups = 4
+    data = _make_cross_epoch_artifact(n_groups=n_groups)
+    fig = render_group_centroid_timeseries(data)
+    assert len(fig.data) == n_groups * 3  # pyright: ignore[reportArgumentType]
+
+
+def test_render_centroid_timeseries_with_epoch_cursor():
+    import plotly.graph_objects as go
+
+    data = _make_cross_epoch_artifact()
+    fig = render_group_centroid_timeseries(data, epoch=2500)
+    assert isinstance(fig, go.Figure)
+
+
+def test_render_centroid_timeseries_empty_groups():
+    """Zero groups → figure with no traces."""
+    import plotly.graph_objects as go
+
+    data = {
+        "group_freqs": np.array([], dtype=np.int32),
+        "group_sizes": np.array([], dtype=np.int32),
+        "centroid_pca_coords": np.empty((5, 0, 3), dtype=np.float32),
+        "centroid_pca_var": np.array([0.5, 0.3, 0.2], dtype=np.float32),
+        "epochs": np.array([0, 1000, 2000, 3000, 4000], dtype=np.int32),
+    }
+    fig = render_group_centroid_timeseries(data)
+    assert isinstance(fig, go.Figure)
+    assert len(fig.data) == 0  # pyright: ignore[reportArgumentType]
+
+
+# --- render_group_centroid_paths smoke tests ---
+
+
+def test_render_centroid_paths_returns_figure():
+    import plotly.graph_objects as go
+
+    data = _make_cross_epoch_artifact()
+    fig = render_group_centroid_paths(data)
+    assert isinstance(fig, go.Figure)
+
+
+def test_render_centroid_paths_with_epoch():
+    import plotly.graph_objects as go
+
+    data = _make_cross_epoch_artifact()
+    fig = render_group_centroid_paths(data, epoch=3000)
+    assert isinstance(fig, go.Figure)
+
+
+def test_render_centroid_paths_empty_groups():
+    """Zero groups → figure renders without error (only invisible colorbar trace)."""
+    import plotly.graph_objects as go
+
+    data = {
+        "group_freqs": np.array([], dtype=np.int32),
+        "group_sizes": np.array([], dtype=np.int32),
+        "centroid_pca_coords": np.empty((5, 0, 3), dtype=np.float32),
+        "centroid_pca_var": np.array([0.5, 0.3, 0.2], dtype=np.float32),
+        "epochs": np.array([0, 1000, 2000, 3000, 4000], dtype=np.int32),
+    }
+    fig = render_group_centroid_paths(data)
+    assert isinstance(fig, go.Figure)
+    # Renderer adds one invisible colorbar trace unconditionally; no group traces
+    path_traces = [t for t in fig.data if t.showlegend is not False]  # pyright: ignore[reportAttributeAccessIssue]
+    assert len(path_traces) == 0
