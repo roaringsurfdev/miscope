@@ -5,8 +5,8 @@ trajectory, class centroid, and within-group weight domains) + geometry
 state space (parametric f_top3 vs PR₃ per activation site).
 """
 
-from dash import Dash, Input, Output, State, html
 import dash_bootstrap_components as dbc
+from dash import Dash, Input, Output, State, html
 
 from dashboard.components.analysis_page import AnalysisPageGraphManager
 
@@ -17,6 +17,10 @@ _VIEW_LIST = {
     },
     "dimensionality-timeseries": {
         "view_name": "dimensionality.timeseries",
+        "view_type": "epoch_selector",
+    },
+    "velocity-plot": {
+        "view_name": "parameters.pca.component_velocity",
         "view_type": "epoch_selector",
     },
     "dimensionality-state-space": {
@@ -44,6 +48,7 @@ def create_dimensionality_dynamics_page_layout(app: Dash) -> html.Div:
                     dbc.Row(
                         dbc.Col(_graph_manager.create_graph("dimensionality-timeseries", "950px"))
                     ),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("velocity-plot", "400px"))),
                     dbc.Row(
                         dbc.Col(_graph_manager.create_graph("dimensionality-state-space", "560px"))
                     ),

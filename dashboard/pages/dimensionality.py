@@ -48,14 +48,6 @@ _VIEW_LIST = {
         "view_type": "default_graph",
         "view_filter_set": "trajectory_group",
     },
-    "parameters-pca-group-overlay-pc1-pc2": {
-        "view_name": "parameters.pca.group_overlay",
-        "view_type": "default_graph",
-    },
-    "parameters-pca-group-overlay-pc2-pc3": {
-        "view_name": "parameters.pca.group_overlay_pc2_pc3",
-        "view_type": "default_graph",
-    },
     "parameters-pca-group-overlay-proximity": {
         "view_name": "parameters.pca.proximity",
         "view_type": "epoch_selector",
@@ -128,65 +120,53 @@ def create_dimensionality_page_layout(app: Dash) -> html.Div:
                         children=[
                             dbc.Col(children=["Parameter Space"]),
                             dbc.Col(children=["Activation Space"]),
-                        ]
+                        ],
                     ),
                     dbc.Row(
                         children=[
                             dbc.Col(
-                                _graph_manager.create_graph("parameter-pca-summary-plot", "450px"),
+                                _graph_manager.create_graph("parameter-pca-summary-plot", "500px"),
                                 width=6,
                             ),
                             dbc.Col(
                                 _graph_manager.create_graph(
-                                    "centroid-class-pca-summary-plot", "450px"
+                                    "centroid-class-pca-summary-plot", "500px"
                                 ),
                                 width=6,
                             ),
                         ],
-                        style={"height": "600px"},
+                        style={"height": "650px"},
                     ),
                     dbc.Row(
                         [
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-3d-scatter", "450px"),
+                                _graph_manager.create_graph("parameters-pca-3d-scatter", "500px"),
                                 width=6,
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-pc1-pc2", "450px"),
+                                _graph_manager.create_graph("parameters-pca-pc1-pc2", "500px"),
                                 width=6,
                             ),
-                        ]
+                        ],
+                        style={"height": "650px"},
                     ),
                     dbc.Row(
                         [
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-pc1-pc3", "450px"),
+                                _graph_manager.create_graph("parameters-pca-pc1-pc3", "500px"),
                                 width=6,
                             ),
                             dbc.Col(
-                                _graph_manager.create_graph("parameters-pca-pc2-pc3", "450px"),
+                                _graph_manager.create_graph("parameters-pca-pc2-pc3", "500px"),
                                 width=6,
                             ),
-                        ]
+                        ],
+                        style={"height": "650px"},
                     ),
                     dbc.Row(
                         dbc.Col(
                             _graph_manager.create_graph(
                                 "parameters-pca-group-overlay-proximity", "400px"
-                            )
-                        )
-                    ),
-                    dbc.Row(
-                        dbc.Col(
-                            _graph_manager.create_graph(
-                                "parameters-pca-group-overlay-pc1-pc2", "400px"
-                            )
-                        )
-                    ),
-                    dbc.Row(
-                        dbc.Col(
-                            _graph_manager.create_graph(
-                                "parameters-pca-group-overlay-pc2-pc3", "400px"
                             )
                         )
                     ),

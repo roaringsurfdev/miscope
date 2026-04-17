@@ -46,8 +46,8 @@ from miscope.analysis.analyzers import (
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
-COOLING_NEEDED = False
-COOLING_PERIOD = 4 * 60 # timer to allow machine to cool between runs
+COOLING_NEEDED = True
+COOLING_PERIOD = 1 * 20 # timer to allow machine to cool between runs
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
