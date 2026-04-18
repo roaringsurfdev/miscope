@@ -509,13 +509,16 @@ def _register_all() -> None:
                 vs = json.load(f)
             result["markers"] = {
                 "second_descent_onset_epoch": vs.get("second_descent_onset_epoch"),
-                "effective_dimensionality_cross_over_epoch": vs.get("effective_dimensionality_cross_over_epoch"),
+                "effective_dimensionality_cross_over_epoch": vs.get(
+                    "effective_dimensionality_cross_over_epoch"
+                ),
             }
 
         return result
 
     def _render_network_sync(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         return render_network_sync(data, epoch=epoch, **kwargs)
 
     _catalog.register(
@@ -1391,7 +1394,9 @@ def _register_all() -> None:
             "markers": markers,
         }
 
-    def _render_dimensionality_state_space(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+    def _render_dimensionality_state_space(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
         return viz.build_dimensionality_state_space(data, epoch=epoch, **kwargs)
 
     _catalog.register(

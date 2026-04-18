@@ -64,7 +64,7 @@ class IntraGroupManifoldAnalyzer:
         group_sizes = ngpca["group_sizes"]
         neuron_group_idx = ngpca["neuron_group_idx"]
         projections = ngpca["projections"]  # (n_epochs, d_mlp, 3)
-        artifact_epochs = ngpca["epochs"]   # (n_epochs,) int32
+        artifact_epochs = ngpca["epochs"]  # (n_epochs,) int32
 
         n_groups = len(group_freqs)
         n_epochs = len(artifact_epochs)

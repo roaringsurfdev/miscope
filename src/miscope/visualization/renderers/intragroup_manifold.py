@@ -47,10 +47,10 @@ def render_intragroup_manifold_summary(
     """
     group_freqs = data["group_freqs"]
     r2_curvature = data["r2_curvature"]  # (n_epochs, n_groups)
-    shape_int = data["shape_int"]        # (n_groups,)
+    shape_int = data["shape_int"]  # (n_groups,)
 
     shapes = decode_shapes(shape_int)
-    final_r2c = r2_curvature[-1, :]     # (n_groups,)
+    final_r2c = r2_curvature[-1, :]  # (n_groups,)
 
     freq_labels = [str(int(f) + 1) for f in group_freqs]
     colors = [_SHAPE_COLORS.get(s, "lightgray") for s in shapes]
@@ -194,6 +194,7 @@ def render_intragroup_manifold_surface_fit(
     )
 
     from miscope.analysis.analyzers.intragroup_manifold import _INT_TO_SHAPE
+
     shape = _INT_TO_SHAPE.get(int(data["shape_int"][group]), "flat/blob")
     actual_epoch = int(epochs[ep_idx])
 

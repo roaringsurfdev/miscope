@@ -29,7 +29,9 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem("Input Trace", href="/input-trace"),
                     dbc.DropdownMenuItem("Neuron Groups", href="/neuron-group"),
                     dbc.DropdownMenuItem("Transient Frequencies", href="/transient-frequencies"),
-                    dbc.DropdownMenuItem("Dimensionality Dynamics", href="/dimensionality-dynamics"),
+                    dbc.DropdownMenuItem(
+                        "Dimensionality Dynamics", href="/dimensionality-dynamics"
+                    ),
                 ],
                 nav=True,
                 in_navbar=True,
@@ -96,6 +98,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_dimensionality_page_layout,
         create_dimensionality_page_nav,
     )
+    from dashboard.pages.dimensionality_dynamics import (
+        create_dimensionality_dynamics_page_layout,
+        create_dimensionality_dynamics_page_nav,
+    )
     from dashboard.pages.geometry_weights import (
         create_weight_geometry_page_layout,
         create_weight_geometry_page_nav,
@@ -115,10 +121,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
     from dashboard.pages.loss_landscape import (
         create_loss_landscape_page_layout,
         create_loss_landscape_page_nav,
-    )
-    from dashboard.pages.dimensionality_dynamics import (
-        create_dimensionality_dynamics_page_layout,
-        create_dimensionality_dynamics_page_nav,
     )
     from dashboard.pages.multistream import (
         create_multistream_page_layout,

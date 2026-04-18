@@ -564,18 +564,21 @@ def _make_network_sync_data(n_epochs=20, n_groups=3):
 class TestRenderNetworkSync:
     def test_returns_figure(self):
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         fig = render_network_sync(_make_network_sync_data())
         assert isinstance(fig, go.Figure)
 
     def test_trace_count_with_group_spread(self):
         """3 sites × 3 row metrics + 1 W_in spread = 10 traces."""
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         fig = render_network_sync(_make_network_sync_data())
         assert len(fig.data) == 10  # pyright: ignore[reportArgumentType]
 
     def test_trace_count_without_group_spread(self):
         """Without group_spread, only 3 sites × 3 rows = 9 traces."""
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         data = _make_network_sync_data()
         data.pop("group_spread")
         data.pop("spread_epochs")
@@ -584,12 +587,14 @@ class TestRenderNetworkSync:
 
     def test_with_epoch_cursor(self):
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         fig = render_network_sync(_make_network_sync_data(), epoch=7000)
         assert isinstance(fig, go.Figure)
 
     def test_without_markers(self):
         """Missing markers dict does not raise."""
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         data = _make_network_sync_data()
         data.pop("markers")
         fig = render_network_sync(data)
@@ -598,6 +603,7 @@ class TestRenderNetworkSync:
     def test_missing_site_skipped(self):
         """Sites with missing keys are silently skipped; remaining traces still render."""
         from miscope.visualization.renderers.network_sync import render_network_sync
+
         data = _make_network_sync_data()
         for key in list(data["repr_summary"].keys()):
             if key.startswith("mlp_out_"):

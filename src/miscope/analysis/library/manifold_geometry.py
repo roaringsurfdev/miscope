@@ -112,7 +112,7 @@ def _classify_shape(r2_curvature: float, a: float, b: float, c: float) -> str:
     """
     if r2_curvature < _FLAT_THRESHOLD:
         return "flat/blob"
-    if 4 * a * b - c ** 2 > 0:
+    if 4 * a * b - c**2 > 0:
         return "bowl"
     return "saddle"
 

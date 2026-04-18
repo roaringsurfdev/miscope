@@ -545,9 +545,7 @@ def test_analyzer_centroid_traj_values():
     # Group 0 has neurons 0-2, group 1 has neurons 3-5 (sorted by freq)
     for g_idx, members in enumerate([[0, 1, 2], [3, 4, 5]]):
         expected = W_in[:, members].mean(axis=1)
-        np.testing.assert_allclose(
-            result["centroid_traj"][0, g_idx], expected, atol=1e-5
-        )
+        np.testing.assert_allclose(result["centroid_traj"][0, g_idx], expected, atol=1e-5)
 
 
 def test_analyzer_empty_centroid_fields():

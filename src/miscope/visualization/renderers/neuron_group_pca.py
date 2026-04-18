@@ -666,8 +666,8 @@ def render_group_centroid_timeseries(
     epochs = data["epochs"]
     group_freqs = data["group_freqs"]
     group_sizes = data["group_sizes"]
-    coords = data["centroid_pca_coords"]   # (n_epochs, n_groups, 3)
-    var_exp = data["centroid_pca_var"]     # (3,)
+    coords = data["centroid_pca_coords"]  # (n_epochs, n_groups, 3)
+    var_exp = data["centroid_pca_var"]  # (3,)
     n_groups = len(group_freqs)
     n_freq = int(group_freqs.max()) + 1 if n_groups > 0 else 1
 
@@ -677,7 +677,8 @@ def render_group_centroid_timeseries(
         f"PC3 ({float(var_exp[2]):.1%} var)",
     ]
     fig = make_subplots(
-        rows=3, cols=1,
+        rows=3,
+        cols=1,
         shared_xaxes=True,
         vertical_spacing=0.06,
         subplot_titles=row_titles,
@@ -700,7 +701,8 @@ def render_group_centroid_timeseries(
                         f"{label}<br>epoch=%{{x}}<br>PC{comp + 1}=%{{y:.3f}}<extra></extra>"
                     ),
                 ),
-                row=row, col=1,
+                row=row,
+                col=1,
             )
 
     if epoch is not None:
@@ -708,7 +710,8 @@ def render_group_centroid_timeseries(
             fig.add_vline(
                 x=epoch,
                 line=dict(color="rgba(0,0,0,0.3)", width=1, dash="dash"),
-                row=row, col=1,
+                row=row, # type: ignore
+                col=1, # type: ignore
             )
 
     fig.update_xaxes(title_text="Epoch", row=3, col=1)
@@ -717,7 +720,7 @@ def render_group_centroid_timeseries(
 
     fig.update_layout(
         title="Group centroid trajectories in shared W_in PCA space<br>"
-              "<sup>Shared basis fit jointly on all groups × all epochs</sup>",
+        "<sup>Shared basis fit jointly on all groups × all epochs</sup>",
         template="plotly_white",
         height=620,
         margin=dict(l=60, r=20, t=80, b=60),
@@ -744,8 +747,8 @@ def render_group_centroid_paths(
     epochs = data["epochs"]
     group_freqs = data["group_freqs"]
     group_sizes = data["group_sizes"]
-    coords = data["centroid_pca_coords"]   # (n_epochs, n_groups, 3)
-    var_exp = data["centroid_pca_var"]     # (3,)
+    coords = data["centroid_pca_coords"]  # (n_epochs, n_groups, 3)
+    var_exp = data["centroid_pca_var"]  # (3,)
     n_groups = len(group_freqs)
     n_freq = int(group_freqs.max()) + 1 if n_groups > 0 else 1
 
@@ -764,62 +767,83 @@ def render_group_centroid_paths(
         x = coords[:, g_idx, 0].tolist()
         y = coords[:, g_idx, 1].tolist()
 
-        fig.add_trace(go.Scatter(
-            x=x, y=y,
-            mode="lines+markers",
-            name=label,
-            line=dict(color=color, width=2),
-            marker=dict(
-                size=6,
-                color=col_scale,
-                colorscale="RdYlBu_r",
-                cmin=0, cmax=1,
-                showscale=False,
-            ),
-            customdata=epochs.tolist(),
-            hovertemplate=(
-                f"{label}<br>epoch=%{{customdata}}<br>"
-                "PC1=%{x:.3f}  PC2=%{y:.3f}<extra></extra>"
-            ),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=x,
+                y=y,
+                mode="lines+markers",
+                name=label,
+                line=dict(color=color, width=2),
+                marker=dict(
+                    size=6,
+                    color=col_scale,
+                    colorscale="RdYlBu_r",
+                    cmin=0,
+                    cmax=1,
+                    showscale=False,
+                ),
+                customdata=epochs.tolist(),
+                hovertemplate=(
+                    f"{label}<br>epoch=%{{customdata}}<br>"
+                    "PC1=%{x:.3f}  PC2=%{y:.3f}<extra></extra>"
+                ),
+            )
+        )
 
         # Start/end markers
-        fig.add_trace(go.Scatter(
-            x=[x[0]], y=[y[0]],
-            mode="markers",
-            marker=dict(color=color, size=10, symbol="circle-open", line=dict(width=2)),
-            showlegend=False,
-            hovertemplate=f"{label} start (ep {int(epochs[0])})<extra></extra>",
-        ))
-        fig.add_trace(go.Scatter(
-            x=[x[-1]], y=[y[-1]],
-            mode="markers",
-            marker=dict(color=color, size=10, symbol="circle"),
-            showlegend=False,
-            hovertemplate=f"{label} end (ep {int(epochs[-1])})<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=[x[0]],
+                y=[y[0]],
+                mode="markers",
+                marker=dict(color=color, size=10, symbol="circle-open", line=dict(width=2)),
+                showlegend=False,
+                hovertemplate=f"{label} start (ep {int(epochs[0])})<extra></extra>",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[x[-1]],
+                y=[y[-1]],
+                mode="markers",
+                marker=dict(color=color, size=10, symbol="circle"),
+                showlegend=False,
+                hovertemplate=f"{label} end (ep {int(epochs[-1])})<extra></extra>",
+            )
+        )
 
     # Invisible colorbar trace for epoch scale
-    fig.add_trace(go.Scatter(
-        x=[None], y=[None],
-        mode="markers",
-        marker=dict(
-            colorscale="RdYlBu_r", cmin=0, cmax=1,
-            color=[0], showscale=True,
-            colorbar=dict(
-                title="epoch",
-                tickvals=[0, 0.5, 1],
-                ticktext=[str(int(ep_arr.min())), str(int(ep_arr.mean())), str(int(ep_arr.max()))],
-                len=0.5, x=1.02,
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                colorscale="RdYlBu_r",
+                cmin=0,
+                cmax=1,
+                color=[0],
+                showscale=True,
+                colorbar=dict(
+                    title="epoch",
+                    tickvals=[0, 0.5, 1],
+                    ticktext=[
+                        str(int(ep_arr.min())),
+                        str(int(ep_arr.mean())),
+                        str(int(ep_arr.max())),
+                    ],
+                    len=0.5,
+                    x=1.02,
+                ),
             ),
-        ),
-        showlegend=False,
-    ))
+            showlegend=False,
+        )
+    )
 
     fig.update_layout(
         title="Group centroid paths — PC1 vs PC2 (shared W_in PCA)<br>"
-              "<sup>Open circle = epoch 0  |  Filled = final epoch  |  "
-              f"Marker color = training progress</sup>",
+        "<sup>Open circle = epoch 0  |  Filled = final epoch  |  "
+        "Marker color = training progress</sup>",
         xaxis_title=f"PC1 ({float(var_exp[0]):.1%} var)",
         yaxis_title=f"PC2 ({float(var_exp[1]):.1%} var)",
         template="plotly_white",

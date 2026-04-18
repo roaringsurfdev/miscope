@@ -185,11 +185,11 @@ def register_default_analyzers() -> None:
     from miscope.analysis.analyzers.freq_group_weight_geometry import (
         FreqGroupWeightGeometryAnalyzer,
     )
-    from miscope.analysis.analyzers.intragroup_manifold import IntraGroupManifoldAnalyzer
     from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
     from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
     from miscope.analysis.analyzers.input_trace import InputTraceAnalyzer
     from miscope.analysis.analyzers.input_trace_graduation import InputTraceGraduationAnalyzer
+    from miscope.analysis.analyzers.intragroup_manifold import IntraGroupManifoldAnalyzer
     from miscope.analysis.analyzers.landscape_flatness import LandscapeFlatnessAnalyzer
     from miscope.analysis.analyzers.neuron_activations import NeuronActivationsAnalyzer
     from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer

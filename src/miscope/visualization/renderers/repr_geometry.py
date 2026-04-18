@@ -27,7 +27,7 @@ _SITE_LABELS = {
 }
 
 _ALL_SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
-_ACTIVE_SITES = ["attn_out", "mlp_out", "resid_post"]   # resid_pre is always 0, excluded by default
+_ACTIVE_SITES = ["attn_out", "mlp_out", "resid_post"]  # resid_pre is always 0, excluded by default
 
 
 def render_pc_budget(
@@ -54,7 +54,8 @@ def render_pc_budget(
     epochs = summary_data["epochs"]
 
     fig = make_subplots(
-        rows=2, cols=1,
+        rows=2,
+        cols=1,
         shared_xaxes=True,
         vertical_spacing=0.08,
         subplot_titles=[
@@ -76,36 +77,57 @@ def render_pc_budget(
         # PC3 minimum marker
         min_idx = int(np.argmin(pc3))
 
-        fig.add_trace(go.Scatter(
-            x=epochs.tolist(), y=pc3.tolist(),
-            mode="lines", name=label,
-            legendgroup=site, showlegend=True,
-            line=dict(color=color, width=2.5),
-            hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC3: %{{y:.3f}}<extra></extra>",
-        ), row=1, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=epochs.tolist(),
+                y=pc3.tolist(),
+                mode="lines",
+                name=label,
+                legendgroup=site,
+                showlegend=True,
+                line=dict(color=color, width=2.5),
+                hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC3: %{{y:.3f}}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
 
-        fig.add_trace(go.Scatter(
-            x=[int(epochs[min_idx])], y=[float(pc3[min_idx])],
-            mode="markers",
-            marker=dict(color=color, size=9, symbol="x", line=dict(width=2)),
-            showlegend=False, legendgroup=site,
-            hovertemplate=f"{label} min<br>ep=%{{x}}<br>%{{y:.3f}}<extra></extra>",
-        ), row=1, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=[int(epochs[min_idx])],
+                y=[float(pc3[min_idx])],
+                mode="markers",
+                marker=dict(color=color, size=9, symbol="x", line=dict(width=2)),
+                showlegend=False,
+                legendgroup=site,
+                hovertemplate=f"{label} min<br>ep=%{{x}}<br>%{{y:.3f}}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
 
-        fig.add_trace(go.Scatter(
-            x=epochs.tolist(), y=(pc1 + pc2).tolist(),
-            mode="lines", name=label,
-            legendgroup=site, showlegend=False,
-            line=dict(color=color, width=2.5),
-            hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC1+PC2: %{{y:.3f}}<extra></extra>",
-        ), row=2, col=1)
+        fig.add_trace(
+            go.Scatter(
+                x=epochs.tolist(),
+                y=(pc1 + pc2).tolist(),
+                mode="lines",
+                name=label,
+                legendgroup=site,
+                showlegend=False,
+                line=dict(color=color, width=2.5),
+                hovertemplate=f"{label}<br>Epoch %{{x}}<br>PC1+PC2: %{{y:.3f}}<extra></extra>",
+            ),
+            row=2,
+            col=1,
+        )
 
     if current_epoch is not None:
         for row in [1, 2]:
             fig.add_vline(
                 x=current_epoch,
                 line=dict(color="rgba(0,0,0,0.35)", width=1.5, dash="dash"),
-                row=row, col=1,
+                row=row, # type: ignore
+                col=1, # type: ignore
             )
 
     fig.update_yaxes(title_text="PC3 fraction", row=1, col=1)
@@ -113,7 +135,7 @@ def render_pc_budget(
     fig.update_xaxes(title_text="Epoch", row=2, col=1)
     fig.update_layout(
         title="PC budget by activation site<br>"
-              "<sup>× = PC3 minimum per site  |  Dashed = epoch cursor</sup>",
+        "<sup>× = PC3 minimum per site  |  Dashed = epoch cursor</sup>",
         template="plotly_white",
         height=540,
         margin=dict(l=60, r=20, t=80, b=60),

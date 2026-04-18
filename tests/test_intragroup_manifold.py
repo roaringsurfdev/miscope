@@ -78,26 +78,26 @@ def test_r2_curvature_nonnegative():
     """R²_curvature is non-negative (clipped at 0)."""
     for proj in [_make_saddle(), _make_bowl(), _make_flat()]:
         result = fit_quadratic_surface(proj)
-        assert result["r2_curvature"] >= 0.0
+        assert result["r2_curvature"] >= 0.0 # type: ignore
 
 
 def test_r2_range():
     """R² values are within [0, 1]."""
     result = fit_quadratic_surface(_make_saddle(n=50, noise=0.01))
     for key in ("r2_linear", "r2_quadratic", "r2_curvature"):
-        assert 0.0 <= result[key] <= 1.0, f"{key} out of [0, 1]: {result[key]}"
+        assert 0.0 <= result[key] <= 1.0, f"{key} out of [0, 1]: {result[key]}" # type: ignore
 
 
 def test_r2_quadratic_ge_linear():
     """R²_quadratic >= R²_linear (quadratic fit cannot be worse)."""
     result = fit_quadratic_surface(_make_saddle(n=50, noise=0.01))
-    assert result["r2_quadratic"] >= result["r2_linear"] - 1e-9
+    assert result["r2_quadratic"] >= result["r2_linear"] - 1e-9 # type: ignore
 
 
 def test_saddle_r2_curvature_high():
     """A clean saddle has high R²_curvature (well above the flat threshold)."""
     result = fit_quadratic_surface(_make_saddle(n=50, noise=0.01))
-    assert result["r2_curvature"] > 0.5
+    assert result["r2_curvature"] > 0.5 # type: ignore
 
 
 def test_too_few_neurons_returns_nan():
@@ -180,7 +180,9 @@ def _make_artifact(n_epochs: int = 4, n_groups: int = 3, seed: int = 42) -> dict
         "group_sizes": np.array([40, 35, 28], dtype=np.int32)[:n_groups],
         "epochs": np.arange(0, n_epochs * 500, 500, dtype=np.int32),
         "r2_linear": rng.uniform(0.0, 0.1, (n_epochs, n_groups)).astype(np.float32),
-        "r2_quadratic": (r2_curvature + rng.uniform(0.0, 0.1, (n_epochs, n_groups)).astype(np.float32)),
+        "r2_quadratic": (
+            r2_curvature + rng.uniform(0.0, 0.1, (n_epochs, n_groups)).astype(np.float32)
+        ),
         "r2_curvature": r2_curvature,
         "a": a,
         "b": b,
@@ -197,6 +199,7 @@ def _make_artifact(n_epochs: int = 4, n_groups: int = 3, seed: int = 42) -> dict
 def test_summary_renderer_returns_figure():
     """render_intragroup_manifold_summary produces a Figure."""
     import plotly.graph_objects as go
+
     fig = render_intragroup_manifold_summary(_make_artifact())
     assert isinstance(fig, go.Figure)
 
@@ -204,6 +207,7 @@ def test_summary_renderer_returns_figure():
 def test_timeseries_renderer_returns_figure():
     """render_intragroup_manifold_timeseries produces a Figure."""
     import plotly.graph_objects as go
+
     fig = render_intragroup_manifold_timeseries(_make_artifact())
     assert isinstance(fig, go.Figure)
 
@@ -211,6 +215,7 @@ def test_timeseries_renderer_returns_figure():
 def test_timeseries_renderer_with_epoch_cursor():
     """render_intragroup_manifold_timeseries accepts an epoch cursor."""
     import plotly.graph_objects as go
+
     artifact = _make_artifact()
     epoch = int(artifact["epochs"][1])
     fig = render_intragroup_manifold_timeseries(artifact, epoch=epoch)
@@ -220,6 +225,7 @@ def test_timeseries_renderer_with_epoch_cursor():
 def test_surface_fit_renderer_returns_figure():
     """render_intragroup_manifold_surface_fit produces a Figure."""
     import plotly.graph_objects as go
+
     fig = render_intragroup_manifold_surface_fit(_make_artifact(), group=0)
     assert isinstance(fig, go.Figure)
 
@@ -227,6 +233,7 @@ def test_surface_fit_renderer_returns_figure():
 def test_surface_fit_renderer_group_kwarg():
     """render_intragroup_manifold_surface_fit accepts a group kwarg."""
     import plotly.graph_objects as go
+
     artifact = _make_artifact(n_groups=3)
     for g in range(3):
         fig = render_intragroup_manifold_surface_fit(artifact, group=g)

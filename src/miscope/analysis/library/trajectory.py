@@ -157,7 +157,7 @@ def detect_self_intersection(
 
     n = len(curve)
     diff = curve[:, np.newaxis, :] - curve[np.newaxis, :, :]  # (n, n, 2)
-    dist_sq = np.sum(diff ** 2, axis=2)  # (n, n)
+    dist_sq = np.sum(diff**2, axis=2)  # (n, n)
 
     arc_sep = np.abs(arc[:, np.newaxis] - arc[np.newaxis, :])  # (n, n)
     valid = (arc_sep >= min_sep) & np.triu(np.ones((n, n), dtype=bool), k=1)
@@ -244,7 +244,7 @@ def compute_curvature_profile(
     d2x = np.gradient(dx, arc)
     d2y = np.gradient(dy, arc)
 
-    denom = (dx ** 2 + dy ** 2) ** 1.5
+    denom = (dx**2 + dy**2) ** 1.5
     kappa_raw = np.where(denom > 1e-12, (dx * d2y - dy * d2x) / denom, 0.0)
 
     s_norm_raw = arc / total_arc if total_arc > 1e-12 else np.linspace(0.0, 1.0, len(arc))
@@ -292,7 +292,7 @@ def fit_centroid_pca(
     X = stacked - center
     _, S, Vt = np.linalg.svd(X, full_matrices=False)
     basis = Vt[:n_components]
-    var_ratio = (S ** 2 / (S ** 2).sum())[:n_components]
+    var_ratio = (S**2 / (S**2).sum())[:n_components]
     coords = (centroids - center) @ basis.T  # (n_groups, n_epochs, n_components)
     return {
         "coords": coords,

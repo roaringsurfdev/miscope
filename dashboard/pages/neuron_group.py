@@ -99,7 +99,9 @@ def create_neuron_group_page_layout(app: Dash) -> html.Div:
             dbc.Row(dbc.Col(_graph_manager.create_graph("spread-timeline", "420px"))),
             dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-timeline", "420px"))),
             dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-summary", "600px"))),
-            dbc.Row(dbc.Col(_graph_manager.create_graph("intragroup-manifold-surface-fit", "600px"))),
+            dbc.Row(
+                dbc.Col(_graph_manager.create_graph("intragroup-manifold-surface-fit", "600px"))
+            ),
             html.Hr(className="my-3"),
             html.H6("Neuron Positions in PCA Space", className="text-muted mb-2"),
             dbc.Row(

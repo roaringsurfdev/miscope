@@ -47,6 +47,7 @@ _REF_LINES = [1.0, 2.0, 3.0]
 
 # --- Math helpers ---
 
+
 def _compute_pr3(f1, f2, f3):
     """PR₃ from top-3 fractional eigenvalues. Range [1, 3]."""
     num = (f1 + f2 + f3) ** 2
@@ -101,25 +102,36 @@ def _extract_repr_dim_metrics(summary, sites):
 
 # --- Figure helpers ---
 
+
 def _add_pr3_f_top3_traces(fig, row, epochs, pr3, ft, color, name, group, show_legend):
     """Solid PR₃ + dashed f_top3 trace pair for one series."""
     fig.add_trace(
         go.Scatter(
-            x=epochs, y=pr3, mode="lines", name=name,
-            legendgroup=group, showlegend=show_legend,
+            x=epochs,
+            y=pr3,
+            mode="lines",
+            name=name,
+            legendgroup=group,
+            showlegend=show_legend,
             line=dict(color=color, width=2),
             hovertemplate=f"{name}<br>Ep %{{x}}<br>PR₃ %{{y:.3f}}<extra></extra>",
         ),
-        row=row, col=1,
+        row=row,
+        col=1,
     )
     fig.add_trace(
         go.Scatter(
-            x=epochs, y=ft, mode="lines", name=name,
-            legendgroup=group, showlegend=False,
+            x=epochs,
+            y=ft,
+            mode="lines",
+            name=name,
+            legendgroup=group,
+            showlegend=False,
             line=dict(color=color, width=1.5, dash="dash"),
             hovertemplate=f"{name}<br>Ep %{{x}}<br>f_top3 %{{y:.3f}}<extra></extra>",
         ),
-        row=row, col=1,
+        row=row,
+        col=1,
     )
 
 
@@ -128,17 +140,23 @@ def _add_timing_markers(fig, n_rows, onset, fd_end, eff_xover):
     for row in range(1, n_rows + 1):
         if fd_end and fd_end > 0:
             fig.add_vline(
-                x=fd_end, row=row, col=1,
+                x=fd_end,
+                row=row,
+                col=1,
                 line=dict(color="rgba(210,140,0,0.80)", dash="dot", width=1.5),
             )
         if onset and onset > 0:
             fig.add_vline(
-                x=onset, row=row, col=1,
+                x=onset,
+                row=row,
+                col=1,
                 line=dict(color="black", dash="dash", width=1.5),
             )
         if eff_xover and eff_xover > 0:
             fig.add_vline(
-                x=eff_xover, row=row, col=1,
+                x=eff_xover,
+                row=row,
+                col=1,
                 line=dict(color="rgba(60,60,210,0.6)", dash="dot", width=1.5),
             )
 
@@ -148,12 +166,15 @@ def _add_ref_lines(fig, n_rows):
     for y_val in _REF_LINES:
         for row in range(1, n_rows + 1):
             fig.add_hline(
-                y=y_val, row=row, col=1,
+                y=y_val,
+                row=row,
+                col=1,
                 line=dict(color="rgba(0,0,0,0.10)", dash="dot", width=1),
             )
 
 
 # --- Panel builders ---
+
 
 def _add_trajectory_panel(fig, row, pt_data):
     """Panel 1: rolling PR₃ and f_top3 per parameter trajectory site."""
@@ -161,8 +182,15 @@ def _add_trajectory_panel(fig, row, pt_data):
     for site in _TRAJ_SITES:
         pr3, ft = _compute_rolling_trajectory_metrics(pt_data[f"{site}__projections"])
         _add_pr3_f_top3_traces(
-            fig, row, epochs, pr3.tolist(), ft.tolist(),
-            _TRAJ_SITE_COLORS[site], f"traj {site}", f"traj_{site}", show_legend=True,
+            fig,
+            row,
+            epochs,
+            pr3.tolist(),
+            ft.tolist(),
+            _TRAJ_SITE_COLORS[site],
+            f"traj {site}",
+            f"traj_{site}",
+            show_legend=True,
         )
 
 
@@ -172,10 +200,15 @@ def _add_centroid_panel(fig, row, rg_summary):
     metrics = _extract_repr_dim_metrics(rg_summary, _REPR_SITES)
     for site in _REPR_SITES:
         _add_pr3_f_top3_traces(
-            fig, row, epochs,
-            metrics[site]["pr3"].tolist(), metrics[site]["f_top3"].tolist(),
-            _REPR_SITE_COLORS[site], _REPR_SITE_LABELS[site],
-            f"repr_{site}", show_legend=True,
+            fig,
+            row,
+            epochs,
+            metrics[site]["pr3"].tolist(),
+            metrics[site]["f_top3"].tolist(),
+            _REPR_SITE_COLORS[site],
+            _REPR_SITE_LABELS[site],
+            f"repr_{site}",
+            show_legend=True,
         )
 
 
@@ -184,19 +217,26 @@ def _add_weight_group_panel(fig, row, wg_data):
     epochs = wg_data["epochs"].tolist()
     group_freqs = wg_data["group_freqs"]
     group_sizes = wg_data["group_sizes"]
-    pr3_all = wg_data["Win_pr3"]    # (n_epochs, n_groups)
+    pr3_all = wg_data["Win_pr3"]  # (n_epochs, n_groups)
     ft_all = wg_data["Win_f_top3"]  # (n_epochs, n_groups)
     for g_idx in range(len(group_freqs)):
         color = _GROUP_PALETTE[g_idx % len(_GROUP_PALETTE)]
         label = f"freq {int(group_freqs[g_idx])} (n={int(group_sizes[g_idx])})"
         _add_pr3_f_top3_traces(
-            fig, row, epochs,
-            pr3_all[:, g_idx].tolist(), ft_all[:, g_idx].tolist(),
-            color, label, f"wg_{g_idx}", show_legend=True,
+            fig,
+            row,
+            epochs,
+            pr3_all[:, g_idx].tolist(),
+            ft_all[:, g_idx].tolist(),
+            color,
+            label,
+            f"wg_{g_idx}",
+            show_legend=True,
         )
 
 
 # --- Public renderers ---
+
 
 def build_dimensionality_timeseries(
     data: dict,
@@ -222,7 +262,10 @@ def build_dimensionality_timeseries(
     markers = data.get("markers", {})
 
     fig = make_subplots(
-        rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.07,
+        rows=3,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.07,
         subplot_titles=[
             "Trajectory rolling PR₃ / f_top3  (shape · concentration of learning path)",
             "Class centroid PR₃ / f_top3  (activation-space geometry per site)",
@@ -236,7 +279,8 @@ def build_dimensionality_timeseries(
 
     _add_ref_lines(fig, 3)
     _add_timing_markers(
-        fig, 3,
+        fig,
+        3,
         onset=markers.get("onset"),
         fd_end=markers.get("fd_end"),
         eff_xover=markers.get("eff_xover"),
@@ -293,25 +337,37 @@ def build_dimensionality_state_space(
     metrics = _extract_repr_dim_metrics(rg, _REPR_SITES)
 
     fig = make_subplots(
-        rows=1, cols=len(_REPR_SITES),
+        rows=1,
+        cols=len(_REPR_SITES),
         subplot_titles=[_REPR_SITE_LABELS[s] for s in _REPR_SITES],
         horizontal_spacing=0.10,
     )
 
     for col_idx, site in enumerate(_REPR_SITES, 1):
         _add_state_space_site(
-            fig, col_idx, site, epochs_arr, col_scale, metrics[site],
-            onset, eff_xover,
+            fig,
+            col_idx,
+            site,
+            epochs_arr,
+            col_scale,
+            metrics[site],
+            onset,
+            eff_xover,
         )
         fig.add_hline(
-            y=2.0, row=1, col=col_idx,
+            y=2.0,
+            row=1,
+            col=col_idx,
             line=dict(color="rgba(0,0,0,0.15)", dash="dot", width=1),
-            annotation_text="ring", annotation_position="right",
+            annotation_text="ring",
+            annotation_position="right",
         )
         fig.update_xaxes(title_text="f_top3", range=[0, 1.05], row=1, col=col_idx)
         fig.update_yaxes(
             title_text="PR₃" if col_idx == 1 else "",
-            range=[0.9, 3.1], row=1, col=col_idx,
+            range=[0.9, 3.1],
+            row=1,
+            col=col_idx,
         )
 
     fig.update_layout(
@@ -339,17 +395,20 @@ def _add_state_space_site(fig, col_idx, site, epochs_arr, col_scale, metrics, on
     # Trajectory line+markers, colored by epoch
     fig.add_trace(
         go.Scatter(
-            x=ft.tolist(), y=pr3.tolist(),
+            x=ft.tolist(),
+            y=pr3.tolist(),
             mode="lines+markers",
             name=_REPR_SITE_LABELS[site],
             marker=dict(
                 size=6,
                 color=col_scale.tolist(),
                 colorscale="RdYlBu_r",
-                cmin=0, cmax=1,
+                cmin=0,
+                cmax=1,
                 showscale=(col_idx == len(_REPR_SITES)),
                 colorbar=dict(title="epoch", len=0.7, x=1.02)
-                if col_idx == len(_REPR_SITES) else None,
+                if col_idx == len(_REPR_SITES)
+                else None,
             ),
             line=dict(color="rgba(100,100,100,0.25)", width=1),
             customdata=epochs,
@@ -360,29 +419,36 @@ def _add_state_space_site(fig, col_idx, site, epochs_arr, col_scale, metrics, on
             ),
             showlegend=False,
         ),
-        row=1, col=col_idx,
+        row=1,
+        col=col_idx,
     )
 
     # Epoch 0: open circle
     fig.add_trace(
         go.Scatter(
-            x=[ft[0]], y=[pr3[0]], mode="markers",
+            x=[ft[0]],
+            y=[pr3[0]],
+            mode="markers",
             marker=dict(color=color, size=10, symbol="circle-open", line=dict(width=2)),
             showlegend=False,
             hovertemplate=f"{_REPR_SITE_LABELS[site]} epoch 0<br>f_top3=%{{x:.3f}}  PR₃=%{{y:.3f}}<extra></extra>",
         ),
-        row=1, col=col_idx,
+        row=1,
+        col=col_idx,
     )
 
     # Final epoch: filled circle
     fig.add_trace(
         go.Scatter(
-            x=[ft[-1]], y=[pr3[-1]], mode="markers",
+            x=[ft[-1]],
+            y=[pr3[-1]],
+            mode="markers",
             marker=dict(color=color, size=10, symbol="circle"),
             showlegend=False,
             hovertemplate=f"{_REPR_SITE_LABELS[site]} final<br>f_top3=%{{x:.3f}}  PR₃=%{{y:.3f}}<extra></extra>",
         ),
-        row=1, col=col_idx,
+        row=1,
+        col=col_idx,
     )
 
     _add_state_space_event_markers(fig, col_idx, ft, pr3, epochs_arr, onset, eff_xover)
@@ -394,28 +460,43 @@ def _add_state_space_event_markers(fig, col_idx, ft, pr3, epochs_arr, onset, eff
         idx = int(np.argmin(np.abs(epochs_arr - onset)))
         fig.add_trace(
             go.Scatter(
-                x=[ft[idx]], y=[pr3[idx]], mode="markers+text",
-                marker=dict(color="black", size=12, symbol="diamond",
-                            line=dict(color="white", width=1)),
-                text=["onset"], textposition="top center",
+                x=[ft[idx]],
+                y=[pr3[idx]],
+                mode="markers+text",
+                marker=dict(
+                    color="black", size=12, symbol="diamond", line=dict(color="white", width=1)
+                ),
+                text=["onset"],
+                textposition="top center",
                 textfont=dict(size=9),
-                showlegend=(col_idx == 1), name="onset",
+                showlegend=(col_idx == 1),
+                name="onset",
                 hovertemplate=f"onset (ep {onset})<br>f_top3=%{{x:.3f}}  PR₃=%{{y:.3f}}<extra></extra>",
             ),
-            row=1, col=col_idx,
+            row=1,
+            col=col_idx,
         )
 
     if eff_xover and eff_xover > 0:
         idx = int(np.argmin(np.abs(epochs_arr - eff_xover)))
         fig.add_trace(
             go.Scatter(
-                x=[ft[idx]], y=[pr3[idx]], mode="markers+text",
-                marker=dict(color="rgba(60,60,210,0.9)", size=12, symbol="triangle-up",
-                            line=dict(color="white", width=1)),
-                text=["eff_xover"], textposition="bottom center",
+                x=[ft[idx]],
+                y=[pr3[idx]],
+                mode="markers+text",
+                marker=dict(
+                    color="rgba(60,60,210,0.9)",
+                    size=12,
+                    symbol="triangle-up",
+                    line=dict(color="white", width=1),
+                ),
+                text=["eff_xover"],
+                textposition="bottom center",
                 textfont=dict(size=9),
-                showlegend=(col_idx == 1), name="eff_xover",
+                showlegend=(col_idx == 1),
+                name="eff_xover",
                 hovertemplate=f"eff_xover (ep {eff_xover})<br>f_top3=%{{x:.3f}}  PR₃=%{{y:.3f}}<extra></extra>",
             ),
-            row=1, col=col_idx,
+            row=1,
+            col=col_idx,
         )

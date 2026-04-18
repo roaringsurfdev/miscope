@@ -48,6 +48,10 @@ from miscope.visualization.renderers.data_compatibility import (
     render_data_compatibility_overlap,
     render_data_compatibility_spectrum,
 )
+from miscope.visualization.renderers.dimensionality_dynamics import (
+    build_dimensionality_state_space,
+    build_dimensionality_timeseries,
+)
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
     render_dmd_reconstruction,
@@ -88,11 +92,6 @@ from miscope.visualization.renderers.input_trace import (
     render_pair_graduation_heatmap,
     render_residue_class_accuracy_timeline,
 )
-from miscope.visualization.renderers.dimensionality_dynamics import (
-    build_dimensionality_timeseries,
-    build_dimensionality_state_space,
-)
-from miscope.visualization.renderers.network_sync import render_network_sync
 from miscope.visualization.renderers.intragroup_manifold import (
     render_intragroup_manifold_summary,
     render_intragroup_manifold_surface_fit,
@@ -103,6 +102,7 @@ from miscope.visualization.renderers.landscape_flatness import (
     render_flatness_trajectory,
     render_perturbation_distribution,
 )
+from miscope.visualization.renderers.network_sync import render_network_sync
 from miscope.visualization.renderers.neuron_activations import (
     get_most_active_neurons,
     render_neuron_across_epochs,
@@ -123,8 +123,8 @@ from miscope.visualization.renderers.neuron_freq_clusters import (
     render_specialization_trajectory,
 )
 from miscope.visualization.renderers.neuron_group_pca import (
-    render_group_centroid_paths,
-    render_group_centroid_timeseries,
+    render_group_centroid_paths,  # noqa: F401
+    render_group_centroid_timeseries,  # noqa: F401
     render_neuron_group_all_panels,
     render_neuron_group_pca_cohesion,
     render_neuron_group_polar_histogram,
@@ -155,7 +155,7 @@ from miscope.visualization.renderers.repr_geometry import (
     render_centroid_pca_variance_summary,
     render_fisher_heatmap,
     render_geometry_timeseries,
-    render_pc_budget,
+    render_pc_budget,  # noqa: F401
 )
 
 __all__ = [

@@ -87,9 +87,7 @@ class NeuronGroupPCAAnalyzer:
         )
 
         centroid_traj = _compute_centroid_trajectory(W_ins, group_members)
-        centroid_pca_coords, centroid_pca_var, centroid_pca_basis = _fit_centroid_pca(
-            centroid_traj
-        )
+        centroid_pca_coords, centroid_pca_var, centroid_pca_basis = _fit_centroid_pca(centroid_traj)
 
         return {
             "group_freqs": np.array(group_freqs, dtype=np.int32),
@@ -209,12 +207,12 @@ def _fit_centroid_pca(
         basis:        (n_components, d_model) float32
     """
     n_epochs, n_groups, d_model = centroid_traj.shape
-    stacked = centroid_traj.reshape(-1, d_model)            # (n_epochs*n_groups, d_model)
+    stacked = centroid_traj.reshape(-1, d_model)  # (n_epochs*n_groups, d_model)
     center = stacked.mean(axis=0)
     X = stacked - center
     _, S, Vt = np.linalg.svd(X, full_matrices=False)
     k = min(n_components, len(S))
-    basis = Vt[:k].astype(np.float32)                       # (k, d_model)
+    basis = Vt[:k].astype(np.float32)  # (k, d_model)
     var_explained = np.zeros(n_components, dtype=np.float32)
     total_var = float((S**2).sum())
     if total_var > 1e-10:

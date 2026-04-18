@@ -120,6 +120,7 @@ def create_analysis_run_page_layout(app: Dash) -> html.Div:
 def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: bool = False) -> None:
     """Execute analysis pipeline in a background thread."""
     import os
+
     try:
         os.nice(10)
     except (AttributeError, OSError):

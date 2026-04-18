@@ -70,7 +70,7 @@ def render_network_sync(
         epoch: optional epoch cursor (vertical line)
     """
     summary = data["repr_summary"]
-    group_spread = data.get("group_spread")      # (n_epochs, n_groups) or None
+    group_spread = data.get("group_spread")  # (n_epochs, n_groups) or None
     spread_epochs = data.get("spread_epochs")
     markers = data.get("markers") or {}
 
@@ -85,7 +85,8 @@ def render_network_sync(
     ][:n_rows]
 
     fig = make_subplots(
-        rows=n_rows, cols=1,
+        rows=n_rows,
+        cols=1,
         shared_xaxes=True,
         vertical_spacing=0.05,
         subplot_titles=row_titles,
@@ -93,7 +94,7 @@ def render_network_sync(
 
     _add_site_traces(fig, summary, epochs)
     if n_rows == 4:
-        _add_spread_trace(fig, group_spread, spread_epochs, n_rows)
+        _add_spread_trace(fig, group_spread, spread_epochs, n_rows) # type: ignore
 
     _add_grokking_markers(fig, markers, n_rows)
 
@@ -102,7 +103,8 @@ def render_network_sync(
             fig.add_vline(
                 x=epoch,
                 line=dict(color="rgba(0,0,0,0.2)", width=1, dash="dash"),
-                row=row, col=1,
+                row=row, # type: ignore
+                col=1, # type: ignore
             )
 
     fig.update_xaxes(title_text="Epoch", row=n_rows, col=1)
@@ -155,7 +157,8 @@ def _add_site_traces(
                     line=dict(color=color, width=2),
                     hovertemplate=f"{label}<br>epoch=%{{x}}<br>%{{y:.3f}}<extra></extra>",
                 ),
-                row=row, col=1,
+                row=row,
+                col=1,
             )
 
 
@@ -166,7 +169,7 @@ def _add_spread_trace(
     row: int,
 ) -> None:
     """Add row 4: mean W_in within-group L2 spread across all groups."""
-    mean_spread = group_spread.mean(axis=1)   # (n_epochs,)
+    mean_spread = group_spread.mean(axis=1)  # (n_epochs,)
     fig.add_trace(
         go.Scatter(
             x=spread_epochs.tolist(),
@@ -178,7 +181,8 @@ def _add_spread_trace(
             line=dict(color="rgba(31, 119, 180, 1.0)", width=2),
             hovertemplate="W_in spread<br>epoch=%{x}<br>%{y:.4f}<extra></extra>",
         ),
-        row=row, col=1,
+        row=row,
+        col=1,
     )
 
 
@@ -196,11 +200,13 @@ def _add_grokking_markers(
             fig.add_vline(
                 x=onset,
                 line=_ONSET_STYLE,
-                row=row, col=1,
+                row=row, # type: ignore
+                col=1, # type: ignore
             )
         if crossover is not None:
             fig.add_vline(
                 x=crossover,
                 line=_CROSSOVER_STYLE,
-                row=row, col=1,
+                row=row, # type: ignore
+                col=1, # type: ignore
             )

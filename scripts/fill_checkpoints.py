@@ -17,12 +17,11 @@ after resume may differ slightly from the original trajectory. Resume
 from 200+ epochs before the window of interest to allow momentum to settle.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import torch
 from safetensors.torch import load_file, save_file
 
 from miscope import load_family
@@ -94,13 +93,13 @@ print(f"Loaded model from {resume_path.name}")
 # Re-create training data (same data_seed → identical split)
 # ---------------------------------------------------------------------------
 
-(train_data, train_labels,
- test_data, test_labels,
- _train_idx, _test_idx) = family.generate_training_dataset(
-    VARIANT_PARAMS,
-    training_fraction=0.3,
-    data_seed=VARIANT_PARAMS["data_seed"],
-    device=DEVICE,
+(train_data, train_labels, test_data, test_labels, _train_idx, _test_idx) = (
+    family.generate_training_dataset(
+        VARIANT_PARAMS,
+        training_fraction=0.3,
+        data_seed=VARIANT_PARAMS["data_seed"],
+        device=DEVICE,
+    )
 )
 
 # ---------------------------------------------------------------------------
@@ -132,7 +131,9 @@ for step, epoch in enumerate(range(RESUME_FROM_EPOCH + 1, FILL_WINDOW_END + 1)):
     if step % 500 == 0:
         print(f"  epoch {epoch}/{FILL_WINDOW_END}  train_loss={train_loss.item():.6f}")
 
-print(f"\nDone. Saved {len(saved)} new checkpoints: {saved[:5]}...{saved[-5:] if len(saved) > 5 else ''}")
+print(
+    f"\nDone. Saved {len(saved)} new checkpoints: {saved[:5]}...{saved[-5:] if len(saved) > 5 else ''}"
+)
 print()
 print("Next step: re-run the analysis pipeline on this variant with force=False.")
 print("  Example:")
