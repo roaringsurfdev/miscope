@@ -356,8 +356,8 @@ def build_dimensionality_state_space(
         )
         fig.add_hline(
             y=2.0,
-            row=1, # type: ignore
-            col=col_idx, # type: ignore
+            row=1,  # type: ignore
+            col=col_idx,  # type: ignore
             line=dict(color="rgba(0,0,0,0.15)", dash="dot", width=1),
             annotation_text="ring",
             annotation_position="right",
