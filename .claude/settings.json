@@ -17,7 +17,10 @@
       "Bash(sed -i 's/result_a = analyzer_a\\\\.analyze\\(None, probe, cache, context\\)/result_a = analyzer_a.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
       "Bash(sed -i 's/result_b = analyzer_b\\\\.analyze\\(None, probe, cache, context\\)/result_b = analyzer_b.analyze\\(TransformerLensBundle\\(None, cache, None\\), probe, context\\)/g' /home/megano/projects/mechinterp/training-dynamics-workbench/tests/test_attention_freq_analyzer.py)",
       "Bash(git cherry-pick:*)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(awk -F'[_.]' '{print $2}')",
+      "Bash(awk 'NR==1{prev=$1; next} {diff=$1-prev; print diff; prev=$1}')",
+      "Bash([ ! -d \"$D\" ])"
     ]
   }
 }
