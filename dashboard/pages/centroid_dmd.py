@@ -12,7 +12,7 @@ _VIEW_LIST = {
     },
     "centroid-global-pca": {
         "view_name": "geometry.global_centroid_pca",
-        "view_type": "default_graph",
+        "view_type": "epoch_selector",
         "view_filter_set": "site",
     },
     "centroid-dmd-residual": {

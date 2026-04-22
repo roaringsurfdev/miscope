@@ -20,7 +20,11 @@
       "Bash(kill %1)",
       "Bash(awk -F'[_.]' '{print $2}')",
       "Bash(awk 'NR==1{prev=$1; next} {diff=$1-prev; print diff; prev=$1}')",
-      "Bash([ ! -d \"$D\" ])"
+      "Bash([ ! -d \"$D\" ])",
+      "Bash(jupyter nbconvert *)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

@@ -46,7 +46,7 @@ from miscope.analysis.analyzers import (
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
-COOLING_NEEDED = True
+COOLING_NEEDED = False
 COOLING_PERIOD = 1 * 20 # timer to allow machine to cool between runs
 
 # %% discover variants
@@ -99,13 +99,13 @@ for i, variant in enumerate(variants):
         # pipeline.register_secondary(NeuronFourierAnalyzer())
         # pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
         # pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
+        #pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
         # pipeline.register_cross_epoch(ParameterTrajectoryPCA())
         # pipeline.register_cross_epoch(GlobalCentroidPCA())
         # pipeline.register_cross_epoch(CentroidDMD())
         # pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
-        pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
-        #pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
+        #pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
+        pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

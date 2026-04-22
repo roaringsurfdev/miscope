@@ -23,3 +23,15 @@ For plots on fieldnotes, pre-populate the export button with proper file naming 
 
 ### Add Prev/Next buttons to Neuron slider
 Duplicate the prev/next buttons currently used on the Epoch slide for the Neuron ID.
+
+### Variant Display Name - Update
+In conversation, a shorthand has developed to refer to a specific model: p{prime}/s{model_seed}/ds{data_seed}. This seems like a stable way to refer to the Modulo Addition 1-Layer models, with one exception: as we expand into other models, we'll need to make sure we're clear on whether we are referring to a 1 Layer Transformer model, or a 2L MLP model, etc. I propose that we adopt a new standard of using a short name for a given family along with a standard approach for concatenating the domain parameters in use by the family.
+
+We should probably allow for abbreviations in two locations: family abbreviation and domain paramter abbreviation.
+
+EX:
+In the case of Modulo Addition (1-Layer)
+family abbreviation: Modulo Addition 1-Layer -> ma_t1L
+domain parameter: prime -> p
+domain parameter: seed -> s
+domain parameter: data_seed -> ds
