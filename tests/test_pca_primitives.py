@@ -34,11 +34,29 @@ class TestPCABasic:
         diffs = np.diff(result.eigenvalues)
         assert (diffs <= 1e-12).all()
 
-    def test_explained_variance_ratio_sums_to_one(self):
+    def test_explained_variance_ratio_sums_to_one_when_all_kept(self):
         rng = np.random.default_rng(0)
         X = rng.normal(size=(50, 5))
-        result = pca(X)
+        result = pca(X)  # all 5 components kept
         np.testing.assert_allclose(result.explained_variance_ratio.sum(), 1.0)
+
+    def test_explained_variance_ratio_full_spectrum_normalization(self):
+        # Truncated ratio represents fraction of TOTAL variance (sklearn convention)
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(50, 8))
+        full = pca(X)
+        truncated = pca(X, n_components=3)
+        np.testing.assert_allclose(
+            truncated.explained_variance_ratio,
+            full.explained_variance_ratio[:3],
+        )
+        # Truncated ratio sums to less than 1
+        assert truncated.explained_variance_ratio.sum() < 1.0
+        # And matches the cumulative explained variance at k=3
+        np.testing.assert_allclose(
+            truncated.explained_variance_ratio.sum(),
+            full.explained_variance_ratio[:3].sum(),
+        )
 
     def test_explained_variance_alias(self):
         rng = np.random.default_rng(0)
@@ -117,6 +135,16 @@ class TestPCAMetrics:
         X = rng.normal(size=(30, 4)) * 2.0
         result = pca(X)
         np.testing.assert_allclose(result.spread, np.sqrt(result.eigenvalues.sum()))
+
+    def test_full_spectrum_scalars_invariant_to_truncation(self):
+        # PR, rank, spread describe the data; truncation should not change them
+        rng = np.random.default_rng(0)
+        X = rng.normal(size=(30, 6))
+        full = pca(X)
+        truncated = pca(X, n_components=2)
+        assert full.participation_ratio == pytest.approx(truncated.participation_ratio)
+        assert full.rank == truncated.rank
+        assert full.spread == pytest.approx(truncated.spread)
 
 
 class TestPCAErrors:

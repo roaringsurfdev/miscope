@@ -49,27 +49,33 @@ def pca(X: np.ndarray, n_components: int | None = None) -> PCAResult:
     Xc = X - center
     U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
 
+    # Full spectrum: used for ratio normalization and full-spectrum scalars
+    # (participation_ratio, rank, spread). Truncation is a presentation choice;
+    # data properties don't depend on it.
+    denom = max(n_samples - 1, 1)
+    all_eigenvalues = S**2 / denom
+    total_var = float(all_eigenvalues.sum())
+
+    # Top-k truncation
     singular_values = S[:n_components]
     basis_vectors = Vt[:n_components]
     projections = U[:, :n_components] * singular_values
+    eigenvalues = all_eigenvalues[:n_components]
 
-    denom = max(n_samples - 1, 1)
-    eigenvalues = singular_values**2 / denom
-    total_var = float(eigenvalues.sum())
     if total_var > 0:
         explained_variance_ratio = eigenvalues / total_var
     else:
         explained_variance_ratio = np.zeros_like(eigenvalues)
 
-    sq_sum = float((eigenvalues**2).sum())
+    sq_sum = float((all_eigenvalues**2).sum())
     if sq_sum > 0:
         participation_ratio = total_var**2 / sq_sum
     else:
         participation_ratio = 0.0
 
-    if singular_values.size > 0 and singular_values[0] > 0:
-        tol = max(n_samples, n_features) * np.finfo(float).eps * float(singular_values[0])
-        rank = int((singular_values > tol).sum())
+    if S.size > 0 and S[0] > 0:
+        tol = max(n_samples, n_features) * np.finfo(float).eps * float(S[0])
+        rank = int((S > tol).sum())
     else:
         rank = 0
 
