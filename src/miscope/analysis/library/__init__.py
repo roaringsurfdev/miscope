@@ -36,13 +36,13 @@ from miscope.analysis.library.fourier import (
     get_fourier_basis,
     project_onto_fourier_basis,
 )
-from miscope.analysis.library.geometry import (
-    compute_circularity,
-    compute_fourier_alignment,
-    find_circularity_crossovers,
-)
+from miscope.analysis.library.geometry import find_circularity_crossovers
 from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.analysis.library.manifold_geometry import fit_quadratic_surface
+from miscope.analysis.library.shape import (
+    characterize_circularity,
+    characterize_fourier_alignment,
+)
 from miscope.analysis.library.trajectory import (
     compute_arc_length,
     compute_curvature_profile,
@@ -78,14 +78,16 @@ __all__ = [
     "get_embedding_weights",
     "run_with_cache",
     "compute_grid_size_from_dataset",
-    # Geometry functions
+    # Clustering metrics
     "compute_class_centroids",
     "compute_class_radii",
     "compute_class_dimensionality",
     "compute_center_spread",
-    "compute_circularity",
-    "compute_fourier_alignment",
     "compute_fisher_discriminant",
+    # Shape characterization
+    "characterize_circularity",
+    "characterize_fourier_alignment",
+    # Geometry helpers
     "find_circularity_crossovers",
     # Fourier weight composition
     "compose_neuron_fourier_weights",

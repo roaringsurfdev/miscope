@@ -28,7 +28,8 @@ from miscope.analysis.library.clustering import (
     compute_class_radii,
     compute_fisher_discriminant,
 )
-from miscope.analysis.library.geometry import compute_circularity
+from miscope.analysis.library.pca import pca
+from miscope.analysis.library.shape import characterize_circularity
 
 
 class FreqGroupWeightGeometryAnalyzer:
@@ -275,7 +276,17 @@ def _compute_group_geometry(
     mean_radius = float(np.mean(radii))
     snr = (center_spread**2 / mean_radius**2) if mean_radius > 0 else 0.0
     fisher_mean, fisher_min = compute_fisher_discriminant(W, labels, centroids=centroids)
-    circularity = float(compute_circularity(centroids))
+
+    n_components = min(2, centroids.shape[0], centroids.shape[1])
+    if n_components >= 2:
+        centroid_pca = pca(centroids, n_components=2)
+        circularity = float(
+            characterize_circularity(
+                centroid_pca.projections, float(centroid_pca.explained_variance_ratio.sum())
+            )
+        )
+    else:
+        circularity = 0.0
 
     return {
         "centroids": centroids,

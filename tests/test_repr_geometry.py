@@ -21,13 +21,26 @@ from miscope.analysis.library.clustering import (
     compute_class_radii,
     compute_fisher_discriminant,
 )
-from miscope.analysis.library.geometry import (
-    compute_circularity,
-    compute_fisher_matrix,
-    compute_fourier_alignment,
+from miscope.analysis.library.geometry import compute_fisher_matrix
+from miscope.analysis.library.pca import pca
+from miscope.analysis.library.shape import (
+    characterize_circularity,
+    characterize_fourier_alignment,
 )
 from miscope.analysis.protocols import ActivationContext
 from miscope.visualization.renderers.repr_geometry import render_fisher_heatmap, render_pc_budget
+
+
+def _project_2d(centroids: np.ndarray) -> tuple[np.ndarray, float]:
+    """Test helper: top-2 PCA projection of centroids + cumulative var ratio.
+
+    Mirrors what the repr_geometry analyzer materializes once per site so
+    the shape characterizations can consume a typed projection input.
+    """
+    n_components = min(2, centroids.shape[0], centroids.shape[1])
+    result = pca(centroids, n_components=n_components)
+    return result.projections, float(result.explained_variance_ratio.sum())
+
 
 # ── Geometry Library Tests ───────────────────────────────────────────
 
@@ -122,7 +135,7 @@ class TestComputeCenterSpread:
         assert compute_center_spread(centroids) == pytest.approx(1.0)
 
 
-class TestComputeCircularity:
+class TestCharacterizeCircularity:
     def test_perfect_circle(self):
         # Points on a unit circle
         n = 30
@@ -130,13 +143,15 @@ class TestComputeCircularity:
         centroids_2d = np.column_stack([np.cos(angles), np.sin(angles)])
         # Embed in higher dimensions (pad with zeros)
         centroids = np.hstack([centroids_2d, np.zeros((n, 3))])
-        score = compute_circularity(centroids)
+        projection, var_explained = _project_2d(centroids)
+        score = characterize_circularity(projection, var_explained)
         assert score == pytest.approx(1.0, abs=0.01)
 
     def test_random_cloud_low_circularity(self):
         rng = np.random.default_rng(42)
         centroids = rng.standard_normal((30, 10))
-        score = compute_circularity(centroids)
+        projection, var_explained = _project_2d(centroids)
+        score = characterize_circularity(projection, var_explained)
         assert score < 0.5
 
     def test_collinear_points(self):
@@ -148,17 +163,19 @@ class TestComputeCircularity:
                 np.zeros(20),
             ]
         )
-        score = compute_circularity(centroids)
+        projection, var_explained = _project_2d(centroids)
+        score = characterize_circularity(projection, var_explained)
         assert score < 0.5
 
 
-class TestComputeFourierAlignment:
+class TestCharacterizeFourierAlignment:
     def test_perfect_alignment(self):
         # Centroids arranged as residue r -> angle 2*pi*r/p (k=1)
         p = 17
         angles = 2 * np.pi * np.arange(p) / p
         centroids = np.column_stack([np.cos(angles), np.sin(angles)])
-        score = compute_fourier_alignment(centroids, p)
+        projection, _ = _project_2d(centroids)
+        score = characterize_fourier_alignment(projection, p)
         assert score == pytest.approx(1.0, abs=0.01)
 
     def test_scrambled_ordering(self):
@@ -168,7 +185,8 @@ class TestComputeFourierAlignment:
         permutation = rng.permutation(p)
         angles = 2 * np.pi * permutation / p
         centroids = np.column_stack([np.cos(angles), np.sin(angles)])
-        score = compute_fourier_alignment(centroids, p)
+        projection, _ = _project_2d(centroids)
+        score = characterize_fourier_alignment(projection, p)
         # Should be low — no frequency k produces good alignment
         assert score < 0.5
 
@@ -178,7 +196,8 @@ class TestComputeFourierAlignment:
         k = 3
         angles = 2 * np.pi * k * np.arange(p) / p
         centroids = np.column_stack([np.cos(angles), np.sin(angles)])
-        score = compute_fourier_alignment(centroids, p)
+        projection, _ = _project_2d(centroids)
+        score = characterize_fourier_alignment(projection, p)
         assert score == pytest.approx(1.0, abs=0.01)
 
 

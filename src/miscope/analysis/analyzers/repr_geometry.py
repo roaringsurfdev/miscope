@@ -25,11 +25,11 @@ from miscope.analysis.library.clustering import (
     compute_class_radii,
     compute_fisher_discriminant,
 )
-from miscope.analysis.library.geometry import (
-    _pca_project,
-    compute_circularity,
-    compute_fisher_matrix,
-    compute_fourier_alignment,
+from miscope.analysis.library.geometry import compute_fisher_matrix
+from miscope.analysis.library.pca import pca
+from miscope.analysis.library.shape import (
+    characterize_circularity,
+    characterize_fourier_alignment,
 )
 
 # Activation sites to probe, with extraction config
@@ -126,11 +126,25 @@ class RepresentationalGeometryAnalyzer:
         scalar_keys = [f"{site}_{key}" for site in present_sites for key in _SCALAR_KEYS]
         summary: dict[str, float | np.ndarray] = {key: float(result[key]) for key in scalar_keys}
 
+        # PCA variance fractions are stored per-site by analyze() — no
+        # re-derivation needed. Backwards compat: fall back to deriving from
+        # centroids if the per-site PCA keys are missing (legacy artifacts
+        # written before this analyzer included them).
         for site_name in present_sites:
-            centroids = result[f"{site_name}_centroids"]
-            _, var_fracs = _pca_project(centroids, n_components=3)
-            for pc_idx, frac in enumerate(var_fracs, 1):
-                summary[f"{site_name}_pca_var_pc{pc_idx}"] = float(frac)
+            for pc_idx in (1, 2, 3):
+                key = f"{site_name}_pca_var_pc{pc_idx}"
+                if key in result:
+                    summary[key] = float(result[key])
+                else:
+                    centroids = result[f"{site_name}_centroids"]
+                    n_components = min(3, centroids.shape[0], centroids.shape[1])
+                    var_fracs = pca(centroids, n_components=n_components).explained_variance_ratio
+                    padded = np.zeros(3, dtype=np.float64)
+                    padded[: var_fracs.shape[0]] = var_fracs
+                    for legacy_idx in (1, 2, 3):
+                        legacy_key = f"{site_name}_pca_var_pc{legacy_idx}"
+                        summary[legacy_key] = float(padded[legacy_idx - 1])
+                    break
 
         return summary
 
@@ -181,8 +195,28 @@ class RepresentationalGeometryAnalyzer:
         mean_dim = np.mean(dimensionality)
         center_spread = compute_center_spread(centroids)
         snr = (center_spread**2 / mean_radius**2) if mean_radius > 0 else 0.0
-        circularity = compute_circularity(centroids)
-        fourier_align = compute_fourier_alignment(centroids, p)
+
+        # Single PCA over centroids feeds circularity, fourier_alignment, and
+        # the pca_var_pc{1,2,3} summary fractions — collapses what was three
+        # redundant SVDs per (epoch, site) down to one.
+        n_components = min(3, centroids.shape[0], centroids.shape[1])
+        centroid_pca = pca(centroids, n_components=n_components)
+        var_ratio = centroid_pca.explained_variance_ratio
+        projection_2d = (
+            centroid_pca.projections[:, :2] if n_components >= 2 else centroid_pca.projections
+        )
+        var_explained_2d = (
+            float(var_ratio[:2].sum()) if n_components >= 2 else float(var_ratio.sum())
+        )
+        pca_var_top3 = np.zeros(3, dtype=np.float64)
+        pca_var_top3[: var_ratio.shape[0]] = var_ratio
+
+        circularity = (
+            characterize_circularity(projection_2d, var_explained_2d) if n_components >= 2 else 0.0
+        )
+        fourier_align = (
+            characterize_fourier_alignment(projection_2d, p) if n_components >= 2 else 0.0
+        )
         fisher_mean, fisher_min = compute_fisher_discriminant(
             activations, labels, centroids=centroids
         )
@@ -216,4 +250,7 @@ class RepresentationalGeometryAnalyzer:
             "fisher_argmin_r": np.float64(argmin_r),
             "fisher_argmin_s": np.float64(argmin_s),
             "fisher_argmin_diff": np.float64(argmin_diff),
+            "pca_var_pc1": np.float64(pca_var_top3[0]),
+            "pca_var_pc2": np.float64(pca_var_top3[1]),
+            "pca_var_pc3": np.float64(pca_var_top3[2]),
         }  # type: ignore

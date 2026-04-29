@@ -9,7 +9,8 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from miscope.analysis.library.geometry import _pca_project, compute_fisher_matrix
+from miscope.analysis.library.geometry import compute_fisher_matrix
+from miscope.analysis.library.pca import pca
 
 # Colors for activation sites
 _SITE_COLORS = {
@@ -423,7 +424,10 @@ def render_centroid_pca(
     if p is None:
         p = int(centroids.shape[0])
 
-    projected, var_fracs = _pca_project(centroids, n_components=3)
+    n_components = min(3, centroids.shape[0], centroids.shape[1])
+    centroid_pca = pca(centroids, n_components=n_components)
+    projected = centroid_pca.projections
+    var_fracs = centroid_pca.explained_variance_ratio
     residues = np.arange(p)
     labels = [str(r) for r in residues]
     total_var = float(var_fracs.sum())
@@ -705,8 +709,10 @@ def render_centroid_pca_variance(
         n_epochs = len(epochs)
         var_fracs = np.zeros((n_epochs, 3))
         for i in range(n_epochs):
-            _, fracs = _pca_project(all_centroids[i], n_components=3)
-            var_fracs[i] = fracs
+            centroids_i = all_centroids[i]
+            n_components = min(3, centroids_i.shape[0], centroids_i.shape[1])
+            fracs = pca(centroids_i, n_components=n_components).explained_variance_ratio
+            var_fracs[i, : fracs.shape[0]] = fracs
         site_var_fracs[s] = var_fracs
 
     fig = make_subplots(
