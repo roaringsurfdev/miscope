@@ -1,25 +1,29 @@
 """Representational geometry computation functions.
 
-Pure numpy functions for computing geometric properties of class manifolds
-in activation space. No torch dependency — all inputs are numpy arrays.
-
-Functions are vectorized where possible to minimize Python loop overhead
-when computing across many classes (p can be 113+).
+Clustering metrics (centroids, radii, dimensionality, center spread, Fisher
+discriminant) delegate to :mod:`miscope.analysis.library.clustering` — the
+canonical home per REQ_109. Wrappers here preserve the legacy positional
+``n_classes`` / ``centroids`` arguments for existing callers; phase 1b will
+migrate analyzers to call clustering directly and retire these wrappers.
 
 Functions:
-- compute_class_centroids: Mean activation vector per output class
-- compute_class_radii: RMS distance from centroid per class
-- compute_class_dimensionality: Effective dimensionality (participation ratio) per class
-- compute_center_spread: RMS distance of centroids from global centroid
-- compute_circularity: How well centroids lie on a circle (Kåsa circle fit)
-- compute_fourier_alignment: Whether angular ordering matches residue class ordering
-- compute_fisher_discriminant: Pairwise Fisher discriminant ratio statistics
-- compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data
-- compute_global_centroid_pca: Single PCA basis computed across all epochs (REQ_050)
-- find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites
+- compute_class_centroids: Mean activation vector per output class (delegates).
+- compute_class_radii: RMS distance from centroid per class (delegates).
+- compute_class_dimensionality: Effective dimensionality (delegates; routes
+  through the PCA primitive).
+- compute_center_spread: RMS distance of centroids from global centroid (delegates).
+- compute_circularity: How well centroids lie on a circle (Kåsa circle fit).
+- compute_fourier_alignment: Whether angular ordering matches residue class ordering.
+- compute_fisher_discriminant: Pairwise Fisher discriminant ratio statistics (delegates).
+- compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data.
+- compute_global_centroid_pca: Single PCA basis across all epochs (delegates to pca_summary).
+- find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites.
 """
 
 import numpy as np
+
+from miscope.analysis.library import clustering as _clustering
+from miscope.analysis.library.pca import pca
 
 
 def compute_class_centroids(
@@ -27,25 +31,17 @@ def compute_class_centroids(
     labels: np.ndarray,
     n_classes: int,
 ) -> np.ndarray:
-    """Compute mean activation vector per output class.
-
-    Vectorized: uses np.add.at for scatter-add, no Python loop.
+    """Mean activation vector per output class.
 
     Args:
-        activations: Activation matrix, shape (n_samples, d)
-        labels: Integer class labels, shape (n_samples,)
-        n_classes: Number of distinct classes (p)
+        activations: Activation matrix, shape ``(n_samples, d)``.
+        labels: Integer class labels, shape ``(n_samples,)``.
+        n_classes: Number of distinct classes.
 
     Returns:
-        Centroid matrix, shape (n_classes, d)
+        Centroid matrix, shape ``(n_classes, d)``.
     """
-    d = activations.shape[1]
-    centroids = np.zeros((n_classes, d))
-    np.add.at(centroids, labels, activations)
-    counts = np.bincount(labels, minlength=n_classes).reshape(-1, 1)
-    counts = np.maximum(counts, 1)  # avoid division by zero
-    centroids /= counts
-    return centroids
+    return _clustering.compute_class_centroids(activations, labels, n_classes=n_classes)
 
 
 def compute_class_radii(
@@ -53,28 +49,17 @@ def compute_class_radii(
     labels: np.ndarray,
     centroids: np.ndarray,
 ) -> np.ndarray:
-    """Compute RMS distance from centroid for each class.
-
-    Vectorized: broadcasts centroids[labels] across all samples,
-    then aggregates per class with bincount.
+    """RMS distance from centroid for each class.
 
     Args:
-        activations: Activation matrix, shape (n_samples, d)
-        labels: Integer class labels, shape (n_samples,)
-        centroids: Centroid matrix, shape (n_classes, d)
+        activations: Activation matrix, shape ``(n_samples, d)``.
+        labels: Integer class labels, shape ``(n_samples,)``.
+        centroids: Centroid matrix, shape ``(n_classes, d)``.
 
     Returns:
-        Radii array, shape (n_classes,)
+        Radii array, shape ``(n_classes,)``.
     """
-    n_classes = centroids.shape[0]
-    # Compute squared distances from each sample to its class centroid
-    diffs = activations - centroids[labels]
-    sq_dists = np.sum(diffs**2, axis=1)  # (n_samples,)
-    # Sum squared distances per class
-    sum_sq = np.bincount(labels, weights=sq_dists, minlength=n_classes)
-    counts = np.bincount(labels, minlength=n_classes).astype(float)
-    counts = np.maximum(counts, 1)
-    return np.sqrt(sum_sq / counts)
+    return _clustering.compute_class_radii(activations, labels, centroids)
 
 
 def compute_class_dimensionality(
@@ -82,60 +67,37 @@ def compute_class_dimensionality(
     labels: np.ndarray,
     centroids: np.ndarray,
 ) -> np.ndarray:
-    """Compute effective dimensionality (participation ratio) per class.
+    """Effective dimensionality (participation ratio) per class.
 
-    For each class, computes participation ratio from eigenvalues of
-    the class covariance matrix:
-        D_eff = (sum(eigenvalues))^2 / sum(eigenvalues^2)
-
-    This equals 1 if all variance is on one axis, and d if variance
-    is uniform across d dimensions.
-
-    Note: This function retains a per-class loop for the eigendecomposition
-    since numpy does not support batched eigvalsh. The loop body is kept
-    minimal — covariance via matrix multiply, eigvalsh, two reductions.
+    Routes through :func:`miscope.analysis.library.pca.pca`. The ``centroids``
+    argument is accepted for backward compatibility with existing callers but
+    is unused — the per-class mean is recomputed inside the PCA primitive
+    (mathematically identical).
 
     Args:
-        activations: Activation matrix, shape (n_samples, d)
-        labels: Integer class labels, shape (n_samples,)
-        centroids: Centroid matrix, shape (n_classes, d)
+        activations: Activation matrix, shape ``(n_samples, d)``.
+        labels: Integer class labels, shape ``(n_samples,)``.
+        centroids: Centroid matrix, shape ``(n_classes, d)``. Used only to
+            determine ``n_classes``.
 
     Returns:
-        Effective dimensionality array, shape (n_classes,)
+        Effective dimensionality array, shape ``(n_classes,)``.
     """
-    n_classes = centroids.shape[0]
-    dims = np.zeros(n_classes)
-    for r in range(n_classes):
-        mask = labels == r
-        centered = activations[mask] - centroids[r]
-        n = centered.shape[0]
-        if n < 2:
-            dims[r] = 0.0
-            continue
-        cov = centered.T @ centered / n
-        eigenvalues = np.linalg.eigvalsh(cov)
-        eigenvalues = np.maximum(eigenvalues, 0.0)
-        sum_ev = eigenvalues.sum()
-        sum_ev_sq = (eigenvalues**2).sum()
-        if sum_ev_sq > 0:
-            dims[r] = sum_ev**2 / sum_ev_sq
-        else:
-            dims[r] = 0.0
-    return dims
+    return _clustering.compute_class_dimensionality(
+        activations, labels, n_classes=centroids.shape[0]
+    )
 
 
 def compute_center_spread(centroids: np.ndarray) -> float:
-    """Compute RMS distance of centroids from their global mean.
+    """RMS distance of centroids from their global mean.
 
     Args:
-        centroids: Centroid matrix, shape (n_classes, d)
+        centroids: Centroid matrix, shape ``(n_classes, d)``.
 
     Returns:
-        Center spread (scalar)
+        Center spread (scalar).
     """
-    global_centroid = centroids.mean(axis=0)
-    diffs = centroids - global_centroid
-    return float(np.sqrt(np.mean(np.sum(diffs**2, axis=1))))
+    return _clustering.compute_center_spread(centroids)
 
 
 def compute_circularity(centroids: np.ndarray) -> float:
@@ -211,58 +173,23 @@ def compute_fisher_discriminant(
     labels: np.ndarray,
     centroids: np.ndarray,
 ) -> tuple[float, float]:
-    """Compute pairwise Fisher discriminant ratio statistics.
+    """Pairwise Fisher discriminant ratio statistics across class pairs.
 
-    For each pair of classes (r, s):
-        J(r, s) = ||mu_r - mu_s||^2 / (sigma_r^2 + sigma_s^2)
-
-    where sigma_r^2 is the mean within-class variance for class r.
-
-    Vectorized: within-class variances via bincount, pairwise distances
-    and Fisher ratios via scipy-style pdist broadcasting.
+    Returns ``(mean, min)`` for backward compatibility. The clustering
+    primitive returns a :class:`FisherDiscriminant` NamedTuple supporting
+    both attribute access and tuple unpacking; this wrapper unpacks to
+    plain floats.
 
     Args:
-        activations: Activation matrix, shape (n_samples, d)
-        labels: Integer class labels, shape (n_samples,)
-        centroids: Centroid matrix, shape (n_classes, d)
+        activations: Activation matrix, shape ``(n_samples, d)``.
+        labels: Integer class labels, shape ``(n_samples,)``.
+        centroids: Centroid matrix, shape ``(n_classes, d)``.
 
     Returns:
-        Tuple of (mean_fisher, min_fisher) across all class pairs
+        Tuple of ``(mean_fisher, min_fisher)`` across all class pairs.
     """
-    n_classes = centroids.shape[0]
-
-    # Within-class variance per class (vectorized)
-    diffs = activations - centroids[labels]
-    sq_dists = np.sum(diffs**2, axis=1)
-    sum_sq = np.bincount(labels, weights=sq_dists, minlength=n_classes)
-    counts = np.bincount(labels, minlength=n_classes).astype(float)
-    counts = np.maximum(counts, 1)
-    variances = sum_sq / counts  # (n_classes,)
-
-    # Pairwise between-class distances (vectorized)
-    # ||mu_r - mu_s||^2 for all pairs using broadcasting
-    centroid_diffs = centroids[:, np.newaxis, :] - centroids[np.newaxis, :, :]
-    pairwise_sq_dists = np.sum(centroid_diffs**2, axis=2)  # (n_classes, n_classes)
-
-    # Pairwise within-class variance sums
-    pairwise_within = variances[:, np.newaxis] + variances[np.newaxis, :]
-
-    # Fisher ratios (upper triangle only)
-    r_idx, s_idx = np.triu_indices(n_classes, k=1)
-    between = pairwise_sq_dists[r_idx, s_idx]
-    within = pairwise_within[r_idx, s_idx]
-
-    # Compute ratios, handling zero within-class variance
-    valid = within > 0
-    if not valid.any():
-        return 0.0, 0.0
-    fisher_values = np.where(valid, between / np.maximum(within, 1e-12), np.inf)
-    finite_mask = np.isfinite(fisher_values)
-    if not finite_mask.any():
-        return 0.0, 0.0
-    mean_fisher = float(np.mean(fisher_values[finite_mask]))
-    min_fisher = float(np.min(fisher_values[finite_mask]))
-    return mean_fisher, min_fisher
+    result = _clustering.compute_fisher_discriminant(activations, labels, centroids=centroids)
+    return result.mean, result.min
 
 
 def compute_fisher_matrix(
@@ -328,40 +255,26 @@ def compute_global_centroid_pca(
                 explained variance from the pooled matrix
     """
     n_epochs = len(centroids_per_epoch)
-    pooled = np.concatenate(centroids_per_epoch, axis=0)  # (n_epochs*n_classes, d_model)
-    global_mean = pooled.mean(axis=0)
-    centered = pooled - global_mean
+    n_classes = centroids_per_epoch[0].shape[0]
+    pooled = np.concatenate(centroids_per_epoch, axis=0)
 
-    cov = centered.T @ centered / centered.shape[0]
-    eigenvalues, eigenvectors = np.linalg.eigh(cov)
+    full = pca(pooled)
 
-    # eigh returns ascending order; reverse for descending
-    eigenvalues = eigenvalues[::-1]
-    eigenvectors = eigenvectors[:, ::-1]
-
-    total_var = eigenvalues.sum()
-    if total_var < 1e-12:
+    if full.explained_variance_ratio.sum() < 1e-12:
         n_components = 1
     else:
-        cumvar = np.cumsum(eigenvalues) / total_var
+        cumvar = np.cumsum(full.explained_variance_ratio)
         passing = np.where(cumvar >= variance_threshold)[0]
-        n_components = int(passing[0]) + 1 if len(passing) > 0 else len(eigenvalues)
+        n_components = int(passing[0]) + 1 if len(passing) > 0 else len(full.eigenvalues)
 
-    basis = eigenvectors[:, :n_components]  # (d_model, n_components)
-    var_ratio = (
-        eigenvalues[:n_components] / total_var if total_var > 1e-12 else np.zeros(n_components)
-    )
-
-    n_classes = centroids_per_epoch[0].shape[0]
-    projections = np.empty((n_epochs, n_classes, n_components))
-    for i, centroids in enumerate(centroids_per_epoch):
-        projections[i] = (centroids - global_mean) @ basis
+    basis = full.basis_vectors[:n_components].T  # legacy convention: (d_model, n_components)
+    projections = full.projections[:, :n_components].reshape(n_epochs, n_classes, n_components)
 
     return {
         "basis": basis,
-        "mean": global_mean,
+        "mean": full.center,
         "projections": projections,
-        "explained_variance_ratio": var_ratio,
+        "explained_variance_ratio": full.explained_variance_ratio[:n_components],
     }
 
 

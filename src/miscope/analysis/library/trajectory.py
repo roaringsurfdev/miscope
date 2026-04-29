@@ -15,9 +15,9 @@ Group centroid helpers (promoted from notebooks for reuse):
 """
 
 import numpy as np
-from sklearn.decomposition import PCA
 
-from miscope.analysis.constants import SVD_RANDOM_STATE
+from miscope.analysis.library.dynamics import compute_velocity
+from miscope.analysis.library.pca import pca, pca_summary
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
 
 
@@ -60,15 +60,12 @@ def compute_pca_trajectory(
           "explained_variance": (n_components,) eigenvalues
     """
     vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
-
     n_components = min(n_components, len(snapshots), vectors.shape[1])
-    pca = PCA(n_components=n_components, random_state=SVD_RANDOM_STATE)
-    projections = pca.fit_transform(vectors)
-
+    result = pca(vectors, n_components=n_components)
     return {
-        "projections": projections,
-        "explained_variance_ratio": pca.explained_variance_ratio_,
-        "explained_variance": pca.explained_variance_,
+        "projections": result.projections,
+        "explained_variance_ratio": result.explained_variance_ratio,
+        "explained_variance": result.eigenvalues,
     }
 
 
@@ -94,18 +91,14 @@ def compute_parameter_velocity(
         With epochs: velocity[i] = ||delta theta|| / (epoch_{i+1} - epoch_i)
         Without epochs: velocity[i] = ||delta theta||
     """
-    vectors = [flatten_snapshot(s, components) for s in snapshots]
-
-    velocities = []
-    for i in range(len(vectors) - 1):
-        delta = vectors[i + 1] - vectors[i]
-        displacement = float(np.linalg.norm(delta))
-        if epochs is not None:
-            gap = epochs[i + 1] - epochs[i]
-            displacement = displacement / gap if gap > 0 else 0.0
-        velocities.append(displacement)
-
-    return np.array(velocities)
+    vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
+    deltas = compute_velocity(vectors)
+    displacements = np.linalg.norm(deltas, axis=1)
+    if epochs is not None:
+        gaps = np.diff(np.asarray(epochs))
+        safe_gaps = np.where(gaps > 0, gaps, 1)
+        displacements = np.where(gaps > 0, displacements / safe_gaps, 0.0)
+    return displacements
 
 
 # ---------------------------------------------------------------------------
@@ -287,18 +280,14 @@ def fit_centroid_pca(
             "explained_variance_ratio": (n_components,) per-component fraction.
     """
     n_groups, n_epochs, d_model = centroids.shape
-    stacked = centroids.reshape(-1, d_model)  # (n_groups * n_epochs, d_model)
-    center = stacked.mean(axis=0)
-    X = stacked - center
-    _, S, Vt = np.linalg.svd(X, full_matrices=False)
-    basis = Vt[:n_components]
-    var_ratio = (S**2 / (S**2).sum())[:n_components]
-    coords = (centroids - center) @ basis.T  # (n_groups, n_epochs, n_components)
+    n_components = min(n_components, n_groups * n_epochs, d_model)
+    result = pca_summary(centroids, n_components=n_components)
+    coords = result.projections.reshape(n_groups, n_epochs, n_components)
     return {
         "coords": coords,
-        "basis": basis,
-        "center": center,
-        "explained_variance_ratio": var_ratio,
+        "basis": result.basis_vectors,
+        "center": result.center,
+        "explained_variance_ratio": result.explained_variance_ratio,
     }
 
 
