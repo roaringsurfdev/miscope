@@ -1,7 +1,7 @@
 """Representational geometry computation functions.
 
-Shape characterization (circularity, Fourier alignment, circle fit) and the
-Fisher matrix helpers live here. Clustering metrics (centroids, radii,
+Shape characterization helpers (circularity, Fourier alignment, circle fit)
+and the Fisher matrix helper live here. Clustering metrics (centroids, radii,
 dimensionality, center spread, Fisher discriminant) live in
 :mod:`miscope.analysis.library.clustering`; PCA primitives in
 :mod:`miscope.analysis.library.pca`. Callers should import from the
@@ -12,13 +12,10 @@ Functions:
 - compute_circularity: How well centroids lie on a circle (Kåsa circle fit).
 - compute_fourier_alignment: Whether angular ordering matches residue class ordering.
 - compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data.
-- compute_global_centroid_pca: Single PCA basis across all epochs (delegates to pca_summary).
 - find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites.
 """
 
 import numpy as np
-
-from miscope.analysis.library.pca import pca
 
 
 def compute_circularity(centroids: np.ndarray) -> float:
@@ -120,59 +117,6 @@ def compute_fisher_matrix(
     )
     np.fill_diagonal(fisher_matrix, 0.0)
     return fisher_matrix
-
-
-def compute_global_centroid_pca(
-    centroids_per_epoch: list[np.ndarray],
-    variance_threshold: float = 0.95,
-) -> dict[str, np.ndarray]:
-    """Compute a single PCA basis across all epochs for cross-epoch tracking.
-
-    Pools centroid matrices from all epochs into one shared matrix, fits PCA
-    once, and projects each epoch's centroids into the shared coordinate frame.
-    This produces a consistent basis for tracking centroid trajectories over
-    training — unlike per-epoch PCA, the coordinate frame does not rotate.
-
-    The number of retained components is data-driven: the smallest k such that
-    the top-k components capture at least `variance_threshold` cumulative
-    explained variance from the pooled matrix.
-
-    Args:
-        centroids_per_epoch: List of centroid matrices, one per epoch.
-            Each has shape (n_classes, d_model). Must be non-empty.
-        variance_threshold: Retain components until cumulative explained
-            variance reaches this fraction. Default 0.95.
-
-    Returns:
-        Dict with:
-            "basis": shape (d_model, n_components) — global PCA eigenvectors
-            "mean": shape (d_model,) — global mean subtracted before projection
-            "projections": shape (n_epochs, n_classes, n_components)
-            "explained_variance_ratio": shape (n_components,) — per-component
-                explained variance from the pooled matrix
-    """
-    n_epochs = len(centroids_per_epoch)
-    n_classes = centroids_per_epoch[0].shape[0]
-    pooled = np.concatenate(centroids_per_epoch, axis=0)
-
-    full = pca(pooled)
-
-    if full.explained_variance_ratio.sum() < 1e-12:
-        n_components = 1
-    else:
-        cumvar = np.cumsum(full.explained_variance_ratio)
-        passing = np.where(cumvar >= variance_threshold)[0]
-        n_components = int(passing[0]) + 1 if len(passing) > 0 else len(full.eigenvalues)
-
-    basis = full.basis_vectors[:n_components].T  # legacy convention: (d_model, n_components)
-    projections = full.projections[:, :n_components].reshape(n_epochs, n_classes, n_components)
-
-    return {
-        "basis": basis,
-        "mean": full.center,
-        "projections": projections,
-        "explained_variance_ratio": full.explained_variance_ratio[:n_components],
-    }
 
 
 # --- Private helpers ---

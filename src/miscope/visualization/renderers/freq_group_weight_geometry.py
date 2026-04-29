@@ -306,7 +306,7 @@ def render_weight_geometry_centroid_pca(
         n_freq: total number of frequency slots in the model (used for color wheel
             alignment). Defaults to max(group_freqs) + 1 if not provided.
     """
-    from miscope.analysis.library.geometry import compute_global_centroid_pca
+    from miscope.analysis.analyzers.global_centroid_pca import _pca_with_variance_threshold
 
     epochs = data["epochs"]
     group_freqs = data["group_freqs"]
@@ -331,11 +331,8 @@ def render_weight_geometry_centroid_pca(
     centroids_all = data[centroids_key].astype(np.float64)  # (n_epochs, n_groups, d)
 
     # Build per-group centroid lists and compute global PCA
-    # compute_global_centroid_pca expects list of (n_groups, d) arrays
     centroid_list = [centroids_all[i] for i in range(len(epochs))]
-    pca = compute_global_centroid_pca(centroid_list)
-    projections = pca["projections"]  # (n_epochs, n_groups, n_components)
-    var_ratio = pca["explained_variance_ratio"]
+    projections, _, _, var_ratio = _pca_with_variance_threshold(centroid_list)
 
     n_components = projections.shape[2]
     if n_components < 3:

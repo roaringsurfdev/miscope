@@ -7,9 +7,11 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis.analyzers.global_centroid_pca import GlobalCentroidPCA
+from miscope.analysis.analyzers.global_centroid_pca import (
+    GlobalCentroidPCA,
+    _pca_with_variance_threshold,
+)
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.library.geometry import compute_global_centroid_pca
 from miscope.analysis.protocols import CrossEpochAnalyzer
 from miscope.visualization.renderers.repr_geometry import render_centroid_global_pca
 
@@ -22,6 +24,20 @@ _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 def _make_centroids(n_classes: int, d_model: int, seed: int = 0) -> np.ndarray:
     rng = np.random.default_rng(seed)
     return rng.normal(size=(n_classes, d_model)).astype(np.float32)
+
+
+def _global_pca_dict(centroids_per_epoch, variance_threshold: float = 0.95) -> dict:
+    """Test helper: legacy dict shape over the new helper. Mirrors what the
+    cross-epoch artifact stores under the per-site prefixes."""
+    projections, basis, center, var_ratio = _pca_with_variance_threshold(
+        centroids_per_epoch, threshold=variance_threshold
+    )
+    return {
+        "projections": projections,
+        "basis": basis,
+        "mean": center,
+        "explained_variance_ratio": var_ratio,
+    }
 
 
 def _make_repr_geometry_epoch(n_classes: int = 11, d_model: int = 16, seed: int = 0) -> dict:
@@ -58,11 +74,11 @@ def artifacts_with_repr_geometry():
 
 
 class TestComputeGlobalCentroidPca:
-    """Tests for compute_global_centroid_pca library function."""
+    """Tests for _global_pca_dict library function."""
 
     def test_returns_required_keys(self):
         centroids = [_make_centroids(7, 8, seed=i) for i in range(5)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         assert "basis" in result
         assert "mean" in result
         assert "projections" in result
@@ -71,32 +87,32 @@ class TestComputeGlobalCentroidPca:
     def test_basis_shape(self):
         n_classes, d_model, n_epochs = 7, 8, 5
         centroids = [_make_centroids(n_classes, d_model, seed=i) for i in range(n_epochs)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         n_components = result["basis"].shape[1]
         assert result["basis"].shape == (d_model, n_components)
 
     def test_mean_shape(self):
         d_model = 12
         centroids = [_make_centroids(5, d_model, seed=i) for i in range(4)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         assert result["mean"].shape == (d_model,)
 
     def test_projections_shape(self):
         n_classes, d_model, n_epochs = 7, 16, 6
         centroids = [_make_centroids(n_classes, d_model, seed=i) for i in range(n_epochs)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         n_components = result["basis"].shape[1]
         assert result["projections"].shape == (n_epochs, n_classes, n_components)
 
     def test_explained_variance_ratio_shape(self):
         centroids = [_make_centroids(7, 8, seed=i) for i in range(5)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         n_components = result["basis"].shape[1]
         assert result["explained_variance_ratio"].shape == (n_components,)
 
     def test_explained_variance_ratio_sums_to_lte_1(self):
         centroids = [_make_centroids(7, 8, seed=i) for i in range(5)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         total = float(result["explained_variance_ratio"].sum())
         assert total <= 1.0 + 1e-6
 
@@ -104,26 +120,26 @@ class TestComputeGlobalCentroidPca:
         """Retained components must capture >= threshold variance."""
         threshold = 0.95
         centroids = [_make_centroids(11, 16, seed=i) for i in range(8)]
-        result = compute_global_centroid_pca(centroids, variance_threshold=threshold)
+        result = _global_pca_dict(centroids, variance_threshold=threshold)
         total = float(result["explained_variance_ratio"].sum())
         assert total >= threshold - 1e-6
 
     def test_variance_ratio_is_non_negative(self):
         centroids = [_make_centroids(7, 8, seed=i) for i in range(5)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         assert (result["explained_variance_ratio"] >= 0).all()
 
     def test_single_epoch(self):
         """Single epoch: pooled matrix is the single centroid matrix."""
         centroids = [_make_centroids(5, 8, seed=0)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         assert result["projections"].shape[0] == 1
 
     def test_lower_threshold_fewer_components(self):
         """Lower threshold should produce fewer or equal components than higher."""
         centroids = [_make_centroids(11, 16, seed=i) for i in range(10)]
-        result_low = compute_global_centroid_pca(centroids, variance_threshold=0.70)
-        result_high = compute_global_centroid_pca(centroids, variance_threshold=0.95)
+        result_low = _global_pca_dict(centroids, variance_threshold=0.70)
+        result_high = _global_pca_dict(centroids, variance_threshold=0.95)
         n_low = result_low["basis"].shape[1]
         n_high = result_high["basis"].shape[1]
         assert n_low <= n_high
@@ -131,7 +147,7 @@ class TestComputeGlobalCentroidPca:
     def test_projection_uses_global_mean(self):
         """Projection of the global mean should land at the origin."""
         centroids = [_make_centroids(5, 8, seed=i) for i in range(3)]
-        result = compute_global_centroid_pca(centroids)
+        result = _global_pca_dict(centroids)
         global_mean = result["mean"]
         projected_mean = (global_mean - result["mean"]) @ result["basis"]
         np.testing.assert_allclose(projected_mean, np.zeros_like(projected_mean), atol=1e-5)

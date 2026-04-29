@@ -11,9 +11,37 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.library.geometry import compute_global_centroid_pca
+from miscope.analysis.library.pca import pca
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
+_VARIANCE_THRESHOLD = 0.95
+
+
+def _pca_with_variance_threshold(
+    centroids_per_epoch: list[np.ndarray],
+    threshold: float = _VARIANCE_THRESHOLD,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Pool centroids, fit PCA, truncate to ``threshold`` cumulative variance.
+
+    Returns ``(projections, basis, center, explained_variance_ratio)`` shaped
+    for the cross-epoch artifact: ``projections`` is ``(n_epochs, n_classes,
+    n_components)``; ``basis`` is ``(d_model, n_components)``.
+    """
+    n_epochs = len(centroids_per_epoch)
+    n_classes = centroids_per_epoch[0].shape[0]
+    pooled = np.concatenate(centroids_per_epoch, axis=0)
+
+    full = pca(pooled)
+    if full.explained_variance_ratio.sum() < 1e-12:
+        n_components = 1
+    else:
+        cumvar = np.cumsum(full.explained_variance_ratio)
+        passing = np.where(cumvar >= threshold)[0]
+        n_components = int(passing[0]) + 1 if len(passing) > 0 else len(full.eigenvalues)
+
+    basis = full.basis_vectors[:n_components].T  # (d_model, n_components)
+    projections = full.projections[:, :n_components].reshape(n_epochs, n_classes, n_components)
+    return projections, basis, full.center, full.explained_variance_ratio[:n_components]
 
 
 class GlobalCentroidPCA:
@@ -61,11 +89,13 @@ class GlobalCentroidPCA:
             if f"{site}_centroids" not in first:
                 continue
             centroids_per_epoch = [a[f"{site}_centroids"] for a in epoch_artifacts]
-            pca = compute_global_centroid_pca(centroids_per_epoch)
+            projections, basis, center, var_ratio = _pca_with_variance_threshold(
+                centroids_per_epoch
+            )
 
-            result[f"{site}__projections"] = pca["projections"]
-            result[f"{site}__basis"] = pca["basis"]
-            result[f"{site}__mean"] = pca["mean"]
-            result[f"{site}__explained_variance_ratio"] = pca["explained_variance_ratio"]
+            result[f"{site}__projections"] = projections
+            result[f"{site}__basis"] = basis
+            result[f"{site}__mean"] = center
+            result[f"{site}__explained_variance_ratio"] = var_ratio
 
         return result
