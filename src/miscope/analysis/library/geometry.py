@@ -1,20 +1,16 @@
 """Representational geometry computation functions.
 
-Clustering metrics (centroids, radii, dimensionality, center spread, Fisher
-discriminant) delegate to :mod:`miscope.analysis.library.clustering` — the
-canonical home per REQ_109. Wrappers here preserve the legacy positional
-``n_classes`` / ``centroids`` arguments for existing callers; phase 1b will
-migrate analyzers to call clustering directly and retire these wrappers.
+Shape characterization (circularity, Fourier alignment, circle fit) and the
+Fisher matrix helpers live here. Clustering metrics (centroids, radii,
+dimensionality, center spread, Fisher discriminant) live in
+:mod:`miscope.analysis.library.clustering`; PCA primitives in
+:mod:`miscope.analysis.library.pca`. Callers should import from the
+canonical home; this module's leftover helpers are scoped to shape
+characterization (REQ_109 phase 2).
 
 Functions:
-- compute_class_centroids: Mean activation vector per output class (delegates).
-- compute_class_radii: RMS distance from centroid per class (delegates).
-- compute_class_dimensionality: Effective dimensionality (delegates; routes
-  through the PCA primitive).
-- compute_center_spread: RMS distance of centroids from global centroid (delegates).
 - compute_circularity: How well centroids lie on a circle (Kåsa circle fit).
 - compute_fourier_alignment: Whether angular ordering matches residue class ordering.
-- compute_fisher_discriminant: Pairwise Fisher discriminant ratio statistics (delegates).
 - compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data.
 - compute_global_centroid_pca: Single PCA basis across all epochs (delegates to pca_summary).
 - find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites.
@@ -22,82 +18,7 @@ Functions:
 
 import numpy as np
 
-from miscope.analysis.library import clustering as _clustering
 from miscope.analysis.library.pca import pca
-
-
-def compute_class_centroids(
-    activations: np.ndarray,
-    labels: np.ndarray,
-    n_classes: int,
-) -> np.ndarray:
-    """Mean activation vector per output class.
-
-    Args:
-        activations: Activation matrix, shape ``(n_samples, d)``.
-        labels: Integer class labels, shape ``(n_samples,)``.
-        n_classes: Number of distinct classes.
-
-    Returns:
-        Centroid matrix, shape ``(n_classes, d)``.
-    """
-    return _clustering.compute_class_centroids(activations, labels, n_classes=n_classes)
-
-
-def compute_class_radii(
-    activations: np.ndarray,
-    labels: np.ndarray,
-    centroids: np.ndarray,
-) -> np.ndarray:
-    """RMS distance from centroid for each class.
-
-    Args:
-        activations: Activation matrix, shape ``(n_samples, d)``.
-        labels: Integer class labels, shape ``(n_samples,)``.
-        centroids: Centroid matrix, shape ``(n_classes, d)``.
-
-    Returns:
-        Radii array, shape ``(n_classes,)``.
-    """
-    return _clustering.compute_class_radii(activations, labels, centroids)
-
-
-def compute_class_dimensionality(
-    activations: np.ndarray,
-    labels: np.ndarray,
-    centroids: np.ndarray,
-) -> np.ndarray:
-    """Effective dimensionality (participation ratio) per class.
-
-    Routes through :func:`miscope.analysis.library.pca.pca`. The ``centroids``
-    argument is accepted for backward compatibility with existing callers but
-    is unused — the per-class mean is recomputed inside the PCA primitive
-    (mathematically identical).
-
-    Args:
-        activations: Activation matrix, shape ``(n_samples, d)``.
-        labels: Integer class labels, shape ``(n_samples,)``.
-        centroids: Centroid matrix, shape ``(n_classes, d)``. Used only to
-            determine ``n_classes``.
-
-    Returns:
-        Effective dimensionality array, shape ``(n_classes,)``.
-    """
-    return _clustering.compute_class_dimensionality(
-        activations, labels, n_classes=centroids.shape[0]
-    )
-
-
-def compute_center_spread(centroids: np.ndarray) -> float:
-    """RMS distance of centroids from their global mean.
-
-    Args:
-        centroids: Centroid matrix, shape ``(n_classes, d)``.
-
-    Returns:
-        Center spread (scalar).
-    """
-    return _clustering.compute_center_spread(centroids)
 
 
 def compute_circularity(centroids: np.ndarray) -> float:
@@ -166,30 +87,6 @@ def compute_fourier_alignment(centroids: np.ndarray, p: int) -> float:
     # Circular correlation for each k
     correlations = np.abs(np.mean(z_observed[np.newaxis, :] * np.conj(z_expected), axis=1)) ** 2
     return float(np.max(correlations))
-
-
-def compute_fisher_discriminant(
-    activations: np.ndarray,
-    labels: np.ndarray,
-    centroids: np.ndarray,
-) -> tuple[float, float]:
-    """Pairwise Fisher discriminant ratio statistics across class pairs.
-
-    Returns ``(mean, min)`` for backward compatibility. The clustering
-    primitive returns a :class:`FisherDiscriminant` NamedTuple supporting
-    both attribute access and tuple unpacking; this wrapper unpacks to
-    plain floats.
-
-    Args:
-        activations: Activation matrix, shape ``(n_samples, d)``.
-        labels: Integer class labels, shape ``(n_samples,)``.
-        centroids: Centroid matrix, shape ``(n_classes, d)``.
-
-    Returns:
-        Tuple of ``(mean_fisher, min_fisher)`` across all class pairs.
-    """
-    result = _clustering.compute_fisher_discriminant(activations, labels, centroids=centroids)
-    return result.mean, result.min
 
 
 def compute_fisher_matrix(

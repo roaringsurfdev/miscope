@@ -18,14 +18,16 @@ from miscope.analysis.library import (
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationBundle, ActivationContext
-from miscope.analysis.library.geometry import (
-    _pca_project,
+from miscope.analysis.library.clustering import (
     compute_center_spread,
-    compute_circularity,
     compute_class_centroids,
     compute_class_dimensionality,
     compute_class_radii,
     compute_fisher_discriminant,
+)
+from miscope.analysis.library.geometry import (
+    _pca_project,
+    compute_circularity,
     compute_fisher_matrix,
     compute_fourier_alignment,
 )
@@ -171,9 +173,9 @@ class RepresentationalGeometryAnalyzer:
         p: int,
     ) -> dict[str, Any]:
         """Compute all geometric measures for one activation site."""
-        centroids = compute_class_centroids(activations, labels, p)
+        centroids = compute_class_centroids(activations, labels, n_classes=p)
         radii = compute_class_radii(activations, labels, centroids)
-        dimensionality = compute_class_dimensionality(activations, labels, centroids)
+        dimensionality = compute_class_dimensionality(activations, labels, n_classes=p)
 
         mean_radius = np.mean(radii)
         mean_dim = np.mean(dimensionality)
@@ -181,7 +183,9 @@ class RepresentationalGeometryAnalyzer:
         snr = (center_spread**2 / mean_radius**2) if mean_radius > 0 else 0.0
         circularity = compute_circularity(centroids)
         fourier_align = compute_fourier_alignment(centroids, p)
-        fisher_mean, fisher_min = compute_fisher_discriminant(activations, labels, centroids)
+        fisher_mean, fisher_min = compute_fisher_discriminant(
+            activations, labels, centroids=centroids
+        )
 
         # Find the argmin pair (weakest separation) from the full Fisher matrix
         fisher_mat = compute_fisher_matrix(centroids, radii)

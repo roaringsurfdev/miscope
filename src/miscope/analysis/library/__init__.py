@@ -19,6 +19,13 @@ from miscope.analysis.library.activations import (
     reshape_to_grid,
     run_with_cache,
 )
+from miscope.analysis.library.clustering import (
+    compute_center_spread,
+    compute_class_centroids,
+    compute_class_dimensionality,
+    compute_class_radii,
+    compute_fisher_discriminant,
+)
 from miscope.analysis.library.fourier import (
     compose_neuron_fourier_weights,
     compute_2d_fourier_transform,
@@ -30,12 +37,7 @@ from miscope.analysis.library.fourier import (
     project_onto_fourier_basis,
 )
 from miscope.analysis.library.geometry import (
-    compute_center_spread,
     compute_circularity,
-    compute_class_centroids,
-    compute_class_dimensionality,
-    compute_class_radii,
-    compute_fisher_discriminant,
     compute_fourier_alignment,
     find_circularity_crossovers,
 )
