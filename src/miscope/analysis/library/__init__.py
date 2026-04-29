@@ -47,10 +47,8 @@ from miscope.analysis.library.trajectory import (
     compute_arc_length,
     compute_curvature_profile,
     compute_parameter_velocity,
-    compute_pca_trajectory,
     compute_signed_loop_area,
     detect_self_intersection,
-    fit_centroid_pca,
     flatten_snapshot,
     normalize_per_group,
 )
@@ -100,7 +98,6 @@ __all__ = [
     "COMPONENT_GROUPS",
     # Trajectory functions
     "flatten_snapshot",
-    "compute_pca_trajectory",
     "compute_parameter_velocity",
     # Trajectory shape quantification
     "compute_arc_length",
@@ -108,7 +105,6 @@ __all__ = [
     "compute_signed_loop_area",
     "compute_curvature_profile",
     # Group centroid helpers
-    "fit_centroid_pca",
     "normalize_per_group",
     # Landscape flatness functions
     "compute_landscape_flatness",

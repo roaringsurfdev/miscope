@@ -12,9 +12,9 @@ import pytest
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
 from miscope.analysis.bundle import TransformerLensBundle
+from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
-    compute_pca_trajectory,
     flatten_snapshot,
 )
 from miscope.analysis.library.weights import (
@@ -171,50 +171,57 @@ class TestFlattenSnapshot:
         assert result.shape[0] == expected_size
 
 
-class TestComputePcaTrajectory:
-    """Tests for compute_pca_trajectory function."""
+def _pca_on_snapshots(snapshots, components=None, n_components=3):
+    """Helper: flatten snapshot sequence into a vector matrix and run PCA."""
+    vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
+    n_components = min(n_components, vectors.shape[0], vectors.shape[1])
+    return pca(vectors, n_components=n_components)
 
-    def test_returns_dict_with_expected_keys(self):
-        """Output dict contains projections and variance info."""
-        snapshots = _make_snapshot_sequence(5)
-        result = compute_pca_trajectory(snapshots, n_components=3)
-        assert "projections" in result
-        assert "explained_variance_ratio" in result
-        assert "explained_variance" in result
+
+def _pca_dict(snapshots, components=None, n_components=10):
+    """Helper: legacy renderer-format dict over the new pca() primitive.
+
+    The renderers still accept the dict shape; once REQ_099 (plot-only renderers)
+    migrates them to a typed input, this helper can go away.
+    """
+    result = _pca_on_snapshots(snapshots, components, n_components)
+    return {
+        "projections": result.projections,
+        "explained_variance_ratio": result.explained_variance_ratio,
+        "explained_variance": result.eigenvalues,
+    }
+
+
+class TestPcaOnParameterTrajectory:
+    """Tests for the flatten + pca() pattern over parameter snapshots."""
 
     def test_projections_shape(self):
-        """Projections shape is (n_epochs, n_components)."""
         snapshots = _make_snapshot_sequence(5)
-        result = compute_pca_trajectory(snapshots, n_components=3)
-        assert result["projections"].shape == (5, 3)
+        result = _pca_on_snapshots(snapshots, n_components=3)
+        assert result.projections.shape == (5, 3)
 
     def test_variance_ratio_shape(self):
-        """Variance ratio has n_components entries."""
         snapshots = _make_snapshot_sequence(5)
-        result = compute_pca_trajectory(snapshots, n_components=3)
-        assert result["explained_variance_ratio"].shape == (3,)
+        result = _pca_on_snapshots(snapshots, n_components=3)
+        assert result.explained_variance_ratio.shape == (3,)
 
     def test_variance_ratios_sum_at_most_one(self):
-        """Variance ratios sum to at most 1."""
         snapshots = _make_snapshot_sequence(10)
-        result = compute_pca_trajectory(snapshots, n_components=5)
-        assert result["explained_variance_ratio"].sum() <= 1.0 + 1e-6
+        result = _pca_on_snapshots(snapshots, n_components=5)
+        assert result.explained_variance_ratio.sum() <= 1.0 + 1e-6
 
     def test_n_components_clamped_to_samples(self):
-        """n_components is clamped when fewer samples than requested."""
         snapshots = _make_snapshot_sequence(2)
-        result = compute_pca_trajectory(snapshots, n_components=10)
-        assert result["projections"].shape[1] == 2
+        result = _pca_on_snapshots(snapshots, n_components=10)
+        assert result.projections.shape[1] == 2
 
     def test_component_filter(self):
-        """Component filter restricts which weights are used."""
         snapshots = _make_snapshot_sequence(5)
-        result_all = compute_pca_trajectory(snapshots, n_components=2)
-        result_mlp = compute_pca_trajectory(
+        result_all = _pca_on_snapshots(snapshots, n_components=2)
+        result_mlp = _pca_on_snapshots(
             snapshots, components=COMPONENT_GROUPS["mlp"], n_components=2
         )
-        # Different inputs should produce different projections
-        assert not np.allclose(result_all["projections"], result_mlp["projections"])
+        assert not np.allclose(result_all.projections, result_mlp.projections)
 
 
 class TestComputeParameterVelocity:
@@ -303,7 +310,7 @@ class TestRenderers:
         """Create precomputed PCA result and velocity for renderer tests."""
         snapshots = _make_snapshot_sequence(10)
         epochs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-        pca_result = compute_pca_trajectory(snapshots, n_components=10)
+        pca_result = _pca_dict(snapshots, n_components=10)
         velocity = compute_parameter_velocity(snapshots, epochs=epochs)
         return pca_result, velocity, epochs
 
@@ -319,11 +326,11 @@ class TestRenderers:
             # Skip groups whose keys are absent from the snapshots (e.g. learned_embeddings)
             if components is not None and not any(k in first for k in components):
                 continue
-            pca = compute_pca_trajectory(snapshots, components, n_components=10)
+            pca_d = _pca_dict(snapshots, components, n_components=10)
             vel = compute_parameter_velocity(snapshots, components, epochs=epochs)
-            data[f"{group_name}__projections"] = pca["projections"]
-            data[f"{group_name}__explained_variance_ratio"] = pca["explained_variance_ratio"]
-            data[f"{group_name}__explained_variance"] = pca["explained_variance"]
+            data[f"{group_name}__projections"] = pca_d["projections"]
+            data[f"{group_name}__explained_variance_ratio"] = pca_d["explained_variance_ratio"]
+            data[f"{group_name}__explained_variance"] = pca_d["explained_variance"]
             data[f"{group_name}__velocity"] = vel
         return data, epochs
 
@@ -651,7 +658,7 @@ class TestParameterSnapshotIntegration:
             assert name in epoch_data, f"Missing weight in artifact: {name}"
 
     def test_snapshots_usable_for_pca(self, trained_variant):
-        """Loaded snapshots can be used with compute_pca_trajectory."""
+        """Loaded snapshots can be used with the pca() primitive."""
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
         pipeline.run()
@@ -660,8 +667,8 @@ class TestParameterSnapshotIntegration:
         epochs = [0, 25, 49]
         snapshots = [loader.load_epoch("parameter_snapshot", e) for e in epochs]
 
-        result = compute_pca_trajectory(snapshots, n_components=2)
-        assert result["projections"].shape == (3, 2)
+        result = _pca_on_snapshots(snapshots, n_components=2)
+        assert result.projections.shape == (3, 2)
 
     def test_snapshots_usable_for_velocity(self, trained_variant):
         """Loaded snapshots can be used with compute_parameter_velocity."""
