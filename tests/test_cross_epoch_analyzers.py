@@ -16,7 +16,8 @@ from miscope.analysis.analyzers import (
     ParameterTrajectoryPCA,
 )
 from miscope.analysis.analyzers.parameter_trajectory_pca import _GROUPS
-from miscope.analysis.library.trajectory import compute_parameter_velocity, compute_pca_trajectory
+from miscope.analysis.library.pca import pca
+from miscope.analysis.library.trajectory import compute_parameter_velocity, flatten_snapshot
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,
@@ -30,6 +31,18 @@ from miscope.visualization.renderers.parameter_trajectory import (
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────
+
+
+def _pca_dict(snapshots, components=None, n_components=10):
+    """Helper: legacy renderer-format dict over the new pca() primitive."""
+    vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
+    n_components = min(n_components, vectors.shape[0], vectors.shape[1])
+    result = pca(vectors, n_components=n_components)
+    return {
+        "projections": result.projections,
+        "explained_variance_ratio": result.explained_variance_ratio,
+        "explained_variance": result.eigenvalues,
+    }
 
 
 def _make_snapshot(d: int = 16, scale: float = 1.0, seed: int = 0) -> dict[str, np.ndarray]:
@@ -147,8 +160,8 @@ class TestParameterTrajectoryPCA:
         analyzer = ParameterTrajectoryPCA()
         result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
 
-        # Compare "all" group with direct library call
-        direct_pca = compute_pca_trajectory(snapshots, None, n_components=min(10, len(epochs)))
+        # Compare "all" group with direct primitive call
+        direct_pca = _pca_dict(snapshots, None, n_components=min(10, len(epochs)))
         np.testing.assert_allclose(
             result["all__projections"],
             direct_pca["projections"],
@@ -368,7 +381,7 @@ class TestRenderersWithPrecomputedData:
         """Create precomputed cross-epoch data for renderer tests."""
         snapshots = _make_snapshot_sequence(10)
         epochs = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90]
-        pca_result = compute_pca_trajectory(snapshots, None, n_components=10)
+        pca_result = _pca_dict(snapshots, None, n_components=10)
         velocity = compute_parameter_velocity(snapshots, None, epochs=epochs)
 
         # Build full cross-epoch data dict — skip groups absent from mock snapshots
@@ -377,13 +390,13 @@ class TestRenderersWithPrecomputedData:
         for group_name, components in _GROUPS.items():
             if components is not None and not any(k in first for k in components):
                 continue
-            pca = compute_pca_trajectory(snapshots, components, n_components=10)
+            pca_d = _pca_dict(snapshots, components, n_components=10)
             vel = compute_parameter_velocity(snapshots, components, epochs=epochs)
-            cross_epoch_data[f"{group_name}__projections"] = pca["projections"]
-            cross_epoch_data[f"{group_name}__explained_variance_ratio"] = pca[
+            cross_epoch_data[f"{group_name}__projections"] = pca_d["projections"]
+            cross_epoch_data[f"{group_name}__explained_variance_ratio"] = pca_d[
                 "explained_variance_ratio"
             ]
-            cross_epoch_data[f"{group_name}__explained_variance"] = pca["explained_variance"]
+            cross_epoch_data[f"{group_name}__explained_variance"] = pca_d["explained_variance"]
             cross_epoch_data[f"{group_name}__velocity"] = vel
 
         return pca_result, velocity, epochs, cross_epoch_data

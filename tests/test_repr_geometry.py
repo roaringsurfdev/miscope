@@ -14,13 +14,15 @@ from miscope.analysis.analyzers.repr_geometry import (
     _get_summary_keys,
 )
 from miscope.analysis.bundle import TransformerLensBundle
-from miscope.analysis.library.geometry import (
+from miscope.analysis.library.clustering import (
     compute_center_spread,
-    compute_circularity,
     compute_class_centroids,
     compute_class_dimensionality,
     compute_class_radii,
     compute_fisher_discriminant,
+)
+from miscope.analysis.library.geometry import (
+    compute_circularity,
     compute_fisher_matrix,
     compute_fourier_alignment,
 )
@@ -90,7 +92,7 @@ class TestComputeClassDimensionality:
         )
         labels = np.array([0, 0, 0, 0])
         centroids = np.array([[2.5, 0.0]])
-        dims = compute_class_dimensionality(activations, labels, centroids)
+        dims = compute_class_dimensionality(activations, labels, n_classes=centroids.shape[0])
         assert dims[0] == pytest.approx(1.0)
 
     def test_uniform_two_dimensional(self):
@@ -105,7 +107,7 @@ class TestComputeClassDimensionality:
         )
         labels = np.array([0, 0, 0, 0])
         centroids = np.array([[0.0, 0.0]])
-        dims = compute_class_dimensionality(activations, labels, centroids)
+        dims = compute_class_dimensionality(activations, labels, n_classes=centroids.shape[0])
         assert dims[0] == pytest.approx(2.0)
 
 

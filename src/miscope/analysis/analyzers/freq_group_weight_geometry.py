@@ -21,14 +21,14 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.library.geometry import (
+from miscope.analysis.library.clustering import (
     compute_center_spread,
-    compute_circularity,
     compute_class_centroids,
     compute_class_dimensionality,
     compute_class_radii,
     compute_fisher_discriminant,
 )
+from miscope.analysis.library.geometry import compute_circularity
 
 
 class FreqGroupWeightGeometryAnalyzer:
@@ -266,15 +266,15 @@ def _compute_group_geometry(
     W = weights[grouped_mask]
     labels = group_labels[grouped_mask]
 
-    centroids = compute_class_centroids(W, labels, n_groups)
+    centroids = compute_class_centroids(W, labels, n_classes=n_groups)
     radii = compute_class_radii(W, labels, centroids)
-    dimensionality = compute_class_dimensionality(W, labels, centroids)
+    dimensionality = compute_class_dimensionality(W, labels, n_classes=n_groups)
     pr3, f_top3 = _compute_group_pr3_f_top3(W, labels, centroids, n_groups)
 
     center_spread = float(compute_center_spread(centroids))
     mean_radius = float(np.mean(radii))
     snr = (center_spread**2 / mean_radius**2) if mean_radius > 0 else 0.0
-    fisher_mean, fisher_min = compute_fisher_discriminant(W, labels, centroids)
+    fisher_mean, fisher_min = compute_fisher_discriminant(W, labels, centroids=centroids)
     circularity = float(compute_circularity(centroids))
 
     return {

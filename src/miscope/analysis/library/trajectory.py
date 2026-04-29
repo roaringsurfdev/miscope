@@ -1,7 +1,9 @@
 """Parameter trajectory analysis utilities.
 
-Provides PCA projection, velocity, and shape quantification for parameter
-space trajectories across training checkpoints.
+Snapshot-shape helpers and shape quantification specific to parameter
+trajectories. PCA primitives live in :mod:`miscope.analysis.library.pca`;
+callers that need PCA over snapshots flatten via :func:`flatten_snapshot`
+and call ``pca`` directly.
 
 Shape quantification (lemniscate analysis):
 - compute_arc_length: cumulative arc-length along a curve
@@ -9,15 +11,13 @@ Shape quantification (lemniscate analysis):
 - compute_signed_loop_area: area enclosed by the loop segment
 - compute_curvature_profile: κ(s) as a function of normalized arc-length
 
-Group centroid helpers (promoted from notebooks for reuse):
-- fit_centroid_pca: shared PCA basis across all groups and epochs
+Group helpers:
 - normalize_per_group: z-score each group's trajectory independently
 """
 
 import numpy as np
 
 from miscope.analysis.library.dynamics import compute_velocity
-from miscope.analysis.library.pca import pca, pca_summary
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
 
 
@@ -39,34 +39,6 @@ def flatten_snapshot(
 
     parts = [snapshot[k].flatten() for k in components if k in snapshot]
     return np.concatenate(parts)
-
-
-def compute_pca_trajectory(
-    snapshots: list[dict[str, np.ndarray]],
-    components: list[str] | None = None,
-    n_components: int = 3,
-) -> dict[str, np.ndarray]:
-    """Compute PCA projection of parameter trajectory.
-
-    Args:
-        snapshots: List of per-epoch snapshot dicts, ordered by epoch.
-        components: Weight matrix names to include. None = all.
-        n_components: Number of principal components.
-
-    Returns:
-        Dict with:
-          "projections": (n_epochs, n_components) in PC space
-          "explained_variance_ratio": (n_components,) fraction per PC
-          "explained_variance": (n_components,) eigenvalues
-    """
-    vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
-    n_components = min(n_components, len(snapshots), vectors.shape[1])
-    result = pca(vectors, n_components=n_components)
-    return {
-        "projections": result.projections,
-        "explained_variance_ratio": result.explained_variance_ratio,
-        "explained_variance": result.eigenvalues,
-    }
 
 
 def compute_parameter_velocity(
@@ -255,40 +227,6 @@ def compute_curvature_profile(
 # ---------------------------------------------------------------------------
 # Group centroid helpers (promoted for notebook reuse)
 # ---------------------------------------------------------------------------
-
-
-def fit_centroid_pca(
-    centroids: np.ndarray,
-    n_components: int = 3,
-) -> dict:
-    """Shared PCA basis fitted across all group centroids and all epochs.
-
-    Pools all (group, epoch) centroid vectors into one matrix, fits PCA once,
-    and projects each group's trajectory into the shared coordinate frame.
-    This produces stable axes for comparing group trajectories — unlike
-    per-group PCA, the coordinate frame is the same for every group.
-
-    Args:
-        centroids: (n_groups, n_epochs, d_model) array.
-        n_components: Number of principal components.
-
-    Returns:
-        Dict with:
-            "coords": (n_groups, n_epochs, n_components) projected coordinates.
-            "basis": (n_components, d_model) PC directions.
-            "center": (d_model,) mean subtracted before projection.
-            "explained_variance_ratio": (n_components,) per-component fraction.
-    """
-    n_groups, n_epochs, d_model = centroids.shape
-    n_components = min(n_components, n_groups * n_epochs, d_model)
-    result = pca_summary(centroids, n_components=n_components)
-    coords = result.projections.reshape(n_groups, n_epochs, n_components)
-    return {
-        "coords": coords,
-        "basis": result.basis_vectors,
-        "center": result.center,
-        "explained_variance_ratio": result.explained_variance_ratio,
-    }
 
 
 def normalize_per_group(coords: np.ndarray) -> np.ndarray:

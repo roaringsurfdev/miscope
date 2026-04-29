@@ -10,9 +10,10 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
-    compute_pca_trajectory,
+    flatten_snapshot,
 )
 from miscope.analysis.library.weights import COMPONENT_GROUPS
 
@@ -48,17 +49,18 @@ class ParameterTrajectoryPCA:
             # Skip groups whose weight matrices are all absent (e.g. "embedding" for MLP)
             if components is not None and not any(k in first_snap for k in components):
                 continue
-            n_components = min(10, len(snapshots))
-            pca = compute_pca_trajectory(snapshots, components, n_components)
+            vectors = np.array([flatten_snapshot(s, components) for s in snapshots])
+            n_components = min(10, len(snapshots), vectors.shape[1])
+            pca_result = pca(vectors, n_components=n_components)
             velocity = compute_parameter_velocity(
                 snapshots,
                 components,
                 epochs=epochs,
             )
 
-            result[f"{group_name}__projections"] = pca["projections"]
-            result[f"{group_name}__explained_variance_ratio"] = pca["explained_variance_ratio"]
-            result[f"{group_name}__explained_variance"] = pca["explained_variance"]
+            result[f"{group_name}__projections"] = pca_result.projections
+            result[f"{group_name}__explained_variance_ratio"] = pca_result.explained_variance_ratio
+            result[f"{group_name}__explained_variance"] = pca_result.eigenvalues
             result[f"{group_name}__velocity"] = velocity
 
         return result
