@@ -58,7 +58,7 @@ def create_centroid_dmd_layout(app: Dash) -> html.Div:
                     # --- Loss ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("training-loss-curves", "350px"))),
                     # --- Centroid DMD  ---
-                    dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-global-pca", "350px"))),
+                    dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-global-pca", "800px"))),
                     dbc.Row(dbc.Col(_graph_manager.create_graph("centroid-dmd-residual", "450px"))),
                     dbc.Row(
                         dbc.Col(_graph_manager.create_graph("centroid-dmd-reconstruction", "450px"))
