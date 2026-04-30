@@ -42,13 +42,13 @@ from miscope.analysis.library.manifold_geometry import fit_quadratic_surface
 from miscope.analysis.library.shape import (
     characterize_circularity,
     characterize_fourier_alignment,
-)
-from miscope.analysis.library.trajectory import (
     compute_arc_length,
     compute_curvature_profile,
-    compute_parameter_velocity,
     compute_signed_loop_area,
     detect_self_intersection,
+)
+from miscope.analysis.library.trajectory import (
+    compute_parameter_velocity,
     flatten_snapshot,
     normalize_per_group,
 )
@@ -87,6 +87,11 @@ __all__ = [
     # Shape characterization
     "characterize_circularity",
     "characterize_fourier_alignment",
+    # Curve-shape helpers
+    "compute_arc_length",
+    "detect_self_intersection",
+    "compute_signed_loop_area",
+    "compute_curvature_profile",
     # Geometry helpers
     "find_circularity_crossovers",
     # Fourier weight composition
@@ -101,11 +106,6 @@ __all__ = [
     # Trajectory functions
     "flatten_snapshot",
     "compute_parameter_velocity",
-    # Trajectory shape quantification
-    "compute_arc_length",
-    "detect_self_intersection",
-    "compute_signed_loop_area",
-    "compute_curvature_profile",
     # Group centroid helpers
     "normalize_per_group",
     # Landscape flatness functions
