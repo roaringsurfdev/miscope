@@ -16,7 +16,7 @@ import colorsys
 import numpy as np
 import plotly.graph_objects as go
 
-from miscope.analysis.analyzers.intragroup_manifold import decode_shapes
+from miscope.analysis.library.shape import decode_shapes
 
 _SHAPE_COLORS = {
     "saddle": "steelblue",
@@ -31,6 +31,16 @@ def _freq_color(freq_idx: int, n_freq: int) -> str:
     r, g, b = colorsys.hls_to_rgb(hue, 0.55, 0.5)
     return f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})"
 
+def _get_final_shapes(shape_int: np.ndarray):
+
+    # maintain backwards-compatibility with change in shape of shape_int
+    if len(shape_int.shape) == 2:
+        final_shape_int = shape_int[-1, :] # (n_groups,)
+    else:
+        # legacy
+        final_shape_int = shape_int # (n_groups,)
+
+    return decode_shapes(final_shape_int)
 
 def render_intragroup_manifold_summary(
     data: dict,
@@ -47,9 +57,9 @@ def render_intragroup_manifold_summary(
     """
     group_freqs = data["group_freqs"]
     r2_curvature = data["r2_curvature"]  # (n_epochs, n_groups)
-    shape_int = data["shape_int"]  # (n_groups,)
+    shape_int = data["shape_int"]  # (n_epochs, n_groups,)
 
-    shapes = decode_shapes(shape_int)
+    shapes = _get_final_shapes(shape_int)
     final_r2c = r2_curvature[-1, :]  # (n_groups,)
 
     freq_labels = [str(int(f) + 1) for f in group_freqs]
@@ -100,9 +110,9 @@ def render_intragroup_manifold_timeseries(
     group_freqs = data["group_freqs"]
     epochs = data["epochs"]
     r2_curvature = data["r2_curvature"]  # (n_epochs, n_groups)
-    shape_int = data["shape_int"]
+    shape_int = data["shape_int"]  # (n_epochs, n_groups)
 
-    shapes = decode_shapes(shape_int)
+    shapes = _get_final_shapes(shape_int)
     n_groups = len(group_freqs)
     n_freq = int(group_freqs.max()) + 1 if n_groups > 0 else 1
 
@@ -193,9 +203,8 @@ def render_intragroup_manifold_surface_fit(
         )
     )
 
-    from miscope.analysis.analyzers.intragroup_manifold import _INT_TO_SHAPE
-
-    shape = _INT_TO_SHAPE.get(int(data["shape_int"][group]), "flat/blob")
+    shapes = _get_final_shapes(data["shape_int"])
+    shape = shapes[group]
     actual_epoch = int(epochs[ep_idx])
 
     fig.update_layout(

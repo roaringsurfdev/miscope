@@ -4,13 +4,8 @@ import numpy as np
 
 from miscope.analysis.analyzers.intragroup_manifold import (
     _build_group_members,
-    _compute_final_shapes,
-    decode_shapes,
 )
-from miscope.analysis.library.shape import (
-    _SURFACE_MIN_POINTS,
-    characterize_surface,
-)
+from miscope.analysis.library.shape import _SHAPE_TO_INT
 from miscope.visualization.renderers.intragroup_manifold import (
     render_intragroup_manifold_summary,
     render_intragroup_manifold_surface_fit,
@@ -18,160 +13,37 @@ from miscope.visualization.renderers.intragroup_manifold import (
 )
 
 # ---------------------------------------------------------------------------
-# characterize_surface unit tests
-# ---------------------------------------------------------------------------
-
-
-def _make_saddle(n: int = 20, noise: float = 0.05) -> np.ndarray:
-    """Synthetic saddle: PC3 = PC1² - PC2² plus small noise."""
-    rng = np.random.default_rng(0)
-    pc1 = rng.uniform(-2, 2, n)
-    pc2 = rng.uniform(-2, 2, n)
-    pc3 = pc1**2 - pc2**2 + rng.normal(0, noise, n)
-    return np.column_stack([pc1, pc2, pc3])
-
-
-def _make_bowl(n: int = 20, noise: float = 0.05) -> np.ndarray:
-    """Synthetic bowl: PC3 = PC1² + PC2²."""
-    rng = np.random.default_rng(1)
-    pc1 = rng.uniform(-2, 2, n)
-    pc2 = rng.uniform(-2, 2, n)
-    pc3 = pc1**2 + pc2**2 + rng.normal(0, noise, n)
-    return np.column_stack([pc1, pc2, pc3])
-
-
-def _make_flat(n: int = 20) -> np.ndarray:
-    """Synthetic flat blob: PC3 is constant — zero curvature by construction."""
-    rng = np.random.default_rng(2)
-    pc1 = rng.uniform(-2, 2, n)
-    pc2 = rng.uniform(-2, 2, n)
-    pc3 = np.zeros(n)
-    return np.column_stack([pc1, pc2, pc3])
-
-
-def test_fit_returns_expected_fields():
-    """characterize_surface returns a SurfaceParameters NamedTuple with all fields."""
-    result = characterize_surface(_make_saddle())
-    expected = {"r2_linear", "r2_quadratic", "r2_curvature", "a", "b", "c", "shape"}
-    assert expected == set(result._fields)
-
-
-def test_saddle_classified_correctly():
-    """A clear saddle surface gets classified as 'saddle'."""
-    result = characterize_surface(_make_saddle(n=50, noise=0.01))
-    assert result.shape == "saddle"
-
-
-def test_bowl_classified_correctly():
-    """A clear bowl surface gets classified as 'bowl'."""
-    result = characterize_surface(_make_bowl(n=50, noise=0.01))
-    assert result.shape == "bowl"
-
-
-def test_flat_classified_correctly():
-    """Constant PC3 (zero curvature by construction) gets classified as 'flat/blob'."""
-    result = characterize_surface(_make_flat(n=50))
-    assert result.shape == "flat/blob"
-
-
-def test_r2_curvature_nonnegative():
-    """R²_curvature is non-negative (clipped at 0)."""
-    for proj in [_make_saddle(), _make_bowl(), _make_flat()]:
-        result = characterize_surface(proj)
-        assert result.r2_curvature >= 0.0
-
-
-def test_r2_range():
-    """R² values are within [0, 1]."""
-    result = characterize_surface(_make_saddle(n=50, noise=0.01))
-    for value, name in (
-        (result.r2_linear, "r2_linear"),
-        (result.r2_quadratic, "r2_quadratic"),
-        (result.r2_curvature, "r2_curvature"),
-    ):
-        assert 0.0 <= value <= 1.0, f"{name} out of [0, 1]: {value}"
-
-
-def test_r2_quadratic_ge_linear():
-    """R²_quadratic >= R²_linear (quadratic fit cannot be worse)."""
-    result = characterize_surface(_make_saddle(n=50, noise=0.01))
-    assert result.r2_quadratic >= result.r2_linear - 1e-9
-
-
-def test_saddle_r2_curvature_high():
-    """A clean saddle has high R²_curvature (well above the flat threshold)."""
-    result = characterize_surface(_make_saddle(n=50, noise=0.01))
-    assert result.r2_curvature > 0.5
-
-
-def test_too_few_points_returns_nan():
-    """Point clouds smaller than _SURFACE_MIN_POINTS return NaN values."""
-    proj = np.random.default_rng(0).standard_normal((_SURFACE_MIN_POINTS - 1, 3))
-    result = characterize_surface(proj)
-    assert np.isnan(result.r2_linear)
-    assert np.isnan(result.r2_curvature)
-    assert result.shape == "flat/blob"
-
-
-# ---------------------------------------------------------------------------
-# decode_shapes and _compute_final_shapes
-# ---------------------------------------------------------------------------
-
-
-def test_decode_shapes_roundtrip():
-    """decode_shapes is inverse of the _SHAPE_TO_INT mapping."""
-    shape_int = np.array([0, 1, 2, 0, 2], dtype=np.int32)
-    shapes = decode_shapes(shape_int)
-    expected = ["flat/blob", "bowl", "saddle", "flat/blob", "saddle"]
-    assert shapes == expected
-
-
-def test_compute_final_shapes_flat():
-    """Groups with low R²_curvature at final epoch get flat/blob shape."""
-    n_epochs, n_groups = 5, 3
-    r2_curvature = np.full((n_epochs, n_groups), 0.02, dtype=np.float32)
-    a = np.ones((n_epochs, n_groups), dtype=np.float32)
-    b = np.ones((n_epochs, n_groups), dtype=np.float32)
-    c = np.zeros((n_epochs, n_groups), dtype=np.float32)
-    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
-    shapes = decode_shapes(shape_int)
-    assert all(s == "flat/blob" for s in shapes)
-
-
-def test_compute_final_shapes_saddle():
-    """Groups with high R²_curvature and opposite-sign a, b → saddle."""
-    n_epochs, n_groups = 5, 2
-    r2_curvature = np.full((n_epochs, n_groups), 0.8, dtype=np.float32)
-    a = np.full((n_epochs, n_groups), 1.0, dtype=np.float32)
-    b = np.full((n_epochs, n_groups), -1.0, dtype=np.float32)
-    c = np.zeros((n_epochs, n_groups), dtype=np.float32)
-    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
-    shapes = decode_shapes(shape_int)
-    assert all(s == "saddle" for s in shapes)
-
-
-def test_compute_final_shapes_rotated_saddle():
-    """A rotated saddle (a > 0, b > 0, c large) is correctly classified as saddle.
-
-    With a=0.5, b=0.5, c=2.0: det(H) = 4ab - c² = 1.0 - 4.0 = -3.0 < 0 → saddle.
-    The old axis-aligned check (a > 0) == (b > 0) would have mis-classified this as bowl.
-    """
-    n_epochs, n_groups = 5, 1
-    r2_curvature = np.full((n_epochs, n_groups), 0.8, dtype=np.float32)
-    a = np.full((n_epochs, n_groups), 0.5, dtype=np.float32)
-    b = np.full((n_epochs, n_groups), 0.5, dtype=np.float32)
-    c = np.full((n_epochs, n_groups), 2.0, dtype=np.float32)
-    shape_int = _compute_final_shapes(r2_curvature, a, b, c, n_groups)
-    shapes = decode_shapes(shape_int)
-    assert shapes == ["saddle"]
-
-
-# ---------------------------------------------------------------------------
 # Synthetic artifact fixture for analyzer and renderer tests
 # ---------------------------------------------------------------------------
 
 
 def _make_artifact(n_epochs: int = 4, n_groups: int = 3, seed: int = 42) -> dict:
+    """Synthetic intragroup_manifold cross-epoch artifact."""
+    shape_choices = list(_SHAPE_TO_INT.values())
+
+    rng = np.random.default_rng(seed)
+    r2_curvature = rng.uniform(0.0, 1.0, (n_epochs, n_groups)).astype(np.float32)
+    a = rng.standard_normal((n_epochs, n_groups)).astype(np.float32)
+    b = rng.standard_normal((n_epochs, n_groups)).astype(np.float32)
+    c = rng.standard_normal((n_epochs, n_groups)).astype(np.float32)
+    shape_int = rng.choice(shape_choices, (n_epochs, n_groups)).astype(np.int32)
+    return {
+        "group_freqs": np.array([3, 7, 12], dtype=np.int32)[:n_groups],
+        "group_sizes": np.array([40, 35, 28], dtype=np.int32)[:n_groups],
+        "epochs": np.arange(0, n_epochs * 500, 500, dtype=np.int32),
+        "r2_linear": rng.uniform(0.0, 0.1, (n_epochs, n_groups)).astype(np.float32),
+        "r2_quadratic": (
+            r2_curvature + rng.uniform(0.0, 0.1, (n_epochs, n_groups)).astype(np.float32)
+        ),
+        "r2_curvature": r2_curvature,
+        "a": a,
+        "b": b,
+        "c": c,
+        "shape_int": shape_int,
+    }
+
+
+def _make_legacy_artifact(n_epochs: int = 4, n_groups: int = 3, seed: int = 42) -> dict:
     """Synthetic intragroup_manifold cross-epoch artifact."""
     rng = np.random.default_rng(seed)
     r2_curvature = rng.uniform(0.0, 1.0, (n_epochs, n_groups)).astype(np.float32)
@@ -193,7 +65,6 @@ def _make_artifact(n_epochs: int = 4, n_groups: int = 3, seed: int = 42) -> dict
         "c": c,
         "shape_int": shape_int,
     }
-
 
 # ---------------------------------------------------------------------------
 # Renderer smoke tests

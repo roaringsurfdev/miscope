@@ -363,6 +363,9 @@ def characterize_jerk(
 _SURFACE_FLAT_THRESHOLD = 0.05
 _SURFACE_MIN_POINTS = 7  # minimum to fit 6 quadratic parameters
 
+_SHAPE_TO_INT = {"flat/blob": 0, "bowl": 1, "saddle": 2}
+_INT_TO_SHAPE = {v: k for k, v in _SHAPE_TO_INT.items()}
+
 
 def characterize_surface(point_cloud_3d: np.ndarray) -> SurfaceParameters:
     """Fit a quadratic surface to a 3D point cloud and classify the shape.
@@ -412,6 +415,10 @@ def characterize_surface(point_cloud_3d: np.ndarray) -> SurfaceParameters:
         c=float(c),
         shape=shape,
     )
+
+def decode_shapes(shape_int: np.ndarray) -> list[str]:
+    """Convert integer shape labels back to human-readable strings."""
+    return [_INT_TO_SHAPE.get(int(v), "flat/blob") for v in shape_int]
 
 
 def _fit_surface_linear(
