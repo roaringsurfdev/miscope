@@ -20,11 +20,24 @@ Curve-shape characterizations (caller passes a 2D/3D curve in coordinates):
 
 Trajectory-dynamics characterizations (caller passes a time-ordered curve):
 - characterize_jerk: third time-derivative; spikes at regime transitions.
+- characterize_sigmoidality: 1D sigmoid-vs-linear fit comparison; the
+  Δ = R²_sig − R²_lin metric measures saddle-transit-likeness of a segment.
+
+Periodic-trajectory shape characterizations (caller passes a 2D trajectory
+parameterized over a periodic domain):
+- characterize_lissajous: dominant per-axis Fourier mode + joint structural
+  metrics (frequency match, amplitude ratio, phase offset, residual).
 """
 
 from typing import NamedTuple
 
 import numpy as np
+from scipy.optimize import curve_fit
+
+from miscope.analysis.library.fourier_basis import (
+    get_fourier_basis,
+    project_onto_fourier_basis,
+)
 
 
 class SurfaceParameters(NamedTuple):
@@ -353,6 +366,325 @@ def characterize_jerk(
         accel = np.gradient(velocity, time_axis, axis=0, edge_order=2)
         jerk = np.gradient(accel, time_axis, axis=0, edge_order=2)
     return jerk
+
+
+# ---------------------------------------------------------------------------
+# Sigmoidality: 1D sigmoid-vs-linear fit comparison
+# ---------------------------------------------------------------------------
+
+
+class SigmoidalityParameters(NamedTuple):
+    """Sigmoid-vs-linear fit comparison for a 1D series.
+
+    Reports both fit qualities and their difference. High ``sigmoidality``
+    indicates a saddle-transit-like shape (slow-fast-slow) that linear
+    fits cannot explain. Low ``sigmoidality`` means linear is sufficient
+    — drift, not transit.
+
+    Sigmoid form (caller's input scale):
+    ``f(t) = baseline + amplitude / (1 + exp(-(t - midpoint) / slope))``
+
+    A true saddle-mediated heteroclinic transit is exponential leave + arrive
+    parameterized by the saddle's eigenvalues. Sigmoid is a useful *shape
+    proxy* — sigmoidality quantifies "transit-likeness" of the shape, not
+    the underlying dynamics. Pair with eigenvalue-aware analysis when
+    investigating saddle structure rigorously.
+
+    Fields:
+        r2_sigmoid: R² of the bounded logistic fit.
+        r2_linear: R² of the best-fit line.
+        sigmoidality: ``r2_sigmoid − r2_linear``. Headline metric. Positive
+            means sigmoid explains the segment better than a line; near
+            zero means linear is sufficient; negative occurs when the
+            sigmoid fit fails to converge.
+        amplitude: Asymptotic span (upper − lower plateau), caller's scale.
+        midpoint: Time at which the sigmoid passes through half-amplitude,
+            caller's time-scale.
+        slope: Rate parameter — smaller is steeper. Caller's time-units.
+        baseline: Lower plateau value, caller's value-scale.
+        sigmoid_converged: ``False`` if the bounded ``curve_fit`` raised
+            (in which case ``r2_sigmoid = 0`` and the four sigmoid
+            parameters are NaN).
+    """
+
+    r2_sigmoid: float
+    r2_linear: float
+    sigmoidality: float
+    amplitude: float
+    midpoint: float
+    slope: float
+    baseline: float
+    sigmoid_converged: bool
+
+
+def _logistic(
+    t: np.ndarray, amplitude: float, midpoint: float, slope: float, baseline: float
+) -> np.ndarray:
+    """Four-parameter logistic. ``slope`` is floored at 1e-6 for stability."""
+    return baseline + amplitude / (1.0 + np.exp(-(t - midpoint) / max(slope, 1e-6)))
+
+
+def characterize_sigmoidality(
+    values: np.ndarray,
+    time_axis: np.ndarray | None = None,
+) -> SigmoidalityParameters:
+    """Fit a sigmoid and a line to a 1D series; report fit quality and difference.
+
+    Internally normalizes both ``values`` and ``time_axis`` to ``[0, 1]``
+    for numerical stability and stable parameter bounds, then de-normalizes
+    sigmoid parameters back to the caller's input scale before returning.
+    R² values are scale-invariant.
+
+    Saddle-transport context: when the caller has projected a multi-D
+    segment onto its endpoint chord, the resulting 1D coordinate has a
+    sigmoid-like shape if the segment passes through a saddle (slow on
+    approach, fast through the saddle neck, slow on departure). The Δ
+    metric quantifies this. Δ ≥ 0.05 = saddle-like; 0.02–0.05 = mildly
+    sigmoidal; < 0.02 = drift-like (linear traversal).
+
+    Args:
+        values: ``(n,)`` 1D series.
+        time_axis: ``(n,)`` 1D time labels. If ``None``, ``arange(n)`` is
+            used (uniform unit spacing).
+
+    Returns:
+        :class:`SigmoidalityParameters`.
+    """
+    values = np.asarray(values, dtype=np.float64)
+    if values.ndim != 1:
+        raise ValueError(f"characterize_sigmoidality expects 1D values, got shape {values.shape}")
+    n = values.shape[0]
+    if n < 6:
+        raise ValueError(
+            f"characterize_sigmoidality needs at least 6 points to fit a 4-parameter "
+            f"sigmoid; got {n}"
+        )
+    if time_axis is None:
+        t = np.arange(n, dtype=np.float64)
+    else:
+        t = np.asarray(time_axis, dtype=np.float64)
+        if t.ndim != 1 or t.shape[0] != n:
+            raise ValueError(f"time_axis must be 1D with length {n}; got shape {t.shape}")
+
+    t_min = float(t.min())
+    t_range = float(t.max() - t_min)
+    v_min = float(values.min())
+    v_range = float(values.max() - v_min)
+
+    # Constant input: both fits are perfect on a degenerate signal.
+    if v_range < 1e-12:
+        return SigmoidalityParameters(
+            r2_sigmoid=1.0,
+            r2_linear=1.0,
+            sigmoidality=0.0,
+            amplitude=float("nan"),
+            midpoint=float("nan"),
+            slope=float("nan"),
+            baseline=v_min,
+            sigmoid_converged=False,
+        )
+
+    # Normalize time and value to [0, 1]; t_range > 0 enforced by the
+    # uniform-arange fallback when time_axis is None and by upstream
+    # caller convention when explicit (zero range = constant t = nonsense).
+    t_norm = (t - t_min) / t_range if t_range > 0 else np.linspace(0.0, 1.0, n)
+    v_norm = (values - v_min) / v_range
+
+    # Linear fit
+    coef = np.polyfit(t_norm, v_norm, 1)
+    v_lin = np.polyval(coef, t_norm)
+    ss_res_lin = float(np.sum((v_norm - v_lin) ** 2))
+
+    # Sigmoid fit (bounds chosen for [0, 1]-normalized data)
+    sigmoid_converged = True
+    popt = None
+    try:
+        popt, _ = curve_fit(
+            _logistic,
+            t_norm,
+            v_norm,
+            p0=[1.0, 0.5, 0.15, 0.0],
+            bounds=([0.1, -0.5, 0.01, -0.5], [2.0, 1.5, 1.0, 0.5]),
+            maxfev=5000,
+        )
+        v_sig = _logistic(t_norm, *popt)
+        ss_res_sig = float(np.sum((v_norm - v_sig) ** 2))
+    except (RuntimeError, ValueError):
+        sigmoid_converged = False
+        ss_res_sig = float("inf")
+
+    ss_tot = float(np.sum((v_norm - v_norm.mean()) ** 2)) + 1e-12
+    r2_sig = 1.0 - ss_res_sig / ss_tot if sigmoid_converged else 0.0
+    r2_lin = 1.0 - ss_res_lin / ss_tot
+
+    if sigmoid_converged and popt is not None:
+        a_n, c_n, s_n, b_n = popt
+        amplitude = float(a_n * v_range)
+        midpoint = float(t_min + c_n * t_range)
+        slope = float(s_n * t_range)
+        baseline = float(v_min + b_n * v_range)
+    else:
+        amplitude = float("nan")
+        midpoint = float("nan")
+        slope = float("nan")
+        baseline = float("nan")
+
+    return SigmoidalityParameters(
+        r2_sigmoid=float(r2_sig),
+        r2_linear=float(r2_lin),
+        sigmoidality=float(r2_sig - r2_lin),
+        amplitude=amplitude,
+        midpoint=midpoint,
+        slope=slope,
+        baseline=baseline,
+        sigmoid_converged=sigmoid_converged,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Periodic-trajectory shape characterization (2D Lissajous structure)
+# ---------------------------------------------------------------------------
+
+
+class LissajousParameters(NamedTuple):
+    """Multi-axis Fourier structure of a 2D periodic trajectory.
+
+    Quantifies the dominant Fourier mode on each of two axes and the
+    relationship between them — frequency match, amplitude ratio, phase
+    offset, and joint fit quality — without committing to a particular
+    theoretical generator (e.g. CR3BP saddle-center-center linearization).
+    Use as a building block for theory-laden analyzers (halo classification,
+    Lyapunov-family fits, etc.).
+
+    Reconstruction convention: each axis's dominant mode is
+    ``signal ≈ amplitude · cos(2π · frequency · t / period − phase)``.
+    Phase comes from :func:`numpy.arctan2` ``(sin_coeff, cos_coeff)`` and
+    lies in ``(−π, π]``.
+
+    Fields:
+        period: Length of one full period of the trajectory.
+        frequency_x: Dominant integer frequency on axis 0
+            (``1 ≤ k ≤ (period−1)//2``).
+        frequency_y: Dominant integer frequency on axis 1.
+        amplitude_x: Natural amplitude (signal-space) at the dominant
+            frequency on axis 0.
+        amplitude_y: Natural amplitude on axis 1.
+        phase_x: Phase of the dominant mode on axis 0, in radians.
+        phase_y: Phase of the dominant mode on axis 1, in radians.
+        r2_x: Fraction of axis-0 (zero-mean) variance explained by its
+            dominant single-frequency mode.
+        r2_y: Fraction of axis-1 variance explained.
+        same_frequency: ``True`` iff ``frequency_x == frequency_y``.
+        amplitude_ratio: ``amplitude_y / amplitude_x``. Zero when
+            ``amplitude_x`` is zero.
+        phase_offset: ``phase_y − phase_x`` wrapped to ``(−π, π]``.
+            Interpretation requires ``same_frequency`` (otherwise the
+            two axes oscillate at different rates and the offset mixes
+            phases of different modes).
+        joint_r2: Combined fit quality across both axes, computed as
+            ``(power_x_dominant + power_y_dominant) /
+              (total_power_x + total_power_y)``. Approaches 1.0 for a
+            clean Lissajous (each axis is a single dominant mode).
+    """
+
+    period: int
+    frequency_x: int
+    frequency_y: int
+    amplitude_x: float
+    amplitude_y: float
+    phase_x: float
+    phase_y: float
+    r2_x: float
+    r2_y: float
+    same_frequency: bool
+    amplitude_ratio: float
+    phase_offset: float
+    joint_r2: float
+
+
+def characterize_lissajous(
+    trajectory: np.ndarray,
+    period_axis: int = 0,
+) -> LissajousParameters:
+    """Characterize the dominant Fourier structure of a 2D periodic trajectory.
+
+    For each axis, finds the integer frequency whose Fourier component
+    carries the most variance, then computes joint structural metrics —
+    same-frequency match, amplitude ratio, phase offset between the
+    dominant modes, and combined fit quality across both axes.
+
+    Theory-agnostic: the primitive measures observable Lissajous structure
+    without committing to a particular generator. CR3BP-specific quantities
+    like the κ-ratio for saddle-center-center modes, halo classification,
+    and out-of-plane mode detection are downstream compositions of this
+    primitive plus additional Fourier projections.
+
+    Natural amplitude convention: ``A = magnitude · sqrt(2 / period)``,
+    where ``magnitude`` is the unit-normalized projection magnitude
+    returned by :class:`PeriodicFourierBasis`. This recovers the
+    amplitude of the original signal in the form
+    ``A · cos(2π · k · t / N − φ)``.
+
+    Args:
+        trajectory: ``(period, 2)`` array when ``period_axis=0``, or
+            ``(2, period)`` when ``period_axis=1``.
+        period_axis: Which axis carries the periodic dimension. Default 0.
+
+    Returns:
+        :class:`LissajousParameters`.
+    """
+    if trajectory.ndim != 2:
+        raise ValueError(f"characterize_lissajous expects 2D input, got shape {trajectory.shape}")
+    if period_axis == 1:
+        trajectory = trajectory.T
+    elif period_axis != 0:
+        raise ValueError(f"period_axis must be 0 or 1, got {period_axis}")
+    period, n_axes = trajectory.shape
+    if n_axes != 2:
+        raise ValueError(
+            f"characterize_lissajous expects two axes; got {n_axes} on the non-period dimension"
+        )
+
+    basis = get_fourier_basis(period)
+    fourier = project_onto_fourier_basis(trajectory, basis, period_axis=0)
+    # All frequency-axis arrays here have shape (n_frequencies, 2).
+
+    freq_x = int(fourier.dominant_frequency[0])
+    freq_y = int(fourier.dominant_frequency[1])
+    idx_x = freq_x - 1  # frequency labels are 1-indexed
+    idx_y = freq_y - 1
+
+    natural_scale = float(np.sqrt(2.0 / period))
+    amp_x = float(fourier.magnitudes[idx_x, 0]) * natural_scale
+    amp_y = float(fourier.magnitudes[idx_y, 1]) * natural_scale
+    phase_x = float(fourier.phases[idx_x, 0])
+    phase_y = float(fourier.phases[idx_y, 1])
+    r2_x = float(fourier.fractional_power[idx_x, 0])
+    r2_y = float(fourier.fractional_power[idx_y, 1])
+
+    same_frequency = freq_x == freq_y
+    amplitude_ratio = amp_y / amp_x if amp_x > 0 else 0.0
+    phase_offset = float((phase_y - phase_x + np.pi) % (2 * np.pi) - np.pi)
+
+    fitted_power = float(fourier.power[idx_x, 0] + fourier.power[idx_y, 1])
+    total_power = float(fourier.power.sum())
+    joint_r2 = fitted_power / total_power if total_power > 0 else 0.0
+
+    return LissajousParameters(
+        period=period,
+        frequency_x=freq_x,
+        frequency_y=freq_y,
+        amplitude_x=amp_x,
+        amplitude_y=amp_y,
+        phase_x=phase_x,
+        phase_y=phase_y,
+        r2_x=r2_x,
+        r2_y=r2_y,
+        same_frequency=same_frequency,
+        amplitude_ratio=amplitude_ratio,
+        phase_offset=phase_offset,
+        joint_r2=joint_r2,
+    )
 
 
 # ---------------------------------------------------------------------------
