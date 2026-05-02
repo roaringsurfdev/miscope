@@ -1,10 +1,11 @@
 # REQ_109: Measurement Primitives Library
 
-**Status:** Draft
+**Status:** Draft — phase 2c-2 complete (Lissajous + Sigmoidality landed in PR #29); phase 2d (`procrustes_align`) outstanding before clean close.
 **Priority:** High
 **Branch:** TBD (currently incubating on `refactor-dataview`)
 **Supersedes:** REQ_097 (Frequency Cleanup), REQ_098 (PCA Strategy Cleanup), REQ_104 (Geometry Consolidation).
 **Dependencies:** REQ_106 (layering principle — primitives are *measures* with pure-input forms; variant-coupled wrappers are thin convenience layers).
+**Successor (analyzer integration):** REQ_111 (Parallel Analyzer Build-Out) — the integration phase that consumes these primitives. Originally written into this REQ as in-place "Analyzer migration"; carved out after the primitive design pass surfaced bugs in pre-REQ_109 derivation paths (arctan vs arctan2, DC fictitious row, dtype regression in `compute_class_centroids`). In-place migration would have silently encoded or fixed those bugs; parallel construction in REQ_111 records the answer.
 **Attribution:** Engineering Claude (under user direction)
 
 ---
@@ -48,7 +49,7 @@ The library exposes primitives in six categories. Each primitive is a pure funct
   - `pca_summary(sample_sets, n_components=None) -> PCAResult` — fits one basis across a stack of sample sets (also called *trajectory PCA*).
   - `pca_rolling(sample_set, window_size, stride, n_components=None) -> List[PCAResult]` — windowed.
 - [ ] All three use mean-centered SVD via `np.linalg.svd`. Numerics are deterministic (sign convention documented; downstream consumers handle sign flip).
-- [ ] No primitive depends on `sklearn.decomposition.PCA`. Existing call sites migrate.
+- [ ] No primitive depends on `sklearn.decomposition.PCA`. (Existing call-site migration is REQ_111 scope.)
 
 #### 2. Fourier Decomposition
 
@@ -96,7 +97,7 @@ The library exposes primitives in six categories. Each primitive is a pure funct
 - [ ] `miscope/analysis/library/dynamics.py` (naming TBD) exposes:
   - `compute_velocity(trajectory, time_axis=0) -> ndarray` — first derivative, finite-difference.
   - `compute_acceleration(trajectory, time_axis=0) -> ndarray` — second derivative.
-- [ ] Existing inline `np.diff` patterns across analyzers and renderers migrate to these.
+- [ ] (Existing inline `np.diff` patterns across analyzers and renderers migrate to these under REQ_111 / REQ_099 — not REQ_109 scope.)
 
 ### Interface contract (REQ_106 layering rule)
 
@@ -125,16 +126,17 @@ For each primitive, the REQ tracks the existing code location it extracts from. 
 | `procrustes_align` | `notebooks/parameter_trajectory_pca.ipynb` |
 | `compute_velocity`, `compute_acceleration` | Inline `np.diff` patterns across analyzers and renderers |
 
-### Analyzer migration
+### Analyzer integration (deferred to REQ_111)
 
-- [ ] **PCA analyzers** (REQ_098 carryover): `learned_parameters_pca`, `frequency_group_geometry`, `activation_class_geometry` — all consume the PCA primitive. Replace `parameter_trajectory_pca`, `effective_dimensionality`, `freq_group_weight_geometry`, `repr_geometry`, `neuron_group_pca`, `global_centroid_pca`, `centroid_dmd`. (Numerical equivalence on at least 3 reference variants: p109/s485/ds598, p113/s999/ds598, p101/s999/ds598.)
-- [ ] **Frequency analyzers** (REQ_097 carryover): new `frequency_spectrum_per_site` analyzer (name TBD, must avoid overloaded `dominant_frequencies` name) replaces / absorbs the W_E-only `dominant_frequencies`. Composed weight sites (MLP_INPUT, ATTN_*) and ActivationSite spectra (mlp_out, attn_out, resid_post, resid_pre, embed, logits) all populated. The lissajous-fix test case (`expressed_frequencies(variant, epoch, ActivationSite.RESIDUAL_POST)`) becomes callable with a real implementation. `transient_frequency` analyzer rewires to consume `frequency_trajectory(...)` rather than its own ad-hoc derivation.
-- [ ] **Geometry analyzers** (REQ_104 carryover): all geometry computation routes through the shape characterization primitives. Callers that previously passed raw centroids to `compute_circularity` now compute the PCA projection once (via the PCA primitive) and pass it. The single PCA fit replaces three.
-- [ ] **Consumers**: `variant_analysis_summary._get_learned_frequencies()` migrates to `learned_frequencies(variant, epoch, WeightSite.MLP_INPUT, method=CommitmentMethod.NEURON_DOMINANT)`. `notebooks/sketch_lissajous_fit.py` migrates to the new lissajous primitive + `expressed_frequencies` for the spectral-content comparison.
+Analyzer-level integration — building the analyzers that consume these primitives, validating them against the existing analyzers, and arriving at deprecation candidates — is handled separately under **REQ_111 (Parallel Analyzer Build-Out)**. This REQ ships the primitive layer only.
 
-### Removal (deferred to REQ_102)
+The original draft of this REQ committed to in-place analyzer migration (PCA, Frequency, Geometry, plus consumer rewires for `variant_analysis_summary` and `notebooks/sketch_lissajous_fit.py`). That commitment was withdrawn after the primitive design pass surfaced multiple latent bugs in pre-REQ_109 code (arctan vs arctan2, DC fictitious row, normalization mismatch, float32 accumulation regression). In-place migration would have silently fixed or encoded those bugs without an audit trail. REQ_111 builds new analyzers in parallel, validates outputs against old, and records the answer to *"did the old code do the right thing?"* for each pair before deprecation.
 
-Removal of deprecated code (`compute_pca_trajectory`, `fit_centroid_pca`, `compute_global_centroid_pca`, `centroid_dmd`'s PCA path, the W_E-only `dominant_frequencies` analyzer, scattered geometry code) is handled separately under REQ_102 after sufficient regression testing. This REQ ships additive primitives + analyzer migration; REQ_102 retires the legacy paths.
+The analyzer-naming proposals from the original draft (`learned_parameters_pca`, `frequency_group_geometry`, `activation_class_geometry`, `frequency_spectrum_per_site`) carry forward into REQ_111 as the starting set; final naming is decided during implementation per REQ_111's *descriptive divergence* convention.
+
+### Removal (deferred to REQ_102, gated on REQ_111)
+
+Removal of deprecated code (`compute_pca_trajectory`, `fit_centroid_pca`, `compute_global_centroid_pca`, `centroid_dmd`'s PCA path, the W_E-only `dominant_frequencies` analyzer, scattered geometry code) is handled under REQ_102 after parity validation completes under REQ_111. No analyzer is listed for retirement under REQ_102 until its REQ_111 validation outcome is recorded. This REQ ships only the additive primitive layer.
 
 ---
 
@@ -192,32 +194,34 @@ The primitives library is the middle column. Analyzers compose extract + transfo
 
 ### Phasing
 
-The categories in this REQ have unequal complexity. Suggested phasing for implementation:
+The categories have unequal complexity. Phasing as actually executed (with status):
 
-1. **PCA + clustering metrics + velocity** — already mostly implemented in discovery (`library/pca.py`); migrate analyzers and renderers.
-2. **Fourier** — REQ_097's primitives already partially implemented in discovery (`library/frequency.py`); new analyzer is the closing piece.
-3. **Shape characterization** — circularity / curvature already exist; sigmoidality / Lissajous / saddle / jerk are extractions from notebooks and research code.
-4. **Shape comparison (Procrustes)** — single primitive, low risk, can land anytime.
+1. ✅ **PCA + clustering metrics + velocity primitives** — landed across REQ_109 phase 1 work. `library/pca.py`, `library/clustering.py`, `library/trajectory.py::compute_parameter_velocity`.
+2. ✅ **Fourier groundwork** — `library/fourier_basis.py` (PR #28). `PeriodicFourierBasis`, `project_onto_fourier_basis`, `compute_specialization`. The legacy `library/fourier.py` callers (`dominant_frequencies`, `neuron_fourier`, `attention_freq`, `transient_frequency`) are not retired here — that's REQ_111 work.
+3. ✅ **Shape characterization (phase 2a–2c-2)** — `characterize_circularity`, `characterize_fourier_alignment`, `characterize_jerk`, `characterize_surface`, `characterize_lissajous`, `characterize_sigmoidality`, plus curve-shape helpers (`compute_arc_length`, `detect_self_intersection`, `compute_signed_loop_area`, `compute_curvature_profile`). Shipped in PRs #26, #27, #28, #29.
+4. ⬜ **Shape comparison (phase 2d)** — `procrustes_align` in `library/comparison.py`. Single primitive, low risk; the closing piece for clean REQ_109 close.
 
-Each phase is independently mergeable. The whole REQ is the v1.0 gate for a coherent measurement library.
+After phase 2d lands, REQ_109 closes. Analyzer-level integration moves to REQ_111.
 
 ### Acceptance test: the grep tests
 
 REQ_106 names grep-test acceptance criteria as part of layering compliance. For this REQ:
 
 - `grep -rn "from miscope.families" src/miscope/analysis/library/` — returns only matches in clearly-marked convenience-wrapper sections.
-- `grep -rn "np.linalg.svd\|sklearn.decomposition.PCA" src/miscope/analysis/` — returns matches only in `library/pca.py`.
+- `grep -rn "np.linalg.svd\|sklearn.decomposition.PCA" src/miscope/analysis/library/` — returns matches only in `library/pca.py`.
 - `grep -rn "_pca_project\|_pca_project_2d" src/miscope/analysis/library/shape.py` — returns zero hits.
-- `grep -rn "np.diff" src/miscope/analysis/analyzers/` — returns zero hits (or only in clearly-marked exceptions).
 
-These greps are part of CI once the migration completes.
+(The fourth grep test originally listed — `np.diff` in `analysis/analyzers/` returning zero hits — is an analyzer-level concern; it moves to REQ_111's acceptance criteria.)
+
+The library-side greps are part of CI once REQ_109 closes. Analyzer-side greps move to REQ_111.
 
 ---
 
 ## Notes
 
-- The lissajous fit bug is the proof-of-concept test for the whole REQ. Once `expressed_frequencies(variant, epoch, ActivationSite.RESIDUAL_POST)` and `characterize_lissajous(trajectory_2d)` both work and the user re-runs the lissajous analysis with the right site comparison, the architecture has paid for itself.
+- **The lissajous fit bug is the proof-of-concept test for the whole consolidation.** REQ_109 supplies the primitives (`characterize_lissajous`, `compute_specialization`, etc.); the actual lissajous-bug fix lands when REQ_111 builds the new analyzer that consumes them and validates against the existing pipeline. The architecture pays for itself once that round trip closes.
 - The user's audit framing — "if I were a researcher and saw a bunch of scattered implementations of PCA, I'd likely stop review" — is the load-bearing motivation. Single primitive per measurement is what makes external review possible.
 - Some primitives may want a *tensor-friendly* path (e.g., `pca_per_matrix` over a stack of `(n_matrices, samples, features)`) in addition to the single-call path. Defer until a real call site needs it; speculative tensor-vectorization invites complexity ahead of demand.
 - `manifold_geometry.py` is a candidate for full absorption into `shape.py`. Decide during implementation; default to absorption unless a clear conceptual boundary emerges.
-- This REQ is the prerequisite for REQ_110 (Lakehouse Surface). Tabular outputs are downstream of typed measurement results — once primitives return `PCAResult` consistently, the tabular form is a flatten of `PCAResult` over the natural dimension columns.
+- This REQ is the prerequisite for REQ_110 (Lakehouse Surface) and REQ_111 (Parallel Analyzer Build-Out). Tabular outputs (REQ_110) are downstream of typed measurement results — once primitives return `PCAResult` consistently, the tabular form is a flatten of `PCAResult` over the natural dimension columns. Analyzer integration (REQ_111) is downstream of primitive stability — the parallel-build pattern is what catches latent bugs that in-place migration would have silently encoded.
+- **Phase tracking.** Phase 2c-2 (Lissajous + Sigmoidality) landed in PR #29. Phase 2d (`procrustes_align`) is the last outstanding primitive. After that lands, REQ_109 closes and REQ_111 takes over.

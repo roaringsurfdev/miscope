@@ -8,6 +8,8 @@
 
 > **Consolidation pass (post-discovery):** After discovery surfaced two cohesive workstreams — *measurement primitives* and *tabular surface* — REQs 097, 098, 104 were superseded by **REQ_109 (Measurement Primitives Library)** and REQs 101, 108 were superseded by **REQ_110 (Lakehouse Surface)**. The superseded REQs remain in `active/` for archaeological reference (their problem framings carry forward); execution tracks under 109 and 110. See `consolidation_overview_feedback.md` for the user direction that drove the consolidation.
 
+> **REQ_111 carve-out (post-primitive-design-pass):** During REQ_109 implementation, primitive design passes surfaced multiple latent bugs in pre-REQ_109 derivation paths (arctan vs arctan2, DC fictitious row, normalization mismatch in Fourier; float32 accumulation in clustering). In-place analyzer migration would have silently fixed or encoded those bugs without an audit trail. The "Analyzer migration" content originally inside REQ_109 was carved out into **REQ_111 (Parallel Analyzer Build-Out)**: build new analyzers in parallel, validate against existing on a reference variant set, and only then hand off to REQ_102 for retirement. This lets REQ_109 close cleanly once `procrustes_align` (phase 2d) lands.
+
 ---
 
 ## Why this is one cohesive effort
@@ -43,10 +45,11 @@ form the v1.0 milestone gate.
 |-----|------|-------------|-----------|
 | REQ_106 | Analysis Layer Architecture (precedent) | **Precedent** | — |
 | REQ_109 | Measurement Primitives Library *(consolidates 097, 098, 104)* | Foundation | REQ_106 |
-| REQ_099 | Visualizations Plot-Only | Migration | REQ_106, REQ_109 |
+| REQ_111 | Parallel Analyzer Build-Out *(carved out of REQ_109's integration phase)* | Integration | REQ_106, REQ_109 |
+| REQ_099 | Visualizations Plot-Only | Migration | REQ_106, REQ_109, REQ_111 |
 | REQ_100 | External Storage Support (ArtifactSource) | **Deferred** | REQ_106 — not on v1.0 critical path; HF Hub publication reframed to GitHub Pages + Releases (now in REQ_110). Re-activates if/when raw-artifact publication demand surfaces. |
-| REQ_110 | Lakehouse Surface (Parquet + DuckDB + Releases + DuckDB-WASM) *(consolidates 101, 108)* | Surface / Gate | REQ_106, REQ_107, REQ_109, REQ_103 |
-| REQ_102 | Analyzer Deprecation | Cleanup | REQ_106, REQ_109 |
+| REQ_110 | Lakehouse Surface (Parquet + DuckDB + Releases + DuckDB-WASM) *(consolidates 101, 108)* | Surface / Gate | REQ_106, REQ_107, REQ_109, REQ_111, REQ_103 |
+| REQ_102 | Analyzer Deprecation | Cleanup | REQ_106, REQ_109, REQ_111 (parity validation gates retirement) |
 | REQ_103 | PyPI Publication Hardening (package + repo + docs surfaces) | Gate | All others substantially in place; REQ_110 for the data-publication half |
 | REQ_107 | Discoverability Registry | Cultural complement | REQ_106 |
 
@@ -69,13 +72,14 @@ REQ_105 (Architecture Adapter) is closely related but tracked separately — it 
 The user's framing post-consolidation: *clean up what we have first, then add the new output surface.*
 
 1. **REQ_106 first** — establishes the layering principles, the `result` vocabulary, the per-epoch derivation context, the generalized analyzer dependencies, and the DataView first-class status. The other REQs implement aspects of these principles.
-2. **REQ_109 (Measurement Primitives Library)** — the foundation cleanup. Six categories (PCA, Fourier, clustering, shape characterization, shape comparison, velocity) extracted into pure-input tensor-friendly primitives. Phasing built in: PCA + clustering + velocity first (already substantially in discovery), then Fourier, then shape characterization, then comparison. Honors REQ_106's layering rules throughout.
-3. **REQ_099 + REQ_102** as REQ_109 lands. Each is a migration / cleanup pass against the new contracts (renderers go plot-only; deprecated analyzers retire). REQ_102's audit incorporates REQ_106's layering grep tests.
-4. **REQ_107** as the cultural complement. Can land anytime after REQ_106 is in place; ideally before REQ_110 (the publication build script reads from the registry).
-5. **REQ_110 (Lakehouse Surface)** once REQ_109 stabilizes the upstream measurement-result types. Adds the long-format tabular schema, Parquet persistence (coexisting with `.npz` for extract-only analyzers), the DuckDB query engine, the GitHub Releases workflow for publication bundles, and DuckDB-WASM integration in fieldnotes. The data half of the v1.0 publication story.
-6. **REQ_103** as the gate. Publication readiness review + v1.0 mint — REQ_106 grep tests passing, REQ_107 registry browsable, REQ_110 publication bundle workflow operational with at least one bundle queryable via DuckDB-WASM from a fieldnotes article.
+2. **REQ_109 (Measurement Primitives Library)** — the foundation cleanup. Six categories (PCA, Fourier, clustering, shape characterization, shape comparison, velocity) extracted into pure-input tensor-friendly primitives. Phasing built in: PCA + clustering + velocity first (already substantially in discovery), then Fourier, then shape characterization, then comparison. Honors REQ_106's layering rules throughout. **Closes cleanly after phase 2d (`procrustes_align`).**
+3. **REQ_111 (Parallel Analyzer Build-Out)** — the integration phase. New analyzers built alongside existing ones, consuming only the REQ_109 primitive layer. Each new-vs-old pair validated on a reference variant set; outcomes recorded (matches / old-has-bug / new-has-bug / both-kept) before REQ_102 retires the old analyzer. Carved out of REQ_109's original "Analyzer migration" CoS section after the primitive design pass surfaced bugs in pre-REQ_109 paths that in-place migration would have silently encoded.
+4. **REQ_099 + REQ_102** as REQ_111 produces parity validation outcomes. REQ_099 is the renderer-side cleanup against the new analyzer contracts. REQ_102 retires the old analyzers per recorded validation outcomes (no listing without a recorded outcome).
+5. **REQ_107** as the cultural complement. Can land anytime after REQ_106 is in place; ideally before REQ_110 (the publication build script reads from the registry).
+6. **REQ_110 (Lakehouse Surface)** once REQ_109 stabilizes the upstream measurement-result types and REQ_111's new analyzers populate them. Adds the long-format tabular schema, Parquet persistence (coexisting with `.npz` for extract-only analyzers), the DuckDB query engine, the GitHub Releases workflow for publication bundles, and DuckDB-WASM integration in fieldnotes. The data half of the v1.0 publication story.
+7. **REQ_103** as the gate. Publication readiness review + v1.0 mint — REQ_106 grep tests passing, REQ_107 registry browsable, REQ_110 publication bundle workflow operational with at least one bundle queryable via DuckDB-WASM from a fieldnotes article.
 
-**Asymmetry between the two consolidated streams.** REQ_109 is a refactor with bounded blast radius — extracting and consolidating primitives that already exist. REQ_110 is an architecture extension — adding a new persisted output format, a new query layer, and a new publication workflow on top of the existing pipeline. Sequencing them strictly (109 → 110) lets the schema design in 110 rest on stabilized measurement-result types from 109.
+**Asymmetry across the three workstreams.** REQ_109 is a primitive-extraction refactor with bounded blast radius. REQ_111 is a research-active *expand-then-collapse* phase: build new analyzers in parallel, let them and the old ones coexist on disk, validate, then collapse back via REQ_102. REQ_110 is an architecture extension — adding a new persisted output format, a new query layer, and a new publication workflow on top. Sequencing 109 → 111 → 110 lets each rest on the previous one's stabilization, with REQ_102 cleanup interleaved as parity validation outcomes accumulate.
 
 ---
 
@@ -181,9 +185,11 @@ print(source.exists("parameter_snapshot", {"epoch": 5000}))  # True
 
 The lissajous-fix test case (`expressed_frequencies(variant, epoch,
 ActivationSite.RESIDUAL_POST)`) intentionally raises `NotImplementedError`
-in discovery — it requires the new analyzer that REQ_109 introduces. The
-type signature being callable proves the API shape is right; the body
-landing is REQ_109 work.
+in discovery — it requires both the activation-site Fourier *primitive*
+(REQ_109) and the *analyzer* that consumes it (REQ_111). The type signature
+being callable proves the API shape is right; the primitive body lands
+under REQ_109, and the analyzer that wires it up to a real call site lands
+under REQ_111.
 
 ---
 
@@ -199,11 +205,12 @@ landing is REQ_109 work.
 | Discoverability registry (`miscope.registry.*`) | REQ_107 |
 | Composed weight site spectrum (W_E @ W_in for MLP, etc.) | REQ_109 |
 | Pure-input forms of all measurement primitives (separate from variant-coupled wrappers) | REQ_109 |
-| Activation-site Fourier analyzer + artifact | REQ_109 |
-| `expressed_frequencies(variant, epoch, ActivationSite.*)` | REQ_109 |
+| Activation-site Fourier *primitive* (pure-input projection on activations) | REQ_109 |
+| Activation-site Fourier *analyzer + artifact* (variant-coupled, written to disk) | REQ_111 |
+| `expressed_frequencies(variant, epoch, ActivationSite.*)` body — depends on the analyzer | REQ_111 |
 | NEURON_DOMINANT / HEAD_DOMINANT commitment methods | REQ_109 |
 | `weights_by_frequency` body | REQ_109 |
-| Migration of existing analyzers to single PCA primitive | REQ_109 |
+| Migration of existing analyzers to single PCA primitive (now via parallel construction + parity validation) | REQ_111 |
 | Geometry function consolidation under shape-characterization category | REQ_109 |
 | Shape characterization functions take typed inputs (`PCAResult.projections`), not raw matrices | REQ_109 |
 | Lissajous, sigmoidality, saddle curvature, jerk extracted to library primitives | REQ_109 |
@@ -233,7 +240,8 @@ landing is REQ_109 work.
 
 - **REQ_106 was authored after REQ_097–105 but logically precedes them.** The user's framing: research had to be prioritized over infrastructure during the project's first year, and REQ_106 encodes the lessons learned from that choice. The principles are not speculative — they encode what the codebase has shown should be true. Don't treat REQ_106 as theoretical; treat it as the precedent the other REQs were independently moving toward.
 - **REQ_107 (Discoverability Registry) is the cultural complement to REQ_106.** Architecture removes friction; the registry removes ignorance. Without both, even clean layering accumulates re-derivation through normal forgetting.
-- **REQ_109 consolidates 097/098/104.** The post-discovery user audit framed this as "if I were a researcher and saw scattered implementations of PCA, I'd likely stop review." Six measurement-primitive categories (PCA, Fourier, clustering, shape characterization, shape comparison, velocity) with pure-input tensor-friendly contracts. The `fit` → `characterize` rename came from the same audit — these are descriptors, not parameter learners. Existing scattered code locations (e.g., `repr_geometry.py`, `manifold_geometry.py`, `sketch_lissajous_fit.py`, `parameter_trajectory_pca.ipynb`) are catalogued as the migration manifest.
+- **REQ_109 consolidates 097/098/104.** The post-discovery user audit framed this as "if I were a researcher and saw scattered implementations of PCA, I'd likely stop review." Six measurement-primitive categories (PCA, Fourier, clustering, shape characterization, shape comparison, velocity) with pure-input tensor-friendly contracts. The `fit` → `characterize` rename came from the same audit — these are descriptors, not parameter learners. Existing scattered code locations (e.g., `repr_geometry.py`, `manifold_geometry.py`, `sketch_lissajous_fit.py`, `parameter_trajectory_pca.ipynb`) are catalogued in REQ_111 as the parallel-build manifest (originally written into REQ_109; carved out post-design-pass).
+- **REQ_111 carves analyzer integration out of REQ_109.** During REQ_109 phase 2c, design passes for Fourier and clustering primitives surfaced multiple latent bugs in pre-REQ_109 code (arctan vs arctan2; DC fictitious row; normalization mismatch; float32 accumulation regression in `compute_class_centroids`). Each was caught **before** in-place migration would have either silently fixed it (no audit trail) or silently encoded it forward. The analyzer-migration content originally in REQ_109's CoS was reframed: build new analyzers in parallel, validate against existing on a reference variant set, record the answer to *"did the old code do the right thing?"*, then hand off to REQ_102 for retirement. The user's framing: *"the platform might need to expand before collapsing back again."*
 - **REQ_110 consolidates 101/108.** The lakehouse framing surfaced post-discovery: lean into Parquet + DuckDB for the tabular layer, with inline browser queries via DuckDB-WASM in fieldnotes. The `group_type` / `operation_type` discriminator-column design is the schema-side load-bearing decision. Coexistence with `.npz` is structural — extract-only analyzers (`parameter_snapshot`, activation captures) stay `.npz`; transform-emitting analyzers go Parquet. **DuckLake is held in reserve, not committed** — if registry/catalog work in REQ_107 starts to look like reinvention of DuckLake's surface, revisit.
 - **Publication reframed away from HF Hub** (during the discussion that produced REQ_108, now folded into REQ_110). Two motivations drove the reframe: (1) reviewer-trust workflow — query the data underlying a finding directly from a fieldnotes article, no install; (2) **moat for platform evolution** — published Parquet bundles are immutable and self-contained, so internal storage can continue to evolve without breaking citations. REQ_100 (HFHubSource) is deferred until raw-artifact publication demand surfaces.
 - **REQ_103 covers the package + repo + docs surfaces; REQ_110 covers the data surface.** They're a matched pair for v1.0; neither alone constitutes the publication story. REQ_103 also carries the first-impression / repo-presentation work (root README polish, `research/` directory restructure validation, fieldnotes Platform section). The user explicitly named first-impression cost as significant for an independent researcher without existing social capital.

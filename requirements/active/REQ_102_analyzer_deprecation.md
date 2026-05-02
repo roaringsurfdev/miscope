@@ -3,7 +3,7 @@
 **Status:** Draft
 **Priority:** Medium
 **Branch:** TBD
-**Dependencies:** REQ_106 (defines the layering principles whose violation is one of the deprecation criteria); REQ_097 (frequency consolidation provides the replacement for `dominant_frequencies`); REQ_098 (PCA consolidation absorbs `effective_dimensionality` and parts of `centroid_dmd`).
+**Dependencies:** REQ_106 (defines the layering principles whose violation is one of the deprecation criteria); REQ_109 (supplies the primitive layer the new analyzers consume — formerly REQ_097 + REQ_098 + REQ_104, now consolidated); REQ_111 (parallel analyzer build-out + parity validation — gates "migrate-track" retirements: no analyzer is listed for retirement here without a recorded REQ_111 validation outcome).
 **Attribution:** Engineering Claude
 
 ---
@@ -25,6 +25,11 @@ as a standalone analyzer (its outputs become fields on `PCAResult`).
 `dominant_frequencies` is similarly retired by REQ_097 (frequency cleanup).
 
 REQ_106 introduces a third deprecation criterion: **layering-principle violations that cannot be migrated within the consolidation effort.** An analyzer that re-implements an upstream derivation, mixes data-plane access into measure code, or cannot conform to declared-dependencies discipline is a deprecation candidate if migration would amount to a rewrite. Audit before declaring; some violations are migrations, not retirements.
+
+**Two retirement tracks** (clarified after REQ_111 carve-out):
+
+- **No-replacement retirements** — analyzers with no canonical successor: `coarseness`, `fourier_nucleation`, exploratory paths in `centroid_dmd` not extracted. These can be retired here directly once the audit confirms no live consumers.
+- **Migrate-track retirements** — analyzers whose canonical successor is being built in parallel under REQ_111: `dominant_frequencies` → new site-aware Fourier analyzer; `effective_dimensionality` → absorbed into PCA-result fields; `parameter_trajectory_pca`, `freq_group_weight_geometry`, `repr_geometry`, `neuron_group_pca`, `global_centroid_pca`, `centroid_dmd` (PCA paths) → consolidated PCA analyzers in REQ_111. **No migrate-track analyzer is listed for retirement here until its REQ_111 parity validation outcome is recorded** (matches / old-has-bug / new-has-bug-fixed / both-kept).
 
 ---
 
