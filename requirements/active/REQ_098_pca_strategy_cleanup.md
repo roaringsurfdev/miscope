@@ -1,12 +1,12 @@
 # REQ_098: PCA Strategy Cleanup (Single Computational Path)
 
-**Status:** Superseded by REQ_109 (Measurement Primitives Library)
+**Status:** Superseded — primitive scope landed in REQ_109; analyzer-integration scope tracks under REQ_111
 **Priority:** High
 **Branch:** TBD (incubating on `refactor-dataview`)
 **Dependencies:** None blocking. REQ_097 (frequency) is parallel.
 **Attribution:** Engineering Claude
 
-> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (the `pca` / `pca_summary` / `pca_rolling` primitives, `PCAResult` canonical type, removal of scattered PCA implementations, analyzer migration to a single computational path) was consolidated with REQ_097 (Fourier) and REQ_104 (Geometry) into a single primitives-library REQ. The three-mode framing — base PCA, summary/trajectory PCA, rolling PCA — carries forward into REQ_109 unchanged and seeds the `operation_type` enum in REQ_110. Implementation tracks under REQ_109.
+> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (the `pca` / `pca_summary` / `pca_rolling` primitives, `PCAResult` canonical type, removal of scattered PCA implementations, analyzer migration to a single computational path) was consolidated with REQ_097 (Fourier) and REQ_104 (Geometry) into a single primitives-library REQ. The three-mode framing — base PCA, summary/trajectory PCA, rolling PCA — carries forward into REQ_109 unchanged and seeds the `operation_type` enum in REQ_110. Primitive scope landed under REQ_109; the analyzer-integration / view-renderer-migration / removal scope below (new `learned_parameters_pca`, `frequency_group_geometry`, `activation_class_geometry` analyzers, deprecation of `compute_pca_trajectory` / `fit_centroid_pca` / `compute_global_centroid_pca` / `centroid_dmd` PCA path) was carved into **REQ_111 (Parallel Analyzer Build-Out)** and **REQ_102 (Analyzer Deprecation)**, gated on REQ_111 parity validation.
 
 ---
 

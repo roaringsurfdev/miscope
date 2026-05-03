@@ -1,12 +1,12 @@
 # REQ_104: Geometry Consolidation (Curvature, Sigmoidality, Circularity, Jerk)
 
-**Status:** Superseded by REQ_109 (Measurement Primitives Library)
+**Status:** Superseded — primitive scope landed in REQ_109; analyzer-integration scope tracks under REQ_111
 **Priority:** Medium
 **Branch:** TBD
 **Dependencies:** REQ_106 (layering principle — geometry functions are *measures*, not derivations); REQ_098 (PCA primitives — geometry consumes PCA output, not raw matrices).
 **Attribution:** Engineering Claude
 
-> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (curvature, sigmoidality, circularity, jerk, arc length, self-intersection, loop area, Lissajous, Procrustes — consolidated under one geometry library) was folded into REQ_109's "shape characterization" and "shape comparison" categories. The layering-violation framing (geometry functions silently re-fitting their own PCA) is preserved in REQ_109 verbatim — the fix is the same: the caller materializes `PCAResult` once; characterization functions consume it. The "fit" → "characterize" / "describe" rename also originated from feedback on this REQ. Implementation tracks under REQ_109.
+> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (curvature, sigmoidality, circularity, jerk, arc length, self-intersection, loop area, Lissajous, Procrustes — consolidated under one geometry library) was folded into REQ_109's "shape characterization" and "shape comparison" categories. The layering-violation framing (geometry functions silently re-fitting their own PCA) is preserved in REQ_109 verbatim — the fix is the same: the caller materializes `PCAResult` once; characterization functions consume it. The "fit" → "characterize" / "describe" rename also originated from feedback on this REQ. Primitive scope landed under REQ_109; the caller-side migration scope below (updating callers to consume the new primitives, renderer-side migration coordinated with REQ_099, removal of unused exports in `trajectory.py`) was carved into **REQ_111 (Parallel Analyzer Build-Out)** and tracks there.
 
 ---
 

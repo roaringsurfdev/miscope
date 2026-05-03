@@ -1,8 +1,8 @@
 # REQ_109: Measurement Primitives Library
 
-**Status:** Draft — phase 2c-2 complete (Lissajous + Sigmoidality landed in PR #29); phase 2d (`procrustes_align`) outstanding before clean close.
+**Status:** Complete — all six primitive categories landed; analyzer-integration scope handed off to REQ_111.
 **Priority:** High
-**Branch:** TBD (currently incubating on `refactor-dataview`)
+**Branch:** Multiple feature branches; phase 2d on `feature/procrustes-primitive` (PR #30).
 **Supersedes:** REQ_097 (Frequency Cleanup), REQ_098 (PCA Strategy Cleanup), REQ_104 (Geometry Consolidation).
 **Dependencies:** REQ_106 (layering principle — primitives are *measures* with pure-input forms; variant-coupled wrappers are thin convenience layers).
 **Successor (analyzer integration):** REQ_111 (Parallel Analyzer Build-Out) — the integration phase that consumes these primitives. Originally written into this REQ as in-place "Analyzer migration"; carved out after the primitive design pass surfaced bugs in pre-REQ_109 derivation paths (arctan vs arctan2, DC fictitious row, dtype regression in `compute_class_centroids`). In-place migration would have silently encoded or fixed those bugs; parallel construction in REQ_111 records the answer.
@@ -88,9 +88,10 @@ The library exposes primitives in six categories. Each primitive is a pure funct
 
 #### 5. Shape Comparison
 
-- [ ] `miscope/analysis/library/comparison.py` exposes:
-  - `procrustes_align(X, Y, scaling=True, reflection=True) -> ProcrustesResult` — extracted from `notebooks/parameter_trajectory_pca.ipynb`. Returns aligned matrix, transformation, and disparity.
-- [ ] Other comparison primitives (Hausdorff distance, dynamic time warping, etc.) are out of scope until a research use case appears.
+- [x] `miscope/analysis/library/comparison.py` exposes:
+  - `procrustes_align(a, b) -> ProcrustesResult` — extracted from `notebooks/parameter_trajectory_pca.ipynb`. Wraps `scipy.spatial.procrustes` for bit-exact compatibility; result carries `disparity`, `standardized_a`, `aligned_b`, `n_points`, `n_features`.
+  - `compute_procrustes_disparity_matrix(trajectories) -> ndarray` — pairwise N×N convenience over the single-pair primitive; symmetric, zero diagonal, NaN on degenerate input.
+- [x] Other comparison primitives (Hausdorff distance, dynamic time warping, etc.) are out of scope until a research use case appears.
 
 #### 6. Velocity / Derivative Measures
 
@@ -199,9 +200,9 @@ The categories have unequal complexity. Phasing as actually executed (with statu
 1. ✅ **PCA + clustering metrics + velocity primitives** — landed across REQ_109 phase 1 work. `library/pca.py`, `library/clustering.py`, `library/trajectory.py::compute_parameter_velocity`.
 2. ✅ **Fourier groundwork** — `library/fourier_basis.py` (PR #28). `PeriodicFourierBasis`, `project_onto_fourier_basis`, `compute_specialization`. The legacy `library/fourier.py` callers (`dominant_frequencies`, `neuron_fourier`, `attention_freq`, `transient_frequency`) are not retired here — that's REQ_111 work.
 3. ✅ **Shape characterization (phase 2a–2c-2)** — `characterize_circularity`, `characterize_fourier_alignment`, `characterize_jerk`, `characterize_surface`, `characterize_lissajous`, `characterize_sigmoidality`, plus curve-shape helpers (`compute_arc_length`, `detect_self_intersection`, `compute_signed_loop_area`, `compute_curvature_profile`). Shipped in PRs #26, #27, #28, #29.
-4. ⬜ **Shape comparison (phase 2d)** — `procrustes_align` in `library/comparison.py`. Single primitive, low risk; the closing piece for clean REQ_109 close.
+4. ✅ **Shape comparison (phase 2d)** — `procrustes_align` and `compute_procrustes_disparity_matrix` in `library/comparison.py` (PR #30). Validated bit-exact against the notebook implementation on the canon reference triple (p109/s485/ds598, p113/s999/ds598, p101/s999/ds598).
 
-After phase 2d lands, REQ_109 closes. Analyzer-level integration moves to REQ_111.
+REQ_109 closes with phase 2d. Analyzer-level integration tracks under REQ_111.
 
 ### Acceptance test: the grep tests
 
@@ -224,4 +225,4 @@ The library-side greps are part of CI once REQ_109 closes. Analyzer-side greps m
 - Some primitives may want a *tensor-friendly* path (e.g., `pca_per_matrix` over a stack of `(n_matrices, samples, features)`) in addition to the single-call path. Defer until a real call site needs it; speculative tensor-vectorization invites complexity ahead of demand.
 - `manifold_geometry.py` is a candidate for full absorption into `shape.py`. Decide during implementation; default to absorption unless a clear conceptual boundary emerges.
 - This REQ is the prerequisite for REQ_110 (Lakehouse Surface) and REQ_111 (Parallel Analyzer Build-Out). Tabular outputs (REQ_110) are downstream of typed measurement results — once primitives return `PCAResult` consistently, the tabular form is a flatten of `PCAResult` over the natural dimension columns. Analyzer integration (REQ_111) is downstream of primitive stability — the parallel-build pattern is what catches latent bugs that in-place migration would have silently encoded.
-- **Phase tracking.** Phase 2c-2 (Lissajous + Sigmoidality) landed in PR #29. Phase 2d (`procrustes_align`) is the last outstanding primitive. After that lands, REQ_109 closes and REQ_111 takes over.
+- **Phase tracking.** Phase 2c-2 (Lissajous + Sigmoidality) landed in PR #29. Phase 2d (`procrustes_align`) landed in PR #30 — the closing primitive. REQ_109 is complete; REQ_111 takes over for analyzer-level integration.

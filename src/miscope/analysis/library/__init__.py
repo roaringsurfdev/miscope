@@ -26,6 +26,11 @@ from miscope.analysis.library.clustering import (
     compute_class_radii,
     compute_fisher_discriminant,
 )
+from miscope.analysis.library.comparison import (
+    ProcrustesResult,
+    compute_procrustes_disparity_matrix,
+    procrustes_align,
+)
 from miscope.analysis.library.fourier import (
     compose_neuron_fourier_weights,
     compute_2d_fourier_transform,
@@ -97,6 +102,10 @@ __all__ = [
     "compute_class_dimensionality",
     "compute_center_spread",
     "compute_fisher_discriminant",
+    # Trajectory comparison
+    "procrustes_align",
+    "ProcrustesResult",
+    "compute_procrustes_disparity_matrix",
     # Shape characterization
     "characterize_circularity",
     "characterize_fourier_alignment",

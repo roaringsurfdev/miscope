@@ -1,12 +1,12 @@
 # REQ_097: Frequency Cleanup (Site-Coupled Frequency Analysis)
 
-**Status:** Superseded by REQ_109 (Measurement Primitives Library)
+**Status:** Superseded — primitive scope landed in REQ_109; analyzer-integration scope tracks under REQ_111
 **Priority:** High
 **Branch:** TBD (currently incubating on `refactor-dataview` for discovery)
 **Dependencies:** REQ_106 (layering principle — frequency primitives must have a pure-input form distinct from variant-coupled convenience wrappers); REQ_098 (PCA strategy) is parallel; REQ_100 (storage) provides the caching seam.
 **Attribution:** Engineering Claude
 
-> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (Fourier primitives, site-coupled frequency analysis, the `frequency_spectrum_per_site` analyzer, the lissajous-fix test case) was consolidated with REQ_098 (PCA) and REQ_104 (Geometry) into a single primitives-library REQ. Content preserved here for archaeology — the framing of "three meanings of learned frequencies," the site-coupling type rules, and the THRESHOLDS registry design all carry forward unchanged into REQ_109's Fourier section. Implementation tracks under REQ_109.
+> **Superseded by REQ_109 (Measurement Primitives Library).** This REQ's scope (Fourier primitives, site-coupled frequency analysis, the `frequency_spectrum_per_site` analyzer, the lissajous-fix test case) was consolidated with REQ_098 (PCA) and REQ_104 (Geometry) into a single primitives-library REQ. Content preserved here for archaeology — the framing of "three meanings of learned frequencies," the site-coupling type rules, and the THRESHOLDS registry design all carry forward unchanged into REQ_109's Fourier section. Primitive scope landed under REQ_109; the analyzer-integration / migration / consumer-rewire scope below (new analyzer, migration of consumers) was carved into **REQ_111 (Parallel Analyzer Build-Out)** and tracks there.
 
 ---
 
