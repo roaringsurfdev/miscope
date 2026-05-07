@@ -220,8 +220,8 @@ __marimo__/
 /results_regression*
 *.pth
 /temp_artifacts
-/notebooks/animations
-/notebooks/exports
+/apps/research/animations
+/apps/research/exports
 /articles
 /docs/notes
 /apps/fieldnotes/src/content/drafts/*.mdx

@@ -7,7 +7,7 @@
 #   5. Healthy (p=113) vs. anomalous (p=101) comparison
 #
 # Requires: neuron_fourier artifacts computed for both variants.
-# Run notebooks/run_analysis.py first if artifacts are missing.
+# Run scripts/run_analysis.py first if artifacts are missing.
 
 # %% imports
 import sys

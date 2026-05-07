@@ -40,7 +40,7 @@ def sha256_file(path: Path) -> str:
 def run_pipeline(variant, force: bool) -> None:
     """Run the analysis pipeline for a variant.
 
-    Analyzer set matches notebooks/run_analysis_regression.py — the
+    Analyzer set matches scripts/run_analysis_regression.py — the
     script the user runs on develop to refresh REQ_112 reference
     checksums. Keep these in sync; byte-identity comparison requires
     the same set.

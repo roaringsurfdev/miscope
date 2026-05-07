@@ -1,23 +1,22 @@
 # %% imports
 import io
-import sys
 import os
+import sys
 from pathlib import Path
 
 import plotly.graph_objects as go
 from PIL import Image
 
-import numpy as np
-
 parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
-from miscope import load_family
-from miscope import visualization
-from miscope.loaded_family import Variant
-#from miscope.visualization.export import export_animation
+from miscope import load_family  # noqa: E402
+from miscope.loaded_family import Variant  # noqa: E402
+
+# from miscope.visualization.export import export_animation
 
 # %% create animation method
+
 
 def _save_gif(frames: list[Image.Image], output_path: Path, fps: int) -> None:
     """Save a list of PIL Images as an animated GIF."""
@@ -32,10 +31,12 @@ def _save_gif(frames: list[Image.Image], output_path: Path, fps: int) -> None:
         loop=0,
     )
 
+
 def _fig_to_pil(fig: go.Figure, width: int, height: int, scale: int) -> Image.Image:
     """Render a Plotly figure to a PIL Image (in memory, no temp files)."""
     png_bytes = fig.to_image(format="png", width=width, height=height, scale=scale)
     return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+
 
 def export_animation(
     variant: Variant,
@@ -86,13 +87,14 @@ def export_animation(
     frames: list[Image.Image] = []
     for epoch in epochs:
         ctx = variant.at(epoch)
-        fig =ctx.view(view_name).figure(**view_kwargs)
+        fig = ctx.view(view_name).figure(**view_kwargs)
         frame = _fig_to_pil(fig, width, height, scale)
         frames.append(frame)
         print(f"Frame added for epoch: {epoch}")
 
     _save_gif(frames, output_path, fps)
     return output_path
+
 
 # %% load model and list variants
 START_EPOCH = 0
@@ -101,7 +103,9 @@ END_EPOCH = 25000
 family = load_family("modulo_addition_1layer")
 variant = family.get_variant(prime=113, seed=999, data_seed=999)
 all_checkpoints = variant.get_available_checkpoints()
-checkpoint_range = [epoch for epoch in all_checkpoints if epoch >= START_EPOCH and epoch <= END_EPOCH]
+checkpoint_range = [
+    epoch for epoch in all_checkpoints if epoch >= START_EPOCH and epoch <= END_EPOCH
+]
 print(all_checkpoints)
 
 # site = "resid_post"
@@ -111,8 +115,17 @@ matrix = "Wout"
 view_name = "weight_geometry.centroid_pca"
 view_kwargs = {"matrix": matrix}
 
-output_path = os.path.join("animations", f"{variant.name}_{view_name}_{matrix}.gif")
+output_path = os.path.join(
+    "apps", "research", "animations", f"{variant.name}_{view_name}_{matrix}.gif"
+)
 
-export_animation(variant, view_name=view_name, output_path=output_path, fps=2, epochs=checkpoint_range, **view_kwargs)
+export_animation(
+    variant,
+    view_name=view_name,
+    output_path=output_path,
+    fps=2,
+    epochs=checkpoint_range,
+    **view_kwargs,
+)
 
 # %%

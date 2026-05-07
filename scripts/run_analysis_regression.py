@@ -4,20 +4,19 @@
 # is safe and only computes missing data.
 #
 # Usage: Run all cells, or run from the command line:
-#   python notebooks/run_analysis.py
+#   python scripts/run_analysis_regression.py
 
 # %% imports
-import sys
 import os
+import sys
 import time
 
 parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
-from miscope import load_family
-from miscope.analysis import AnalysisPipeline
-#from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
-from miscope.analysis.analyzers import (
+from miscope import load_family  # noqa: E402
+from miscope.analysis import AnalysisPipeline  # noqa: E402
+from miscope.analysis.analyzers import (  # noqa: E402
     AttentionFourierAnalyzer,
     AttentionFreqAnalyzer,
     AttentionPatternsAnalyzer,
@@ -25,12 +24,13 @@ from miscope.analysis.analyzers import (
     DominantFrequenciesAnalyzer,
     EffectiveDimensionalityAnalyzer,
     FourierFrequencyQualityAnalyzer,
-    FourierNucleationAnalyzer,
+    # FourierNucleationAnalyzer,
+    FreqGroupWeightGeometryAnalyzer,
     GlobalCentroidPCA,
     InputTraceAnalyzer,
     InputTraceGraduationAnalyzer,
     IntraGroupManifoldAnalyzer,
-    LandscapeFlatnessAnalyzer,
+    # LandscapeFlatnessAnalyzer,
     NeuronActivationsAnalyzer,
     NeuronDynamicsAnalyzer,
     NeuronFourierAnalyzer,
@@ -40,14 +40,13 @@ from miscope.analysis.analyzers import (
     ParameterTrajectoryPCA,
     RepresentationalGeometryAnalyzer,
     TransientFrequencyAnalyzer,
-    FreqGroupWeightGeometryAnalyzer,
 )
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
 COOLING_NEEDED = False
-COOLING_PERIOD = 1 * 20 # timer to allow machine to cool between runs
+COOLING_PERIOD = 1 * 20  # timer to allow machine to cool between runs
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
@@ -60,18 +59,21 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = []
+# include_list = ['modulo_addition_1layer_p113_seed999_dseed598']
+include_list = ["modulo_addition_1layer_p109_seed485_dseed598"]
 for i, variant in enumerate(variants):
-    print(f"\n{'='*60}")
-    print(f"[{i+1}/{len(variants)}] {variant.name}")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print(f"[{i + 1}/{len(variants)}] {variant.name}")
+    print(f"{'=' * 60}")
 
     if not variant._has_checkpoints():
         print("  SKIPPED: No checkpoints")
         results.append((variant.name, "skipped", 0))
         continue
 
-    if (variant.name in exclude_list) or (len(include_list) > 0 and variant.name not in include_list):
+    if (variant.name in exclude_list) or (
+        len(include_list) > 0 and variant.name not in include_list
+    ):
         print("  SKIPPED: In exclude list")
         results.append((variant.name, "skipped", 0))
         continue
@@ -83,28 +85,29 @@ for i, variant in enumerate(variants):
 
     try:
         pipeline = AnalysisPipeline(variant)
-        # pipeline.register(AttentionFreqAnalyzer())
-        # pipeline.register(AttentionPatternsAnalyzer())
-        # pipeline.register(DominantFrequenciesAnalyzer())
-        # pipeline.register(InputTraceAnalyzer())
-        # pipeline.register(NeuronActivationsAnalyzer())
-        # pipeline.register(NeuronFreqClustersAnalyzer())
-        # pipeline.register(ParameterSnapshotAnalyzer())
-        # pipeline.register(EffectiveDimensionalityAnalyzer())
+        pipeline.register(AttentionFreqAnalyzer())
+        pipeline.register(AttentionPatternsAnalyzer())
+        pipeline.register(DominantFrequenciesAnalyzer())
+        pipeline.register(InputTraceAnalyzer())
+        pipeline.register(NeuronActivationsAnalyzer())
+        pipeline.register(NeuronFreqClustersAnalyzer())
+        pipeline.register(ParameterSnapshotAnalyzer())
+        pipeline.register(EffectiveDimensionalityAnalyzer())
+        # LandscapeFlatnessAnalyzer excluded: stochastic by design, not regression-testable
         # pipeline.register(LandscapeFlatnessAnalyzer())
-        # pipeline.register(RepresentationalGeometryAnalyzer())
-        # pipeline.register(AttentionFourierAnalyzer())
+        pipeline.register(RepresentationalGeometryAnalyzer())
+        pipeline.register(AttentionFourierAnalyzer())
         # pipeline.register(FourierNucleationAnalyzer())
-        # pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-        # pipeline.register_secondary(NeuronFourierAnalyzer())
-        # pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
-        # pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-        #pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-        # pipeline.register_cross_epoch(ParameterTrajectoryPCA())
-        # pipeline.register_cross_epoch(GlobalCentroidPCA())
-        # pipeline.register_cross_epoch(CentroidDMD())
-        # pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
-        #pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
+        pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
+        pipeline.register_secondary(NeuronFourierAnalyzer())
+        pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
+        pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
+        pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
+        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(GlobalCentroidPCA())
+        pipeline.register_cross_epoch(CentroidDMD())
+        pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
+        pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
         pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
         pipeline.run(force=FORCE, progress_callback=progress_callback)
         elapsed = time.time() - start
@@ -120,11 +123,10 @@ for i, variant in enumerate(variants):
         results.append((variant.name, "failed", elapsed))
 
 # %% summary
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 print("Summary")
-print(f"{'='*60}")
+print(f"{'=' * 60}")
 total_time = sum(r[2] for r in results)
 for name, status, elapsed in results:
     print(f"  {status:>8s}  {elapsed:6.1f}s  {name}")
-print(f"\nTotal: {total_time:.0f}s ({total_time/60:.1f} min)")
-
+print(f"\nTotal: {total_time:.0f}s ({total_time / 60:.1f} min)")

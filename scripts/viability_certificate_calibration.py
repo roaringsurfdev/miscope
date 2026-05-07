@@ -23,7 +23,6 @@
 # healthy case, the metric definitions need revision before going onto the dashboard.
 
 # %% imports
-import json
 import sys
 from itertools import combinations
 from pathlib import Path
@@ -33,7 +32,6 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "miscope" / "src"))
-from miscope import load_family
 
 # %% Configuration
 
@@ -41,9 +39,27 @@ D_MODEL = 128
 REGISTRY_PATH = Path("results/modulo_addition_1layer/variant_registry.json")
 
 CALIBRATION_CASES = [
-    {"label": "p59/s999 healthy",      "prime": 59,  "freqs": [5, 15, 21],       "W_E_PR": 18.26, "outcome": "healthy"},
-    {"label": "p59/s485 late (2 freq)","prime": 59,  "freqs": [5, 21],           "W_E_PR": 14.36, "outcome": "late_grokker"},
-    {"label": "p101/s999 aliasing",    "prime": 101, "freqs": [35, 41, 43, 44],  "W_E_PR": 22.56, "outcome": "late_grokker"},
+    {
+        "label": "p59/s999 healthy",
+        "prime": 59,
+        "freqs": [5, 15, 21],
+        "W_E_PR": 18.26,
+        "outcome": "healthy",
+    },
+    {
+        "label": "p59/s485 late (2 freq)",
+        "prime": 59,
+        "freqs": [5, 21],
+        "W_E_PR": 14.36,
+        "outcome": "late_grokker",
+    },
+    {
+        "label": "p101/s999 aliasing",
+        "prime": 101,
+        "freqs": [35, 41, 43, 44],
+        "W_E_PR": 22.56,
+        "outcome": "late_grokker",
+    },
 ]
 
 CASE_COLORS = ["#2196F3", "#FF9800", "#F44336"]  # blue, orange, red
@@ -179,17 +195,19 @@ for case in CALIBRATION_CASES:
     mean_alias = np.mean(list(alias.values()))
     max_alias = max(alias.values())
 
-    results.append({
-        **case,
-        "dims": dims,
-        "min_dists": min_dists,
-        "alias_per_freq": alias,
-        "ambient_min_dist": ambient_min_dist,
-        "compressed_min_dist": compressed_min_dist,
-        "mean_alias": float(mean_alias),
-        "max_alias": float(max_alias),
-        "n_freqs": len(freqs),
-    })
+    results.append(
+        {
+            **case,
+            "dims": dims,
+            "min_dists": min_dists,
+            "alias_per_freq": alias,
+            "ambient_min_dist": ambient_min_dist,
+            "compressed_min_dist": compressed_min_dist,
+            "mean_alias": float(mean_alias),
+            "max_alias": float(max_alias),
+            "n_freqs": len(freqs),
+        }
+    )
 
     print(f"{case['label']}  ({case['outcome']})")
     print(f"  Freqs:              {freqs}")
@@ -207,13 +225,15 @@ for case in CALIBRATION_CASES:
 
 fig1 = go.Figure()
 for r, color in zip(results, CASE_COLORS):
-    fig1.add_trace(go.Scatter(
-        x=r["dims"],
-        y=r["min_dists"],
-        mode="lines",
-        name=r["label"],
-        line=dict(color=color, width=2),
-    ))
+    fig1.add_trace(
+        go.Scatter(
+            x=r["dims"],
+            y=r["min_dists"],
+            mode="lines",
+            name=r["label"],
+            line=dict(color=color, width=2),
+        )
+    )
     # Mark observed crossover PR
     fig1.add_vline(
         x=r["W_E_PR"],
@@ -247,14 +267,17 @@ print("Centroid subspace dims vs W_E PR:")
 for case in CALIBRATION_CASES:
     subspace = 2 * len(case["freqs"])
     margin = case["W_E_PR"] - subspace
-    print(f"  {case['label']}: 2|F|={subspace}, W_E_PR={case['W_E_PR']:.1f} "
-          f"→ {margin:.1f} dims above cliff")
+    print(
+        f"  {case['label']}: 2|F|={subspace}, W_E_PR={case['W_E_PR']:.1f} "
+        f"→ {margin:.1f} dims above cliff"
+    )
 
 
 # %% ── Figure 2: Aliasing risk per frequency ────────────────────────────────
 
 fig2 = make_subplots(
-    rows=1, cols=3,
+    rows=1,
+    cols=3,
     subplot_titles=[r["label"] for r in results],
     shared_yaxes=True,
 )
@@ -263,7 +286,8 @@ for col, (r, color) in enumerate(zip(results, CASE_COLORS), start=1):
     risks = list(r["alias_per_freq"].values())
     fig2.add_trace(
         go.Bar(x=[str(k) for k in freqs], y=risks, marker_color=color, showlegend=False),
-        row=1, col=col,
+        row=1,
+        col=col,
     )
     # Mark Nyquist threshold at 0.5
     fig2.add_hline(y=0.5, line=dict(color="black", dash="dash", width=1), row=1, col=col)
@@ -284,23 +308,30 @@ fig2.show()
 
 fig3 = go.Figure()
 for r, color in zip(results, CASE_COLORS):
-    fig3.add_trace(go.Scatter(
-        x=[r["compressed_min_dist"]],
-        y=[r["max_alias"]],
-        mode="markers+text",
-        name=r["label"],
-        marker=dict(color=color, size=16),
-        text=[r["label"]],
-        textposition="top center",
-    ))
+    fig3.add_trace(
+        go.Scatter(
+            x=[r["compressed_min_dist"]],
+            y=[r["max_alias"]],
+            mode="markers+text",
+            name=r["label"],
+            marker=dict(color=color, size=16),
+            text=[r["label"]],
+            textposition="top center",
+        )
+    )
 
 fig3.add_vline(x=0.0, line_dash="dot", line_color="gray")
-fig3.add_hline(y=0.5, line_dash="dot", line_color="gray",
-               annotation_text="Nyquist 0.5", annotation_position="right")
+fig3.add_hline(
+    y=0.5,
+    line_dash="dot",
+    line_color="gray",
+    annotation_text="Nyquist 0.5",
+    annotation_position="right",
+)
 
 fig3.update_layout(
     title="Metric space — compressed separation vs max aliasing risk<br>"
-          "<sup>Healthy: high separation (right) + low aliasing (bottom)</sup>",
+    "<sup>Healthy: high separation (right) + low aliasing (bottom)</sup>",
     xaxis_title="Min dist at observed W_E PR (compressed separation)",
     yaxis_title="Max aliasing risk across freq set",
     template="plotly_white",
@@ -334,8 +365,10 @@ for case in CALIBRATION_CASES:
         print(f"  Ideal set (size {size}): {ideal_set}  min_dist={ideal_dist:.4f}")
         if size == n:
             print(f"  Actual set (size {n}): {case['freqs']}  min_dist={actual_dist:.4f}")
-            print(f"  Gap from ideal: {ideal_dist - actual_dist:.4f}  "
-                  f"({100*(ideal_dist - actual_dist)/ideal_dist:.1f}%)")
+            print(
+                f"  Gap from ideal: {ideal_dist - actual_dist:.4f}  "
+                f"({100 * (ideal_dist - actual_dist) / ideal_dist:.1f}%)"
+            )
             ideal_results[label] = {
                 "ideal_set": ideal_set,
                 "ideal_dist": ideal_dist,
@@ -360,17 +393,23 @@ for case, r in zip(CALIBRATION_CASES, results):
     i_dims, i_dists = separation_under_compression(prime, ideal_set)
     ideal_compressed.append(pr_to_dim(case["W_E_PR"], i_dims, i_dists))
 
-fig4.add_trace(go.Bar(
-    name="Actual freq set",
-    x=labels, y=actual_dists,
-    marker_color=CASE_COLORS,
-))
-fig4.add_trace(go.Bar(
-    name="Ideal freq set (same size)",
-    x=labels, y=ideal_compressed,
-    marker_color=["rgba(33,150,243,0.3)", "rgba(255,152,0,0.3)", "rgba(244,67,54,0.3)"],
-    marker_line=dict(color=CASE_COLORS, width=2),
-))
+fig4.add_trace(
+    go.Bar(
+        name="Actual freq set",
+        x=labels,
+        y=actual_dists,
+        marker_color=CASE_COLORS,
+    )
+)
+fig4.add_trace(
+    go.Bar(
+        name="Ideal freq set (same size)",
+        x=labels,
+        y=ideal_compressed,
+        marker_color=["rgba(33,150,243,0.3)", "rgba(255,152,0,0.3)", "rgba(244,67,54,0.3)"],
+        marker_line=dict(color=CASE_COLORS, width=2),
+    )
+)
 
 fig4.update_layout(
     title="Compressed separation: actual vs ideal frequency set (at each case's W_E PR)",

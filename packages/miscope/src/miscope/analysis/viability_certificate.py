@@ -7,7 +7,7 @@ All computation is purely analytical — no model weights required.
 The only empirical input is the observed W_E participation ratio at the
 effective-dimensionality crossover epoch.
 
-Calibrated thresholds (from notebooks/viability_certificate_calibration.py):
+Calibrated thresholds (from scripts/viability_certificate_calibration.py):
   max_alias > 0.80  →  aliasing failure risk
   gap_pct   > 30%   →  coverage concern
   2|F| > W_E_PR     →  compression constraint is binding (rare in corpus)

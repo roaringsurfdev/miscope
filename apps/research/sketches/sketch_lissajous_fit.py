@@ -30,7 +30,7 @@ from plotly.subplots import make_subplots
 import argparse
 
 RESULTS = Path("results/modulo_addition_1layer")
-OUT_DIR = Path("notebooks/exports")
+OUT_DIR = Path("apps/research/exports")
 OUT_DIR.mkdir(exist_ok=True)
 
 

@@ -35,7 +35,7 @@ line-length = 100
 target-version = "py311"
 extend-exclude = [
     "*.ipynb",
-    "notebooks/*"
+    "apps/research/sketches/*",
 ]
 
 [tool.ruff.lint]
@@ -50,5 +50,5 @@ pythonVersion = "3.11"
 typeCheckingMode = "basic"
 ignore = [
     "*.ipynb",
-    "notebooks"
+    "apps/research/sketches",
 ]
