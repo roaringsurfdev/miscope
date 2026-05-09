@@ -52,6 +52,12 @@ from miscope.visualization.renderers.dimensionality_dynamics import (
     build_dimensionality_state_space,
     build_dimensionality_timeseries,
 )
+from miscope.visualization.renderers.activation_dmd import (
+    render_activation_dmd_eigenvalue_migration,
+    render_activation_dmd_per_regime_vs_windowed,
+    render_activation_dmd_residuals_with_regimes,
+    render_activation_dmd_track_trajectories,
+)
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
     render_dmd_reconstruction,
@@ -242,6 +248,11 @@ __all__ = [
     "render_dmd_eigenvalues",
     "render_dmd_residual",
     "render_dmd_reconstruction",
+    # REQ_117: Activation DMD (windowed + per-regime)
+    "render_activation_dmd_residuals_with_regimes",
+    "render_activation_dmd_eigenvalue_migration",
+    "render_activation_dmd_track_trajectories",
+    "render_activation_dmd_per_regime_vs_windowed",
     # REQ_049: Neuron Fourier decomposition
     "render_neuron_fourier_heatmap",
     "render_neuron_fourier_heatmap_output",

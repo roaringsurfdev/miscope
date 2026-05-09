@@ -629,6 +629,61 @@ def _register_all() -> None:
             )
         )
 
+    # --- Activation DMD views (REQ_117) ---
+    # Per-site windowed DMD with peak-based regime detection and per-regime
+    # recursive DMD. All four views load from activation_dmd cross_epoch.npz;
+    # epoch is a cursor.
+
+    def _load_activation_dmd(variant: Variant, epoch: int | None) -> dict:
+        return variant.artifacts.load_cross_epoch("activation_dmd")
+
+    def _render_activation_dmd_residuals(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_activation_dmd_residuals_with_regimes(
+            data, current_epoch=epoch
+        )
+
+    def _render_activation_dmd_eigenvalues(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_activation_dmd_eigenvalue_migration(data)
+
+    def _render_activation_dmd_tracks(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        site = kwargs.pop("site", "mlp_out")
+        return viz.render_activation_dmd_track_trajectories(
+            data, site=site, current_epoch=epoch
+        )
+
+    def _render_activation_dmd_per_regime(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_activation_dmd_per_regime_vs_windowed(
+            data, current_epoch=epoch
+        )
+
+    _activation_dmd_req = [
+        AnalyzerRequirement("activation_dmd", ArtifactKind.CROSS_EPOCH)
+    ]
+
+    for name, renderer in [
+        ("activation_dmd.residuals_with_regimes", _render_activation_dmd_residuals),
+        ("activation_dmd.eigenvalue_migration", _render_activation_dmd_eigenvalues),
+        ("activation_dmd.track_trajectories", _render_activation_dmd_tracks),
+        ("activation_dmd.per_regime_vs_windowed", _render_activation_dmd_per_regime),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_activation_dmd,
+                renderer=renderer,
+                epoch_source_analyzer=None,
+                required_analyzers=_activation_dmd_req,
+            )
+        )
+
     # --- Attention Fourier views (REQ_055) ---
     # Per-epoch heatmaps and stacked temporal alignment trajectory.
 
