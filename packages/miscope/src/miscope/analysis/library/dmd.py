@@ -248,9 +248,7 @@ def track_eigenvalues_across_windows(
         k_prev = int(n_modes_per_window[w - 1])
         k_curr = int(n_modes_per_window[w])
         if k_prev == 0 or k_curr == 0:
-            track_ids[w, :k_curr] = np.arange(
-                next_track_id, next_track_id + k_curr, dtype=np.int64
-            )
+            track_ids[w, :k_curr] = np.arange(next_track_id, next_track_id + k_curr, dtype=np.int64)
             next_track_id += k_curr
             continue
 
@@ -464,15 +462,11 @@ def compute_per_regime_dmd(
     per_segment: list[dict[str, np.ndarray] | None] = []
     for s, e in zip(segment_starts, segment_ends):
         if e <= s or e > n_steps or s < 0:
-            raise ValueError(
-                f"invalid segment [{s}, {e}) on trajectory with {n_steps} steps"
-            )
+            raise ValueError(f"invalid segment [{s}, {e}) on trajectory with {n_steps} steps")
         if (e - s) < 2:
             per_segment.append(None)
         else:
-            per_segment.append(
-                compute_dmd(trajectory[s:e], energy_threshold=energy_threshold)
-            )
+            per_segment.append(compute_dmd(trajectory[s:e], energy_threshold=energy_threshold))
 
     n_modes_per_segment = np.array(
         [int(d["n_modes"]) if d is not None else 0 for d in per_segment],
@@ -540,9 +534,7 @@ def _merge_short_segments(
             if length >= min_length:
                 continue
             left_len = ends_list[i - 1] - starts_list[i - 1] if i > 0 else -1
-            right_len = (
-                ends_list[i + 1] - starts_list[i + 1] if i < len(starts_list) - 1 else -1
-            )
+            right_len = ends_list[i + 1] - starts_list[i + 1] if i < len(starts_list) - 1 else -1
             if right_len < 0 or (left_len >= right_len and left_len > 0):
                 # Merge into left
                 ends_list[i - 1] = ends_list[i]
@@ -559,9 +551,6 @@ def _merge_short_segments(
     new_ends = np.array(ends_list, dtype=np.int64)
     new_boundaries = new_starts[1:].copy()
     return new_starts, new_ends, new_boundaries
-
-
-
 
 
 def _truncation_rank(singular_values: np.ndarray, energy_threshold: float) -> int:

@@ -24,6 +24,8 @@ from miscope.analysis.library.dmd import (
 from miscope.analysis.protocols import CrossEpochAnalyzer
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
+
+
 def _make_trajectory(n_steps: int, state_dim: int, seed: int = 0) -> np.ndarray:
     rng = np.random.default_rng(seed)
     return rng.normal(size=(n_steps, state_dim))
@@ -92,9 +94,7 @@ class TestComputeWindowedDmd:
 
     def test_window_ends_match_starts_plus_size(self):
         result = compute_windowed_dmd(_make_trajectory(20, 6), window_size=5)
-        np.testing.assert_array_equal(
-            result["window_ends"], result["window_starts"] + 5
-        )
+        np.testing.assert_array_equal(result["window_ends"], result["window_starts"] + 5)
 
     def test_eigenvalues_shape(self):
         traj = _make_trajectory(20, 6)
@@ -124,7 +124,7 @@ class TestComputeWindowedDmd:
         max_modes = int(result["max_modes"])
         for i, k in enumerate(result["n_modes_per_window"]):
             if int(k) < max_modes:
-                assert np.isnan(result["eigenvalues"][i, int(k):]).all()
+                assert np.isnan(result["eigenvalues"][i, int(k) :]).all()
 
     def test_n_modes_per_window_positive(self):
         result = compute_windowed_dmd(_make_trajectory(20, 6), window_size=5)
@@ -152,9 +152,7 @@ class TestComputeWindowedDmd:
         # Windows that straddle (start in [11, 14]) should show elevated residuals
         # vs. windows fully inside a regime. Use a relaxed check: max
         # straddling residual should exceed the median in-regime residual.
-        in_regime_starts = (result["window_starts"] <= 10) | (
-            result["window_starts"] >= 16
-        )
+        in_regime_starts = (result["window_starts"] <= 10) | (result["window_starts"] >= 16)
         straddling_starts = ~in_regime_starts
         in_regime_median = np.median(result["residual_norm_mean"][in_regime_starts])
         straddling_max = result["residual_norm_mean"][straddling_starts].max()
@@ -291,9 +289,7 @@ class TestTrackEigenvaluesAcrossWindows:
         """End-to-end: windowed DMD output feeds tracking primitive cleanly."""
         traj = _make_trajectory(20, 6, seed=7)
         dmd = compute_windowed_dmd(traj, window_size=5)
-        result = track_eigenvalues_across_windows(
-            dmd["eigenvalues"], dmd["n_modes_per_window"]
-        )
+        result = track_eigenvalues_across_windows(dmd["eigenvalues"], dmd["n_modes_per_window"])
         n_windows = len(dmd["window_starts"])
         max_modes = int(dmd["max_modes"])
         assert result["track_ids"].shape == (n_windows, max_modes)
@@ -412,12 +408,8 @@ class TestDetectRegimeBoundaries:
         signal = np.array([5.0, 5.0, 5.1, 5.0, 5.0, 8.0, 5.0, 5.0])
         # Both 5.1 and 8.0 are above threshold=1.0, but 5.1's prominence is
         # only ~0.1 while 8.0's is ~3.0
-        result_strict = detect_regime_boundaries(
-            signal, threshold=1.0, min_prominence=1.0
-        )
-        result_loose = detect_regime_boundaries(
-            signal, threshold=1.0, min_prominence=0.05
-        )
+        result_strict = detect_regime_boundaries(signal, threshold=1.0, min_prominence=1.0)
+        result_loose = detect_regime_boundaries(signal, threshold=1.0, min_prominence=0.05)
         assert len(result_strict["boundary_indices"]) == 1  # only the big peak
         assert len(result_loose["boundary_indices"]) == 2  # both
 
@@ -568,7 +560,7 @@ class TestComputePerRegimeDmd:
         max_modes = int(result["max_modes"])
         for i, k in enumerate(result["n_modes_per_segment"]):
             if int(k) < max_modes:
-                assert np.isnan(result["eigenvalues"][i, int(k):]).all()
+                assert np.isnan(result["eigenvalues"][i, int(k) :]).all()
 
     def test_residual_norm_mean_max_consistent(self):
         traj = _make_trajectory(20, 6)
@@ -610,10 +602,12 @@ class TestComputePerRegimeDmd:
         # Translate window-space segments back to step-space using window_starts
         # (a real analyzer would do this; the test just sanity-checks the chain).
         step_starts = dmd["window_starts"][regimes["segment_starts"]]
-        step_ends = np.concatenate([
-            dmd["window_starts"][regimes["segment_starts"][1:]],
-            np.array([len(traj)], dtype=np.int64),
-        ])
+        step_ends = np.concatenate(
+            [
+                dmd["window_starts"][regimes["segment_starts"][1:]],
+                np.array([len(traj)], dtype=np.int64),
+            ]
+        )
         per_regime = compute_per_regime_dmd(traj, step_starts, step_ends)
         assert len(per_regime["segment_starts"]) == len(regimes["segment_starts"])
 
@@ -728,9 +722,7 @@ class TestActivationDMDOutput:
         expected_n_windows = n_epochs - 10 + 1
         for site in _SITES:
             assert len(result[f"{site}__windowed__window_starts"]) == expected_n_windows
-            assert (
-                result[f"{site}__windowed__residual_norm_mean"].shape == (expected_n_windows,)
-            )
+            assert result[f"{site}__windowed__residual_norm_mean"].shape == (expected_n_windows,)
 
     def test_short_trajectory_scales_window(self, artifacts_with_global_pca, tmp_path):
         """If n_epochs < 10, window_size is scaled down so the analyzer

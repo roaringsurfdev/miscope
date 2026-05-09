@@ -102,9 +102,7 @@ class ActivationDMD:
                 windowed["eigenvalues"], windowed["n_modes_per_window"]
             )
 
-            regimes = detect_regime_boundaries(
-                windowed["residual_norm_mean"], threshold=None
-            )
+            regimes = detect_regime_boundaries(windowed["residual_norm_mean"], threshold=None)
 
             step_starts, step_ends = _regime_segments_to_step_space(
                 regimes["segment_starts"],

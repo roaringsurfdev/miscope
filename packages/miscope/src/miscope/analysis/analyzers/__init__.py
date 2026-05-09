@@ -4,6 +4,7 @@ Analyzers compute analysis on model checkpoints and produce artifacts.
 Each analyzer implements the Analyzer protocol and can be registered
 with the AnalyzerRegistry for discovery.
 """
+
 # Analyzer Registry
 # Per-epoch Analyzers with no dependences
 from miscope.analysis.analyzers.attention_fourier import AttentionFourierAnalyzer  # noqa: I001
