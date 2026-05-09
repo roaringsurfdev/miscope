@@ -30,12 +30,14 @@ from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
 # Secondary Analyzers
 from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
+from miscope.analysis.analyzers.neuron_grouping import NeuronGrouping
 from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
 from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
 
 
 # Cross-epoch Analyzers
 from miscope.analysis.analyzers.activation_dmd import ActivationDMD
+from miscope.analysis.analyzers.parameter_dmd import ParameterDMD
 from miscope.analysis.analyzers.parameter_trajectory_pca import ParameterTrajectoryPCA
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.analyzers.repr_geometry import RepresentationalGeometryAnalyzer
@@ -70,4 +72,6 @@ __all__ = [
     "IntraGroupManifoldAnalyzer",
     "NeuronGroupPCAAnalyzer",
     "TransientFrequencyAnalyzer",
+    "NeuronGrouping",
+    "ParameterDMD"
 ]

@@ -55,6 +55,7 @@
     "global_centroid_pca",
     "centroid_dmd",
     "activation_dmd",
+    "parameter_dmd",
     "input_trace_graduation",
     "neuron_group_pca",
     "intragroup_manifold",
