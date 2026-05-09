@@ -1,8 +1,8 @@
 # REQ_118: Neuron Grouping Primitive
 
-**Status:** Draft
+**Status:** Implementation complete (2026-05-08); awaiting merge to develop.
 **Priority:** High — on the critical path for REQ_117's parameter track. The DMD backbone narrative depends on a clean grouping primitive being in place before parameter DMD can ship in the architecturally correct shape.
-**Branch:** TBD
+**Branch:** `feature/req-118-neuron-grouping`
 **Supersedes:** None. Net-new capability.
 **Dependencies:**
 - REQ_109 (measurement primitives) — grouping outputs follow REQ_109's pure-input pattern; clustering metrics already in `library/clustering.py` are reused for group-summary computation.
@@ -125,12 +125,29 @@ The Atlas's note that `transient_frequency` may generalize to "transient groups"
 
 ## Notes
 
-### Open questions
+### v1 design decisions (settled 2026-05-08)
 
-- **Per-epoch vs. cross-epoch artifact.** REQ_117's parameter track will run windowed DMD per group across all checkpoints. The grouping it consumes can be per-epoch (each window uses that window's grouping) or cross-epoch (a single grouping holds across all windows). The cross-epoch shape is simpler and matches the project's stable post-grokking group identity; the per-epoch shape captures pre-grokking reorganization. The right answer is probably both, with the per-epoch artifact aggregable into a cross-epoch one. Decide during implementation.
-- **Default `n_groups`.** Modadd's canonical grouping has a clear answer (one group per dominant frequency); a universal default does not. Auto-detection via silhouette score is the obvious answer; whether it works across the variant set is empirically unknown.
-- **Soft assignments for transient neurons.** A neuron whose dominant frequency contribution is split across two frequencies has a meaningful soft assignment. v1 supports it via the canonical type's `confidence` field, but v1's default methods produce hard assignments. Whether to default to soft on the universal path is an empirical question.
-- **`neuron_dynamics` migration timing.** The Atlas says "defer the rename until the grouping primitive is in place." Once this REQ lands, the rename is unblocked, but it is deferred to whatever future REQ picks it up.
+- **Per-epoch artifact, not cross-epoch.** Each checkpoint produces its own `GroupAssignment`, the same way `repr_geometry` produces per-epoch class centroids. Cross-epoch consumers (REQ_117 parameter_dmd, future `group_geometry` consolidation) pick a single epoch's grouping via a `reference_epoch` configuration on their side. This honors the empirical observation that group identity is stable post-grokking (so any post-grokking reference epoch is meaningful) while leaving room for the "pinned checkpoints" use case — a future analyzer can run per-regime DMD against grouping at epoch 5000 (when freq 5 is still committed in p101/s999/ds999) and again at epoch 25000 (post-abandonment) without redesigning the grouping primitive.
+- **`SecondaryAnalyzer` protocol, depends on `parameter_snapshot`.** Reads weight matrices from the per-epoch parameter_snapshot artifact; computes features and grouping; writes per-epoch `epoch_{NNNNN}.npz`. No model loading required.
+- **Confidence semantics: variance fraction (L2-squared ratio).** `argmax_by_basis` reports per-neuron `max(features^2) / sum(features^2)` — the fraction of squared L2 mass concentrated in the dominant component. Matches the existing project convention used by `compute_frequency_variance_fractions` and friends.
+- **Universal-path default: weight features + kmeans.** Per-neuron features are `concat(W_in[:, n], W_out[n, :])`. Default `n_groups = 8`; configurable via `neuron_grouping_n_groups` context key. Activation features are documented as a future extension; v1 raises `NotImplementedError` if `feature_source="activation"` is requested.
+- **Family override mechanism: callable in context.** The family's `prepare_analysis_context` puts a `neuron_grouping_override(artifact, context) -> (GroupAssignment, features)` callable into the context dict. The analyzer dispatches on its presence: if the override exists, it bypasses the universal kmeans path. Returns features alongside the assignment so `group_neurons_summary` operates on the same feature matrix the assignment was derived from.
+- **Modadd family override: Fourier projection of W_in, argmax_by_basis with threshold 0.3.** The override projects the composed input weight (W_E[:p] @ W_in) onto the family's Fourier basis, extracts per-neuron per-frequency magnitudes, and dispatches to `argmax_by_basis` with a calibrated variance-fraction threshold of 0.3. Configurable via `neuron_grouping_confidence_threshold` context key.
+- **Identity stability is out of scope for v1.** Each per-epoch artifact is independent; consumers that read multiple epochs at once handle cross-epoch alignment themselves. REQ_117 parameter_dmd's pinned-reference-epoch design sidesteps the alignment problem entirely.
+
+### Validation outcomes
+
+- **Primitives** (`group_neurons`, `group_neurons_summary`): 28 unit tests in `test_grouping_primitives.py`. Covers shape contracts, k-means recovery on well-separated synthetic clusters, argmax-by-basis variance-fraction confidence semantics, threshold filtering, edge cases (zero rows, all-unassigned, dispersion calculation).
+- **Analyzer** (`NeuronGrouping` SecondaryAnalyzer): 21 unit tests + integration tests in `test_neuron_grouping_analyzer.py`. Covers protocol conformance, registry registration, universal-path default behavior, family-override path, round-trip via `unpack_assignment` / `unpack_summary` helpers, and the modadd family override end-to-end on a synthetic untrained model.
+- **Canon parity check.** Running the modadd Fourier override on canon (p113/s999/ds598) at epoch 24999 with default threshold = 0.3 recovers exactly the four documented canon frequencies `{9, 33, 38, 55}` (38: 155 neurons, 55: 144, 9: 140, 33: 53), with 20/512 (3.9%) neurons correctly marked UNASSIGNED for diffuse weight projections. Threshold sweep across [0.1, 0.5] consistently produces the same four dominant frequencies; the unassigned count rises with stricter thresholds. The 0.3 default is the calibrated sweet spot.
+- **Wide regression sweep.** 1526 miscope tests pass with 26 skipped; no regressions introduced.
+
+### Open questions (deferred)
+
+- **Default `n_groups` for the universal path.** Currently 8 (a generic round number). When non-modadd families come online and need the universal kmeans path, this default should be revisited — silhouette-based auto-detection is one option, but adding it now would be premature without empirical pressure.
+- **Soft assignments for transient neurons.** v1 supports the canonical type's `confidence` field, but v1's default methods produce hard assignments. Whether to default to soft on the universal path is an empirical question for when more variant types come online.
+- **`neuron_dynamics` migration timing.** The Atlas says "defer the rename until the grouping primitive is in place." This REQ unblocks the rename, but it is deferred to whatever future REQ picks it up.
+- **Activation features for the universal path.** v1 raises `NotImplementedError` if requested. When the first non-modadd family needs grouping that's better expressed in activation space than weight space, this becomes a concrete design question — but until then it would be premature surface area.
 
 ### Cross-references
 

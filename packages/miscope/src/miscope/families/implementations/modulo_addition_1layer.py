@@ -10,11 +10,30 @@ from pathlib import Path
 from typing import Any
 
 import einops
+import numpy as np
 import torch
 
 from miscope.analysis.library import get_fourier_basis
+from miscope.analysis.library.fourier import (
+    compose_neuron_fourier_weights,
+    extract_frequency_pairs,
+)
+from miscope.analysis.library.grouping import group_neurons
 from miscope.architectures import HookedTransformer, HookedTransformerConfig
+from miscope.core.grouping import GroupAssignment
 from miscope.families.base_model_family import BaseModelFamily
+
+# REQ_118: confidence threshold (variance fraction of W_in Fourier
+# projection) for the modadd grouping override. Calibrated empirically
+# against canon (p113/s999/ds598) at epoch 24999 — the four documented
+# canon frequencies {9, 33, 38, 55} are recovered cleanly across the
+# 0.1–0.5 range; 0.3 is the sweet spot where canon frequencies are
+# fully recovered while ~4% of neurons with truly diffuse projections
+# are correctly marked UNASSIGNED. Weight-side variance fractions are
+# naturally lower than the activation-side fractions used by the
+# project's neuron_dynamics convention (0.7), since W_in is
+# higher-dimensional than per-input activation profiles.
+_DEFAULT_FOURIER_GROUPING_THRESHOLD = 0.3
 
 
 class ModuloAddition1LayerFamily(BaseModelFamily):
@@ -237,7 +256,62 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             "fourier_basis": fourier_basis,
             "loss_fn": loss_fn,
             "labels": labels,
+            # REQ_118: family-supplied neuron grouping override. The
+            # NeuronGrouping analyzer dispatches on this when present and
+            # bypasses the universal kmeans path.
+            "neuron_grouping_override": self._neuron_grouping_override,
         }
+
+    def _neuron_grouping_override(
+        self,
+        artifact: dict[str, Any],
+        context: dict[str, Any],
+    ) -> tuple[GroupAssignment, np.ndarray]:
+        """REQ_118: Modadd-family Fourier-based neuron grouping override.
+
+        Each neuron is grouped by the Fourier frequency that dominates its
+        composed input weight (W_E[:p] @ W_in[:, neuron], projected onto
+        the family's Fourier basis). Neurons whose dominant-frequency
+        magnitude fraction falls below a confidence threshold are marked
+        UNASSIGNED.
+
+        Returns:
+            (assignment, features) where features are the per-neuron
+            per-frequency magnitude matrix used for the assignment and
+            for the downstream `group_neurons_summary` computation.
+        """
+        prime = int(context["params"]["prime"])
+        fourier_basis = context["fourier_basis"]
+        threshold = float(
+            context.get(
+                "neuron_grouping_confidence_threshold",
+                _DEFAULT_FOURIER_GROUPING_THRESHOLD,
+            )
+        )
+
+        # Compose input-side weight: theta[token, neuron].
+        theta_t, _ = compose_neuron_fourier_weights(artifact, prime)
+        if isinstance(theta_t, torch.Tensor):
+            theta_np = theta_t.detach().cpu().numpy()
+        else:
+            theta_np = np.asarray(theta_t)
+        # Project onto Fourier basis.
+        if isinstance(fourier_basis, torch.Tensor):
+            basis_np = fourier_basis.detach().cpu().numpy()
+        else:
+            basis_np = np.asarray(fourier_basis)
+        fourier_coeffs = basis_np @ theta_np  # (prime, d_mlp)
+        # Per-neuron per-frequency magnitudes.
+        magnitudes, _ = extract_frequency_pairs(fourier_coeffs, prime)  # (d_mlp, K)
+
+        assignment = group_neurons(
+            magnitudes,
+            n_groups=int(magnitudes.shape[1]),
+            method="argmax_by_basis",
+            feature_basis_name="fourier_w_in",
+            confidence_threshold=threshold,
+        )
+        return assignment, magnitudes
 
     def compute_loss(
         self,

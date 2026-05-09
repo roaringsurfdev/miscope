@@ -46,7 +46,8 @@
   ],
   "secondary_analyzers": [
     "neuron_fourier",
-    "fourier_frequency_quality"
+    "fourier_frequency_quality",
+    "neuron_grouping"
   ],
   "cross_epoch_analyzers": [
     "parameter_trajectory",
