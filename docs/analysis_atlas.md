@@ -99,14 +99,16 @@ Per-class centroid trajectories in a single cross-epoch PCA basis, plus standard
 
 Generalizes raw activation capture into a single snapshot analyzer parameterized by site. Cheap on small models; foundation for downstream activation-space analysis.
 
-### `neuron_grouping` *(home: REQ_118)*
-**Status:** planned-new | **Bucket:** new
+### `neuron_grouping` *(home: REQ_118, shipped 2026-05-08)*
+**Status:** existing | **Bucket:** retain
 
 Data-driven clustering of neurons by learned behavior. Input: per-neuron activation profiles or weight signatures. Output: group assignments + group centroids + dispersion metrics.
 
-**This is a missing primitive.** Today, neuron grouping happens implicitly via Fourier dominant frequency (`neuron_freq_norm` from `neuron_dynamics`), which is task-specific. A generic grouping primitive lets the geometry analyzers operate on any partition; modadd family can override with a Fourier-based grouping where appropriate.
+**Implementation (REQ_118):** per-epoch SecondaryAnalyzer that consumes `parameter_snapshot` artifacts and produces per-epoch `GroupAssignment` + `GroupSummary` artifacts. Universal kmeans path runs by default on per-neuron weight signatures (`W_in[:, n]` concatenated with `W_out[n, :]`). The modadd family registers an override that performs argmax-by-basis on the Fourier-projected composed input weight (`W_E[:p] @ W_in`) with a calibrated variance-fraction threshold — recovers the documented canon frequencies cleanly.
 
-REQ_118 specifies this primitive in detail. It is on the critical path for REQ_117's parameter-DMD track.
+Family override mechanism is the architectural pattern for any future task-specific grouping: families are context providers (per `PROJECT.md`); the universal analyzer dispatches on whether the family supplied an override, but does not encode any task-specific logic itself.
+
+Cross-epoch consumers (e.g., `parameter_dmd`) pick a single epoch's grouping via a `reference_epoch` configuration on their side; the grouping analyzer itself does not make that choice. This keeps the per-epoch artifact contract simple and lets consumers study transient phenomena (e.g., a frequency that's been abandoned by the last epoch) by pinning to a snapshot where the grouping captures it.
 
 ### `group_geometry`
 **Status:** planned-consolidation (absorbs `neuron_group_pca`, `freq_group_weight_geometry`, `intragroup_manifold`) | **Bucket:** reorganization
@@ -198,19 +200,31 @@ Distinct from trajectory curvature: trajectory curvature describes the *path*; H
 
 ### Operator dynamics — modal decompositions and coupling
 
-#### `activation_dmd` *(home: REQ_117)*
-**Status:** existing-rename | **Bucket:** reorganization
+#### `activation_dmd` *(home: REQ_117 phase 1, shipped 2026-05-08)*
+**Status:** existing | **Bucket:** retain
 
-DMD applied to per-class centroid trajectories at each analyzed site. Reorganization replaces the current single-window global DMD with per-site windowed DMD, eigenvalue tracking across windows, residual-driven regime detection, and per-regime DMD as a recursive second pass. Operates on per-class state vectors rather than cross-class averages so phase information is preserved.
+Per-site windowed DMD on per-class centroid trajectories in global PCA space. Pipeline: sliding-window DMD across the centroid trajectory at each of four sites (`resid_pre`, `attn_out`, `mlp_out`, `resid_post`) → eigenvalue tracking via greedy nearest-neighbor matching across windows → peak-based regime detection (`scipy.signal.find_peaks` with median+3·MAD height + 1·MAD prominence + edge-padding) → per-regime DMD as a recursive second pass.
 
-REQ_117 specifies this work in detail and absorbs the Research Claude drafts (REQ_001 / REQ_002 / REQ_003) that originally proposed the windowed treatment.
+**Per-variant signatures observed at zoom** (see [variant_atlas.md](variant_atlas.md) for full per-variant detail): canon `mlp_out` shows a pendant of paired complex conjugates near (1, 0); p109 shows a discrete fan + paired pairs; p101 shows teardrops + isolated complex pairs at `resid_post`; p59 shows sparse near-real eigenvalues. Each variant has its own visual identity, distinguishable at zoom but invisible at the textbook ±1.5 view of the complex plane. Dashboard renders at `/activation-dmd` with auto-zoom by default.
 
-#### `parameter_dmd` *(home: REQ_117; depends on REQ_118)*
-**Status:** planned-new | **Bucket:** new (carries forward `centroid_dmd`'s modal portion in weight space)
+Supersedes REQ_073's parameter-track-only proposal (now part of `parameter_dmd`); absorbs the Research Claude drafts (REQ_001 / REQ_002 / REQ_003) that originally proposed the windowed treatment.
 
-DMD applied to weight matrices rather than activations, with the same windowed + per-regime structure as `activation_dmd`. Operates per-frequency-group on slices of `W_in` columns and `W_out` rows, where the grouping comes from `neuron_grouping` (REQ_118) — modadd's Fourier grouping is supplied through the family-override mechanism, not hardcoded.
+#### `parameter_dmd` *(home: REQ_117 phase 2, shipped 2026-05-09)*
+**Status:** existing | **Bucket:** retain
 
-REQ_117 supersedes REQ_073 and is the canonical home. The hard dependency on REQ_118 reflects the architectural choice to ship parameter DMD on the clean grouping interface rather than refactor later.
+Per-(group, matrix) windowed + per-regime DMD on weight matrices. For each `(group_id, matrix in {W_in, W_out})` where the grouping comes from `neuron_grouping` at a configurable `reference_epoch`: build per-epoch state trajectory by flattening the group's slice of the matrix, fit a global PCA across the trajectory, project to top components covering ≥95% variance (capped at 50), then run the same four-stage DMD pipeline as `activation_dmd`.
+
+W_in and W_out are treated as separate matrices (not concatenated) because they reorganize on independent timelines — empirically validated on `p109/s485/ds598` group 3 (k=4) where W_out drops to near-zero around epoch 2.5k while W_in is still elevated. Concatenating would have averaged this signal away.
+
+`reference_epoch` defaults to the last available checkpoint; configurable via the `parameter_dmd_reference_epoch` context key (use `pipeline.run(extra_context={"parameter_dmd_reference_epoch": ...})`). Pinning to an earlier epoch lets downstream analysis study weight dynamics relative to a grouping that captures transient phenomena — e.g., on `p101/s999/ds598` with `reference_epoch=20000`, freq 5 (group 4, 39 neurons) appears as a populated group and its ~25k abandonment shows up as a residual bump in both W_in and W_out.
+
+Dashboard renders at `/parameter-dmd` with dynamic group dropdown (populated from the loaded variant's `populated_groups`), matrix dropdown (W_in / W_out), and a reference_epoch indicator surfacing which `neuron_grouping` snapshot was used.
+
+#### Within-DMD multi-lens convergence (2026-05-09)
+
+`activation_dmd` and `parameter_dmd` operate on fundamentally different mathematical objects (activation centroids vs. weight slices) but recover the same regime structure on the same training events. Per-variant overlays (`mlp_out` from `activation_dmd` overlaid against per-group W_in/W_out from `parameter_dmd`, max-normalized) confirm tight timing alignment on major events across all four reference variants. Magnitude differences between the two views encode event scope: localized parameter events (e.g., the freq 5 abandonment on `p101/s999/ds598`) show more relative magnitude on the parameter side because they aren't diluted by averaging over uninvolved neurons; broad geometric events (e.g., grokking-window reorganization) show comparable magnitudes across both lenses. mlp_out is consistently smoother than W_in/W_out — part of a smoothness gradient where activation residuals smooth what parameter residuals sharpen.
+
+This convergence is structural evidence for DMD as a regime detector: two distinct operations recover the same boundaries. It also makes parameter DMD genuinely additive rather than redundant — the cases where the two views *disagree* (e.g., end-of-training mlp_out activity on p109 without a parameter-side counterpart, candidate neural-collapse signature) are exactly where the diagnostic carries new information.
 
 #### `gradient_site`
 **Status:** existing-rename + integrate | **Bucket:** refactor
@@ -297,7 +311,8 @@ Capabilities with no existing predecessor:
 - **`trajectory_metrics`** — second-order trajectory geometry (acceleration, curvature, torsion). Dynamical / Trajectory.
 - **`hessian_topk`** — Hessian top-k eigenvalues via Lanczos+Hvp. Dynamical / Landscape.
 - **`cross_site_coupling`** — phase-lock and synchrony between sites. Dynamical / Operator.
-- **`parameter_dmd`** — specified in REQ_117 (supersedes REQ_073); blocked on REQ_118 (`neuron_grouping`). Dynamical / Operator.
+- ~~**`parameter_dmd`** — specified in REQ_117; blocked on REQ_118 (`neuron_grouping`). Dynamical / Operator.~~ Shipped 2026-05-09.
+- ~~**`neuron_grouping`** — specified in REQ_118.~~ Shipped 2026-05-08.
 - **`lissajous_fit`** — already specified in REQ_111 as a research-active addition. Dynamical / Phase-space fits.
 - **`saddle_center_center_fit`** — saddle-center-center linearization fit on `representation_trajectory`. Dynamical / Phase-space fits.
 - **`saddle_transport_sigmoidality`** — already specified in REQ_111 as a research-active addition. Dynamical / Phase-space fits.
@@ -333,14 +348,33 @@ Subsequent releases extend the baseline rather than disrupting it. External rese
 - [REQ_109: Measurement Primitives](requirements/staging/REQ_109_measurement_primitives.md) — primitives library. Every Atlas analyzer (existing or planned) consumes REQ_109 primitives for its transform step.
 - [REQ_110: Lakehouse Surface](requirements/active/REQ_110_lakehouse_surface.md) — tabular output contract. Atlas analyzers respect it where applicable.
 - [REQ_111: Parallel Analyzer Buildout](requirements/active/REQ_111_parallel_analyzer_buildout.md) — to be rescoped: covers `refactor` bucket entries (parity validation meaningful). Reorganization-bucket and new-bucket entries get their own scoped REQs.
-- [REQ_117: DMD Reorganization](requirements/active/REQ_117_dmd_reorganization.md) — canonical home for `activation_dmd` and `parameter_dmd`. Supersedes REQ_073; absorbs the Research Claude drafts that proposed the windowed treatment.
-- [REQ_118: Neuron Grouping Primitive](requirements/active/REQ_118_neuron_grouping.md) — prerequisite for REQ_117's parameter track; canonical home for `neuron_grouping`.
+- [REQ_117: DMD Reorganization](requirements/active/REQ_117_dmd_reorganization.md) — canonical home for `activation_dmd` and `parameter_dmd` (both shipped 2026-05). Supersedes REQ_073; absorbs the Research Claude drafts that proposed the windowed treatment. Includes validation outcomes per-variant in the Notes section.
+- [REQ_118: Neuron Grouping Primitive](requirements/active/REQ_118_neuron_grouping.md) — prerequisite for REQ_117's parameter track (shipped 2026-05). Canonical home for `neuron_grouping`.
 - [REQ_073: Weight-Space DMD](requirements/active/REQ_073_weight_space_dmd.md) — superseded by REQ_117. Retained for archaeology.
+- [Variant Atlas](variant_atlas.md) — companion document for variants studied across these analyzers. The Analysis Atlas catalogs lenses; the Variant Atlas catalogs models being studied.
 - [REQ_055: Attention Head Phase Analysis](requirements/active/REQ_055_attention_head_phase_analysis.md) — possibly overlaps with `cross_site_coupling`; coordinate scope when implementing.
 - [REQ_102: Analyzer Deprecation](requirements/active/REQ_102_analyzer_deprecation.md) — handles retirement of analyzers marked retire-bucket.
 - [Roadmap_Analysis_rough.md](requirements/Roadmap_Analysis_rough.md) — superseded *Analysis Catalog* section. Other sections remain valid in that document.
 
 ---
+
+## Candidate derived metrics (surfaced during REQ_117 work)
+
+Concrete diagnostic claims that emerged during REQ_117 inspection but are not yet implemented as standalone analyzers. Each could become a small follow-up REQ if the empirical pressure justifies it.
+
+- **W_in / W_out residual peak lag** per (variant, group). The empirical observation that W_in and W_out reorganize on independent timelines, with the lag being a per-variant signature, could become a derived per-(variant, group) scalar. Sign and magnitude might separate clean grokkers from rebounders from incomplete-descenders.
+- **MLP–attn residual peak lag**, an analogous scalar at the activation site level. Currently provisional on dense-checkpoint variants only; needs balanced validation. See `findings_mlp_leads_second_descent.md` (auto-memory).
+- **W_out abandonment-shape signature** per transient frequency. The "sharp W_out drop after the abandonment peak" pattern noted on `p101/s999/ds598` group 4 may generalize to other transient frequencies; if it does, it's a candidate metric for *predicting* abandonment from W_out shape before it completes.
+- **Activation-vs-parameter residual decoupling** — events visible in `activation_dmd` without a corresponding `parameter_dmd` peak (or vice versa). Candidate neural-collapse detector at end-of-training; first observed on `p109/s485/ds598`.
+
+- **DMD-derived phase windows** *(replaces heuristic phase markers in `variant_summary.json`)*. Current phase markers (`first_descent`, `plateau`, `cascade`, `second_descent`, `final`) are heuristic-derived from loss-curve features. Windowed DMD residual peaks are mathematically derived from the same trajectory data and don't depend on tuning thresholds against an external loss signal. To make this a replacement, two design problems need solving: (1) **aggregation rule** — DMD boundaries are per-(site, group, matrix); a single "second descent began" boundary requires a rule (union of all sites? `resid_post` only as canonical? majority across sites?). (2) **semantic labeling** — current markers carry character claims (`plateau` vs `cascade`), not just timing claims; DMD gives boundaries but not classification of what happens between them. The semantic labels would be derived (e.g., low residual + flat = plateau; rising residual = cascade), and the derivation rule needs to be made explicit.
+
+- **Parameter trajectory loop closure**, quantified. See [variant_atlas.md → Unquantified per-variant observations](variant_atlas.md) for the geometric description (a saddle-shaped path in `parameter_trajectory_pca` PC1×PC2×PC3 with apparent self-intersection in the PC2×PC3 stable plane, distinct from the Class Centroid PCA self-intersection). Three concrete metric candidates, each at different cost / commitment levels:
+    1. **Minimum endpoint-to-trajectory distance in PC2×PC3** — for the final-epoch parameter point, compute the minimum distance to every earlier point along the trajectory. Per-variant scalar; doesn't commit to the saddle interpretation; cheapest first step.
+    2. **Saddle-center-center fit on `parameter_trajectory_pca`** — the same fit shape Atlas already plans for `representation_trajectory` (one unstable real eigenvalue + two oscillation pairs). If the fit converges with low residual, the saddle reading is supported; if not, the geometric impression doesn't survive the math.
+    3. **Trajectory near-passes graph** — nodes are epochs, edges are "this pair of epochs are close in PC2×PC3." Healthy variants would show a single dominant near-pass connecting an early epoch to a late epoch; failure modes would show different topology.
+
+These are tracked rather than promoted to first-class Atlas entries because they are derivations on top of existing analyzers' outputs, not new analyzers themselves. If any becomes load-bearing for a research narrative, it earns its own REQ.
 
 ## Open questions
 
