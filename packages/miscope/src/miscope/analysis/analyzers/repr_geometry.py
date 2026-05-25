@@ -27,7 +27,6 @@ from miscope.analysis.library import (
 )
 
 if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
     from miscope.architectures import ActivationCache
 from miscope.analysis.library.clustering import (
     compute_center_spread,
@@ -86,11 +85,12 @@ def _get_summary_keys() -> list[str]:
     return scalar_keys + pca_keys
 
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs  # noqa: E402
+
 SPEC = AnalyzerSpec(
     name="repr_geometry",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache[canonical_hook] at 4 sites
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=tuple(_SITES.values()),
     produces_summary=True,
 )
@@ -108,41 +108,28 @@ class RepresentationalGeometryAnalyzer:
 
     name = "repr_geometry"
     description = "Tracks representational geometry evolution across training"
-    # Canonical hooks this analyzer reads. Pipeline filters analyzers
-    # whose required hooks are not published by the current model.
-    required_hooks: list[str] = list(_SITES.values())
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute geometric measures at all activation sites.
-
-        Args:
-            ctx: Analysis context. Reads ``ctx.cache`` (canonical-name keyed)
-                for activations and ``ctx.analysis_params`` for the prime
-                / labels. Falls back to ``ctx.probe`` to derive labels when
-                the family does not provide them.
-
-        Returns:
-            Dict with site-prefixed keys for centroids, radii,
-            dimensionality, and global scalar measures.
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        if ctx.cache is None:
+        """Compute geometric measures at all activation sites."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        if inputs.cache is None:
             raise RuntimeError(
-                "repr_geometry requires the HookedModel cache (ctx.cache); "
+                "repr_geometry requires the HookedModel cache (inputs.cache); "
                 "the family for this variant has not migrated to HookedModel."
             )
 
-        p = compute_grid_size_from_dataset(ctx.probe)
-        labels = self._compute_labels(ctx.probe, p, ctx.analysis_params)
+        p = compute_grid_size_from_dataset(inputs.probe)
+        labels = self._compute_labels(inputs.probe, p, context)
 
         result: dict[str, np.ndarray] = {}
         for site_name, canonical_hook in _SITES.items():
-            if canonical_hook not in ctx.cache:
+            if canonical_hook not in inputs.cache:
                 continue
-            activations = self._extract_site(ctx.cache, canonical_hook)
+            activations = self._extract_site(inputs.cache, canonical_hook)
             site_result = self._compute_site_measures(activations, labels, p)
             for key, value in site_result.items():
                 result[f"{site_name}_{key}"] = value

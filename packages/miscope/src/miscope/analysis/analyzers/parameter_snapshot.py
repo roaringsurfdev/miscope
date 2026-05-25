@@ -7,23 +7,23 @@ geometric analyses (REQ_029).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import extract_parameter_snapshot
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
+    pass
 
 
 SPEC = AnalyzerSpec(
     name="parameter_snapshot",
-    category="primary",
-    requires_model_weights=True,
-    requires_activation_cache=False,  # reads weights only; no cache access
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
 )
 
@@ -32,26 +32,17 @@ SPEC = AnalyzerSpec(
 class ParameterSnapshotAnalyzer:
     """Stores per-epoch weight matrix snapshots for trajectory analysis.
 
-    Extracts weights via the bundle. Probe and analysis_params are unused.
+    Extracts weights from the model; the probe and context are unused.
     """
 
     name = "parameter_snapshot"
     description = "Stores weight matrix snapshots for trajectory analysis"
-    # Reads weights only — runs on any architecture.
-    required_hooks: list[str] = []
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Extract all trainable weight matrices from the model.
-
-        Args:
-            ctx: Analysis context with model (probe and analysis_params unused).
-
-        Returns:
-            Dict mapping weight matrix names to numpy arrays in
-            their original shapes (e.g., W_E, W_Q, W_in, etc.)
-        """
-        assert ctx.model is not None  # type-narrowing for pyright
-        return extract_parameter_snapshot(ctx.model)
+        """Extract all trainable weight matrices from the model."""
+        assert inputs.model is not None  # type-narrowing for pyright
+        return extract_parameter_snapshot(inputs.model)

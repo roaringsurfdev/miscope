@@ -7,6 +7,7 @@ from miscope.analysis.analyzers.neuron_group_pca import (
     NeuronGroupPCAAnalyzer,
     _group_pca_stats,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_group_pca import (
     render_group_centroid_paths,
     render_group_centroid_timeseries,
@@ -131,7 +132,7 @@ def _run_analyzer(loader, epochs):
         "miscope.analysis.analyzers.neuron_group_pca.ArtifactLoader",
         return_value=loader,
     ):
-        return analyzer.analyze_across_epochs(artifacts_dir="/fake", epochs=epochs, context={})
+        return analyzer.analyze(ResolvedInputs(artifacts_dir="/fake", epochs=tuple(epochs)), {})
 
 
 def test_analyzer_output_shapes():

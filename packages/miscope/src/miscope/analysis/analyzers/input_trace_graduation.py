@@ -14,15 +14,14 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="input_trace_graduation",
-    category="cross_epoch",
-    requires=("input_trace",),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("input_trace", scope="all_epochs"),),
 )
 
 
@@ -43,10 +42,9 @@ class InputTraceGraduationAnalyzer:
     name = "input_trace_graduation"
     requires = ["input_trace"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute graduation epochs from all input_trace per-epoch artifacts.
@@ -59,6 +57,10 @@ class InputTraceGraduationAnalyzer:
         Returns:
             Dict with 'graduation_epochs', 'epochs', 'split'
         """
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         min_stable_window = 3
         loader = ArtifactLoader(artifacts_dir)
         sorted_epochs = sorted(epochs)

@@ -21,7 +21,8 @@ from miscope.analysis.analyzers.input_trace_graduation import (
     InputTraceGraduationAnalyzer,
     _compute_graduation_epochs,
 )
-from miscope.analysis.protocols import ActivationContext, Analyzer, CrossEpochAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.protocols import Analyzer, UnifiedAnalyzer
 
 # ── Minimal model fixture ─────────────────────────────────────────────
 
@@ -74,17 +75,16 @@ def _make_full_probe(p: int = SMALL_P) -> torch.Tensor:
     return torch.stack([a, b, eq], dim=1)
 
 
-def _make_ctx(model, probe: torch.Tensor, context: dict) -> ActivationContext:
-    """Run forward and build an ActivationContext with canonical surface populated."""
+def _make_inputs(model, probe: torch.Tensor, context: dict):
+    """Run forward and build a (ResolvedInputs, context) pair."""
     with torch.no_grad():
         logits, cache = model.run_with_cache(probe)
-    return ActivationContext(
+    return ResolvedInputs(
         probe=probe,
-        analysis_params=context,
         model=model,
         cache=cache,
         logits=logits,
-    )
+    ), context
 
 
 # ── Protocol conformance ─────────────────────────────────────────────
@@ -95,7 +95,7 @@ class TestProtocolConformance:
         assert isinstance(InputTraceAnalyzer(), Analyzer)
 
     def test_graduation_analyzer_conforms(self):
-        assert isinstance(InputTraceGraduationAnalyzer(), CrossEpochAnalyzer)
+        assert isinstance(InputTraceGraduationAnalyzer(), UnifiedAnalyzer)
 
     def test_input_trace_has_summary_methods(self):
         analyzer = InputTraceAnalyzer()
@@ -113,7 +113,7 @@ class TestInputTraceAnalyzerShapes:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         assert result["predictions"].shape == (p * p,)
         assert result["correct"].shape == (p * p,)
@@ -126,7 +126,7 @@ class TestInputTraceAnalyzerShapes:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         assert result["predictions"].dtype == np.int16
         assert result["correct"].dtype == bool
@@ -139,7 +139,7 @@ class TestInputTraceAnalyzerShapes:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         assert result["predictions"].min() >= 0
         assert result["predictions"].max() < p
@@ -151,7 +151,7 @@ class TestInputTraceAnalyzerShapes:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         a = np.arange(p).repeat(p)
         b = np.tile(np.arange(p), p)
@@ -165,7 +165,7 @@ class TestInputTraceAnalyzerShapes:
         context = _make_minimal_context(p, training_fraction=training_fraction)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         expected_train = int(p * p * training_fraction)
         assert result["split"].sum() == expected_train
@@ -213,7 +213,7 @@ class TestSummaryStats:
         probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
-        result = analyzer.analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = analyzer.analyze(*_make_inputs(model, probe, context))
         summary = analyzer.compute_summary(result, context)
 
         assert summary["test_residue_class_accuracy"].shape == (p,)
@@ -238,7 +238,7 @@ class TestSummaryStats:
         probe = _make_full_probe(p)
 
         analyzer = InputTraceAnalyzer()
-        result = analyzer.analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = analyzer.analyze(*_make_inputs(model, probe, context))
         summary = analyzer.compute_summary(result, context)
 
         test_mask = ~result["split"]
@@ -326,7 +326,7 @@ class TestIntegrationArtifactRoundTrip:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        result = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        result = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
 
         epoch_dir = tmp_path / "input_trace"
         epoch_dir.mkdir()
@@ -352,11 +352,11 @@ class TestIntegrationArtifactRoundTrip:
         epoch_dir = tmp_path / "input_trace"
         epoch_dir.mkdir()
         for epoch in epochs:
-            result = analyzer.analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+            result = analyzer.analyze(*_make_inputs(model, probe, context))
             np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)  # pyright: ignore[reportArgumentType]
 
         grad_analyzer = InputTraceGraduationAnalyzer()
-        grad_result = grad_analyzer.analyze_across_epochs(str(tmp_path), epochs, context)
+        grad_result = grad_analyzer.analyze(ResolvedInputs(artifacts_dir=str(tmp_path), epochs=tuple(epochs)), context)
 
         assert grad_result["graduation_epochs"].shape == (p * p,)
         assert grad_result["epochs"].shape == (len(epochs),)
@@ -378,7 +378,7 @@ class TestViewsRender:
         context = _make_minimal_context(p)
         probe = _make_full_probe(p)
 
-        epoch_data = InputTraceAnalyzer().analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+        epoch_data = InputTraceAnalyzer().analyze(*_make_inputs(model, probe, context))
         fig = render_accuracy_grid({"epoch_data": epoch_data, "prime": p}, epoch=100)
         assert isinstance(fig, go.Figure)
 
@@ -398,7 +398,7 @@ class TestViewsRender:
         epochs = [0, 100, 200]
         test_acc_list, train_acc_list, test_ov, train_ov = [], [], [], []
         for _ in epochs:
-            result = analyzer.analyze(_make_ctx(model, probe, context))  # type: ignore[arg-type]
+            result = analyzer.analyze(*_make_inputs(model, probe, context))
             s = analyzer.compute_summary(result, context)
             test_acc_list.append(s["test_residue_class_accuracy"])
             train_acc_list.append(s["train_residue_class_accuracy"])

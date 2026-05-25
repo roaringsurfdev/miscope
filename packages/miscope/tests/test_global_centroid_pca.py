@@ -12,7 +12,8 @@ from miscope.analysis.analyzers.global_centroid_pca import (
     _pca_with_variance_threshold,
 )
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import CrossEpochAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.visualization.renderers.repr_geometry import render_centroid_global_pca
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
@@ -158,7 +159,7 @@ class TestComputeGlobalCentroidPca:
 
 class TestGlobalCentroidPCAProtocol:
     def test_conforms_to_cross_epoch_protocol(self):
-        assert isinstance(GlobalCentroidPCA(), CrossEpochAnalyzer)
+        assert isinstance(GlobalCentroidPCA(), UnifiedAnalyzer)
 
     def test_name(self):
         assert GlobalCentroidPCA().name == "global_centroid_pca"
@@ -167,10 +168,10 @@ class TestGlobalCentroidPCAProtocol:
         assert GlobalCentroidPCA().requires == ["repr_geometry"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("global_centroid_pca").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("global_centroid_pca").effective_category == "cross_epoch"
 
     def test_analyze_is_callable(self):
-        assert callable(GlobalCentroidPCA().analyze_across_epochs)
+        assert callable(GlobalCentroidPCA().analyze)
 
 
 # ── Analyzer output tests ─────────────────────────────────────────────
@@ -179,17 +180,17 @@ class TestGlobalCentroidPCAProtocol:
 class TestGlobalCentroidPCAOutput:
     def test_returns_dict(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, _, _ = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         assert isinstance(result, dict)
 
     def test_contains_epochs(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, _, _ = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         np.testing.assert_array_equal(result["epochs"], epochs)
 
     def test_contains_all_site_keys(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, _, _ = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert f"{site}__projections" in result
             assert f"{site}__basis" in result
@@ -198,7 +199,7 @@ class TestGlobalCentroidPCAOutput:
 
     def test_projections_shape(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, n_classes, d_model = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         n_epochs = len(epochs)
         for site in _SITES:
             proj = result[f"{site}__projections"]
@@ -207,20 +208,20 @@ class TestGlobalCentroidPCAOutput:
 
     def test_basis_shape(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, n_classes, d_model = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             basis = result[f"{site}__basis"]
             assert basis.shape[0] == d_model
 
     def test_mean_shape(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, n_classes, d_model = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert result[f"{site}__mean"].shape == (d_model,)
 
     def test_explained_variance_captures_threshold(self, artifacts_with_repr_geometry):
         artifacts_dir, epochs, _, _ = artifacts_with_repr_geometry
-        result = GlobalCentroidPCA().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = GlobalCentroidPCA().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             var_ratio = result[f"{site}__explained_variance_ratio"]
             assert float(var_ratio.sum()) >= 0.95 - 1e-6

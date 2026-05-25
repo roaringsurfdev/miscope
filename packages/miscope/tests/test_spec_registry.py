@@ -32,9 +32,9 @@ def test_spec_defaults():
     spec = AnalyzerSpec(name="foo", category="primary")
     assert spec.name == "foo"
     assert spec.category == "primary"
-    assert spec.requires == ()
-    assert spec.requires_model_weights is True
-    assert spec.requires_activation_cache is True
+    assert spec.effective_requires == ()
+    assert spec.effective_requires_model_weights is True
+    assert spec.effective_requires_activation_cache is True
     assert spec.required_hooks == ()
     assert spec.produces_summary is False
 
@@ -76,7 +76,7 @@ def test_decorator_registers_spec_and_factory(fresh_registry):
     class FooAnalyzer:
         name = "foo"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     assert fresh_registry.get_spec("foo") is spec
@@ -91,7 +91,7 @@ def test_decorator_rejects_name_mismatch(fresh_registry):
         class WrongName:
             name = "bar"
 
-            def analyze(self, ctx):
+            def analyze(self, inputs, context):
                 return {}
 
 
@@ -100,7 +100,7 @@ def test_list_specs_by_category(fresh_registry):
     class P1:
         name = "p1"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     @register_analyzer(AnalyzerSpec(name="c1", category="cross_epoch"))
@@ -121,15 +121,15 @@ def test_legacy_register_synthesizes_default_spec(fresh_registry):
     class LegacyAnalyzer:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     fresh_registry.register(LegacyAnalyzer)
     spec = fresh_registry.get_spec("legacy")
     # Default Spec: conservative — assume weights + cache
     assert spec.category == "primary"
-    assert spec.requires_model_weights is True
-    assert spec.requires_activation_cache is True
+    assert spec.effective_requires_model_weights is True
+    assert spec.effective_requires_activation_cache is True
 
 
 def test_legacy_register_secondary_infers_requires_from_depends_on(fresh_registry):
@@ -143,7 +143,7 @@ def test_legacy_register_secondary_infers_requires_from_depends_on(fresh_registr
     fresh_registry.register_secondary(LegacySecondary)
     spec = fresh_registry.get_spec("leg_sec")
     assert spec.category == "secondary"
-    assert spec.requires == ("leg_prim",)
+    assert spec.effective_requires == ("leg_prim",)
 
 
 def test_legacy_register_cross_epoch_infers_requires(fresh_registry):
@@ -157,7 +157,7 @@ def test_legacy_register_cross_epoch_infers_requires(fresh_registry):
     fresh_registry.register_cross_epoch(LegacyCross)
     spec = fresh_registry.get_spec("leg_cross")
     assert spec.category == "cross_epoch"
-    assert spec.requires == ("upstream_a", "upstream_b")
+    assert spec.effective_requires == ("upstream_a", "upstream_b")
 
 
 def test_decorator_wins_over_subsequent_legacy_register(fresh_registry):
@@ -172,7 +172,7 @@ def test_decorator_wins_over_subsequent_legacy_register(fresh_registry):
     class Dual:
         name = "dual"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     fresh_registry.register(Dual)  # legacy call — should be a no-op
@@ -216,7 +216,7 @@ def test_plan_with_instance_leaves_capability_flags_none(tmp_path):
     class Legacy:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0])
@@ -249,7 +249,7 @@ def test_plan_needs_activation_cache_defaults_true_for_legacy(tmp_path):
     class Legacy:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0])
@@ -266,7 +266,7 @@ def test_plan_transitive_prerequisites_when_registered(tmp_path, fresh_registry)
     class Prim:
         name = "prim"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0, 100])
@@ -355,11 +355,11 @@ class _WeightsOnlyAnalyzer:
 
     name = "weights_only_test"
 
-    def analyze(self, ctx) -> dict[str, np.ndarray]:
+    def analyze(self, inputs, context) -> dict[str, np.ndarray]:
         # Asserts the pipeline did not load the cache.
-        assert ctx.cache is None, "expected cache to be None when Spec says no cache"
-        assert ctx.logits is None, "expected logits to be None when Spec says no cache"
-        assert ctx.model is not None, "model should still be loaded for weights access"
+        assert inputs.cache is None, "expected cache to be None when Spec says no cache"
+        assert inputs.logits is None, "expected logits to be None when Spec says no cache"
+        assert inputs.model is not None, "model should still be loaded for weights access"
         return {"sentinel": np.array([1.0], dtype=np.float32)}
 
 
@@ -416,8 +416,8 @@ def test_pipeline_runs_forward_pass_when_cache_needed(trained_variant):
     class _CacheReader:
         name = "cache_reader_test"
 
-        def analyze(self, ctx) -> dict[str, np.ndarray]:
-            assert ctx.cache is not None
+        def analyze(self, inputs, context) -> dict[str, np.ndarray]:
+            assert inputs.cache is not None
             return {"sentinel": np.array([1.0], dtype=np.float32)}
 
     try:
@@ -457,7 +457,7 @@ def test_pipeline_absorbs_spec_only_plan_items(trained_variant):
     class _Absorb:
         name = "absorb_test"
 
-        def analyze(self, ctx) -> dict[str, np.ndarray]:
+        def analyze(self, inputs, context) -> dict[str, np.ndarray]:
             return {"sentinel": np.array([42.0], dtype=np.float32)}
 
     try:
@@ -558,15 +558,15 @@ def test_secondary_spec_requires_matches_depends_on():
     mismatches = []
     for spec in AnalyzerRegistry.list_specs_by_category("secondary"):
         analyzer = AnalyzerRegistry.create(spec.name)
-        if len(spec.requires) != 1:
+        if len(spec.effective_requires) != 1:
             mismatches.append(
-                f"{spec.name}: secondary Spec.requires has {len(spec.requires)} items "
+                f"{spec.name}: secondary Spec.requires has {len(spec.effective_requires)} items "
                 f"(expected 1)"
             )
             continue
-        if spec.requires[0] != analyzer.depends_on:
+        if spec.effective_requires[0] != analyzer.depends_on:
             mismatches.append(
-                f"{spec.name}: Spec.requires={spec.requires[0]!r} != "
+                f"{spec.name}: Spec.requires={spec.effective_requires[0]!r} != "
                 f"depends_on={analyzer.depends_on!r}"
             )
     assert mismatches == [], "\n".join(mismatches)
@@ -583,8 +583,8 @@ def test_cross_epoch_spec_requires_matches_class_requires():
     for spec in AnalyzerRegistry.list_specs_by_category("cross_epoch"):
         analyzer = AnalyzerRegistry.create(spec.name)
         class_requires = tuple(getattr(analyzer, "requires", ()) or ())
-        if class_requires != spec.requires:
+        if class_requires != spec.effective_requires:
             mismatches.append(
-                f"{spec.name}: class.requires={class_requires} != Spec.requires={spec.requires}"
+                f"{spec.name}: class.requires={class_requires} != Spec.requires={spec.effective_requires}"
             )
     assert mismatches == [], "\n".join(mismatches)

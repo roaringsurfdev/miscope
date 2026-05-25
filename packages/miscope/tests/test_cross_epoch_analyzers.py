@@ -9,15 +9,17 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis import AnalysisPipeline, ArtifactLoader, CrossEpochAnalyzer
+from miscope.analysis import AnalysisPipeline, ArtifactLoader
 from miscope.analysis.analyzers import (
     AnalyzerRegistry,
     ParameterSnapshotAnalyzer,
     ParameterTrajectoryPCA,
 )
 from miscope.analysis.analyzers.parameter_trajectory_pca import _GROUPS
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import compute_parameter_velocity, flatten_snapshot
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,
@@ -93,7 +95,7 @@ class TestCrossEpochAnalyzerProtocol:
     def test_parameter_trajectory_pca_conforms(self):
         """ParameterTrajectoryPCA satisfies CrossEpochAnalyzer protocol."""
         analyzer = ParameterTrajectoryPCA()
-        assert isinstance(analyzer, CrossEpochAnalyzer)
+        assert isinstance(analyzer, UnifiedAnalyzer)
 
     def test_has_name(self):
         analyzer = ParameterTrajectoryPCA()
@@ -105,10 +107,10 @@ class TestCrossEpochAnalyzerProtocol:
 
     def test_has_analyze_method(self):
         analyzer = ParameterTrajectoryPCA()
-        assert callable(analyzer.analyze_across_epochs)
+        assert callable(analyzer.analyze)
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("parameter_trajectory").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_trajectory").effective_category == "cross_epoch"
 
 
 # ── Analyzer output tests ────────────────────────────────────────────
@@ -120,19 +122,19 @@ class TestParameterTrajectoryPCA:
     def test_returns_dict(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         assert isinstance(result, dict)
 
     def test_contains_epochs(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         np.testing.assert_array_equal(result["epochs"], epochs)
 
     def test_contains_all_groups(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         # Groups whose weight matrices are absent from the snapshot are skipped.
         # Only assert groups that are actually present in the result.
         present_groups = {k.split("__")[0] for k in result if "__projections" in k}
@@ -147,7 +149,7 @@ class TestParameterTrajectoryPCA:
     def test_projections_shape(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         n = len(epochs)
         k = min(10, n)
         assert result["all__projections"].shape == (n, k)
@@ -158,7 +160,7 @@ class TestParameterTrajectoryPCA:
         """Cross-epoch results match direct library function calls."""
         artifacts_dir, epochs, snapshots = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
 
         # Compare "all" group with direct primitive call
         direct_pca = _pca_dict(snapshots, None, n_components=min(10, len(epochs)))
@@ -180,7 +182,7 @@ class TestParameterTrajectoryPCA:
         """Different component groups produce different PCA results."""
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         assert not np.allclose(
             result["all__projections"],
             result["mlp__projections"],
@@ -202,7 +204,7 @@ class TestArtifactLoaderCrossEpoch:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         # Create the cross-epoch file
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         out_dir = os.path.join(artifacts_dir, "parameter_trajectory")
         os.makedirs(out_dir, exist_ok=True)
         np.savez_compressed(os.path.join(out_dir, "cross_epoch.npz"), **result)  # type: ignore[arg-type]
@@ -213,7 +215,7 @@ class TestArtifactLoaderCrossEpoch:
     def test_load_cross_epoch(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectoryPCA()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, {})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         out_dir = os.path.join(artifacts_dir, "parameter_trajectory")
         os.makedirs(out_dir, exist_ok=True)
         np.savez_compressed(os.path.join(out_dir, "cross_epoch.npz"), **result)  # type: ignore[arg-type]

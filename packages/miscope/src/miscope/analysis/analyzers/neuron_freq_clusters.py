@@ -5,10 +5,11 @@ Computes neuron-frequency specialization matrix.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
@@ -19,15 +20,10 @@ from miscope.analysis.library import (
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="neuron_freq_norm",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache via extract_mlp_activations
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.mlp.hook_out",),
     produces_summary=True,
 )
@@ -44,31 +40,21 @@ class NeuronFreqClustersAnalyzer:
 
     name = "neuron_freq_norm"
     description = "Computes neuron-frequency specialization for clustering"
-    required_hooks: list[str] = ["blocks.0.mlp.hook_out"]
 
     def __init__(self, specialization_threshold: float = 0.9):
         self.specialization_threshold = specialization_threshold
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """
-        Compute fraction of variance explained by each frequency for each neuron.
+        """Compute fraction of variance explained by each frequency for each neuron."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        fourier_basis = context["fourier_basis"]
+        p = compute_grid_size_from_dataset(inputs.probe)
 
-        Args:
-            ctx: Analysis context with cache, probe, and analysis_params.
-                 analysis_params must contain 'fourier_basis'.
-
-        Returns:
-            Dict with 'norm_matrix' array of shape (n_frequencies, d_mlp)
-            where n_frequencies = p // 2
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        fourier_basis = ctx.analysis_params["fourier_basis"]
-        p = compute_grid_size_from_dataset(ctx.probe)
-
-        neuron_acts = extract_mlp_activations(ctx.cache)
+        neuron_acts = extract_mlp_activations(inputs.cache)
         reshaped = reshape_to_grid(neuron_acts, p)
 
         # Compute 2D Fourier transform

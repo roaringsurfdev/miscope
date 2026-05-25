@@ -11,8 +11,8 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.activations import extract_attention_patterns
-from miscope.analysis.protocols import ActivationContext
 from miscope.architectures import ActivationCache
 
 # ── Library function tests ──────────────────────────────────────────────
@@ -85,19 +85,17 @@ class TestAttentionPatternsAnalyzer:
 
         return probe, cache, context, p, n_heads, seq_len
 
-    def _ctx(self, probe, cache, params):
-        return ActivationContext(
-            probe=probe,
-            analysis_params=params,
-            cache=cache,
-        )
+    def _inputs(self, probe, cache, params):
+        return ResolvedInputs(probe=probe, cache=cache), params
 
     def test_has_name(self, analyzer):
         """Analyzer has correct name attribute."""
         assert analyzer.name == "attention_patterns"
 
     def test_required_hooks_declared(self, analyzer):
-        assert "blocks.0.attn.hook_pattern" in analyzer.required_hooks
+        from miscope.analysis.analyzers.attention_patterns import SPEC
+
+        assert "blocks.0.attn.hook_pattern" in SPEC.required_hooks
 
     def test_has_description(self, analyzer):
         """Analyzer has description attribute."""
@@ -107,19 +105,19 @@ class TestAttentionPatternsAnalyzer:
     def test_analyze_returns_dict(self, analyzer, mock_inputs):
         """analyze() returns a dict."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         assert isinstance(result, dict)
 
     def test_analyze_produces_patterns_key(self, analyzer, mock_inputs):
         """analyze() result contains 'patterns' key."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         assert "patterns" in result
 
     def test_output_shape(self, analyzer, mock_inputs):
         """Output shape is (n_heads, n_pos, n_pos, p, p)."""
         probe, cache, context, p, n_heads, seq_len = mock_inputs
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         patterns = result["patterns"]
 
         assert patterns.shape == (n_heads, seq_len, seq_len, p, p)
@@ -127,13 +125,13 @@ class TestAttentionPatternsAnalyzer:
     def test_output_is_numpy(self, analyzer, mock_inputs):
         """Output is numpy array, not torch tensor."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         assert isinstance(result["patterns"], np.ndarray)
 
     def test_values_in_valid_range(self, analyzer, mock_inputs):
         """Attention values are in [0, 1] (softmax outputs)."""
         probe, cache, context, *_ = mock_inputs
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         patterns = result["patterns"]
 
         assert patterns.min() >= 0.0
@@ -162,7 +160,7 @@ class TestAttentionPatternsAnalyzer:
         cache["blocks.0.attn.hook_pattern"] = patterns
         context = {"params": {"prime": p}}
 
-        result = analyzer.analyze(self._ctx(probe, cache, context))
+        result = analyzer.analyze(*self._inputs(probe, cache, context))
         reshaped = result["patterns"]
 
         for a in range(p):

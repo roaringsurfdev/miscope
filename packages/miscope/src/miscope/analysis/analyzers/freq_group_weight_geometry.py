@@ -21,6 +21,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -35,10 +36,8 @@ from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
-    category="cross_epoch",
-    requires=("neuron_freq_norm", "parameter_snapshot"),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("neuron_freq_norm", scope="all_epochs"), ArtifactInput("parameter_snapshot", scope="all_epochs"),),
 )
 
 
@@ -74,13 +73,16 @@ class FreqGroupWeightGeometryAnalyzer:
     name = "freq_group_weight_geometry"
     requires = ["neuron_freq_norm", "parameter_snapshot"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
-        context: dict[str, Any],  # noqa: ARG002
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute frequency group geometry in weight space across all checkpoints."""
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         sorted_epochs = sorted(epochs)
 

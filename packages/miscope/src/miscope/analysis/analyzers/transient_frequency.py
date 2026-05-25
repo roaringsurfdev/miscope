@@ -28,6 +28,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -38,37 +39,26 @@ FINAL_CANONICAL_THRESHOLD: float = 0.10
 
 SPEC = AnalyzerSpec(
     name="transient_frequency",
-    category="cross_epoch",
-    requires=("neuron_dynamics",),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("neuron_dynamics", scope="all_epochs"),),
 )
 
 
 @register_analyzer(SPEC)
 class TransientFrequencyAnalyzer:
-    """Identifies transient frequency groups and their neuron fate.
-
-    A frequency is "ever-qualified" if at any epoch its committed neuron count
-    (neurons with max_frac >= neuron_threshold whose dominant freq is this freq)
-    reaches transient_canonical_threshold * d_mlp.
-
-    A frequency is "final" if it is ever-qualified AND its committed count at the
-    final epoch reaches final_canonical_threshold * d_mlp.
-
-    Transient frequencies are ever-qualified but not final.
-    """
+    """Identifies transient frequency groups and their neuron fate."""
 
     name = "transient_frequency"
     requires = ["neuron_dynamics"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """Compute transient frequency metrics from neuron_dynamics artifact."""
+        assert inputs.artifacts_dir is not None
+        artifacts_dir = inputs.artifacts_dir
         loader = ArtifactLoader(artifacts_dir)
         nd = loader.load_cross_epoch("neuron_dynamics")
 

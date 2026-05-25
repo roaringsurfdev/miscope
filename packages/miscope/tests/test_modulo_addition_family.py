@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers import AnalyzerRegistry
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.families import FamilyRegistry, VariantState
 from miscope.families.implementations import ModuloAddition1LayerFamily
 
@@ -276,9 +276,7 @@ class TestAnalyzerIntegration:
 
         analyzer = AnalyzerRegistry.get("dominant_frequencies")
         result = analyzer.analyze(
-            ActivationContext(
-                probe=dataset, analysis_params=context, model=model, cache=cache, logits=logits
-            )
+ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "coefficients" in result
@@ -298,9 +296,7 @@ class TestAnalyzerIntegration:
 
         analyzer = AnalyzerRegistry.get("neuron_activations")
         result = analyzer.analyze(
-            ActivationContext(
-                probe=dataset, analysis_params=context, model=model, cache=cache, logits=logits
-            )
+ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "activations" in result
@@ -322,9 +318,7 @@ class TestAnalyzerIntegration:
 
         analyzer = AnalyzerRegistry.get("neuron_freq_norm")
         result = analyzer.analyze(
-            ActivationContext(
-                probe=dataset, analysis_params=context, model=model, cache=cache, logits=logits
-            )
+ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "norm_matrix" in result
@@ -369,9 +363,7 @@ class TestEndToEnd:
 
         for analyzer in analyzers:
             result = analyzer.analyze(
-                ActivationContext(
-                    probe=dataset, analysis_params=context, model=model, cache=cache, logits=logits
-                )
+ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
             )
             assert len(result) > 0
 

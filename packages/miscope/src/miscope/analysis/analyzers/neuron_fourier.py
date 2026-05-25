@@ -14,58 +14,32 @@ from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library import compose_neuron_fourier_weights, extract_frequency_pairs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="neuron_fourier",
-    category="secondary",
-    requires=("parameter_snapshot",),
-    requires_model_weights=False,  # consumes artifact dict; no model needed
-    requires_activation_cache=False,
+    output_scope="per_epoch",
+    inputs=(ArtifactInput("parameter_snapshot", scope="epoch"),),
 )
 
 
 @register_analyzer(SPEC)
 class NeuronFourierAnalyzer:
-    """Computes per-neuron Fourier decomposition of MLP weights.
-
-    A secondary analyzer that derives per-neuron Fourier magnitudes and
-    phases for both MLP layers from parameter_snapshot artifacts.
-
-    Dispatches on architecture based on artifact contents (presence of W_E).
-    For each epoch, computes effective weight vectors in token/output space
-    and projects onto the family Fourier basis, extracting per-frequency-pair
-    magnitudes (α_mk, β_mk) and phases (φ_mk, ψ_mk) following the
-    He et al. (2026) convention.
-    """
+    """Computes per-neuron Fourier decomposition of MLP weights."""
 
     name = "neuron_fourier"
     depends_on = "parameter_snapshot"
 
     def analyze(
         self,
-        artifact: dict[str, Any],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute per-neuron Fourier decomposition for one epoch.
-
-        Args:
-            artifact: parameter_snapshot artifact. Transformer artifacts contain
-                      W_E, W_in, W_out, W_U; MLP artifacts contain W_in, W_out.
-            context: Analysis context containing 'params' (with 'prime') and
-                     'fourier_basis' (normalized torch.Tensor, shape (p, p)).
-
-        Returns:
-            Dict with:
-                alpha_mk:    shape (M, K) — input layer Fourier magnitudes
-                phi_mk:      shape (M, K) — input layer Fourier phases ∈ (-π, π]
-                beta_mk:     shape (M, K) — output layer Fourier magnitudes
-                psi_mk:      shape (M, K) — output layer Fourier phases ∈ (-π, π]
-                freq_indices: shape (K,)  — frequency indices k = 1 ... K
-            where M = n_neurons (d_mlp), K = (p-1)//2 frequency pairs.
-        """
+        """Compute per-neuron Fourier decomposition for one epoch."""
+        artifact = inputs.artifacts["parameter_snapshot"]
         p = context["params"]["prime"]
         fourier_basis = context["fourier_basis"].cpu().numpy()  # (p, p)
 

@@ -348,18 +348,38 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     from miscope.analysis.spec import AnalyzerSpec
 
     if isinstance(item, AnalyzerSpec):
-        depends_on = item.requires[0] if item.category == "secondary" and item.requires else None
+        # Use effective_* properties so unified Specs (category=None,
+        # inputs=...) classify correctly.
+        effective_category = item.effective_category
+        effective_requires = item.effective_requires
+        depends_on = (
+            effective_requires[0]
+            if effective_category == "secondary" and effective_requires
+            else None
+        )
         return _AnalyzerDescriptor(
             name=item.name,
-            category=item.category,
-            requires=tuple(item.requires),
+            category=effective_category,
+            requires=effective_requires,
             depends_on=depends_on,
-            requires_model_weights=item.requires_model_weights,
-            requires_activation_cache=item.requires_activation_cache,
+            requires_model_weights=item.effective_requires_model_weights,
+            requires_activation_cache=item.effective_requires_activation_cache,
             required_hooks=tuple(item.required_hooks),
         )
 
-    # Analyzer instance — classify by protocol attribute presence.
+    # Analyzer instance — prefer the registered Spec when one exists.
+    # REQ_121 migrated analyzers no longer match the legacy protocol
+    # attribute set (the method is ``analyze``, not ``analyze_across_epochs``);
+    # the registered Spec is the source of truth.
+    try:
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        if AnalyzerRegistry.has_spec(item.name):
+            return _describe(AnalyzerRegistry.get_spec(item.name))
+    except (ImportError, AttributeError):
+        pass
+
+    # Fallback: classify by protocol attribute presence (legacy analyzers).
     if _is_cross_epoch(item):
         return _AnalyzerDescriptor(
             name=item.name,
@@ -415,7 +435,13 @@ def _collect_transitive_prerequisites(
 
 
 def _is_cross_epoch(analyzer: Any) -> bool:
-    return hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires")
+    # Legacy: ``analyze_across_epochs`` method. Migrated (REQ_121):
+    # has a ``requires`` list attribute and no ``depends_on``.
+    if hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires"):
+        return True
+    if hasattr(analyzer, "requires") and not hasattr(analyzer, "depends_on"):
+        return True
+    return False
 
 
 def _is_secondary(analyzer: Any) -> bool:

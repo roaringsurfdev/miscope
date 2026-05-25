@@ -6,11 +6,12 @@ analogous to neuron_freq_clusters for MLP neurons.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import einops
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
@@ -19,15 +20,10 @@ from miscope.analysis.library import (
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="attention_freq",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache["blocks.0.attn.hook_pattern"]
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.attn.hook_pattern",),
     produces_summary=True,
 )
@@ -46,7 +42,6 @@ class AttentionFreqAnalyzer:
 
     name = "attention_freq"
     description = "Frequency decomposition of attention patterns per head"
-    required_hooks: list[str] = ["blocks.0.attn.hook_pattern"]
 
     def __init__(
         self,
@@ -58,23 +53,16 @@ class AttentionFreqAnalyzer:
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute frequency variance fractions for each attention head.
-
-        Args:
-            ctx: Analysis context with bundle, probe, and analysis_params.
-                 analysis_params must contain 'fourier_basis'.
-
-        Returns:
-            Dict with 'freq_matrix' array of shape (n_freq, n_heads)
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        fourier_basis = ctx.analysis_params["fourier_basis"]
-        p = compute_grid_size_from_dataset(ctx.probe)
+        """Compute frequency variance fractions for each attention head."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        fourier_basis = context["fourier_basis"]
+        p = compute_grid_size_from_dataset(inputs.probe)
 
         # Extract attention patterns: (p*p, n_heads, n_pos, n_pos)
-        attn = ctx.cache["blocks.0.attn.hook_pattern"]
+        attn = inputs.cache["blocks.0.attn.hook_pattern"]
 
         # Select position pair, e.g. = → a: (p*p, n_heads)
         attn_pair = attn[:, :, self.to_position, self.from_position]
@@ -103,15 +91,7 @@ class AttentionFreqAnalyzer:
         result: dict[str, np.ndarray],
         context: dict[str, Any],  # noqa: ARG002
     ) -> dict[str, float | np.ndarray]:
-        """Compute summary statistics from this epoch's frequency result.
-
-        Args:
-            result: Dict with 'freq_matrix' array of shape (n_freq, n_heads)
-            context: Analysis context (unused)
-
-        Returns:
-            Dict with per-head dominant frequency, max fraction, and mean specialization
-        """
+        """Compute summary statistics from this epoch's frequency result."""
         freq_matrix = result["freq_matrix"]  # (n_freq, n_heads)
         max_frac_per_head = freq_matrix.max(axis=0)  # (n_heads,)
         dominant_freq_per_head = freq_matrix.argmax(axis=0)  # (n_heads,)

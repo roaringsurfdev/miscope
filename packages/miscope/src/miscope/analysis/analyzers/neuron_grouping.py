@@ -32,6 +32,7 @@ from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.grouping import (
     group_neurons,
     group_neurons_summary,
@@ -53,10 +54,8 @@ _DEFAULT_N_GROUPS = 8
 
 SPEC = AnalyzerSpec(
     name="neuron_grouping",
-    category="secondary",
-    requires=("parameter_snapshot",),
-    requires_model_weights=False,  # consumes artifact dict; no model needed
-    requires_activation_cache=False,
+    output_scope="per_epoch",
+    inputs=(ArtifactInput("parameter_snapshot", scope="epoch"),),
 )
 
 
@@ -69,29 +68,11 @@ class NeuronGrouping:
 
     def analyze(
         self,
-        artifact: dict[str, Any],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute per-epoch grouping for one checkpoint.
-
-        Args:
-            artifact: parameter_snapshot artifact for this epoch
-                (`W_in`, `W_out`, plus the rest of the weight matrices).
-            context: Family-provided analysis context. Optional keys:
-                - ``neuron_grouping_override``: callable
-                  ``(artifact, context) -> (GroupAssignment, features)``
-                  that the family supplies to take precedence over the
-                  universal path. The features it returns are the same
-                  features the assignment was derived from, used for
-                  the summary computation.
-                - ``neuron_grouping_n_groups``: int — group count for
-                  the universal path (kmeans). Defaults to 8 if absent.
-                - ``neuron_grouping_feature_source``: str — currently
-                  only ``"weight"`` supported in the universal path.
-
-        Returns:
-            Dict of arrays for storage in epoch_{NNNNN}.npz.
-        """
+        """Compute per-epoch grouping for one checkpoint."""
+        artifact = inputs.artifacts["parameter_snapshot"]
         override: Callable | None = context.get(_CONTEXT_OVERRIDE_KEY)
         if override is not None:
             assignment, features = override(artifact, context)

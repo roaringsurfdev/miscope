@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
@@ -25,31 +26,28 @@ _GROUPS = {"all": None, **COMPONENT_GROUPS}
 
 SPEC = AnalyzerSpec(
     name="parameter_trajectory",
-    category="cross_epoch",
-    requires=("parameter_snapshot",),
-    requires_model_weights=False,  # consumes per-epoch artifacts; no model
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("parameter_snapshot", scope="all_epochs"),),
 )
 
 
 @register_analyzer(SPEC)
 class ParameterTrajectoryPCA:
-    """Cross-epoch analyzer for parameter trajectory PCA projection.
-
-    Precomputes PCA projections and velocity for all component groups
-    so the dashboard can render trajectories without runtime PCA.
-    """
+    """Cross-epoch analyzer for parameter trajectory PCA projection."""
 
     name = "parameter_trajectory"
     requires = ["parameter_snapshot"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute PCA trajectory and velocity for all component groups."""
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         snapshots = [loader.load_epoch("parameter_snapshot", e) for e in epochs]
 

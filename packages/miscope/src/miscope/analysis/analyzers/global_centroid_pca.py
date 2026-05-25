@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -48,10 +49,8 @@ def _pca_with_variance_threshold(
 
 SPEC = AnalyzerSpec(
     name="global_centroid_pca",
-    category="cross_epoch",
-    requires=("repr_geometry",),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("repr_geometry", scope="all_epochs"),),
 )
 
 
@@ -73,11 +72,10 @@ class GlobalCentroidPCA:
     name = "global_centroid_pca"
     requires = ["repr_geometry"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
-        context: dict[str, Any],  # noqa: ARG002
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute global centroid PCA for all activation sites.
 
@@ -89,6 +87,10 @@ class GlobalCentroidPCA:
         Returns:
             Dict of arrays for storage in cross_epoch.npz.
         """
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         epoch_artifacts = [loader.load_epoch("repr_geometry", e) for e in epochs]
 

@@ -10,23 +10,19 @@ Output per epoch: qk_freq_norms (n_heads, n_freq), v_freq_norms (n_heads, n_freq
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
 import numpy as np
 import torch
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="attention_fourier",
-    category="primary",
-    requires_model_weights=True,
-    requires_activation_cache=False,  # reads attention/embedding weights only
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
 )
 
@@ -44,34 +40,22 @@ class AttentionFourierAnalyzer:
 
     name = "attention_fourier"
     description = "Fourier decomposition of QK^T and V per attention head"
-    # Reads transformer weights only — runs on architectures that publish
-    # embed.W_E and per-head Q/K/V matrices. Family registration filters.
-    required_hooks: list[str] = []
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Decompose each head's QK^T and V into Fourier frequency fractions.
-
-        Args:
-            ctx: Analysis context with model and analysis_params.
-                 analysis_params must include 'fourier_basis': Tensor (p+1, p).
-
-        Returns:
-            Dict with:
-            - qk_freq_norms: (n_heads, n_freq) — fraction of QK^T energy per frequency.
-            - v_freq_norms: (n_heads, n_freq) — fraction of V energy per frequency.
-        """
-        assert ctx.model is not None  # type-narrowing for pyright
-        fourier_basis = ctx.analysis_params["fourier_basis"]  # (p+1, p)
+        """Decompose each head's QK^T and V into Fourier frequency fractions."""
+        assert inputs.model is not None  # type-narrowing for pyright
+        fourier_basis = context["fourier_basis"]  # (p+1, p)
         p = fourier_basis.shape[1]
         n_freq = p // 2
 
-        W_E_tok = ctx.model.get_weight("embed.W_E").detach()[:p]  # (p, d_model)
-        W_Q = ctx.model.get_weight("blocks.0.attn.q.W").detach()  # (n_heads, d_model, d_head)
-        W_K = ctx.model.get_weight("blocks.0.attn.k.W").detach()
-        W_V = ctx.model.get_weight("blocks.0.attn.v.W").detach()
+        W_E_tok = inputs.model.get_weight("embed.W_E").detach()[:p]  # (p, d_model)
+        W_Q = inputs.model.get_weight("blocks.0.attn.q.W").detach()
+        W_K = inputs.model.get_weight("blocks.0.attn.k.W").detach()
+        W_V = inputs.model.get_weight("blocks.0.attn.v.W").detach()
 
         n_heads = W_Q.shape[0]
         qk_freq_norms = np.zeros((n_heads, n_freq), dtype=np.float32)

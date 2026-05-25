@@ -334,7 +334,7 @@ class _PrimarySpec:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def analyze(self, ctx):  # protocol stub
+    def analyze(self, inputs, context):  # protocol stub
         pass
 
 
@@ -417,3 +417,66 @@ def test_check_freshness_with_analyzers_classifies_cross_epoch(tmp_path):
     assert "activation_dmd" in cross_names
     ce = next(ce for ce in report.cross_epoch if ce.analyzer_name == "activation_dmd")
     assert ce.status_label == "absent"
+
+
+def test_freshness_does_not_double_list_cross_epoch_analyzers(tmp_path):
+    """Regression: post-REQ_121, every analyzer satisfies the same protocol,
+    so the old ``hasattr(.., 'analyze_across_epochs')`` discriminator put
+    every registered analyzer into the per-epoch bucket. Disk discovery
+    then added cross-epoch analyzers to the cross-epoch bucket too, so
+    the report listed each cross-epoch analyzer twice (fresh in
+    per-epoch, stale in cross-epoch). Classify by the Spec's effective
+    category instead.
+
+    A registered cross-epoch analyzer with a real cross_epoch.npz on
+    disk must appear only in the cross-epoch section.
+    """
+    from miscope.analysis.registry import AnalyzerRegistry, register_analyzer
+    from miscope.analysis.spec import AnalyzerSpec
+
+    saved_specs = dict(_specs_snapshot())
+    saved_factories = dict(_factories_snapshot())
+    try:
+        AnalyzerRegistry.clear()
+
+        # Register a real unified cross-epoch Spec (output_scope="cross_epoch").
+        ce_spec = AnalyzerSpec(name="ce_test", output_scope="cross_epoch", inputs=())
+
+        @register_analyzer(ce_spec)
+        class _CETest:
+            name = "ce_test"
+
+            def analyze(self, inputs, context):  # noqa: ARG002
+                return {}
+
+        checkpoints = [0, 100]
+        artifacts_dir = tmp_path / "artifacts"
+        _write_cross_epoch(artifacts_dir, "ce_test", n_epochs=1)  # stale (1 < 2)
+
+        variant = _make_variant(tmp_path, checkpoints)
+        report = check_freshness(variant, analyzers=[_CETest()])
+
+        per_epoch_names = {fe.analyzer_name for fe in report.per_epoch}
+        cross_names = {ce.analyzer_name for ce in report.cross_epoch}
+        assert "ce_test" in cross_names
+        assert "ce_test" not in per_epoch_names, (
+            "cross-epoch analyzer leaked into per-epoch freshness list"
+        )
+    finally:
+        AnalyzerRegistry.clear()
+        from miscope.analysis import registry as reg_mod
+
+        reg_mod._specs.update(saved_specs)
+        reg_mod._factories.update(saved_factories)
+
+
+def _specs_snapshot():
+    from miscope.analysis import registry as reg_mod
+
+    return dict(reg_mod._specs)
+
+
+def _factories_snapshot():
+    from miscope.analysis import registry as reg_mod
+
+    return dict(reg_mod._factories)

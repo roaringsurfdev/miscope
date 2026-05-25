@@ -14,6 +14,7 @@ from miscope.analysis.analyzers.neuron_dynamics import (
     _compute_commitment_epochs,
     _compute_switch_counts,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_freq_clusters import (
     render_commitment_timeline,
     render_neuron_freq_trajectory,
@@ -138,7 +139,7 @@ class TestCommitmentEpochs:
 class TestNeuronDynamicsAnalyzer:
     def test_registration(self):
         """NeuronDynamicsAnalyzer is registered as a cross-epoch analyzer."""
-        assert AnalyzerRegistry.get_spec("neuron_dynamics").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("neuron_dynamics").effective_category == "cross_epoch"
 
     def test_analyze_across_epochs(
         self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
@@ -146,7 +147,7 @@ class TestNeuronDynamicsAnalyzer:
         """Analyzer produces expected output fields and shapes."""
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, context={})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={})
 
         assert "epochs" in result
         assert "dominant_freq" in result
@@ -170,7 +171,7 @@ class TestNeuronDynamicsAnalyzer:
         """Switch counts match known assignments."""
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
-        result = analyzer.analyze_across_epochs(artifacts_dir, epochs, context={})
+        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={})
 
         # Neuron 2 switches once (freq 2 → 9 at epoch 300)
         assert result["switch_counts"][2] == 1

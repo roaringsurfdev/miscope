@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -32,10 +33,8 @@ _SITES = ("embedding", "attention", "mlp")
 
 SPEC = AnalyzerSpec(
     name="gradient_site",
-    category="cross_epoch",
-    requires=(),  # loads checkpoints directly; no per-epoch artifact deps
-    requires_model_weights=False,  # primary-phase flag — N/A for cross-epoch
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(),  # loads checkpoints directly via context["variant"]
 )
 
 
@@ -60,10 +59,9 @@ class GradientSiteAnalyzer:
         self.n_interior = n_interior
         self.full_resolution = full_resolution
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute site gradient convergence artifact for a variant.
@@ -82,6 +80,7 @@ class GradientSiteAnalyzer:
         variant: Variant = context["variant"]
         prime = int(variant.model_config["prime"])
         n_freqs = prime // 2
+        epochs = list(inputs.epochs or ())
 
         fourier_basis = context.get("fourier_basis")
         if fourier_basis is None:
@@ -173,7 +172,11 @@ class GradientSiteAnalyzer:
             "params": variant.params,
         }
         available_epochs = variant.get_available_checkpoints()
-        result = self.analyze_across_epochs(str(variant.artifacts_dir), available_epochs, context)
+        inputs = ResolvedInputs(
+            artifacts_dir=str(variant.artifacts_dir),
+            epochs=tuple(available_epochs),
+        )
+        result = self.analyze(inputs, context)
 
         cross_epoch_path.parent.mkdir(parents=True, exist_ok=True)
         temp_base = str(cross_epoch_path.parent / ".cross_epoch_tmp")

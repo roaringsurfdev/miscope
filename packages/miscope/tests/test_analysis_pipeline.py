@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from miscope.analysis import AnalysisPipeline, AnalysisRunConfig, Analyzer
-from miscope.analysis.protocols import ActivationContext
 from miscope.families import FamilyRegistry
 
 
@@ -25,7 +24,7 @@ class MockAnalyzer:
     def name(self) -> str:
         return self._name
 
-    def analyze(self, ctx: ActivationContext) -> dict[str, np.ndarray]:
+    def analyze(self, inputs, context) -> dict[str, np.ndarray]:
         """Mock analysis - returns simple test data."""
         return {"data": np.ones((10,), dtype=np.float32)}
 
@@ -229,8 +228,8 @@ class TestAnalysisPipelineExtraContext:
         class ContextReadingAnalyzer:
             name = "ctx_reader"
 
-            def analyze(self, ctx: ActivationContext) -> dict[str, np.ndarray]:
-                seen.append(ctx.analysis_params.get("custom_key"))
+            def analyze(self, inputs, context) -> dict[str, np.ndarray]:
+                seen.append(context.get("custom_key"))
                 return {"data": np.ones((1,), dtype=np.float32)}
 
         pipeline = AnalysisPipeline(trained_variant)
@@ -247,9 +246,9 @@ class TestAnalysisPipelineExtraContext:
         class ContextReadingAnalyzer:
             name = "ctx_reader"
 
-            def analyze(self, ctx: ActivationContext) -> dict[str, np.ndarray]:
+            def analyze(self, inputs, context) -> dict[str, np.ndarray]:
                 # 'fourier_basis' is a key the modadd family always sets.
-                seen.append(ctx.analysis_params.get("fourier_basis"))
+                seen.append(context.get("fourier_basis"))
                 return {"data": np.ones((1,), dtype=np.float32)}
 
         pipeline = AnalysisPipeline(trained_variant)
@@ -265,9 +264,9 @@ class TestAnalysisPipelineExtraContext:
         class ContextReadingAnalyzer:
             name = "ctx_reader"
 
-            def analyze(self, ctx: ActivationContext) -> dict[str, np.ndarray]:
+            def analyze(self, inputs, context) -> dict[str, np.ndarray]:
                 # 'fourier_basis' should be the modadd-supplied value, not None.
-                seen.append(ctx.analysis_params.get("fourier_basis"))
+                seen.append(context.get("fourier_basis"))
                 return {"data": np.ones((1,), dtype=np.float32)}
 
         pipeline = AnalysisPipeline(trained_variant)
@@ -309,7 +308,7 @@ class TestAnalysisPipelineResumability:
             def name(self):
                 return "counting"
 
-            def analyze(self, ctx: ActivationContext):
+            def analyze(self, inputs, context):
                 self.call_count += 1
                 return {"data": np.ones((5,))}
 
@@ -470,7 +469,7 @@ class SummaryMockAnalyzer:
     def name(self) -> str:
         return self._name
 
-    def analyze(self, ctx: ActivationContext) -> dict[str, np.ndarray]:
+    def analyze(self, inputs, context) -> dict[str, np.ndarray]:
         """Returns per-epoch artifact data."""
         return {"data": np.random.rand(10).astype(np.float32)}
 

@@ -33,7 +33,7 @@ class _PrimaryStub:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def analyze(self, ctx: Any) -> dict[str, np.ndarray]:
+    def analyze(self, inputs, context) -> dict[str, np.ndarray]:
         return {}
 
 

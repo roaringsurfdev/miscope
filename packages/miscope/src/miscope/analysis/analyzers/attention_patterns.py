@@ -5,26 +5,22 @@ Captures per-head attention patterns across all position pairs.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
 import einops
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
 )
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="attention_patterns",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache["blocks.0.attn.hook_pattern"]
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.attn.hook_pattern",),
 )
 
@@ -40,27 +36,18 @@ class AttentionPatternsAnalyzer:
 
     name = "attention_patterns"
     description = "Captures per-head attention patterns across all position pairs"
-    required_hooks: list[str] = ["blocks.0.attn.hook_pattern"]
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """
-        Extract attention patterns and reshape to (n_heads, n_pos, n_pos, p, p).
-
-        Args:
-            ctx: Analysis context with cache and probe.
-
-        Returns:
-            Dict with 'patterns' array of shape (n_heads, n_pos, n_pos, p, p)
-            where values are attention weights in [0, 1].
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        p = compute_grid_size_from_dataset(ctx.probe)
+        """Extract attention patterns and reshape to (n_heads, n_pos, n_pos, p, p)."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        p = compute_grid_size_from_dataset(inputs.probe)
 
         # Shape: (p*p, n_heads, seq_to, seq_from)
-        attn = ctx.cache["blocks.0.attn.hook_pattern"]
+        attn = inputs.cache["blocks.0.attn.hook_pattern"]
 
         # Reshape batch dim to (p, p) grid for each (head, to_pos, from_pos)
         patterns = einops.rearrange(

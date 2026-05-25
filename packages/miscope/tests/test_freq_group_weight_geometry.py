@@ -8,6 +8,7 @@ from miscope.analysis.analyzers.freq_group_weight_geometry import (
     _build_group_labels,
     _compute_group_geometry,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.freq_group_weight_geometry import (
     render_weight_geometry_centroid_pca,
     render_weight_geometry_group_snapshot,
@@ -193,7 +194,7 @@ def _run_analyzer(loader, epochs):
         "miscope.analysis.analyzers.freq_group_weight_geometry.ArtifactLoader",
         return_value=loader,
     ):
-        return analyzer.analyze_across_epochs(artifacts_dir="/fake", epochs=epochs, context={})
+        return analyzer.analyze(ResolvedInputs(artifacts_dir="/fake", epochs=tuple(epochs)), {})
 
 
 def test_analyzer_output_keys_win_only():
