@@ -3,8 +3,13 @@
 Answers the question: for a given variant, which analyzers have complete
 per-epoch coverage and which cross-epoch artifacts are out of date?
 
+After REQ_119, this module is a thin wrapper over
+:func:`miscope.analysis.planner.plan_analysis`: the Planner decides which
+analyzers are stale or missing; this module presents the decision in the
+``FreshnessReport`` shape that CLI and dashboard callers expect.
+
 Taxonomy:
-- *epoch-incomplete*: per-epoch artifact is missing checkpoints at the tail
+- *epoch-incomplete*: per-epoch artifact is missing checkpoints
 - *epoch-stale*: cross-epoch artifact was built on fewer epochs than are available
 - *summary-stale*: variant_summary.json is absent or older than most recent artifact
 
@@ -15,15 +20,24 @@ Public surface:
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-import numpy as np
+from miscope.analysis.planner import (
+    plan_analysis,
+    read_covered_epoch_count,
+    scan_epoch_files,
+)
 
-from miscope.families.variant import Variant
+# Re-export the disk-state primitives at their historical names so existing
+# tests and callers continue to import them from ``freshness``.
+_scan_epoch_files = scan_epoch_files
+_read_covered_epoch_count = read_covered_epoch_count
+
+from miscope.families.variant import Variant  # noqa: E402  (after re-export)
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -127,6 +141,32 @@ class FreshnessReport:
 
 
 # ---------------------------------------------------------------------------
+# Sentinel analyzer objects for plan_analysis
+# ---------------------------------------------------------------------------
+
+
+class _PerEpochSentinel:
+    """Minimal Analyzer-shaped object used to feed plan_analysis from a name."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def analyze(self, ctx: Any) -> dict[str, Any]:
+        raise NotImplementedError  # never executed; planner is no-side-effect
+
+
+class _CrossEpochSentinel:
+    """Minimal CrossEpochAnalyzer-shaped object for plan_analysis."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.requires: tuple[str, ...] = ()
+
+    def analyze_across_epochs(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -135,29 +175,62 @@ def check_freshness(
     variant: Variant,
     per_epoch_names: Sequence[str] | None = None,
     cross_epoch_names: Sequence[str] | None = None,
+    analyzers: Sequence[Any] | None = None,
 ) -> FreshnessReport:
     """Build a freshness report for a variant.
 
+    Thin wrapper over :func:`plan_analysis` (REQ_119): the Planner decides
+    which analyzers are stale or missing; this function translates the
+    Plan into the ``FreshnessReport`` shape callers expect.
+
     Args:
         variant: The variant to inspect.
-        per_epoch_names: Per-epoch analyzer names to check. If None, all
-            subdirectories containing epoch_*.npz files are checked.
-        cross_epoch_names: Cross-epoch analyzer names to check. If None, all
-            subdirectories containing cross_epoch.npz are checked.
+        per_epoch_names: Per-epoch analyzer names to check. If None and
+            ``analyzers`` is also None, all subdirectories containing
+            ``epoch_*.npz`` files are checked.
+        cross_epoch_names: Cross-epoch analyzer names to check. If None
+            and ``analyzers`` is also None, all subdirectories containing
+            ``cross_epoch.npz`` are checked.
+        analyzers: Optional list of registered analyzer instances
+            (mix of primary, secondary, cross-epoch). When provided,
+            their names are unioned with on-disk discovery so that
+            registered-but-never-run analyzers appear as "absent" *and*
+            unregistered leftover artifacts remain visible. Ignored when
+            explicit name lists are also supplied.
 
     Returns:
         FreshnessReport with per-epoch and cross-epoch freshness status.
     """
     artifacts_dir = Path(variant.artifacts_dir)
     available_checkpoints = sorted(variant.get_available_checkpoints())
-    checkpoint_set = set(available_checkpoints)
 
-    per_epoch_results = _check_per_epoch(
-        artifacts_dir, available_checkpoints, checkpoint_set, per_epoch_names
-    )
-    cross_epoch_results = _check_cross_epoch(
-        artifacts_dir, len(available_checkpoints), cross_epoch_names
-    )
+    if analyzers is not None and per_epoch_names is None and cross_epoch_names is None:
+        per_epoch_names, cross_epoch_names = _names_from_analyzers_with_disk_union(
+            analyzers, artifacts_dir
+        )
+
+    per_epoch_resolved = _resolve_per_epoch_names(artifacts_dir, per_epoch_names)
+    cross_epoch_resolved = _resolve_cross_epoch_names(artifacts_dir, cross_epoch_names)
+
+    sentinels: list[Any] = []
+    sentinels.extend(_PerEpochSentinel(name) for name in per_epoch_resolved)
+    sentinels.extend(_CrossEpochSentinel(name) for name in cross_epoch_resolved)
+    plan = plan_analysis(variant, sentinels, force=False)
+    plan_per_epoch = {item.analyzer_name: item for item in plan.per_epoch}
+    plan_cross_epoch = {item.analyzer_name: item for item in plan.cross_epoch}
+
+    per_epoch_results = [
+        _build_per_epoch_freshness(
+            artifacts_dir, name, available_checkpoints, plan_per_epoch.get(name)
+        )
+        for name in per_epoch_resolved
+    ]
+    cross_epoch_results = [
+        _build_cross_epoch_freshness(
+            artifacts_dir, name, len(available_checkpoints), plan_cross_epoch.get(name)
+        )
+        for name in cross_epoch_resolved
+    ]
     summary_stale = _check_summary_stale(variant)
 
     return FreshnessReport(
@@ -175,117 +248,120 @@ def check_freshness(
 # ---------------------------------------------------------------------------
 
 
-def _check_per_epoch(
+def _names_from_analyzers_with_disk_union(
+    analyzers: Sequence[Any],
     artifacts_dir: Path,
-    available_checkpoints: list[int],
-    checkpoint_set: set[int],
-    names: Sequence[str] | None,
-) -> list[PerEpochFreshness]:
-    """Check per-epoch artifact coverage for each analyzer."""
-    if not artifacts_dir.exists():
-        return []
+) -> tuple[list[str], list[str]]:
+    """Split analyzer names by phase and union with on-disk discovery.
 
-    if names is not None:
-        candidate_dirs = [artifacts_dir / n for n in names]
-    else:
-        candidate_dirs = [d for d in artifacts_dir.iterdir() if d.is_dir()]
-
-    results = []
-    for analyzer_dir in candidate_dirs:
-        if not analyzer_dir.is_dir():
-            continue
-
-        artifact_epochs = _scan_epoch_files(analyzer_dir)
-        if not artifact_epochs:
-            # Skip cross-epoch-only directories during auto-discovery.
-            # When analyzer names are given explicitly, include even if empty.
-            if names is None:
-                continue
-
-        artifact_epoch_set = set(artifact_epochs)
-        missing = sorted(checkpoint_set - artifact_epoch_set)
-
-        results.append(
-            PerEpochFreshness(
-                analyzer_name=analyzer_dir.name,
-                total_checkpoints=len(available_checkpoints),
-                artifact_epoch_count=len(artifact_epochs),
-                missing_epochs=missing,
-            )
-        )
-
-    return results
-
-
-def _check_cross_epoch(
-    artifacts_dir: Path,
-    n_checkpoints: int,
-    names: Sequence[str] | None,
-) -> list[CrossEpochFreshness]:
-    """Check cross-epoch artifact coverage for each analyzer."""
-    if not artifacts_dir.exists():
-        return []
-
-    if names is not None:
-        candidate_dirs = [artifacts_dir / n for n in names]
-    else:
-        candidate_dirs = [d for d in artifacts_dir.iterdir() if d.is_dir()]
-
-    results = []
-    for analyzer_dir in candidate_dirs:
-        if not analyzer_dir.is_dir():
-            continue
-
-        cross_epoch_path = analyzer_dir / "cross_epoch.npz"
-        if not cross_epoch_path.exists():
-            if names is not None:
-                results.append(
-                    CrossEpochFreshness(
-                        analyzer_name=analyzer_dir.name,
-                        artifact_exists=False,
-                        available_checkpoints=n_checkpoints,
-                        covered_epoch_count=0,
-                    )
-                )
-            continue
-
-        covered = _read_covered_epoch_count(cross_epoch_path)
-        results.append(
-            CrossEpochFreshness(
-                analyzer_name=analyzer_dir.name,
-                artifact_exists=True,
-                available_checkpoints=n_checkpoints,
-                covered_epoch_count=covered,
-            )
-        )
-
-    return results
-
-
-def _scan_epoch_files(analyzer_dir: Path) -> list[int]:
-    """Return sorted list of epoch numbers from epoch_*.npz files."""
-    epochs = []
-    for fname in os.listdir(analyzer_dir):
-        if fname.startswith("epoch_") and fname.endswith(".npz"):
-            try:
-                epochs.append(int(fname[6:-4]))
-            except ValueError:
-                continue
-    return sorted(epochs)
-
-
-def _read_covered_epoch_count(cross_epoch_path: Path) -> int:
-    """Read the number of epochs stored in a cross-epoch artifact.
-
-    Returns -1 if the artifact has no 'epochs' key (treated as unknown/stale).
+    Primary and secondary analyzers both produce per-epoch artifacts, so
+    they share the per-epoch name list. Cross-epoch analyzers go in their
+    own list. Disk-discovered names are unioned in so leftover artifacts
+    from removed/renamed analyzers remain visible alongside registered-
+    but-never-run analyzers.
     """
-    try:
-        with np.load(cross_epoch_path, allow_pickle=False) as data:
-            if "epochs" not in data:
-                return -1
-            return int(data["epochs"].shape[0])
-    except Exception:
-        return -1
+    registered_per_epoch: set[str] = set()
+    registered_cross_epoch: set[str] = set()
+    for analyzer in analyzers:
+        # Mirrors planner classification: cross-epoch detected by method
+        # presence, everything else (primary, secondary) emits per-epoch.
+        if hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires"):
+            registered_cross_epoch.add(analyzer.name)
+        else:
+            registered_per_epoch.add(analyzer.name)
+
+    discovered_per_epoch = set(_resolve_per_epoch_names(artifacts_dir, None))
+    discovered_cross_epoch = set(_resolve_cross_epoch_names(artifacts_dir, None))
+
+    return (
+        sorted(registered_per_epoch | discovered_per_epoch),
+        sorted(registered_cross_epoch | discovered_cross_epoch),
+    )
+
+
+def _resolve_per_epoch_names(
+    artifacts_dir: Path, names: Sequence[str] | None
+) -> list[str]:
+    """Return per-epoch analyzer directory names to inspect.
+
+    If names are explicit, return them as-is (even if empty on disk). If
+    None, auto-discover by scanning artifacts_dir for directories that
+    contain at least one ``epoch_*.npz`` file. Cross-epoch-only dirs are
+    skipped during auto-discovery.
+    """
+    if names is not None:
+        return list(names)
+
+    if not artifacts_dir.exists():
+        return []
+
+    discovered = []
+    for entry in artifacts_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        if scan_epoch_files(entry):
+            discovered.append(entry.name)
+    return discovered
+
+
+def _resolve_cross_epoch_names(
+    artifacts_dir: Path, names: Sequence[str] | None
+) -> list[str]:
+    """Return cross-epoch analyzer directory names to inspect."""
+    if names is not None:
+        return list(names)
+
+    if not artifacts_dir.exists():
+        return []
+
+    discovered = []
+    for entry in artifacts_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        if (entry / "cross_epoch.npz").exists():
+            discovered.append(entry.name)
+    return discovered
+
+
+def _build_per_epoch_freshness(
+    artifacts_dir: Path,
+    name: str,
+    available_checkpoints: list[int],
+    plan_item: Any,
+) -> PerEpochFreshness:
+    """Compose a PerEpochFreshness entry from disk state + plan presence."""
+    artifact_epochs = scan_epoch_files(artifacts_dir / name)
+    missing = list(plan_item.epochs) if plan_item is not None else []
+    return PerEpochFreshness(
+        analyzer_name=name,
+        total_checkpoints=len(available_checkpoints),
+        artifact_epoch_count=len(artifact_epochs),
+        missing_epochs=missing,
+    )
+
+
+def _build_cross_epoch_freshness(
+    artifacts_dir: Path,
+    name: str,
+    n_checkpoints: int,
+    plan_item: Any,  # noqa: ARG001 — kept for future Plan-derived fields
+) -> CrossEpochFreshness:
+    """Compose a CrossEpochFreshness entry from disk state."""
+    cross_epoch_path = artifacts_dir / name / "cross_epoch.npz"
+    if not cross_epoch_path.exists():
+        return CrossEpochFreshness(
+            analyzer_name=name,
+            artifact_exists=False,
+            available_checkpoints=n_checkpoints,
+            covered_epoch_count=0,
+        )
+    covered = read_covered_epoch_count(cross_epoch_path)
+    return CrossEpochFreshness(
+        analyzer_name=name,
+        artifact_exists=True,
+        available_checkpoints=n_checkpoints,
+        covered_epoch_count=covered,
+    )
 
 
 def _check_summary_stale(variant: Variant) -> bool:
@@ -307,45 +383,3 @@ def _check_summary_stale(variant: Variant) -> bool:
                 if artifact_file.stat().st_mtime > summary_mtime:
                     return True
     return False
-
-
-# ---------------------------------------------------------------------------
-# Pipeline staleness check (used by AnalysisPipeline)
-# ---------------------------------------------------------------------------
-
-
-def cross_epoch_is_stale(
-    cross_epoch_path: str | Path,
-    required_analyzer_names: list[str],
-    artifacts_dir: str | Path,
-    available_epochs: list[int],
-) -> bool:
-    """Return True if a cross-epoch artifact should be rebuilt.
-
-    An artifact is considered stale if the number of per-epoch dependency
-    epochs available exceeds the number of epochs the artifact covers.
-    This ensures cross-epoch analyzers rerun after incremental per-epoch runs.
-
-    Args:
-        cross_epoch_path: Path to the existing cross_epoch.npz file.
-        required_analyzer_names: Names of per-epoch analyzers this depends on.
-        artifacts_dir: Root artifacts directory for the variant.
-        available_epochs: All checkpoint epochs for the variant.
-    """
-    covered = _read_covered_epoch_count(Path(cross_epoch_path))
-    if covered < 0:
-        return True  # No epoch metadata → conservative rerun
-
-    # Find how many per-epoch dependency epochs exist on disk.
-    artifacts_dir = Path(artifacts_dir)
-    dep_epoch_counts = []
-    for name in required_analyzer_names:
-        dep_dir = artifacts_dir / name
-        if dep_dir.is_dir():
-            dep_epoch_counts.append(len(_scan_epoch_files(dep_dir)))
-
-    if not dep_epoch_counts:
-        return False  # No dependency data at all — nothing to rerun against
-
-    max_dep_epochs = max(dep_epoch_counts)
-    return max_dep_epochs > covered

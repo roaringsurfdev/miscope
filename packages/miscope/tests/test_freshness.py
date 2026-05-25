@@ -7,7 +7,10 @@ CoS coverage:
 - Unit: _read_covered_epoch_count returns correct count or -1 on missing key.
 - Integration: check_freshness on a synthetic fixture directory produces correct
   PerEpochFreshness and CrossEpochFreshness entries.
-- Unit: cross_epoch_is_stale returns True when dependency epochs > covered count.
+
+After REQ_119, ``check_freshness`` is a wrapper over ``plan_analysis``;
+the per-pipeline staleness helper ``cross_epoch_is_stale`` was removed
+and its decision logic now lives in ``miscope.analysis.planner``.
 """
 
 from __future__ import annotations
@@ -25,7 +28,6 @@ from miscope.analysis.freshness import (
     _read_covered_epoch_count,
     _scan_epoch_files,
     check_freshness,
-    cross_epoch_is_stale,
 )
 
 # ---------------------------------------------------------------------------
@@ -318,54 +320,100 @@ def test_check_freshness_auto_discovery_skips_cross_epoch_only(tmp_path):
     assert "neuron_dynamics" not in per_names
 
 
+# cross_epoch_is_stale removed by REQ_119; its decision logic now lives in
+# miscope.analysis.planner._plan_cross_epoch_item and is exercised through
+# tests/test_planner.py.
+
+
 # ---------------------------------------------------------------------------
-# cross_epoch_is_stale
+# check_freshness with analyzers= (registered-but-never-run surfaces as absent)
 # ---------------------------------------------------------------------------
 
 
-def test_cross_epoch_is_stale_when_more_dep_epochs(tmp_path):
+class _PrimarySpec:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def analyze(self, ctx):  # protocol stub
+        pass
+
+
+class _SecondarySpec:
+    def __init__(self, name: str, depends_on: str) -> None:
+        self.name = name
+        self.depends_on = depends_on
+
+    def analyze(self, artifact, context):  # protocol stub
+        pass
+
+
+class _CrossEpochSpec:
+    def __init__(self, name: str, requires: tuple[str, ...] = ()) -> None:
+        self.name = name
+        self.requires = requires
+
+    def analyze_across_epochs(self, *args, **kwargs):  # protocol stub
+        pass
+
+
+def test_check_freshness_with_analyzers_surfaces_unrun_secondary(tmp_path):
+    """A registered secondary analyzer that has never run must appear in the
+    report as 'absent' — the bug REQ_119 was meant to expose.
+
+    Disk-only auto-discovery silently omits never-run analyzers because their
+    directory doesn't exist. Passing ``analyzers=`` to check_freshness makes
+    the registered set the source of truth alongside disk discovery.
+    """
+    checkpoints = [0, 100, 200]
     artifacts_dir = tmp_path / "artifacts"
-    ce_path = artifacts_dir / "neuron_dynamics" / "cross_epoch.npz"
-    ce_path.parent.mkdir(parents=True)
-    np.savez(ce_path, epochs=np.arange(5, dtype=np.int32))
+    _write_per_epoch(artifacts_dir, "parameter_snapshot", checkpoints)
 
-    # Dependency has 8 per-epoch artifacts
-    dep_dir = artifacts_dir / "attn_freq"
-    dep_dir.mkdir()
-    for i in range(8):
-        (dep_dir / f"epoch_{i * 100}.npz").touch()
+    variant = _make_variant(tmp_path, checkpoints)
+    analyzers = [
+        _PrimarySpec("parameter_snapshot"),
+        _SecondarySpec("neuron_grouping", depends_on="parameter_snapshot"),
+    ]
+    report = check_freshness(variant, analyzers=analyzers)
 
-    assert cross_epoch_is_stale(ce_path, ["attn_freq"], artifacts_dir, list(range(8)))
+    per_epoch_names = {fe.analyzer_name for fe in report.per_epoch}
+    assert "neuron_grouping" in per_epoch_names
+
+    ng = next(fe for fe in report.per_epoch if fe.analyzer_name == "neuron_grouping")
+    assert ng.artifact_epoch_count == 0
+    assert ng.status_label == "absent"
 
 
-def test_cross_epoch_is_stale_false_when_up_to_date(tmp_path):
+def test_check_freshness_with_analyzers_keeps_disk_leftovers(tmp_path):
+    """Disk artifacts from removed/unregistered analyzers stay visible —
+    the analyzers= mode unions registered + on-disk names."""
+    checkpoints = [0, 100]
     artifacts_dir = tmp_path / "artifacts"
-    ce_path = artifacts_dir / "neuron_dynamics" / "cross_epoch.npz"
-    ce_path.parent.mkdir(parents=True)
-    np.savez(ce_path, epochs=np.arange(5, dtype=np.int32))
+    _write_per_epoch(artifacts_dir, "coarseness", [0])  # leftover, not in registry
 
-    dep_dir = artifacts_dir / "attn_freq"
-    dep_dir.mkdir()
-    for i in range(5):
-        (dep_dir / f"epoch_{i * 100}.npz").touch()
+    variant = _make_variant(tmp_path, checkpoints)
+    analyzers = [_PrimarySpec("attention_freq")]  # registry doesn't include coarseness
+    report = check_freshness(variant, analyzers=analyzers)
 
-    assert not cross_epoch_is_stale(ce_path, ["attn_freq"], artifacts_dir, list(range(5)))
+    per_epoch_names = {fe.analyzer_name for fe in report.per_epoch}
+    assert "attention_freq" in per_epoch_names  # registered, missing
+    assert "coarseness" in per_epoch_names  # leftover, on disk
 
 
-def test_cross_epoch_is_stale_true_when_no_epochs_key(tmp_path):
+def test_check_freshness_with_analyzers_classifies_cross_epoch(tmp_path):
+    """A registered cross-epoch analyzer that has never run must appear in
+    the cross-epoch list as 'absent', not silently dropped."""
+    checkpoints = [0, 100]
     artifacts_dir = tmp_path / "artifacts"
-    ce_path = artifacts_dir / "neuron_dynamics" / "cross_epoch.npz"
-    ce_path.parent.mkdir(parents=True)
-    np.savez(ce_path, data=np.zeros(3))  # no epochs key
+    _write_per_epoch(artifacts_dir, "parameter_snapshot", checkpoints)
 
-    assert cross_epoch_is_stale(ce_path, [], artifacts_dir, [])
+    variant = _make_variant(tmp_path, checkpoints)
+    analyzers = [
+        _PrimarySpec("parameter_snapshot"),
+        _CrossEpochSpec("activation_dmd", requires=("parameter_snapshot",)),
+    ]
+    report = check_freshness(variant, analyzers=analyzers)
 
-
-def test_cross_epoch_is_stale_false_when_no_deps(tmp_path):
-    artifacts_dir = tmp_path / "artifacts"
-    ce_path = artifacts_dir / "neuron_dynamics" / "cross_epoch.npz"
-    ce_path.parent.mkdir(parents=True)
-    np.savez(ce_path, epochs=np.arange(5, dtype=np.int32))
-
-    # No dependency dirs at all
-    assert not cross_epoch_is_stale(ce_path, ["missing_dep"], artifacts_dir, [])
+    cross_names = {ce.analyzer_name for ce in report.cross_epoch}
+    assert "activation_dmd" in cross_names
+    ce = next(ce for ce in report.cross_epoch if ce.analyzer_name == "activation_dmd")
+    assert ce.status_label == "absent"

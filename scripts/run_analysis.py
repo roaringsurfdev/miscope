@@ -15,7 +15,7 @@ parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
 from miscope import load_family  # noqa: E402
-from miscope.analysis import AnalysisPipeline  # noqa: E402
+from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
 
 # from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
 from miscope.analysis.analyzers import (  # noqa: E402
@@ -87,7 +87,16 @@ for i, variant in enumerate(variants):
         # pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
         # pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
         pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
-        pipeline.run(force=FORCE, progress_callback=progress_callback)
+
+        # REQ_119: build and log the plan before execution.
+        all_analyzers = [
+            *pipeline._analyzers,
+            *pipeline._secondary_analyzers,
+            *pipeline._cross_epoch_analyzers,
+        ]
+        plan = plan_analysis(variant, all_analyzers, force=FORCE)
+        print(plan.format())
+        pipeline.run(force=FORCE, progress_callback=progress_callback, plan=plan)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")
         results.append((variant.name, "success", elapsed))
