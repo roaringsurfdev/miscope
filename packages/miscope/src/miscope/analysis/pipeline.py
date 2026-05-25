@@ -761,6 +761,50 @@ class AnalysisPipeline:
             result = analyzer.analyze(inputs, cross_epoch_context)
             self._save_cross_epoch_artifact(analyzer.name, result)
 
+    def _best_effort_load_all_epochs(
+        self, loader: "ArtifactLoader", analyzer_name: str
+    ) -> dict[str, np.ndarray] | None:
+        """Try to materialize an ``ArtifactInput(scope="all_epochs")``.
+
+        Three cases need handling:
+        - Upstream has per-epoch artifacts that stack cleanly → ``load_epochs``.
+        - Upstream is itself cross-epoch (only ``cross_epoch.npz``) →
+          ``load_cross_epoch``.
+        - Upstream's per-epoch artifacts have shape variation across epochs
+          (e.g., legacy partial state) → ``load_epochs`` raises and we fall
+          back to the cross-epoch artifact if present.
+
+        Returns ``None`` when no materialization is possible. Migrated
+        cross-epoch analyzers still call ``ArtifactLoader`` themselves for
+        the specific slices they need; the pre-materialized form on
+        ``inputs.cross_epoch_artifacts`` is opt-in convenience.
+        """
+        from miscope.analysis.artifact_loader import ArtifactLoader  # noqa: F401  # local for IDE
+        from miscope.analysis.planner import scan_epoch_files
+
+        analyzer_dir = self.variant.artifacts_dir / analyzer_name
+        has_per_epoch = bool(scan_epoch_files(analyzer_dir))
+        cross_epoch_path = analyzer_dir / "cross_epoch.npz"
+        has_cross_epoch = cross_epoch_path.exists()
+
+        if has_per_epoch:
+            try:
+                return loader.load_epochs(analyzer_name)
+            except (ValueError, KeyError) as e:
+                logger.debug(
+                    "Per-epoch stack failed for %s (%s); falling back to cross_epoch.npz.",
+                    analyzer_name,
+                    e,
+                )
+        if has_cross_epoch:
+            try:
+                return loader.load_cross_epoch(analyzer_name)
+            except Exception as e:
+                logger.debug(
+                    "Cross-epoch load failed for %s: %s", analyzer_name, e
+                )
+        return None
+
     def _materialize_cross_epoch_inputs(
         self,
         spec: Any,
@@ -778,11 +822,22 @@ class AnalysisPipeline:
             for inp in spec.inputs:
                 if isinstance(inp, ArtifactInput):
                     if inp.scope == "all_epochs":
-                        cross_artifacts[inp.analyzer_name] = loader.load(inp.analyzer_name)
-                    elif inp.scope == "summary":
-                        summary_artifacts[inp.analyzer_name] = loader.load_summary(
-                            inp.analyzer_name
+                        materialized = self._best_effort_load_all_epochs(
+                            loader, inp.analyzer_name
                         )
+                        if materialized is not None:
+                            cross_artifacts[inp.analyzer_name] = materialized
+                    elif inp.scope == "summary":
+                        try:
+                            summary_artifacts[inp.analyzer_name] = loader.load_summary(
+                                inp.analyzer_name
+                            )
+                        except Exception as e:
+                            logger.debug(
+                                "Skipping summary materialization for %s: %s",
+                                inp.analyzer_name,
+                                e,
+                            )
 
         return ResolvedInputs(
             epoch=None,

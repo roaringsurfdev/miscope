@@ -339,6 +339,57 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapsho
 # every analyzer goes through the unified path.
 
 
+def test_materialize_all_epochs_survives_shape_mismatch(
+    trained_variant, registry_snapshot, tmp_path
+):
+    """Regression: pre-materializing ``scope="all_epochs"`` must not crash the
+    pipeline when an upstream's per-epoch artifacts have varying shapes
+    across epochs (e.g., a legacy partial-run state). The cross-epoch
+    analyzer should still execute and reach its body — falling back to
+    its own ArtifactLoader use if it needs the data.
+    """
+    import os
+
+    from miscope.analysis import AnalysisPipeline
+
+    # Write a "ragged" upstream artifact: two per-epoch files with different
+    # shapes for the same key. ``loader.load`` would np.stack and crash.
+    ragged_name = "ragged_upstream_test"
+    ragged_dir = os.path.join(trained_variant.artifacts_dir, ragged_name)
+    os.makedirs(ragged_dir, exist_ok=True)
+    np.savez(
+        os.path.join(ragged_dir, "epoch_00000.npz"),
+        data=np.ones((3,), dtype=np.float32),
+    )
+    np.savez(
+        os.path.join(ragged_dir, "epoch_00009.npz"),
+        data=np.ones((5,), dtype=np.float32),  # different shape
+    )
+
+    ce_spec = AnalyzerSpec(
+        name="downstream_test",
+        output_scope="cross_epoch",
+        inputs=(ArtifactInput(ragged_name, scope="all_epochs"),),
+    )
+    received: list[ResolvedInputs] = []
+
+    @register_analyzer(ce_spec)
+    class _Downstream:
+        name = "downstream_test"
+
+        def analyze(self, inputs, context):
+            received.append(inputs)
+            return {"ok": np.array([1])}
+
+    plan = plan_analysis(trained_variant, [ce_spec])
+    # Should NOT raise even though the upstream stack would fail.
+    AnalysisPipeline(trained_variant).run(plan=plan)
+    assert len(received) == 1
+    # Materialization skipped the ragged upstream; analyzer can still
+    # reach its body and would use ArtifactLoader directly if needed.
+    assert ragged_name not in received[0].cross_epoch_artifacts
+
+
 # ---------------------------------------------------------------------------
 # Plan still surfaces capability flags from unified inputs
 # ---------------------------------------------------------------------------
