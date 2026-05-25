@@ -26,6 +26,7 @@ from miscope.analysis.library.dmd import (
     detect_regime_boundaries,
     track_eigenvalues_across_windows,
 )
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -39,10 +40,8 @@ _ENERGY_THRESHOLD = 0.99
 
 SPEC = AnalyzerSpec(
     name="activation_dmd",
-    category="cross_epoch",
-    requires=("repr_geometry",),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("repr_geometry", scope="all_epochs"),),
 )
 
 
@@ -58,11 +57,10 @@ class ActivationDMD:
     name = "activation_dmd"
     requires = ["repr_geometry"]  # transitive: global_centroid_pca validated at runtime
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
-        context: dict[str, Any],  # noqa: ARG002
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Run windowed + per-regime DMD per site.
 
@@ -84,6 +82,10 @@ class ActivationDMD:
         Raises:
             FileNotFoundError: If global_centroid_pca/cross_epoch.npz is absent.
         """
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         if not loader.has_cross_epoch("global_centroid_pca"):
             raise FileNotFoundError(

@@ -12,7 +12,7 @@ from miscope.analysis.analyzers import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.fourier import extract_frequency_pairs, get_fourier_basis
-from miscope.analysis.protocols import SecondaryAnalyzer
+from miscope.analysis.protocols import SecondaryAnalyzer, UnifiedAnalyzer
 
 # ── Test parameters ────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ def context():
 
 class TestNeuronFourierProtocol:
     def test_conforms_to_secondary_analyzer(self):
-        assert isinstance(NeuronFourierAnalyzer(), SecondaryAnalyzer)
+        assert isinstance(NeuronFourierAnalyzer(), UnifiedAnalyzer)
 
     def test_name(self):
         assert NeuronFourierAnalyzer().name == "neuron_fourier"

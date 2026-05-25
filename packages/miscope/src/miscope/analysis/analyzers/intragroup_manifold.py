@@ -20,15 +20,14 @@ import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="intragroup_manifold",
-    category="cross_epoch",
-    requires=("neuron_group_pca",),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("neuron_group_pca", scope="all_epochs"),),
 )
 
 
@@ -57,13 +56,16 @@ class IntraGroupManifoldAnalyzer:
     name = "intragroup_manifold"
     requires = ["neuron_group_pca"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
-        context: dict[str, Any],  # noqa: ARG002
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Fit quadratic surfaces to each group at every epoch."""
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         ngpca = loader.load_cross_epoch("neuron_group_pca")
 

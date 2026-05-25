@@ -10,7 +10,7 @@ from miscope.analysis.analyzers.neuron_grouping import (
     unpack_summary,
 )
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import SecondaryAnalyzer
+from miscope.analysis.protocols import SecondaryAnalyzer, UnifiedAnalyzer
 from miscope.core.grouping import UNASSIGNED, GroupAssignment
 
 
@@ -33,7 +33,7 @@ def _make_parameter_snapshot(
 
 class TestNeuronGroupingProtocol:
     def test_conforms_to_secondary_protocol(self):
-        assert isinstance(NeuronGrouping(), SecondaryAnalyzer)
+        assert isinstance(NeuronGrouping(), UnifiedAnalyzer)
 
     def test_name(self):
         assert NeuronGrouping().name == "neuron_grouping"

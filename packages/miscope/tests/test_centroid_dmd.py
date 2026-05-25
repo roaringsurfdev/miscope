@@ -7,10 +7,11 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.centroid_dmd import CentroidDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.library.dmd import _truncation_rank, compute_dmd, dmd_reconstruct
-from miscope.analysis.protocols import CrossEpochAnalyzer
+from miscope.analysis.protocols import CrossEpochAnalyzer, UnifiedAnalyzer
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
     render_dmd_reconstruction,
@@ -226,7 +227,7 @@ class TestDmdReconstruct:
 
 class TestCentroidDMDProtocol:
     def test_conforms_to_cross_epoch_protocol(self):
-        assert isinstance(CentroidDMD(), CrossEpochAnalyzer)
+        assert isinstance(CentroidDMD(), UnifiedAnalyzer)
 
     def test_name(self):
         assert CentroidDMD().name == "centroid_dmd"
@@ -235,10 +236,10 @@ class TestCentroidDMDProtocol:
         assert CentroidDMD().requires == ["repr_geometry"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("centroid_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("centroid_dmd").effective_category == "cross_epoch"
 
     def test_analyze_is_callable(self):
-        assert callable(CentroidDMD().analyze_across_epochs)
+        assert callable(CentroidDMD().analyze)
 
 
 # ── Analyzer output tests ─────────────────────────────────────────────
@@ -247,17 +248,17 @@ class TestCentroidDMDProtocol:
 class TestCentroidDMDOutput:
     def test_returns_dict(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         assert isinstance(result, dict)
 
     def test_contains_epochs(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         np.testing.assert_array_equal(result["epochs"], epochs)
 
     def test_contains_all_site_keys(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert f"{site}__eigenvalues" in result
             assert f"{site}__modes" in result
@@ -270,26 +271,26 @@ class TestCentroidDMDOutput:
 
     def test_residual_norms_shape(self, artifacts_with_global_pca):
         artifacts_dir, epochs, n_epochs, *_ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert result[f"{site}__residual_norms"].shape == (n_epochs - 1,)
 
     def test_trajectory_shape(self, artifacts_with_global_pca):
         artifacts_dir, epochs, n_epochs, n_classes, n_components = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         state_dim = n_classes * n_components
         for site in _SITES:
             assert result[f"{site}__trajectory"].shape == (n_epochs, state_dim)
 
     def test_n_classes_stored_correctly(self, artifacts_with_global_pca):
         artifacts_dir, epochs, _, n_classes, _ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert int(result[f"{site}__n_classes"]) == n_classes
 
     def test_residual_norms_non_negative(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
-        result = CentroidDMD().analyze_across_epochs(artifacts_dir, epochs, {})
+        result = CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {})
         for site in _SITES:
             assert (result[f"{site}__residual_norms"] >= 0).all()
 
@@ -302,7 +303,7 @@ class TestCentroidDMDOutput:
             np.savez_compressed(os.path.join(rg_dir, "epoch_00000.npz"), dummy=np.array([0]))
 
             with pytest.raises(FileNotFoundError, match="global_centroid_pca"):
-                CentroidDMD().analyze_across_epochs(artifacts_dir, [0], {})
+                CentroidDMD().analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple([0])), {})
 
 
 # ── Renderer tests ────────────────────────────────────────────────────

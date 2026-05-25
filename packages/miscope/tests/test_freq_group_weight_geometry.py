@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.freq_group_weight_geometry import (
     FreqGroupWeightGeometryAnalyzer,
     _build_group_labels,
@@ -193,7 +194,7 @@ def _run_analyzer(loader, epochs):
         "miscope.analysis.analyzers.freq_group_weight_geometry.ArtifactLoader",
         return_value=loader,
     ):
-        return analyzer.analyze_across_epochs(artifacts_dir="/fake", epochs=epochs, context={})
+        return analyzer.analyze(ResolvedInputs(artifacts_dir="/fake", epochs=tuple(epochs)), {})
 
 
 def test_analyzer_output_keys_win_only():

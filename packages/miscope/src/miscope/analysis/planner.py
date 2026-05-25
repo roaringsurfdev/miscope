@@ -367,7 +367,19 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
             required_hooks=tuple(item.required_hooks),
         )
 
-    # Analyzer instance — classify by protocol attribute presence.
+    # Analyzer instance — prefer the registered Spec when one exists.
+    # REQ_121 migrated analyzers no longer match the legacy protocol
+    # attribute set (the method is ``analyze``, not ``analyze_across_epochs``);
+    # the registered Spec is the source of truth.
+    try:
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        if AnalyzerRegistry.has_spec(item.name):
+            return _describe(AnalyzerRegistry.get_spec(item.name))
+    except (ImportError, AttributeError):
+        pass
+
+    # Fallback: classify by protocol attribute presence (legacy analyzers).
     if _is_cross_epoch(item):
         return _AnalyzerDescriptor(
             name=item.name,

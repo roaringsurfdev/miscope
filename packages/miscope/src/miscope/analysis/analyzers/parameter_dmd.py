@@ -43,6 +43,7 @@ from miscope.analysis.library.dmd import (
     track_eigenvalues_across_windows,
 )
 from miscope.analysis.library.pca import pca
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -66,10 +67,8 @@ _CONTEXT_REFERENCE_EPOCH_KEY = "parameter_dmd_reference_epoch"
 
 SPEC = AnalyzerSpec(
     name="parameter_dmd",
-    category="cross_epoch",
-    requires=("parameter_snapshot", "neuron_grouping"),
-    requires_model_weights=False,
-    requires_activation_cache=False,
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("parameter_snapshot", scope="all_epochs"), ArtifactInput("neuron_grouping", scope="all_epochs"),),
 )
 
 
@@ -85,10 +84,9 @@ class ParameterDMD:
     name = "parameter_dmd"
     requires = ["parameter_snapshot", "neuron_grouping"]
 
-    def analyze_across_epochs(
+    def analyze(
         self,
-        artifacts_dir: str,
-        epochs: list[int],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Run per-(group, matrix) windowed + per-regime DMD across epochs.
@@ -108,6 +106,10 @@ class ParameterDMD:
             FileNotFoundError: If parameter_snapshot or neuron_grouping
                 artifacts are absent.
         """
+        assert inputs.artifacts_dir is not None
+        assert inputs.epochs is not None
+        artifacts_dir = inputs.artifacts_dir
+        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
 
         reference_epoch = self._resolve_reference_epoch(loader, epochs, context)

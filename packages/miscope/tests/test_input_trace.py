@@ -22,7 +22,7 @@ from miscope.analysis.analyzers.input_trace_graduation import (
     _compute_graduation_epochs,
 )
 from miscope.analysis.inputs import ResolvedInputs
-from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer
+from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer, UnifiedAnalyzer
 
 # ── Minimal model fixture ─────────────────────────────────────────────
 
@@ -95,7 +95,7 @@ class TestProtocolConformance:
         assert isinstance(InputTraceAnalyzer(), Analyzer)
 
     def test_graduation_analyzer_conforms(self):
-        assert isinstance(InputTraceGraduationAnalyzer(), CrossEpochAnalyzer)
+        assert isinstance(InputTraceGraduationAnalyzer(), UnifiedAnalyzer)
 
     def test_input_trace_has_summary_methods(self):
         analyzer = InputTraceAnalyzer()
@@ -356,7 +356,7 @@ class TestIntegrationArtifactRoundTrip:
             np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)  # pyright: ignore[reportArgumentType]
 
         grad_analyzer = InputTraceGraduationAnalyzer()
-        grad_result = grad_analyzer.analyze_across_epochs(str(tmp_path), epochs, context)
+        grad_result = grad_analyzer.analyze(ResolvedInputs(artifacts_dir=str(tmp_path), epochs=tuple(epochs)), context)
 
         assert grad_result["graduation_epochs"].shape == (p * p,)
         assert grad_result["epochs"].shape == (len(epochs),)
