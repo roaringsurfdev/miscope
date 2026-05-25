@@ -68,7 +68,7 @@ class TestNeuronFourierProtocol:
         assert NeuronFourierAnalyzer().depends_on == "parameter_snapshot"
 
     def test_registered_in_registry(self):
-        assert "neuron_fourier" in AnalyzerRegistry._secondary_analyzers
+        assert AnalyzerRegistry.get_spec("neuron_fourier").category == "secondary"
 
 
 # ── Output shape and dtype ─────────────────────────────────────────────

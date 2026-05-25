@@ -665,15 +665,15 @@ class TestActivationDMDProtocol:
         assert ActivationDMD().requires == ["repr_geometry"]
 
     def test_registered_in_registry(self):
-        assert "activation_dmd" in AnalyzerRegistry._cross_epoch_analyzers
+        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
 
     def test_distinct_from_centroid_dmd(self):
         """Parallel construction: both analyzers exist independently."""
-        assert "centroid_dmd" in AnalyzerRegistry._cross_epoch_analyzers
-        assert "activation_dmd" in AnalyzerRegistry._cross_epoch_analyzers
+        assert AnalyzerRegistry.get_spec("centroid_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
         assert (
-            AnalyzerRegistry._cross_epoch_analyzers["centroid_dmd"]
-            is not AnalyzerRegistry._cross_epoch_analyzers["activation_dmd"]
+            AnalyzerRegistry.create("centroid_dmd").__class__
+            is not AnalyzerRegistry.create("activation_dmd").__class__
         )
 
 

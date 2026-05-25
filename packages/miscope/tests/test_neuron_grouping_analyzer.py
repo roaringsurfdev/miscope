@@ -41,7 +41,7 @@ class TestNeuronGroupingProtocol:
         assert NeuronGrouping().depends_on == "parameter_snapshot"
 
     def test_registered_in_registry(self):
-        assert "neuron_grouping" in AnalyzerRegistry._secondary_analyzers
+        assert AnalyzerRegistry.get_spec("neuron_grouping").category == "secondary"
 
 
 # ── Universal path (no family override) ──────────────────────────────
