@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
 
@@ -27,6 +30,16 @@ _WINDOW_NAMES = [
 _SITES = ("embedding", "attention", "mlp")
 
 
+SPEC = AnalyzerSpec(
+    name="gradient_site",
+    category="cross_epoch",
+    requires=(),  # loads checkpoints directly; no per-epoch artifact deps
+    requires_model_weights=False,  # primary-phase flag — N/A for cross-epoch
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class GradientSiteAnalyzer:
     """Cross-epoch analyzer for site-level gradient convergence.
 

@@ -14,8 +14,19 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="input_trace_graduation",
+    category="cross_epoch",
+    requires=("input_trace",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class InputTraceGraduationAnalyzer:
     """Computes graduation epochs across all input_trace checkpoints.
 

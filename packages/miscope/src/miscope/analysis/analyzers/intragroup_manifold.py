@@ -20,8 +20,19 @@ import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="intragroup_manifold",
+    category="cross_epoch",
+    requires=("neuron_group_pca",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class IntraGroupManifoldAnalyzer:
     """Quadratic surface fit for each frequency group at every training epoch.
 

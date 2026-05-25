@@ -12,6 +12,8 @@ import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.pca import pca
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 _VARIANCE_THRESHOLD = 0.95
@@ -44,6 +46,16 @@ def _pca_with_variance_threshold(
     return projections, basis, full.center, full.explained_variance_ratio[:n_components]
 
 
+SPEC = AnalyzerSpec(
+    name="global_centroid_pca",
+    category="cross_epoch",
+    requires=("repr_geometry",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class GlobalCentroidPCA:
     """Cross-epoch analyzer: single PCA basis for centroid trajectories.
 

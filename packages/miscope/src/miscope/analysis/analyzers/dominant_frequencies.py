@@ -10,11 +10,23 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from miscope.analysis.library import project_onto_fourier_basis
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="dominant_frequencies",
+    category="primary",
+    requires_model_weights=True,
+    requires_activation_cache=False,  # reads embed.W_E only; no cache access
+    required_hooks=(),
+)
+
+
+@register_analyzer(SPEC)
 class DominantFrequenciesAnalyzer:
     """Computes Fourier coefficient norms for embedding weights.
 

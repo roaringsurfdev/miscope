@@ -28,12 +28,24 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 NEURON_THRESHOLD: float = 0.70
 TRANSIENT_CANONICAL_THRESHOLD: float = 0.05
 FINAL_CANONICAL_THRESHOLD: float = 0.10
 
 
+SPEC = AnalyzerSpec(
+    name="transient_frequency",
+    category="cross_epoch",
+    requires=("neuron_dynamics",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class TransientFrequencyAnalyzer:
     """Identifies transient frequency groups and their neuron fate.
 

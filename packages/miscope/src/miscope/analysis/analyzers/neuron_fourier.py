@@ -15,8 +15,19 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.library import compose_neuron_fourier_weights, extract_frequency_pairs
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="neuron_fourier",
+    category="secondary",
+    requires=("parameter_snapshot",),
+    requires_model_weights=False,  # consumes artifact dict; no model needed
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class NeuronFourierAnalyzer:
     """Computes per-neuron Fourier decomposition of MLP weights.
 

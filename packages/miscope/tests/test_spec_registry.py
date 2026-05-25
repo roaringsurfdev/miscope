@@ -495,3 +495,96 @@ def test_every_registered_factory_produces_matching_name():
         assert analyzer.name == spec.name, (
             f"Spec.name={spec.name!r} but instance.name={analyzer.name!r}"
         )
+
+
+def test_every_analyzer_module_has_spec():
+    """REQ_120 CoS audit: every analyzer module under analyzers/ defines a
+    SPEC attribute and registers via the decorator."""
+    import importlib
+    import pkgutil
+
+    import miscope.analysis.analyzers as analyzers_pkg
+    from miscope.analysis.analyzers.registry import register_default_analyzers
+
+    register_default_analyzers()
+
+    missing = []
+    for module_info in pkgutil.iter_modules(analyzers_pkg.__path__):
+        if module_info.name in {"registry", "__init__"}:
+            continue
+        full_name = f"{analyzers_pkg.__name__}.{module_info.name}"
+        module = importlib.import_module(full_name)
+        if not hasattr(module, "SPEC"):
+            missing.append(module_info.name)
+    assert missing == [], f"Analyzer modules without SPEC: {missing}"
+
+
+def test_spec_category_matches_protocol_class():
+    """REQ_120 CoS audit: each Spec's category corresponds to the analyzer
+    class's actual protocol (isinstance check on a freshly-instantiated analyzer)."""
+    from miscope.analysis.analyzers.registry import register_default_analyzers
+    from miscope.analysis.protocols import (
+        Analyzer,
+        CrossEpochAnalyzer,
+        SecondaryAnalyzer,
+    )
+
+    register_default_analyzers()
+
+    mismatches = []
+    for spec in AnalyzerRegistry.list_specs():
+        analyzer = AnalyzerRegistry.create(spec.name)
+
+        if spec.category == "cross_epoch":
+            ok = isinstance(analyzer, CrossEpochAnalyzer)
+        elif spec.category == "secondary":
+            ok = isinstance(analyzer, SecondaryAnalyzer)
+        else:  # primary
+            ok = isinstance(analyzer, Analyzer)
+        if not ok:
+            mismatches.append(
+                f"{spec.name}: declared {spec.category!r}, instance fails protocol check"
+            )
+    assert mismatches == [], "Spec category ↔ protocol mismatches:\n" + "\n".join(mismatches)
+
+
+def test_secondary_spec_requires_matches_depends_on():
+    """Secondary Specs must list their dependency under ``requires`` (single item)
+    and that item must match the analyzer's ``depends_on`` attribute."""
+    from miscope.analysis.analyzers.registry import register_default_analyzers
+
+    register_default_analyzers()
+
+    mismatches = []
+    for spec in AnalyzerRegistry.list_specs_by_category("secondary"):
+        analyzer = AnalyzerRegistry.create(spec.name)
+        if len(spec.requires) != 1:
+            mismatches.append(
+                f"{spec.name}: secondary Spec.requires has {len(spec.requires)} items "
+                f"(expected 1)"
+            )
+            continue
+        if spec.requires[0] != analyzer.depends_on:
+            mismatches.append(
+                f"{spec.name}: Spec.requires={spec.requires[0]!r} != "
+                f"depends_on={analyzer.depends_on!r}"
+            )
+    assert mismatches == [], "\n".join(mismatches)
+
+
+def test_cross_epoch_spec_requires_matches_class_requires():
+    """Cross-epoch Specs' ``requires`` tuple must match the analyzer class's
+    ``requires`` attribute (as a list)."""
+    from miscope.analysis.analyzers.registry import register_default_analyzers
+
+    register_default_analyzers()
+
+    mismatches = []
+    for spec in AnalyzerRegistry.list_specs_by_category("cross_epoch"):
+        analyzer = AnalyzerRegistry.create(spec.name)
+        class_requires = tuple(getattr(analyzer, "requires", ()) or ())
+        if class_requires != spec.requires:
+            mismatches.append(
+                f"{spec.name}: class.requires={class_requires} != Spec.requires={spec.requires}"
+            )
+    assert mismatches == [], "\n".join(mismatches)

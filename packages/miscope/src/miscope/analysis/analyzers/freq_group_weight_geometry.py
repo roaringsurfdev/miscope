@@ -30,8 +30,19 @@ from miscope.analysis.library.clustering import (
 )
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_circularity
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="freq_group_weight_geometry",
+    category="cross_epoch",
+    requires=("neuron_freq_norm", "parameter_snapshot"),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class FreqGroupWeightGeometryAnalyzer:
     """Measures geometric separation of frequency groups in weight space.
 

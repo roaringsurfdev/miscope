@@ -129,7 +129,7 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
     import logging
 
     from miscope.analysis import AnalysisPipeline, plan_analysis
-    from miscope.analysis.analyzers.registry import AnalyzerRegistry
+    from miscope.analysis.registry import AnalyzerRegistry
 
     logger = logging.getLogger(__name__)
 
@@ -150,22 +150,14 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
         def progress_callback(pct: float, desc: str) -> None:
             analysis_progress.update(0.1 + (pct * 0.9), desc)
 
-        primary = list(AnalyzerRegistry.get_for_family(family))
-        secondary = list(AnalyzerRegistry.get_secondary_for_family(family))
-        cross_epoch = list(AnalyzerRegistry.get_cross_epoch_for_family(family))
+        # REQ_120: pull Specs from the Registry — single enumeration,
+        # category-agnostic. The pipeline instantiates analyzers from the
+        # Registry at execute time via _absorb_plan_references.
+        specs = AnalyzerRegistry.list_for_family(family)
+        plan = plan_analysis(variant, specs, force=force_refresh)
+        logger.info("Analysis plan for %s:\n%s", variant.name, plan.format())
 
         pipeline = AnalysisPipeline(variant)
-        for analyzer in primary:
-            pipeline.register(analyzer)
-        for analyzer in secondary:
-            pipeline.register_secondary(analyzer)
-        for analyzer in cross_epoch:
-            pipeline.register_cross_epoch(analyzer)
-
-        # REQ_119: build and log the plan before execution. Foundation for
-        # a future preview UI on this page.
-        plan = plan_analysis(variant, [*primary, *secondary, *cross_epoch], force=force_refresh)
-        logger.info("Analysis plan for %s:\n%s", variant.name, plan.format())
         pipeline.run(progress_callback=progress_callback, force=force_refresh, plan=plan)
 
         # Regenerate variant_summary.json and variant_registry.json
@@ -265,8 +257,8 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
         if not variant_name or not family_name:
             return html.Div()
         try:
-            from miscope.analysis.analyzers.registry import AnalyzerRegistry
             from miscope.analysis.freshness import check_freshness
+            from miscope.analysis.registry import AnalyzerRegistry
 
             registry = get_registry()
             family = registry.get_family(family_name)
@@ -274,14 +266,11 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
             variant = next((v for v in variants if v.name == variant_name), None)
             if variant is None:
                 return html.Div()
-            # Pass the family's registered analyzers so registered-but-never-run
-            # ones (e.g. a newly added secondary) appear as "absent" rather than
-            # being silently dropped by disk-only auto-discovery.
-            registered_analyzers = [
-                *AnalyzerRegistry.get_for_family(family),
-                *AnalyzerRegistry.get_secondary_for_family(family),
-                *AnalyzerRegistry.get_cross_epoch_for_family(family),
-            ]
+            # REQ_120: hand the freshness check the family's registered Specs.
+            # Spec-based input keeps registered-but-never-run analyzers visible
+            # as "absent" alongside on-disk leftovers.
+            specs = AnalyzerRegistry.list_for_family(family)
+            registered_analyzers = [AnalyzerRegistry.create(s.name) for s in specs]
             report = check_freshness(variant, analyzers=registered_analyzers)
             if report.any_stale:
                 stale_per = [fe.analyzer_name for fe in report.per_epoch if not fe.is_fresh]

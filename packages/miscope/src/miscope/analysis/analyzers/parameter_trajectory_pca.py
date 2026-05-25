@@ -16,11 +16,23 @@ from miscope.analysis.library.trajectory import (
     flatten_snapshot,
 )
 from miscope.analysis.library.weights import COMPONENT_GROUPS
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 # Groups to precompute: "all" + each named component group
 _GROUPS = {"all": None, **COMPONENT_GROUPS}
 
 
+SPEC = AnalyzerSpec(
+    name="parameter_trajectory",
+    category="cross_epoch",
+    requires=("parameter_snapshot",),
+    requires_model_weights=False,  # consumes per-epoch artifacts; no model
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class ParameterTrajectoryPCA:
     """Cross-epoch analyzer for parameter trajectory PCA projection.
 

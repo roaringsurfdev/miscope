@@ -16,10 +16,26 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="input_trace",
+    category="primary",
+    requires_model_weights=False,
+    # Reads ctx.logits from the forward pass; logits come from run_with_cache,
+    # so the cache must be loaded for ctx.logits to be populated.
+    requires_activation_cache=True,
+    required_hooks=(),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class InputTraceAnalyzer:
     """Records per-pair predictions on all p² input pairs at each checkpoint.
 

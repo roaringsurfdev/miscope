@@ -1,6 +1,6 @@
 # REQ_120: Analyzer Spec + Registry
 
-**Status:** Draft
+**Status:** Completed (implementation; awaiting merge approval)
 **Priority:** High — unblocks the Planner's load-decision and transitive-dependency capabilities (REQ_119) and replaces the hard-coded analyzer instantiation pattern in entry points. Step 1.5 of 5 in the ETL exploration's forward plan.
 **Branch:** `feature/req-120-analyzer-spec-registry`
 **Supersedes:** None.
@@ -129,8 +129,10 @@ The three existing protocols are preserved unchanged. This is *not* I/O unificat
 ## Notes
 
 - The protocol category leak in entry points (`register` / `register_secondary` / `register_cross_epoch`) is the visible pain that this REQ retires. The deeper issue — three input shapes baked into the `.analyze()` signatures themselves — waits for REQ_121.
-- Registration mechanism (decorator vs. explicit call) is an implementation-time choice. v1 leans toward explicit calls in each analyzer module's import path because they're easier to grep for and debug, but a `@register_analyzer(SPEC)` decorator is also viable.
-- **Capability flag honesty matters more than convenience.** An analyzer that incorrectly declares `requires_activation_cache = False` would cause silent failures. Validation during implementation is important — see CoS audit.
+- **Registration mechanism choice (decided 2026-05-24):** `@register_analyzer(SPEC)` decorator on the class. Module-level `SPEC` is the source of truth, decorator wires it into the Registry at class-definition time. The legacy `register_default_analyzers()` is retained as the import hub (importing every analyzer module triggers the decorators); its now-redundant explicit `AnalyzerRegistry.register*(cls)` calls are no-ops because the decorator-path Spec is preserved.
+- **Capability flag honesty matters more than convenience.** An analyzer that incorrectly declares `requires_activation_cache = False` would cause silent failures. v1 audited exhaustively by reading each `.analyze()` body; six primary analyzers ended up cache-free and eligible for forward-pass skip (`parameter_snapshot`, `effective_dimensionality`, `dominant_frequencies`, `attention_fourier`, `fourier_nucleation`, `landscape_flatness`). Capability flags surface on `PlanItem`; the Plan aggregate `needs_activation_cache` drives the pipeline's `model.run_with_cache(probe)` skip decision.
+- **Architecture-support field replaced with `required_hooks` (2026-05-24):** REQ_120 as drafted referenced `architecture_support: frozenset[str]`, but that class attribute was already superseded codebase-wide by `required_hooks: list[str]` (per-hook canonical-name compatibility check at `pipeline._run_single_epoch`). The Spec carries `required_hooks: tuple[str, ...]` instead — same compatibility semantics in finer grain.
+- **Transitive prerequisite default `auto_queue=False`:** Plan surfaces blocked-by-known-Spec dependencies in a new `transitive_prerequisites` tuple (informational). Per the design choice, the planner does not auto-add them — the user runs the suggested prereqs explicitly. This matches the "surface, don't decide" stance.
 - This REQ takes the "expand then collapse" philosophy ([feedback_primitive_workflow.md] design pattern): expand by adding Specs everywhere, accept the duplication, then collapse in REQ_121 when the three protocols become one.
 
 ---

@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from miscope.analysis.library.landscape import compute_landscape_flatness
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
@@ -30,6 +32,20 @@ FLATNESS_SUMMARY_KEYS = [
 ]
 
 
+SPEC = AnalyzerSpec(
+    name="landscape_flatness",
+    category="primary",
+    requires_model_weights=True,
+    # Probes the model with ctx.probe (re-runs forward passes internally
+    # via compute_landscape_flatness) but does NOT read ctx.cache directly.
+    # Pipeline-loaded cache is unused.
+    requires_activation_cache=False,
+    required_hooks=(),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class LandscapeFlatnessAnalyzer:
     """Measures local loss landscape flatness via random perturbation.
 
