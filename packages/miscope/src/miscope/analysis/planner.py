@@ -348,14 +348,22 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     from miscope.analysis.spec import AnalyzerSpec
 
     if isinstance(item, AnalyzerSpec):
-        depends_on = item.requires[0] if item.category == "secondary" and item.requires else None
+        # Use effective_* properties so unified Specs (category=None,
+        # inputs=...) classify correctly.
+        effective_category = item.effective_category
+        effective_requires = item.effective_requires
+        depends_on = (
+            effective_requires[0]
+            if effective_category == "secondary" and effective_requires
+            else None
+        )
         return _AnalyzerDescriptor(
             name=item.name,
-            category=item.category,
-            requires=tuple(item.requires),
+            category=effective_category,
+            requires=effective_requires,
             depends_on=depends_on,
-            requires_model_weights=item.requires_model_weights,
-            requires_activation_cache=item.requires_activation_cache,
+            requires_model_weights=item.effective_requires_model_weights,
+            requires_activation_cache=item.effective_requires_activation_cache,
             required_hooks=tuple(item.required_hooks),
         )
 

@@ -112,7 +112,7 @@ class AnalyzerRegistry:
 
     @classmethod
     def list_specs_by_category(cls, category: Category) -> list[AnalyzerSpec]:
-        return [s for s in _specs.values() if s.category == category]
+        return [s for s in _specs.values() if s.effective_category == category]
 
     @classmethod
     def get_factory(cls, name: str) -> Callable[[], Any]:
@@ -206,9 +206,9 @@ class AnalyzerRegistry:
     @classmethod
     def get(cls, name: str) -> Analyzer:
         spec = _specs.get(name)
-        if spec is None or spec.category != "primary":
+        if spec is None or spec.effective_category != "primary":
             available = sorted(
-                n for n, s in _specs.items() if s.category == "primary"
+                n for n, s in _specs.items() if s.effective_category == "primary"
             )
             raise KeyError(f"Analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
@@ -216,9 +216,9 @@ class AnalyzerRegistry:
     @classmethod
     def get_secondary(cls, name: str) -> SecondaryAnalyzer:
         spec = _specs.get(name)
-        if spec is None or spec.category != "secondary":
+        if spec is None or spec.effective_category != "secondary":
             available = sorted(
-                n for n, s in _specs.items() if s.category == "secondary"
+                n for n, s in _specs.items() if s.effective_category == "secondary"
             )
             raise KeyError(
                 f"Secondary analyzer '{name}' not found. Available: {available}"
@@ -228,9 +228,9 @@ class AnalyzerRegistry:
     @classmethod
     def get_cross_epoch(cls, name: str) -> CrossEpochAnalyzer:
         spec = _specs.get(name)
-        if spec is None or spec.category != "cross_epoch":
+        if spec is None or spec.effective_category != "cross_epoch":
             available = sorted(
-                n for n, s in _specs.items() if s.category == "cross_epoch"
+                n for n, s in _specs.items() if s.effective_category == "cross_epoch"
             )
             raise KeyError(
                 f"Cross-epoch analyzer '{name}' not found. Available: {available}"
@@ -243,7 +243,7 @@ class AnalyzerRegistry:
         return [
             cls.create(n)
             for n in names
-            if n in _specs and _specs[n].category == "primary"
+            if n in _specs and _specs[n].effective_category == "primary"
         ]
 
     @classmethod
@@ -254,7 +254,7 @@ class AnalyzerRegistry:
         return [
             cls.create(n)
             for n in names
-            if n in _specs and _specs[n].category == "secondary"
+            if n in _specs and _specs[n].effective_category == "secondary"
         ]
 
     @classmethod
@@ -265,13 +265,13 @@ class AnalyzerRegistry:
         return [
             cls.create(n)
             for n in names
-            if n in _specs and _specs[n].category == "cross_epoch"
+            if n in _specs and _specs[n].effective_category == "cross_epoch"
         ]
 
     @classmethod
     def list_all(cls) -> list[str]:
         """Names of primary analyzers (legacy semantics)."""
-        return sorted(n for n, s in _specs.items() if s.category == "primary")
+        return sorted(n for n, s in _specs.items() if s.effective_category == "primary")
 
     @classmethod
     def list_all_names(cls) -> list[str]:

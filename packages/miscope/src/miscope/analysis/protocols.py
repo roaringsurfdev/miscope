@@ -1,4 +1,13 @@
-"""Protocol definitions for analysis modules."""
+"""Protocol definitions for analysis modules.
+
+REQ_121 phases:
+    Phase 2A (this state): Legacy protocols (``Analyzer`` /
+        ``SecondaryAnalyzer`` / ``CrossEpochAnalyzer``) coexist with a
+        new ``UnifiedAnalyzer`` that takes ``(ResolvedInputs, context)``.
+    Phase 2B: every analyzer migrated to ``UnifiedAnalyzer``.
+    Phase 2C: legacy protocols deleted; ``UnifiedAnalyzer`` renamed to
+        ``Analyzer``.
+"""
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -7,6 +16,7 @@ import numpy as np
 import torch
 
 if TYPE_CHECKING:
+    from miscope.analysis.inputs import ResolvedInputs
     from miscope.architectures import ActivationCache, HookedModel
 
 
@@ -197,5 +207,51 @@ class CrossEpochAnalyzer(Protocol):
         Returns:
             Dict mapping artifact keys to numpy arrays.
             Keys become field names in the saved cross_epoch.npz file.
+        """
+        ...
+
+
+@runtime_checkable
+class UnifiedAnalyzer(Protocol):
+    """Unified analyzer protocol (REQ_121).
+
+    Replaces ``Analyzer`` / ``SecondaryAnalyzer`` / ``CrossEpochAnalyzer``.
+    Each analyzer declares its inputs structurally on its ``SPEC``; the
+    pipeline materializes whatever the Spec asks for and hands the
+    analyzer a uniform :class:`miscope.analysis.inputs.ResolvedInputs`
+    value.
+
+    Output scope (``"per_epoch"`` vs ``"cross_epoch"``) is declared on
+    the Spec, not implicit in the protocol. Per-epoch analyzers receive
+    one ``ResolvedInputs`` per epoch and return one artifact dict per
+    call; cross-epoch analyzers receive a single ``ResolvedInputs``
+    covering all epochs and return one artifact dict.
+
+    After Phase 2C, this protocol is renamed to ``Analyzer`` and the
+    legacy three protocols above are deleted.
+    """
+
+    @property
+    def name(self) -> str:
+        """Unique identifier (used in artifact naming and Registry keys)."""
+        ...
+
+    def analyze(
+        self,
+        inputs: "ResolvedInputs",
+        context: dict[str, Any],
+    ) -> dict[str, np.ndarray]:
+        """Run analysis given materialized inputs.
+
+        Args:
+            inputs: ``ResolvedInputs`` whose populated fields correspond
+                to the analyzer's ``SPEC.inputs`` declaration plus any
+                cross-epoch execution context (``artifacts_dir``,
+                ``epochs``).
+            context: Family-provided analysis context — same as the
+                legacy protocols' ``context`` / ``analysis_params``.
+
+        Returns:
+            Dict mapping artifact keys to numpy arrays.
         """
         ...
