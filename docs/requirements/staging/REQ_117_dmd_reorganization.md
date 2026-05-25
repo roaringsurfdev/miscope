@@ -1,6 +1,6 @@
 # REQ_117: DMD Reorganization — Activation and Parameter, Windowed and Per-Regime
 
-**Status:** In Progress (phase 1: activation track)
+**Status:** Completed; merged to develop (phase 1a 2026-05-07; phase 1b 2026-05-08; phase 2+2b 2026-05-09).
 **Priority:** High — central narrative for first external research communication. The unified DMD treatment is the mathematically grounded backbone that other dynamical analyses will reference as supporting evidence.
 **Branch:** `feature/req-117-dmd-reorganization`
 **Supersedes:** REQ_073 (Weight-Space DMD). Absorbs the Research Claude drafts at `docs/requirements/drafts/research_claude/requirements_DMD_pipeline.md` (REQ_001 / REQ_002) and `requirements_windowed_DMD.md` (REQ_003).

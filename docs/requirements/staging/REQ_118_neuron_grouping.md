@@ -1,6 +1,6 @@
 # REQ_118: Neuron Grouping Primitive
 
-**Status:** Implementation complete (2026-05-08); awaiting merge to develop.
+**Status:** Completed; merged to develop 2026-05-08.
 **Priority:** High — on the critical path for REQ_117's parameter track. The DMD backbone narrative depends on a clean grouping primitive being in place before parameter DMD can ship in the architecturally correct shape.
 **Branch:** `feature/req-118-neuron-grouping`
 **Supersedes:** None. Net-new capability.
