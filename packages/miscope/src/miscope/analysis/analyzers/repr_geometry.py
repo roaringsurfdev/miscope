@@ -27,7 +27,6 @@ from miscope.analysis.library import (
 )
 
 if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
     from miscope.architectures import ActivationCache
 from miscope.analysis.library.clustering import (
     compute_center_spread,

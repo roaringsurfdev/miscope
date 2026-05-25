@@ -15,7 +15,6 @@ in Phase 2B.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -32,7 +31,7 @@ from miscope.analysis.inputs import (
 )
 from miscope.analysis.planner import plan_analysis
 from miscope.analysis.protocols import UnifiedAnalyzer
-from miscope.analysis.registry import AnalyzerRegistry, register_analyzer
+from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 # ---------------------------------------------------------------------------
@@ -335,33 +334,9 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapsho
     assert "u_primary_for_ce" in sample.cross_epoch_artifacts
 
 
-def test_pipeline_legacy_still_dispatches_via_ctx(trained_variant, registry_snapshot):
-    """Legacy Spec (category authored, no inputs) → analyzer still gets
-    ActivationContext on .analyze(ctx)."""
-    from miscope.analysis import AnalysisPipeline
-    from miscope.analysis.protocols import ActivationContext
-
-    spec = AnalyzerSpec(
-        name="legacy_primary_test",
-        category="primary",
-        requires_model_weights=True,
-        requires_activation_cache=False,
-    )
-
-    received: list[Any] = []
-
-    @register_analyzer(spec)
-    class _LegacyPrim:
-        name = "legacy_primary_test"
-
-        def analyze(self, ctx):
-            received.append(ctx)
-            return {"data": np.ones((1,), dtype=np.float32)}
-
-    plan = plan_analysis(trained_variant, [spec])
-    AnalysisPipeline(trained_variant).run(plan=plan)
-    assert len(received) > 0
-    assert isinstance(received[0], ActivationContext)
+# Phase 2C: the legacy dispatch path was retired in REQ_121, so
+# ``test_pipeline_legacy_still_dispatches_via_ctx`` no longer applies —
+# every analyzer goes through the unified path.
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,8 @@ class FakeSecondaryAnalyzer:
     name = "fake_secondary"
     depends_on = "fake_primary"
 
-    def analyze(self, artifact, context):
+    def analyze(self, inputs, context):
+        artifact = inputs.artifacts[self.depends_on]
         return {"doubled": artifact["value"] * 2}
 
 
@@ -42,7 +43,8 @@ class FakeSecondaryWithSummary:
     name = "fake_secondary_summary"
     depends_on = "fake_primary"
 
-    def analyze(self, artifact, context):
+    def analyze(self, inputs, context):
+        artifact = inputs.artifacts[self.depends_on]
         return {"doubled": artifact["value"] * 2}
 
     def get_summary_keys(self):
@@ -58,7 +60,8 @@ class WrongDependencyAnalyzer:
     name = "wrong_dependency"
     depends_on = "does_not_exist"
 
-    def analyze(self, artifact, context):
+    def analyze(self, inputs, context):
+        inputs.artifacts[self.depends_on]
         return {}
 
 
@@ -107,7 +110,8 @@ class TestSecondaryAnalyzerRegistry:
             name = "decorated"
             depends_on = "something"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                inputs.artifacts[self.depends_on]
                 return {}
 
         assert AnalyzerRegistry.get_secondary("decorated") is not None
@@ -229,7 +233,8 @@ class TestPipelineSecondary:
             name = "snapshot_norm"
             depends_on = "parameter_snapshot"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                artifact = inputs.artifacts[self.depends_on]
                 w_e = artifact["W_E"]
                 return {"norm": np.array([float(np.linalg.norm(w_e))])}
 
@@ -252,7 +257,8 @@ class TestPipelineSecondary:
             name = "snapshot_norm"
             depends_on = "parameter_snapshot"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                artifact = inputs.artifacts[self.depends_on]
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
@@ -291,7 +297,8 @@ class TestPipelineSecondary:
             name = "snapshot_norm"
             depends_on = "parameter_snapshot"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                artifact = inputs.artifacts[self.depends_on]
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
@@ -340,7 +347,8 @@ class TestPipelineSecondary:
             name = "tracking_snapshot_norm"
             depends_on = "parameter_snapshot"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                inputs.artifacts[self.depends_on]
                 call_order.append("secondary")
                 return {"norm": np.array([1.0])}
 
@@ -348,9 +356,9 @@ class TestPipelineSecondary:
             name = "tracking_cross"
             requires = ["parameter_snapshot"]
 
-            def analyze_across_epochs(self, artifacts_dir, epochs, context):
+            def analyze(self, inputs, context):
                 call_order.append("cross_epoch")
-                return {"epochs": np.array(epochs)}
+                return {"epochs": np.array(list(inputs.epochs or ()))}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
 
@@ -374,7 +382,8 @@ class TestPipelineSecondary:
             name = "snapshot_norm"
             depends_on = "parameter_snapshot"
 
-            def analyze(self, artifact, context):
+            def analyze(self, inputs, context):
+                artifact = inputs.artifacts[self.depends_on]
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer

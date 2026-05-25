@@ -11,8 +11,8 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
-from miscope.analysis.library.activations import extract_attention_patterns
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.library.activations import extract_attention_patterns
 from miscope.architectures import ActivationCache
 
 # ── Library function tests ──────────────────────────────────────────────

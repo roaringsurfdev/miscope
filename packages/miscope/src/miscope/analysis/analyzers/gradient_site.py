@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import torch
 
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -80,6 +80,7 @@ class GradientSiteAnalyzer:
         variant: Variant = context["variant"]
         prime = int(variant.model_config["prime"])
         n_freqs = prime // 2
+        epochs = list(inputs.epochs or ())
 
         fourier_basis = context.get("fourier_basis")
         if fourier_basis is None:
@@ -171,7 +172,11 @@ class GradientSiteAnalyzer:
             "params": variant.params,
         }
         available_epochs = variant.get_available_checkpoints()
-        result = self.analyze_across_epochs(str(variant.artifacts_dir), available_epochs, context)
+        inputs = ResolvedInputs(
+            artifacts_dir=str(variant.artifacts_dir),
+            epochs=tuple(available_epochs),
+        )
+        result = self.analyze(inputs, context)
 
         cross_epoch_path.parent.mkdir(parents=True, exist_ok=True)
         temp_base = str(cross_epoch_path.parent / ".cross_epoch_tmp")

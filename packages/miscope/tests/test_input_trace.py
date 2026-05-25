@@ -22,7 +22,7 @@ from miscope.analysis.analyzers.input_trace_graduation import (
     _compute_graduation_epochs,
 )
 from miscope.analysis.inputs import ResolvedInputs
-from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer, UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer, UnifiedAnalyzer
 
 # ── Minimal model fixture ─────────────────────────────────────────────
 

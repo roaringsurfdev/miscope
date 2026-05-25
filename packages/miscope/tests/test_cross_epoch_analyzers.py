@@ -9,17 +9,17 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis import AnalysisPipeline, ArtifactLoader, CrossEpochAnalyzer
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis import AnalysisPipeline, ArtifactLoader
 from miscope.analysis.analyzers import (
     AnalyzerRegistry,
     ParameterSnapshotAnalyzer,
     ParameterTrajectoryPCA,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.parameter_trajectory_pca import _GROUPS
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import compute_parameter_velocity, flatten_snapshot
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,

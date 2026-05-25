@@ -6,10 +6,10 @@ import tempfile
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.parameter_dmd import ParameterDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import CrossEpochAnalyzer, UnifiedAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.protocols import UnifiedAnalyzer
 
 # ── Synthetic artifact builders ──────────────────────────────────────
 

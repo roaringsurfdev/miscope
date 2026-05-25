@@ -13,16 +13,16 @@ import tempfile
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.activation_dmd import ActivationDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
     detect_regime_boundaries,
     track_eigenvalues_across_windows,
 )
-from miscope.analysis.protocols import CrossEpochAnalyzer, UnifiedAnalyzer
+from miscope.analysis.protocols import UnifiedAnalyzer
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 

@@ -136,26 +136,30 @@ class TestDominantFrequenciesAnalyzerOutput:
     def test_returns_dict(self, model_with_context):
         """analyze returns a dict."""
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
         assert isinstance(result, dict)
 
     def test_returns_coefficients_key(self, model_with_context):
         """Result contains 'coefficients' key."""
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
         assert "coefficients" in result
 
     def test_coefficients_is_numpy_array(self, model_with_context):
         """Coefficients is a numpy array."""
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
         assert isinstance(result["coefficients"], np.ndarray)
 
     def test_coefficients_shape(self, model_with_context):
         """Coefficients has correct shape (n_fourier_components,)."""
         _, _, _, _, context = model_with_context
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
 
         fourier_basis = context["fourier_basis"]
         n_components = fourier_basis.shape[0]
@@ -164,13 +168,15 @@ class TestDominantFrequenciesAnalyzerOutput:
     def test_coefficients_are_non_negative(self, model_with_context):
         """Coefficient values are non-negative (they are norms)."""
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
         assert np.all(result["coefficients"] >= 0)
 
     def test_coefficients_on_cpu(self, model_with_context):
         """Coefficients are on CPU (numpy array, not tensor)."""
         analyzer = DominantFrequenciesAnalyzer()
-        inputs, ctx_context = self._inputs(model_with_context); result = analyzer.analyze(inputs, ctx_context)
+        inputs, ctx_context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, ctx_context)
         assert not isinstance(result["coefficients"], torch.Tensor)
 
 

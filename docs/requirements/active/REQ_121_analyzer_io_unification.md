@@ -1,6 +1,6 @@
 # REQ_121: Analyzer I/O Unification
 
-**Status:** Draft (preliminary — refinement expected after REQ_120 implementation lands)
+**Status:** Completed (implementation; awaiting merge approval)
 **Priority:** Medium-high — closes out the analyzer protocol fragmentation that has been a recurring friction surface for the platform. Step 2 of 5 in the ETL exploration's forward plan.
 **Branch:** `feature/req-121-analyzer-io-unification`
 **Supersedes:** None — replaces the three existing protocols at retirement time, but does not retire any standing requirement.
@@ -126,6 +126,13 @@ This is the *collapse* in the "expand then collapse" arc REQ_120 began.
 ## Notes
 
 - **This REQ is preliminary.** The exact shapes of `InputSpec`, `ResolvedInputs`, and the unified `Analyzer.analyze()` signature are the load-bearing design decisions. The shapes proposed in CoS are illustrative; final shape requires implementation experience from REQ_119 + REQ_120. Expect a refinement pass on this REQ once those land.
+- **Implementation note (2026-05-25):**
+    - Decided shape: `ResolvedInputs` is a typed dataclass with optional fields (model/cache/logits/probe at per-epoch scope; artifacts/cross_epoch_artifacts/summary_artifacts dicts keyed by upstream name; artifacts_dir + epochs for cross-epoch context). Analyzers access whatever the Spec asked the pipeline to materialize.
+    - `output_scope` is `"per_epoch"` or `"cross_epoch"`; `produces_summary` stays as a separate flag (the REQ's `"per_epoch_summary"` enum value was collapsed into the existing flag).
+    - Migration scope: all 28 analyzers migrated. No REQ_102 deprecation list existed; the unified protocol covers everything.
+    - Auto-queue prerequisites: kept REQ_120's default (`False`, surface only). The unified protocol could flip this, but the conservative default carried forward — callers opt in explicitly when they want it.
+    - Phase 2C ran in the same PR as 2A and 2B. The three legacy protocols are aliased to the unified `Analyzer` for back-compat; the three-path dispatch in the pipeline is gone (single `analyzer.analyze(inputs, context)` everywhere). `_run_single_epoch` / `_run_secondary_from_plan` / `_run_cross_epoch_from_plan` still segment the phases for ordering, but the *dispatch within each phase* is uniform.
+    - Pipeline back-compat: when a one-off test analyzer is registered without a Spec, the pipeline conservatively materializes `model` + `cache` + `logits` + `probe`; and in the secondary phase, it loads the `depends_on` artifact for the back-compat path.
 - After this REQ lands, an analyzer's "protocol category" becomes a derived attribute computed from `output_scope`. REQ_120's `category` field on Spec can be removed.
 - **Cross-variant analyzers** are an explicit future case. Without unified inputs, adding a fourth protocol would amplify the fragmentation this REQ corrects. The `InputSpec` hierarchy reserves room for `CrossVariantInput` without committing to its v1 implementation.
 - The collapse the REQ achieves: three protocols + three `register_*` methods + three dispatch paths → one protocol + one register method + one dispatch path. Every entry point and every test that touched the three-shaped API gains a single shape to write against.

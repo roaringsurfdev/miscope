@@ -3,14 +3,14 @@
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.neuron_grouping import (
     NeuronGrouping,
     unpack_assignment,
     unpack_summary,
 )
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import SecondaryAnalyzer, UnifiedAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.core.grouping import UNASSIGNED, GroupAssignment
 
 

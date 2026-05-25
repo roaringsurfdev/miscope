@@ -11,9 +11,9 @@ from miscope.analysis.analyzers.global_centroid_pca import (
     GlobalCentroidPCA,
     _pca_with_variance_threshold,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import CrossEpochAnalyzer, UnifiedAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.visualization.renderers.repr_geometry import render_centroid_global_pca
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]

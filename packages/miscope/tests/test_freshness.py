@@ -334,7 +334,7 @@ class _PrimarySpec:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def analyze(self, ctx):  # protocol stub
+    def analyze(self, inputs, context):  # protocol stub
         pass
 
 

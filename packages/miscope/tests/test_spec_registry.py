@@ -76,7 +76,7 @@ def test_decorator_registers_spec_and_factory(fresh_registry):
     class FooAnalyzer:
         name = "foo"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     assert fresh_registry.get_spec("foo") is spec
@@ -91,7 +91,7 @@ def test_decorator_rejects_name_mismatch(fresh_registry):
         class WrongName:
             name = "bar"
 
-            def analyze(self, ctx):
+            def analyze(self, inputs, context):
                 return {}
 
 
@@ -100,7 +100,7 @@ def test_list_specs_by_category(fresh_registry):
     class P1:
         name = "p1"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     @register_analyzer(AnalyzerSpec(name="c1", category="cross_epoch"))
@@ -121,7 +121,7 @@ def test_legacy_register_synthesizes_default_spec(fresh_registry):
     class LegacyAnalyzer:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     fresh_registry.register(LegacyAnalyzer)
@@ -172,7 +172,7 @@ def test_decorator_wins_over_subsequent_legacy_register(fresh_registry):
     class Dual:
         name = "dual"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     fresh_registry.register(Dual)  # legacy call — should be a no-op
@@ -216,7 +216,7 @@ def test_plan_with_instance_leaves_capability_flags_none(tmp_path):
     class Legacy:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0])
@@ -249,7 +249,7 @@ def test_plan_needs_activation_cache_defaults_true_for_legacy(tmp_path):
     class Legacy:
         name = "legacy"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0])
@@ -266,7 +266,7 @@ def test_plan_transitive_prerequisites_when_registered(tmp_path, fresh_registry)
     class Prim:
         name = "prim"
 
-        def analyze(self, ctx):
+        def analyze(self, inputs, context):
             return {}
 
     variant = _make_variant(tmp_path, [0, 100])
@@ -355,11 +355,11 @@ class _WeightsOnlyAnalyzer:
 
     name = "weights_only_test"
 
-    def analyze(self, ctx) -> dict[str, np.ndarray]:
+    def analyze(self, inputs, context) -> dict[str, np.ndarray]:
         # Asserts the pipeline did not load the cache.
-        assert ctx.cache is None, "expected cache to be None when Spec says no cache"
-        assert ctx.logits is None, "expected logits to be None when Spec says no cache"
-        assert ctx.model is not None, "model should still be loaded for weights access"
+        assert inputs.cache is None, "expected cache to be None when Spec says no cache"
+        assert inputs.logits is None, "expected logits to be None when Spec says no cache"
+        assert inputs.model is not None, "model should still be loaded for weights access"
         return {"sentinel": np.array([1.0], dtype=np.float32)}
 
 
@@ -416,8 +416,8 @@ def test_pipeline_runs_forward_pass_when_cache_needed(trained_variant):
     class _CacheReader:
         name = "cache_reader_test"
 
-        def analyze(self, ctx) -> dict[str, np.ndarray]:
-            assert ctx.cache is not None
+        def analyze(self, inputs, context) -> dict[str, np.ndarray]:
+            assert inputs.cache is not None
             return {"sentinel": np.array([1.0], dtype=np.float32)}
 
     try:
@@ -457,7 +457,7 @@ def test_pipeline_absorbs_spec_only_plan_items(trained_variant):
     class _Absorb:
         name = "absorb_test"
 
-        def analyze(self, ctx) -> dict[str, np.ndarray]:
+        def analyze(self, inputs, context) -> dict[str, np.ndarray]:
             return {"sentinel": np.array([42.0], dtype=np.float32)}
 
     try:

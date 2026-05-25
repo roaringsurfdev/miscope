@@ -8,10 +8,10 @@ import pytest
 import torch
 
 from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library import (
     get_fourier_basis,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.architectures import ActivationCache
 
 

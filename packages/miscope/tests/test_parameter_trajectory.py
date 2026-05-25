@@ -21,7 +21,6 @@ from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     extract_parameter_snapshot,
 )
-from miscope.analysis.protocols import ActivationContext
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,

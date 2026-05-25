@@ -16,11 +16,8 @@ from tqdm import tqdm
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
-    ActivationContext,
     AnalysisRunConfig,
     Analyzer,
-    CrossEpochAnalyzer,
-    SecondaryAnalyzer,
 )
 
 logger = logging.getLogger(__name__)
@@ -70,8 +67,8 @@ class AnalysisPipeline:
         self.artifacts_dir = str(variant.artifacts_dir)
 
         self._analyzers: list[Analyzer] = []
-        self._secondary_analyzers: list[SecondaryAnalyzer] = []
-        self._cross_epoch_analyzers: list[CrossEpochAnalyzer] = []
+        self._secondary_analyzers: list[Analyzer] = []
+        self._cross_epoch_analyzers: list[Analyzer] = []
         self._manifest: dict[str, Any] = {}
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -93,7 +90,7 @@ class AnalysisPipeline:
 
     def register_secondary(
         self,
-        analyzer: SecondaryAnalyzer,
+        analyzer: Analyzer,
     ) -> AnalysisPipeline:
         """Register a secondary analyzer with the pipeline.
 
@@ -112,7 +109,7 @@ class AnalysisPipeline:
 
     def register_cross_epoch(
         self,
-        analyzer: CrossEpochAnalyzer,
+        analyzer: Analyzer,
     ) -> AnalysisPipeline:
         """Register a cross-epoch analyzer with the pipeline.
 
@@ -381,28 +378,19 @@ class AnalysisPipeline:
         else:
             logits, cache = None, None
 
-        ctx = ActivationContext(
-            probe=probe,
-            analysis_params=context,
-            model=model,
-            cache=cache,
-            logits=logits,
-        )
-
-        # REQ_121: route each analyzer through the unified path when its
-        # Spec uses ``inputs``; legacy analyzers continue to receive
-        # ``ActivationContext`` until they migrate.
         from miscope.analysis.registry import AnalyzerRegistry
 
         for analyzer, needed_epochs in work_queue:
             if epoch not in needed_epochs:
                 continue
 
-            required = getattr(analyzer, "required_hooks", None)
-            if not required:
-                spec = AnalyzerRegistry.get_spec(analyzer.name) if AnalyzerRegistry.has_spec(analyzer.name) else None
-                if spec is not None:
-                    required = spec.required_hooks
+            spec = (
+                AnalyzerRegistry.get_spec(analyzer.name)
+                if AnalyzerRegistry.has_spec(analyzer.name)
+                else None
+            )
+
+            required = spec.required_hooks if spec is not None else ()
             if required:
                 missing = [h for h in required if h not in model.hook_names()]
                 if missing:
@@ -414,14 +402,10 @@ class AnalysisPipeline:
                     )
                     continue
 
-            spec = AnalyzerRegistry.get_spec(analyzer.name) if AnalyzerRegistry.has_spec(analyzer.name) else None
-            if spec is not None and spec.is_unified:
-                inputs = self._materialize_per_epoch_inputs(
-                    spec, epoch, model, cache, logits, probe
-                )
-                result = analyzer.analyze(inputs, context)
-            else:
-                result = analyzer.analyze(ctx)
+            inputs = self._materialize_per_epoch_inputs(
+                spec, epoch, model, cache, logits, probe
+            )
+            result = analyzer.analyze(inputs, context)
 
             self._save_epoch_artifact(analyzer.name, epoch, result)
 
@@ -445,7 +429,7 @@ class AnalysisPipeline:
         cache: Any,
         logits: Any,
         probe: torch.Tensor,
-    ) -> "ResolvedInputs":
+    ) -> ResolvedInputs:
         """Build a ResolvedInputs for a per-epoch unified analyzer (REQ_121)."""
         from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.analysis.inputs import ArtifactInput, ModelInput, ResolvedInputs
@@ -454,9 +438,23 @@ class AnalysisPipeline:
         artifacts: dict[str, dict[str, np.ndarray]] = {}
         cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
         summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
-        wants_model = False
-        wants_cache = False
 
+        # When no Spec is registered (e.g. one-off test analyzers), populate
+        # conservatively — model + cache + logits + probe — so the analyzer
+        # can read whatever it wants.
+        if spec is None:
+            return ResolvedInputs(
+                epoch=epoch,
+                model=model,
+                cache=cache,
+                logits=logits,
+                probe=probe,
+            )
+
+        # Legacy Specs (no inputs declared) carry capability flags
+        # directly; default for the unified path is to honor those.
+        wants_model = spec.effective_requires_model_weights if not spec.inputs else False
+        wants_cache = spec.effective_requires_activation_cache if not spec.inputs else False
         for inp in spec.inputs:
             if isinstance(inp, ModelInput):
                 wants_model = wants_model or inp.needs_weights
@@ -623,6 +621,16 @@ class AnalysisPipeline:
     # Phase 1.5: Secondary analysis (REQ_048)
     # ------------------------------------------------------------------
 
+    def _spec_for(self, analyzer: Analyzer):
+        """Look up an analyzer's Spec from the Registry (or None)."""
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        return (
+            AnalyzerRegistry.get_spec(analyzer.name)
+            if AnalyzerRegistry.has_spec(analyzer.name)
+            else None
+        )
+
     def _run_secondary_from_plan(
         self,
         items: list[PlanItem],
@@ -678,14 +686,17 @@ class AnalysisPipeline:
                         f"Secondary analysis: {analyzer.name} epoch {epoch}",
                     )
 
-                if spec is not None and spec.is_unified:
-                    inputs = self._materialize_per_epoch_inputs(
-                        spec, epoch, model=None, cache=None, logits=None, probe=None  # type: ignore[arg-type]
+                inputs = self._materialize_per_epoch_inputs(
+                    spec, epoch, model=None, cache=None, logits=None, probe=None  # type: ignore[arg-type]
+                )
+                # Back-compat for one-off test analyzers without a registered
+                # Spec: load the dependency's artifact via the analyzer's
+                # ``depends_on`` attribute.
+                if spec is None and hasattr(analyzer, "depends_on"):
+                    inputs.artifacts[analyzer.depends_on] = loader.load_epoch(
+                        analyzer.depends_on, epoch
                     )
-                    result = analyzer.analyze(inputs, context)
-                else:
-                    artifact = loader.load_epoch(analyzer.depends_on, epoch)
-                    result = analyzer.analyze(artifact, context)
+                result = analyzer.analyze(inputs, context)
 
                 self._save_epoch_artifact(analyzer.name, epoch, result)
 
@@ -741,23 +752,20 @@ class AnalysisPipeline:
 
             from miscope.analysis.registry import AnalyzerRegistry
 
-            spec = AnalyzerRegistry.get_spec(analyzer.name) if AnalyzerRegistry.has_spec(analyzer.name) else None
-            if spec is not None and spec.is_unified:
-                inputs = self._materialize_cross_epoch_inputs(spec, available_epochs)
-                result = analyzer.analyze(inputs, cross_epoch_context)
-            else:
-                result = analyzer.analyze_across_epochs(
-                    self.artifacts_dir,
-                    available_epochs,
-                    cross_epoch_context,
-                )
+            spec = (
+                AnalyzerRegistry.get_spec(analyzer.name)
+                if AnalyzerRegistry.has_spec(analyzer.name)
+                else None
+            )
+            inputs = self._materialize_cross_epoch_inputs(spec, available_epochs)
+            result = analyzer.analyze(inputs, cross_epoch_context)
             self._save_cross_epoch_artifact(analyzer.name, result)
 
     def _materialize_cross_epoch_inputs(
         self,
         spec: Any,
         available_epochs: list[int],
-    ) -> "ResolvedInputs":
+    ) -> ResolvedInputs:
         """Build a ResolvedInputs for a cross-epoch unified analyzer (REQ_121)."""
         from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
@@ -766,14 +774,15 @@ class AnalysisPipeline:
         cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
         summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
 
-        for inp in spec.inputs:
-            if isinstance(inp, ArtifactInput):
-                if inp.scope == "all_epochs":
-                    cross_artifacts[inp.analyzer_name] = loader.load(inp.analyzer_name)
-                elif inp.scope == "summary":
-                    summary_artifacts[inp.analyzer_name] = loader.load_summary(
-                        inp.analyzer_name
-                    )
+        if spec is not None:
+            for inp in spec.inputs:
+                if isinstance(inp, ArtifactInput):
+                    if inp.scope == "all_epochs":
+                        cross_artifacts[inp.analyzer_name] = loader.load(inp.analyzer_name)
+                    elif inp.scope == "summary":
+                        summary_artifacts[inp.analyzer_name] = loader.load_summary(
+                            inp.analyzer_name
+                        )
 
         return ResolvedInputs(
             epoch=None,

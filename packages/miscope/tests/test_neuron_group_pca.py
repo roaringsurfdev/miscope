@@ -3,11 +3,11 @@
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.neuron_group_pca import (
     NeuronGroupPCAAnalyzer,
     _group_pca_stats,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_group_pca import (
     render_group_centroid_paths,
     render_group_centroid_timeseries,

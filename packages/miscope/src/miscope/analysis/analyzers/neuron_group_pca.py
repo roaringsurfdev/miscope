@@ -16,8 +16,8 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.library import extract_neuron_weight_matrix
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.library import extract_neuron_weight_matrix
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 

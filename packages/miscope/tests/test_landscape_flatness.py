@@ -14,8 +14,8 @@ from transformer_lens import HookedTransformer, HookedTransformerConfig
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.landscape_flatness import FLATNESS_SUMMARY_KEYS
-from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,

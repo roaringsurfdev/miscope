@@ -7,7 +7,6 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.transient_frequency import (
     TransientFrequencyAnalyzer,
@@ -15,6 +14,7 @@ from miscope.analysis.analyzers.transient_frequency import (
     _pack_ragged,
     load_peak_members,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.transient_frequency import (
     render_transient_committed_counts,
     render_transient_pc1_cohesion,

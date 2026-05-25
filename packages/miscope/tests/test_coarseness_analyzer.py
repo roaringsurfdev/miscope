@@ -11,8 +11,8 @@ import torch
 
 from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import CoarsenessAnalyzer
-from miscope.analysis.library.fourier import compute_neuron_coarseness
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.library.fourier import compute_neuron_coarseness
 from miscope.families import FamilyRegistry
 
 # ── Library function tests ──────────────────────────────────────────────

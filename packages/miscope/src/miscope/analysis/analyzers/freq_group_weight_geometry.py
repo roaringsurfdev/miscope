@@ -21,6 +21,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -30,7 +31,6 @@ from miscope.analysis.library.clustering import (
 )
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_circularity
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 

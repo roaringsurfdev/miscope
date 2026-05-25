@@ -19,8 +19,8 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -63,9 +63,7 @@ class IntraGroupManifoldAnalyzer:
     ) -> dict[str, np.ndarray]:
         """Fit quadratic surfaces to each group at every epoch."""
         assert inputs.artifacts_dir is not None
-        assert inputs.epochs is not None
         artifacts_dir = inputs.artifacts_dir
-        epochs = list(inputs.epochs)
         loader = ArtifactLoader(artifacts_dir)
         ngpca = loader.load_cross_epoch("neuron_group_pca")
 

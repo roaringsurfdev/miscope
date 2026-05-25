@@ -435,7 +435,13 @@ def _collect_transitive_prerequisites(
 
 
 def _is_cross_epoch(analyzer: Any) -> bool:
-    return hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires")
+    # Legacy: ``analyze_across_epochs`` method. Migrated (REQ_121):
+    # has a ``requires`` list attribute and no ``depends_on``.
+    if hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires"):
+        return True
+    if hasattr(analyzer, "requires") and not hasattr(analyzer, "depends_on"):
+        return True
+    return False
 
 
 def _is_secondary(analyzer: Any) -> bool:

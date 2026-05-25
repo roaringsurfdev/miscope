@@ -8,13 +8,13 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.neuron_dynamics import (
     NeuronDynamicsAnalyzer,
     _compute_commitment_epochs,
     _compute_switch_counts,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_freq_clusters import (
     render_commitment_timeline,
     render_neuron_freq_trajectory,

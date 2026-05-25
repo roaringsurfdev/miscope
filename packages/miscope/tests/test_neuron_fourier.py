@@ -12,7 +12,7 @@ from miscope.analysis.analyzers import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.fourier import extract_frequency_pairs, get_fourier_basis
-from miscope.analysis.protocols import SecondaryAnalyzer, UnifiedAnalyzer
+from miscope.analysis.protocols import UnifiedAnalyzer
 
 # ── Test parameters ────────────────────────────────────────────────────
 

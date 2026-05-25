@@ -11,8 +11,8 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.library.pca import pca
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.library.pca import pca
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 

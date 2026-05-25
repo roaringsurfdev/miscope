@@ -3,12 +3,12 @@
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.freq_group_weight_geometry import (
     FreqGroupWeightGeometryAnalyzer,
     _build_group_labels,
     _compute_group_geometry,
 )
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.freq_group_weight_geometry import (
     render_weight_geometry_centroid_pca,
     render_weight_geometry_group_snapshot,

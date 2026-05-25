@@ -7,11 +7,11 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.analyzers.centroid_dmd import CentroidDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.dmd import _truncation_rank, compute_dmd, dmd_reconstruct
-from miscope.analysis.protocols import CrossEpochAnalyzer, UnifiedAnalyzer
+from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.visualization.renderers.dmd import (
     render_dmd_eigenvalues,
     render_dmd_reconstruction,

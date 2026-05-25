@@ -36,6 +36,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
@@ -43,7 +44,6 @@ from miscope.analysis.library.dmd import (
     track_eigenvalues_across_windows,
 )
 from miscope.analysis.library.pca import pca
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 

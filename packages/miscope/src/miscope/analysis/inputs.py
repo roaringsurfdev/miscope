@@ -20,7 +20,7 @@ in v1.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Union
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     import numpy as np
@@ -76,7 +76,7 @@ class ArtifactInput:
     scope: ArtifactScope = "epoch"
 
 
-InputSpec = Union[ModelInput, ArtifactInput]
+InputSpec = ModelInput | ArtifactInput
 
 
 # ---------------------------------------------------------------------------
