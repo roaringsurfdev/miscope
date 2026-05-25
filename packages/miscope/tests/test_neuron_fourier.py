@@ -10,6 +10,7 @@ import pytest
 
 from miscope.analysis.analyzers import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.fourier import extract_frequency_pairs, get_fourier_basis
 from miscope.analysis.protocols import SecondaryAnalyzer
 
@@ -68,7 +69,7 @@ class TestNeuronFourierProtocol:
         assert NeuronFourierAnalyzer().depends_on == "parameter_snapshot"
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("neuron_fourier").category == "secondary"
+        assert AnalyzerRegistry.get_spec("neuron_fourier").effective_category == "secondary"
 
 
 # ── Output shape and dtype ─────────────────────────────────────────────
@@ -76,36 +77,36 @@ class TestNeuronFourierProtocol:
 
 class TestNeuronFourierOutputShape:
     def test_alpha_mk_shape(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["alpha_mk"].shape == (D_MLP, K)
 
     def test_phi_mk_shape(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["phi_mk"].shape == (D_MLP, K)
 
     def test_beta_mk_shape(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["beta_mk"].shape == (D_MLP, K)
 
     def test_psi_mk_shape(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["psi_mk"].shape == (D_MLP, K)
 
     def test_freq_indices_shape(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["freq_indices"].shape == (K,)
 
     def test_freq_indices_values(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         np.testing.assert_array_equal(result["freq_indices"], np.arange(1, K + 1))
 
     def test_float32_dtype(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         for key in ("alpha_mk", "phi_mk", "beta_mk", "psi_mk"):
             assert result[key].dtype == np.float32, f"{key} should be float32"
 
     def test_int32_dtype_freq_indices(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert result["freq_indices"].dtype == np.int32
 
 
@@ -114,12 +115,12 @@ class TestNeuronFourierOutputShape:
 
 class TestNeuronFourierNumerical:
     def test_magnitudes_non_negative(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert (result["alpha_mk"] >= 0).all()
         assert (result["beta_mk"] >= 0).all()
 
     def test_phases_in_valid_range(self, snapshot, context):
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
         assert (result["phi_mk"] >= -np.pi).all() and (result["phi_mk"] <= np.pi).all()
         assert (result["psi_mk"] >= -np.pi).all() and (result["psi_mk"] <= np.pi).all()
 
@@ -161,7 +162,7 @@ class TestNeuronFourierNumerical:
         }
         context = _make_context(p)
 
-        result = NeuronFourierAnalyzer().analyze(snapshot, context)
+        result = NeuronFourierAnalyzer().analyze(ResolvedInputs(artifacts={"parameter_snapshot": snapshot}), context)
 
         alpha_neuron0 = result["alpha_mk"][0]  # (K,) magnitudes for neuron 0
         dominant_freq_idx = int(np.argmax(alpha_neuron0))

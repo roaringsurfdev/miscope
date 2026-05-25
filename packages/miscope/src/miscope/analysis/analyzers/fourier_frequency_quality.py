@@ -13,15 +13,15 @@ from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="fourier_frequency_quality",
-    category="secondary",
-    requires=("dominant_frequencies",),
-    requires_model_weights=False,  # consumes artifact dict; no model needed
-    requires_activation_cache=False,
+    output_scope="per_epoch",
+    inputs=(ArtifactInput("dominant_frequencies", scope="epoch"),),
+    produces_summary=True,
 )
 
 
@@ -52,24 +52,11 @@ class FourierFrequencyQualityAnalyzer:
 
     def analyze(
         self,
-        artifact: dict[str, Any],
+        inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, Any]:
-        """Compute frequency quality score for one epoch.
-
-        Args:
-            artifact: dominant_frequencies artifact containing 'coefficients'
-                      array of shape (p,).
-            context: Analysis context containing 'params' (with 'prime') and
-                     'fourier_basis' (normalized torch.Tensor, shape (p, p)).
-
-        Returns:
-            Dict with:
-                quality_score:        scalar R² in [0, 1]
-                dominant_frequencies: int array of dominant basis indices
-                k:                    number of dominant basis vectors
-                reconstruction_error: scalar (1 - quality_score)
-        """
+        """Compute frequency quality score for one epoch."""
+        artifact = inputs.artifacts["dominant_frequencies"]
         p = context["params"]["prime"]
         fourier_basis = context["fourier_basis"].cpu().numpy()  # (p, p)
         coefficients = artifact["coefficients"]  # (p,)
