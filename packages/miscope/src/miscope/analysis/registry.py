@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer, SecondaryAnalyzer
     from miscope.families.protocols import ModelFamily
 
-T = TypeVar("T")
+T = TypeVar("T", bound=type)
 
 # Module-level storage. The Registry is a singleton accessed through the
 # AnalyzerRegistry class methods; these dicts are the backing state.

@@ -13,7 +13,7 @@ metadata, not a fourth protocol.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 Category = Literal["primary", "secondary", "cross_epoch"]
