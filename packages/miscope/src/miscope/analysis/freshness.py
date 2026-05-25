@@ -255,26 +255,50 @@ def _names_from_analyzers_with_disk_union(
     analyzers: Sequence[Any],
     artifacts_dir: Path,
 ) -> tuple[list[str], list[str]]:
-    """Split analyzer names by phase and union with on-disk discovery.
+    """Split analyzer names by output scope and union with on-disk discovery.
 
-    Primary and secondary analyzers both produce per-epoch artifacts, so
-    they share the per-epoch name list. Cross-epoch analyzers go in their
-    own list. Disk-discovered names are unioned in so leftover artifacts
-    from removed/renamed analyzers remain visible alongside registered-
-    but-never-run analyzers.
+    Primary and secondary analyzers both produce per-epoch artifacts and
+    share the per-epoch name list. Cross-epoch analyzers go in their own
+    list. After REQ_121's unification, every analyzer satisfies the same
+    ``Analyzer`` protocol — classification is by the registered Spec's
+    ``effective_category``, not by legacy protocol-method presence.
+
+    Disk-discovered names are unioned in so leftover artifacts from
+    removed/renamed analyzers remain visible alongside registered-but-
+    never-run analyzers. To prevent the same analyzer appearing in both
+    lists, cross-epoch-classified registered names are excluded from the
+    per-epoch list even if a per-epoch directory accidentally exists on
+    disk (and vice versa).
     """
+    from miscope.analysis.registry import AnalyzerRegistry
+
     registered_per_epoch: set[str] = set()
     registered_cross_epoch: set[str] = set()
     for analyzer in analyzers:
-        # Mirrors planner classification: cross-epoch detected by method
-        # presence, everything else (primary, secondary) emits per-epoch.
-        if hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires"):
-            registered_cross_epoch.add(analyzer.name)
+        if AnalyzerRegistry.has_spec(analyzer.name):
+            category = AnalyzerRegistry.get_spec(analyzer.name).effective_category
+            if category == "cross_epoch":
+                registered_cross_epoch.add(analyzer.name)
+            else:
+                # primary or secondary — both produce per-epoch artifacts
+                registered_per_epoch.add(analyzer.name)
         else:
-            registered_per_epoch.add(analyzer.name)
+            # No Spec: fall back to legacy attribute inspection.
+            if hasattr(analyzer, "analyze_across_epochs") and hasattr(
+                analyzer, "requires"
+            ):
+                registered_cross_epoch.add(analyzer.name)
+            else:
+                registered_per_epoch.add(analyzer.name)
 
     discovered_per_epoch = set(_resolve_per_epoch_names(artifacts_dir, None))
     discovered_cross_epoch = set(_resolve_cross_epoch_names(artifacts_dir, None))
+
+    # Keep a registered classification authoritative: don't double-list a
+    # cross-epoch analyzer in the per-epoch bucket just because disk
+    # discovery surfaced its directory.
+    discovered_per_epoch -= registered_cross_epoch
+    discovered_cross_epoch -= registered_per_epoch
 
     return (
         sorted(registered_per_epoch | discovered_per_epoch),
