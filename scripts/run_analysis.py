@@ -14,19 +14,24 @@ import time
 parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
+# Importing analyzers package triggers @register_analyzer decorators
+# under analyzers/__init__.py — needed before AnalyzerRegistry queries.
+import miscope.analysis.analyzers  # noqa: E402, F401
 from miscope import load_family  # noqa: E402
 from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
-
-# from miscope.analysis.analyzers.gradient_site import GradientSiteAnalyzer
-from miscope.analysis.analyzers import (  # noqa: E402
-    IntraGroupManifoldAnalyzer,
-)
+from miscope.analysis.registry import AnalyzerRegistry  # noqa: E402
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
 COOLING_NEEDED = False
 COOLING_PERIOD = 1 * 20  # timer to allow machine to cool between runs
+
+# %% analyzer selection
+# REQ_120: pick Specs from the Registry by name. Defaults to every analyzer
+# the family declares; set ANALYZER_NAMES to restrict to a subset.
+ANALYZER_NAMES: list[str] | None = None
+# Example: ANALYZER_NAMES = ["intragroup_manifold"]
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
@@ -63,39 +68,18 @@ for i, variant in enumerate(variants):
         print(f"  [{pct:5.1%}] {desc}", end="\r")
 
     try:
-        pipeline = AnalysisPipeline(variant)
-        # pipeline.register(AttentionFreqAnalyzer())
-        # pipeline.register(AttentionPatternsAnalyzer())
-        # pipeline.register(DominantFrequenciesAnalyzer())
-        # pipeline.register(InputTraceAnalyzer())
-        # pipeline.register(NeuronActivationsAnalyzer())
-        # pipeline.register(NeuronFreqClustersAnalyzer())
-        # pipeline.register(ParameterSnapshotAnalyzer())
-        # pipeline.register(EffectiveDimensionalityAnalyzer())
-        # pipeline.register(LandscapeFlatnessAnalyzer())
-        # pipeline.register(RepresentationalGeometryAnalyzer())
-        # pipeline.register(AttentionFourierAnalyzer())
-        # pipeline.register(FourierNucleationAnalyzer())
-        # pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-        # pipeline.register_secondary(NeuronFourierAnalyzer())
-        # pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
-        # pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-        # pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-        # pipeline.register_cross_epoch(ParameterTrajectoryPCA())
-        # pipeline.register_cross_epoch(GlobalCentroidPCA())
-        # pipeline.register_cross_epoch(CentroidDMD())
-        # pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
-        # pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
-        pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
+        # REQ_120: enumerate Specs from the Registry — no hand-coded
+        # register(...) block, no per-category dispatch. The pipeline
+        # instantiates Spec-only items from the Registry at execute time.
+        if ANALYZER_NAMES is None:
+            specs = AnalyzerRegistry.list_for_family(variant.family)
+        else:
+            specs = [AnalyzerRegistry.get_spec(n) for n in ANALYZER_NAMES]
 
-        # REQ_119: build and log the plan before execution.
-        all_analyzers = [
-            *pipeline._analyzers,
-            *pipeline._secondary_analyzers,
-            *pipeline._cross_epoch_analyzers,
-        ]
-        plan = plan_analysis(variant, all_analyzers, force=FORCE)
+        plan = plan_analysis(variant, specs, force=FORCE)
         print(plan.format())
+
+        pipeline = AnalysisPipeline(variant)
         pipeline.run(force=FORCE, progress_callback=progress_callback, plan=plan)
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

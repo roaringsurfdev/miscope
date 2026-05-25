@@ -16,6 +16,8 @@ import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.dmd import compute_dmd
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 
@@ -25,6 +27,16 @@ _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 _ENERGY_THRESHOLD = 0.99
 
 
+SPEC = AnalyzerSpec(
+    name="centroid_dmd",
+    category="cross_epoch",
+    requires=("repr_geometry",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class CentroidDMD:
     """Cross-epoch analyzer: standard DMD on global PCA centroid trajectories.
 

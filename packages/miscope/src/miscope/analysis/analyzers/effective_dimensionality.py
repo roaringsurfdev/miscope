@@ -17,11 +17,24 @@ from miscope.analysis.library.weights import (
     compute_participation_ratio,
     compute_weight_singular_values,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="effective_dimensionality",
+    category="primary",
+    requires_model_weights=True,
+    requires_activation_cache=False,  # reads weights only; no cache access
+    required_hooks=(),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class EffectiveDimensionalityAnalyzer:
     """Computes per-matrix singular value spectra across training.
 

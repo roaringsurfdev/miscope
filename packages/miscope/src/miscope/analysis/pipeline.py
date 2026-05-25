@@ -156,11 +156,16 @@ class AnalysisPipeline:
                 registered analyzers. Passing a plan lets callers preview
                 work before execution (REQ_119).
         """
-        if not self._analyzers and not self._cross_epoch_analyzers:
+        if plan is None and not self._analyzers and not self._cross_epoch_analyzers:
             return
 
         if plan is None:
             plan = self._build_plan(force)
+
+        # When the caller hands in a Spec-built Plan, the pipeline may need
+        # to instantiate analyzers from the Registry that were never passed
+        # to register_*. Do so up front so phase loops can look them up.
+        self._absorb_plan_references(plan)
 
         # Preserve the pre-REQ_119 early-return: when no checkpoints are
         # available, skip everything (including cross-epoch and secondary).
@@ -184,6 +189,13 @@ class AnalysisPipeline:
         if work_queue:
             all_epochs_needed = sorted(set(e for _, needed in work_queue for e in needed))
 
+            # REQ_120: the Plan tells us whether any active primary analyzer
+            # reads ctx.cache. When none do, skip the forward pass entirely.
+            # ``needs_activation_cache`` defaults to True for any item whose
+            # Spec flag is unknown (legacy Analyzer instances), preserving
+            # today's behavior.
+            needs_cache = plan.needs_activation_cache
+
             probe = self.variant.family.generate_analysis_dataset(
                 self.variant.params,
                 device=self._device,
@@ -205,6 +217,7 @@ class AnalysisPipeline:
                     probe,
                     context,
                     summary_collectors,
+                    needs_cache=needs_cache,
                 )
 
             for analyzer_name, collector in summary_collectors.items():
@@ -226,6 +239,43 @@ class AnalysisPipeline:
 
         if progress_callback:
             progress_callback(1.0, "Analysis complete")
+
+    def _absorb_plan_references(self, plan: Plan) -> None:
+        """Instantiate Spec-only analyzers referenced by a Plan (REQ_120).
+
+        When the caller built the Plan from Specs (via
+        ``plan_analysis(variant, registry.list_for_family(family))``) but
+        did not also call ``pipeline.register_*`` for each one, look up
+        the missing factories in the Registry and register the instances.
+        This makes the canonical entry-point pattern a one-liner.
+        """
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        primary_names = {a.name for a in self._analyzers}
+        secondary_names = {a.name for a in self._secondary_analyzers}
+        cross_epoch_names = {a.name for a in self._cross_epoch_analyzers}
+
+        for item in plan.per_epoch:
+            if item.analyzer_name in primary_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
+
+        for item in plan.secondary:
+            if item.analyzer_name in secondary_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._secondary_analyzers.append(
+                    AnalyzerRegistry.create(item.analyzer_name)
+                )
+
+        for item in plan.cross_epoch:
+            if item.analyzer_name in cross_epoch_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._cross_epoch_analyzers.append(
+                    AnalyzerRegistry.create(item.analyzer_name)
+                )
 
     def _build_plan(self, force: bool) -> Plan:
         """Build a Plan from the pipeline's registered analyzers.
@@ -299,6 +349,7 @@ class AnalysisPipeline:
         probe: torch.Tensor,
         context: dict[str, Any],
         summary_collectors: dict[str, dict[str, Any]] | None = None,
+        needs_cache: bool = True,
     ) -> None:
         """Run all relevant analyzers on a single checkpoint.
 
@@ -311,13 +362,23 @@ class AnalysisPipeline:
         published by the current model is skipped with an info-level log
         entry. Legacy analyzers without ``required_hooks`` continue to
         run unconditionally and consume the bundle.
+
+        REQ_120: when ``needs_cache=False`` (no analyzer at this epoch
+        reads ``ctx.cache`` or ``ctx.logits`` per their Specs), the
+        forward pass is skipped — ``ctx.cache`` and ``ctx.logits`` are
+        ``None``. Analyzers that quietly read the cache without declaring
+        it on their Spec will fail; the audit step (Phase 2) is how that
+        risk is bounded.
         """
         state_dict = self.variant.load_checkpoint(epoch)
         model = self.variant.family.create_model(self.variant.params, device=self._device)
         model.load_state_dict(state_dict)
 
-        with torch.inference_mode():
-            logits, cache = model.run_with_cache(probe)
+        if needs_cache:
+            with torch.inference_mode():
+                logits, cache = model.run_with_cache(probe)
+        else:
+            logits, cache = None, None
 
         ctx = ActivationContext(
             probe=probe,

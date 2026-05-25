@@ -44,6 +44,11 @@ class PlanItem:
     fields carry phase-specific context: ``depends_on`` for secondary,
     ``requires`` and ``blocked_by`` and ``reason`` for cross-epoch.
 
+    REQ_120 capability flags (``requires_model_weights`` /
+    ``requires_activation_cache``) default to ``None`` (unknown) for
+    backwards compatibility with hand-constructed Analyzer instances. The
+    pipeline treats ``None`` conservatively (assume True).
+
     Attributes:
         analyzer_name: Identifier used in artifact naming.
         epochs: Epochs to compute. Empty for cross-epoch ``blocked`` items.
@@ -56,6 +61,13 @@ class PlanItem:
             item cannot run as planned.
         reason: For cross-epoch items, short tag describing why the
             item is in the plan (``"missing"`` or ``"stale"``).
+        requires_model_weights: From the analyzer's Spec. ``None`` if
+            unknown (legacy Analyzer instance without a Spec).
+        requires_activation_cache: From the analyzer's Spec. ``None`` if
+            unknown. The pipeline uses ``Plan.needs_activation_cache`` to
+            decide whether to skip the forward pass.
+        required_hooks: From the analyzer's Spec. Used by the pipeline
+            for per-architecture compatibility skipping.
     """
 
     analyzer_name: str
@@ -64,6 +76,9 @@ class PlanItem:
     requires: tuple[str, ...] = ()
     blocked_by: tuple[str, ...] = ()
     reason: str | None = None
+    requires_model_weights: bool | None = None
+    requires_activation_cache: bool | None = None
+    required_hooks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,11 +102,41 @@ class Plan:
     per_epoch: list[PlanItem] = field(default_factory=list)
     secondary: list[PlanItem] = field(default_factory=list)
     cross_epoch: list[PlanItem] = field(default_factory=list)
+    transitive_prerequisites: tuple[str, ...] = ()
+    """REQ_120: cross-epoch items' missing dependencies that have a known
+    Spec in the Registry. Suggested upstream analyzers to enqueue. Empty
+    when nothing is blocked or no Specs are registered for the blockers."""
 
     @property
     def is_empty(self) -> bool:
         """True if no work in any phase."""
         return not (self.per_epoch or self.secondary or self.cross_epoch)
+
+    @property
+    def needs_activation_cache(self) -> bool:
+        """REQ_120: True if any per-epoch analyzer in this Plan reads ctx.cache.
+
+        Conservative default: items with ``requires_activation_cache=None``
+        (legacy Analyzer instances without a Spec) count as needing cache.
+        The pipeline uses this aggregate to decide whether to skip
+        ``model.run_with_cache(probe)``.
+        """
+        return any(
+            item.requires_activation_cache is None
+            or item.requires_activation_cache
+            for item in self.per_epoch
+        )
+
+    @property
+    def needs_model_weights(self) -> bool:
+        """REQ_120: True if any per-epoch analyzer reads ctx.model. Conservative
+        default: ``None`` counts as ``True``. Today every primary analyzer
+        accesses the model, so this is almost always ``True``; the flag
+        exists for future analyzers that derive results purely from the probe."""
+        return any(
+            item.requires_model_weights is None or item.requires_model_weights
+            for item in self.per_epoch
+        )
 
     def format(self) -> str:
         """Return a human-readable plan summary."""
@@ -145,6 +190,9 @@ class Plan:
             "per_epoch": [_item_to_dict(item) for item in self.per_epoch],
             "secondary": [_item_to_dict(item) for item in self.secondary],
             "cross_epoch": [_item_to_dict(item) for item in self.cross_epoch],
+            "transitive_prerequisites": list(self.transitive_prerequisites),
+            "needs_activation_cache": self.needs_activation_cache,
+            "needs_model_weights": self.needs_model_weights,
         }
 
 
@@ -153,6 +201,7 @@ def _item_to_dict(item: PlanItem) -> dict[str, Any]:
     d["epochs"] = list(item.epochs)
     d["requires"] = list(item.requires)
     d["blocked_by"] = list(item.blocked_by)
+    d["required_hooks"] = list(item.required_hooks)
     return d
 
 
@@ -172,9 +221,10 @@ def plan_analysis(
     Args:
         variant: The variant to analyze.
         analyzers: Mixed sequence of ``Analyzer``, ``SecondaryAnalyzer``,
-            and ``CrossEpochAnalyzer`` instances. Classification is by
-            attribute inspection (``analyze_across_epochs`` → cross-epoch,
-            ``depends_on`` → secondary, else primary).
+            ``CrossEpochAnalyzer`` instances, *or* ``AnalyzerSpec`` objects
+            (REQ_120). Specs are classified by their ``category`` field;
+            instances by attribute inspection (``analyze_across_epochs`` →
+            cross-epoch, ``depends_on`` → secondary, else primary).
         force: If True, every applicable epoch is included regardless of
             on-disk state.
         checkpoints: Restrict per-epoch work to these epochs. ``None``
@@ -182,7 +232,11 @@ def plan_analysis(
             all available checkpoints (current pipeline behavior).
 
     Returns:
-        Plan describing per-epoch, secondary, and cross-epoch work.
+        Plan describing per-epoch, secondary, and cross-epoch work. When
+        Specs are provided, the Plan also carries capability flags per
+        item (``requires_model_weights`` / ``requires_activation_cache``)
+        and aggregate properties (``Plan.needs_activation_cache``) for
+        the pipeline's load-decision optimization.
     """
     artifacts_dir = Path(variant.artifacts_dir)
     available = tuple(sorted(variant.get_available_checkpoints()))
@@ -195,51 +249,55 @@ def plan_analysis(
     secondary_items: list[PlanItem] = []
     cross_epoch_items: list[PlanItem] = []
 
-    # Classify analyzers up front so secondary and cross-epoch planning can
-    # treat the primary phase's planned outputs as "will be there" — i.e.
-    # the Plan describes post-execution state, not pre-execution state.
-    primary_analyzers = [a for a in analyzers if not _is_cross_epoch(a) and not _is_secondary(a)]
-    secondary_analyzers = [
-        a for a in analyzers if _is_secondary(a) and not _is_cross_epoch(a)
-    ]
-    cross_epoch_analyzers = [a for a in analyzers if _is_cross_epoch(a)]
+    # Normalize each input into a uniform descriptor regardless of whether
+    # it's an analyzer instance or a Spec. The descriptor carries enough
+    # info to plan without further inspection.
+    descriptors = [_describe(item) for item in analyzers]
+
+    # Classify by category so secondary and cross-epoch planning can treat
+    # the primary phase's planned outputs as "will be there" — i.e. the
+    # Plan describes post-execution state, not pre-execution state.
+    primary_descs = [d for d in descriptors if d.category == "primary"]
+    secondary_descs = [d for d in descriptors if d.category == "secondary"]
+    cross_epoch_descs = [d for d in descriptors if d.category == "cross_epoch"]
 
     projected_completed: dict[str, list[int]] = {}
-    for analyzer in primary_analyzers:
+    for desc in primary_descs:
         item = _plan_per_epoch_item(
-            name=analyzer.name,
+            name=desc.name,
             artifacts_dir=artifacts_dir,
             target_epochs=target_epochs,
             force=force,
+            requires_model_weights=desc.requires_model_weights,
+            requires_activation_cache=desc.requires_activation_cache,
+            required_hooks=desc.required_hooks,
         )
         if item is not None:
             per_epoch_items.append(item)
-        # Post-execution: primary will own at least its current artifacts
-        # plus all target epochs (force ⇒ all targets; otherwise current ∪ missing).
-        current = set(scan_epoch_files(artifacts_dir / analyzer.name))
-        projected_completed[analyzer.name] = sorted(current | set(target_epochs))
+        current = set(scan_epoch_files(artifacts_dir / desc.name))
+        projected_completed[desc.name] = sorted(current | set(target_epochs))
 
-    for analyzer in secondary_analyzers:
+    for desc in secondary_descs:
+        assert desc.depends_on is not None, "secondary descriptor must have depends_on"
         item = _plan_secondary_item(
-            name=analyzer.name,
-            depends_on=analyzer.depends_on,
+            name=desc.name,
+            depends_on=desc.depends_on,
             artifacts_dir=artifacts_dir,
             force=force,
             projected_completed=projected_completed,
         )
         if item is not None:
             secondary_items.append(item)
-        # Post-execution: secondary will own (at least) its dep's projected epochs.
         dep_epochs = projected_completed.get(
-            analyzer.depends_on, scan_epoch_files(artifacts_dir / analyzer.depends_on)
+            desc.depends_on, scan_epoch_files(artifacts_dir / desc.depends_on)
         )
-        current = set(scan_epoch_files(artifacts_dir / analyzer.name))
-        projected_completed[analyzer.name] = sorted(current | set(dep_epochs))
+        current = set(scan_epoch_files(artifacts_dir / desc.name))
+        projected_completed[desc.name] = sorted(current | set(dep_epochs))
 
-    for analyzer in cross_epoch_analyzers:
+    for desc in cross_epoch_descs:
         item = _plan_cross_epoch_item(
-            name=analyzer.name,
-            requires=tuple(analyzer.requires),
+            name=desc.name,
+            requires=desc.requires,
             artifacts_dir=artifacts_dir,
             available_epochs=available,
             force=force,
@@ -248,6 +306,8 @@ def plan_analysis(
         if item is not None:
             cross_epoch_items.append(item)
 
+    transitive = _collect_transitive_prerequisites(cross_epoch_items)
+
     return Plan(
         variant_name=variant.name,
         available_checkpoints=available,
@@ -255,7 +315,98 @@ def plan_analysis(
         per_epoch=per_epoch_items,
         secondary=secondary_items,
         cross_epoch=cross_epoch_items,
+        transitive_prerequisites=transitive,
     )
+
+
+# ---------------------------------------------------------------------------
+# Input normalization — Spec or Analyzer-instance → uniform descriptor
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _AnalyzerDescriptor:
+    """Internal planning descriptor — uniform shape for Spec or instance input."""
+
+    name: str
+    category: str  # "primary" | "secondary" | "cross_epoch"
+    requires: tuple[str, ...] = ()
+    depends_on: str | None = None
+    requires_model_weights: bool | None = None
+    requires_activation_cache: bool | None = None
+    required_hooks: tuple[str, ...] = ()
+
+
+def _describe(item: Any) -> _AnalyzerDescriptor:
+    """Normalize either an AnalyzerSpec or an analyzer instance into a descriptor.
+
+    Spec input: every field is taken verbatim from the Spec.
+    Analyzer instance input: classify via protocol attributes; capability
+    flags remain ``None`` (the pipeline defaults to conservative behavior).
+    """
+    # Import locally to avoid circular import with miscope.analysis.spec.
+    from miscope.analysis.spec import AnalyzerSpec
+
+    if isinstance(item, AnalyzerSpec):
+        depends_on = item.requires[0] if item.category == "secondary" and item.requires else None
+        return _AnalyzerDescriptor(
+            name=item.name,
+            category=item.category,
+            requires=tuple(item.requires),
+            depends_on=depends_on,
+            requires_model_weights=item.requires_model_weights,
+            requires_activation_cache=item.requires_activation_cache,
+            required_hooks=tuple(item.required_hooks),
+        )
+
+    # Analyzer instance — classify by protocol attribute presence.
+    if _is_cross_epoch(item):
+        return _AnalyzerDescriptor(
+            name=item.name,
+            category="cross_epoch",
+            requires=tuple(item.requires),
+            required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
+        )
+    if _is_secondary(item):
+        return _AnalyzerDescriptor(
+            name=item.name,
+            category="secondary",
+            requires=(item.depends_on,),
+            depends_on=item.depends_on,
+        )
+    return _AnalyzerDescriptor(
+        name=item.name,
+        category="primary",
+        required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
+    )
+
+
+def _collect_transitive_prerequisites(
+    cross_epoch_items: list[PlanItem],
+) -> tuple[str, ...]:
+    """Return blocked dependency names that have a registered Spec.
+
+    REQ_120: the Planner can suggest upstream analyzers to enqueue when a
+    cross-epoch item is blocked by a missing dependency that the Registry
+    knows about. Default surfacing is informational (auto_queue=False).
+    """
+    # Import locally to avoid eager Registry initialization in test contexts
+    # that haven't imported analyzers yet.
+    try:
+        from miscope.analysis.registry import AnalyzerRegistry
+    except ImportError:
+        return ()
+
+    suggestions: list[str] = []
+    seen: set[str] = set()
+    for item in cross_epoch_items:
+        for blocker in item.blocked_by:
+            if blocker in seen:
+                continue
+            if AnalyzerRegistry.has_spec(blocker):
+                suggestions.append(blocker)
+                seen.add(blocker)
+    return tuple(suggestions)
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +436,9 @@ def _plan_per_epoch_item(
     artifacts_dir: Path,
     target_epochs: Sequence[int],
     force: bool,
+    requires_model_weights: bool | None = None,
+    requires_activation_cache: bool | None = None,
+    required_hooks: tuple[str, ...] = (),
 ) -> PlanItem | None:
     """Decide which target epochs lack a per-epoch artifact for ``name``."""
     if force:
@@ -294,7 +448,13 @@ def _plan_per_epoch_item(
         missing = tuple(e for e in target_epochs if e not in completed)
     if not missing:
         return None
-    return PlanItem(analyzer_name=name, epochs=missing)
+    return PlanItem(
+        analyzer_name=name,
+        epochs=missing,
+        requires_model_weights=requires_model_weights,
+        requires_activation_cache=requires_activation_cache,
+        required_hooks=required_hooks,
+    )
 
 
 def _plan_secondary_item(

@@ -17,8 +17,19 @@ import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library import extract_neuron_weight_matrix
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="neuron_group_pca",
+    category="cross_epoch",
+    requires=("neuron_freq_norm", "parameter_snapshot"),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class NeuronGroupPCAAnalyzer:
     """Measures within-frequency-group coordination in weight space.
 

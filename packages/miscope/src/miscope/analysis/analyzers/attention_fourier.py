@@ -15,10 +15,23 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="attention_fourier",
+    category="primary",
+    requires_model_weights=True,
+    requires_activation_cache=False,  # reads attention/embedding weights only
+    required_hooks=(),
+)
+
+
+@register_analyzer(SPEC)
 class AttentionFourierAnalyzer:
     """Per-epoch Fourier decomposition of attention head weight matrices.
 

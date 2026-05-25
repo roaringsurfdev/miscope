@@ -18,11 +18,24 @@ from miscope.analysis.library import (
     extract_mlp_activations,
     reshape_to_grid,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="coarseness",
+    category="primary",
+    requires_model_weights=False,
+    requires_activation_cache=True,  # reads ctx.cache via extract_mlp_activations
+    required_hooks=("blocks.0.mlp.hook_out",),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class CoarsenessAnalyzer:
     """Computes per-neuron coarseness across training checkpoints.
 

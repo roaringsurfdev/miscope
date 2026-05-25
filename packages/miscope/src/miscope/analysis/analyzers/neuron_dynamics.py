@@ -10,8 +10,19 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+SPEC = AnalyzerSpec(
+    name="neuron_dynamics",
+    category="cross_epoch",
+    requires=("neuron_freq_norm",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
 
 
+@register_analyzer(SPEC)
 class NeuronDynamicsAnalyzer:
     """Cross-epoch analyzer for neuron frequency dynamics.
 

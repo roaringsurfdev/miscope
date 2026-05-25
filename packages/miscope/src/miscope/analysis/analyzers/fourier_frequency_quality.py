@@ -13,7 +13,19 @@ from typing import Any
 
 import numpy as np
 
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
+SPEC = AnalyzerSpec(
+    name="fourier_frequency_quality",
+    category="secondary",
+    requires=("dominant_frequencies",),
+    requires_model_weights=False,  # consumes artifact dict; no model needed
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class FourierFrequencyQualityAnalyzer:
     """Scores dominant frequency selection against the mod-p addition ideal.
 
