@@ -589,33 +589,38 @@ class TestParameterSnapshotAnalyzerOutput:
 
         return model, cache, logits, probe, context
 
-    def _ctx(self, model_with_context) -> ActivationContext:
+    def _inputs(self, model_with_context):
+        from miscope.analysis.inputs import ResolvedInputs
+
         model, cache, logits, probe, context = model_with_context
-        return ActivationContext(
-            probe=probe,
-            analysis_params=context,
+        return ResolvedInputs(
+            epoch=0,
             model=model,
             cache=cache,
             logits=logits,
-        )
+            probe=probe,
+        ), context
 
     def test_returns_dict(self, model_with_context):
         """analyze returns a dict."""
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(self._ctx(model_with_context))
+        inputs, context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, context)
         assert isinstance(result, dict)
 
     def test_returns_all_weight_names(self, model_with_context):
         """Result contains all weight matrix names."""
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(self._ctx(model_with_context))
+        inputs, context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, context)
         for name in WEIGHT_MATRIX_NAMES:
             assert name in result, f"Missing weight: {name}"
 
     def test_weight_shapes(self, model_with_context):
         """Weight matrices have correct shapes for p=17 model."""
         analyzer = ParameterSnapshotAnalyzer()
-        result = analyzer.analyze(self._ctx(model_with_context))
+        inputs, context = self._inputs(model_with_context)
+        result = analyzer.analyze(inputs, context)
         # d_model=128, d_mlp=512, n_heads=4, d_head=32
         assert result["W_E"].shape[1] == 128  # d_model
         assert result["W_in"].shape == (128, 512)  # (d_model, d_mlp)

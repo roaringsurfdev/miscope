@@ -11,7 +11,7 @@ from miscope.analysis.analyzers.fourier_nucleation import (
     _sharpen,
     _snapshot,
 )
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 
 # ---------------------------------------------------------------------------
 # Unit: Fourier basis construction
@@ -205,12 +205,9 @@ class TestFourierNucleationAnalyzerOutput:
         model, prime, d_mlp = minimal_model
         analyzer = FourierNucleationAnalyzer(iterations=3)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         expected_keys = {
             "aggregate_energy",
             "neuron_peak_freq",
@@ -227,12 +224,9 @@ class TestFourierNucleationAnalyzerOutput:
         n_iters = 4
         analyzer = FourierNucleationAnalyzer(iterations=n_iters)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         n_freqs = prime // 2
         assert result["aggregate_energy"].shape == (n_iters + 1, n_freqs)
 
@@ -241,24 +235,18 @@ class TestFourierNucleationAnalyzerOutput:
         n_iters = 3
         analyzer = FourierNucleationAnalyzer(iterations=n_iters)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         assert result["neuron_peak_freq"].shape == (n_iters + 1, d_mlp)
 
     def test_frequencies_array_values(self, minimal_model):
         model, prime, _ = minimal_model
         analyzer = FourierNucleationAnalyzer(iterations=2)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         expected = np.arange(1, prime // 2 + 1, dtype=np.int32)
         np.testing.assert_array_equal(result["frequencies"], expected)
 
@@ -266,12 +254,9 @@ class TestFourierNucleationAnalyzerOutput:
         model, prime, _ = minimal_model
         analyzer = FourierNucleationAnalyzer(iterations=4)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         # Max value per iteration should be 1.0
         for it in range(result["aggregate_energy"].shape[0]):
             assert result["aggregate_energy"][it].max() == pytest.approx(1.0, abs=1e-5)
@@ -281,12 +266,9 @@ class TestFourierNucleationAnalyzerOutput:
         model, prime, d_mlp = minimal_model
         analyzer = FourierNucleationAnalyzer(iterations=8, sharpness=0.8)
         result = analyzer.analyze(
-            ActivationContext(
-                model=model,  # type: ignore
-                probe=None,  # type: ignore
-                analysis_params={"params": {"prime": prime}},
-            )
-        )  # type: ignore[arg-type]
+            ResolvedInputs(model=model, probe=None),  # type: ignore[arg-type]
+            {"params": {"prime": prime}},
+        )
         energy_0 = result["aggregate_energy"][0]
         energy_final = result["aggregate_energy"][-1]
         # Concentration: max/mean ratio should increase (or stay same)

@@ -29,7 +29,7 @@ from miscope.analysis.analyzers.repr_geometry import (
     _SITES,
     RepresentationalGeometryAnalyzer,
 )
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.architectures import ActivationCache, HookedModel
 from miscope.core import architecture as canonical_hooks
 
@@ -103,16 +103,14 @@ def test_canary_runs_against_full_stub():
     d_model, d_mlp = 4, 8
     stub = FullCanaryStub()
     cache = _build_cache_for_full_stub(p, d_model, d_mlp)
-    ctx = ActivationContext(
-        # type: ignore[arg-type]
+    inputs = ResolvedInputs(
         probe=_make_probe(p),
-        analysis_params={"params": {"prime": p}},
-        model=stub,
+        model=stub,  # type: ignore[arg-type]
         cache=cache,
     )
 
     analyzer = RepresentationalGeometryAnalyzer()
-    result = analyzer.analyze(ctx)
+    result = analyzer.analyze(inputs, {"params": {"prime": p}})
 
     # Every published site produces its expected scalar measures.
     for site_name in _SITES:
@@ -121,9 +119,10 @@ def test_canary_runs_against_full_stub():
 
 
 def test_canary_required_hooks_match_canonical_grammar():
-    """Sanity: every required_hooks entry is a valid canonical hook name."""
-    analyzer = RepresentationalGeometryAnalyzer()
-    for hook_name in analyzer.required_hooks:
+    """Sanity: every SPEC.required_hooks entry is a valid canonical hook name."""
+    from miscope.analysis.analyzers.repr_geometry import SPEC
+
+    for hook_name in SPEC.required_hooks:
         assert canonical_hooks.is_canonical_hook_name(hook_name), hook_name
 
 
@@ -131,29 +130,28 @@ def test_canary_skips_when_cache_missing_canonical_hook():
     """Cache without the canary's canonical hooks raises at the boundary, not deeper."""
     p = 5
     cache = ActivationCache()  # empty
-    ctx = ActivationContext(
-        # type: ignore[arg-type]
+    inputs = ResolvedInputs(
         probe=_make_probe(p),
-        analysis_params={"params": {"prime": p}},
-        model=FullCanaryStub(),
+        model=FullCanaryStub(),  # type: ignore[arg-type]
         cache=cache,
     )
     analyzer = RepresentationalGeometryAnalyzer()
     # Empty cache → no canonical hook is in cache → analyzer produces empty
-    # site coverage (each site checks ``if canonical_hook not in ctx.cache: continue``).
-    result = analyzer.analyze(ctx)
+    # site coverage (each site checks ``if canonical_hook not in inputs.cache: continue``).
+    result = analyzer.analyze(inputs, {"params": {"prime": p}})
     for site_name in _SITES:
         assert f"{site_name}_centroids" not in result
 
 
 def test_canary_required_hooks_filtering_against_stub_with_no_hooks():
     """A stub publishing no hooks → required_hooks set ∩ hook_names = ∅."""
+    from miscope.analysis.analyzers.repr_geometry import SPEC
+
     stub = EmptyHookStub()
-    analyzer = RepresentationalGeometryAnalyzer()
-    missing = [h for h in analyzer.required_hooks if h not in stub.hook_names()]
+    missing = [h for h in SPEC.required_hooks if h not in stub.hook_names()]
     # Pipeline filter would skip the analyzer based on ``missing`` being
     # non-empty; this asserts the filter has the right signal to act on.
-    assert missing == list(analyzer.required_hooks)
+    assert missing == list(SPEC.required_hooks)
 
 
 def test_canary_does_not_import_transformer_lens():
@@ -168,8 +166,9 @@ def test_canary_does_not_import_transformer_lens():
     )
 
 
-def test_required_hooks_attribute_replaces_architecture_support():
-    """Migrated analyzer no longer carries the legacy architecture_support flag."""
-    analyzer = RepresentationalGeometryAnalyzer()
-    assert hasattr(analyzer, "required_hooks")
-    assert not hasattr(analyzer, "architecture_support")
+def test_required_hooks_declared_on_spec():
+    """Migrated analyzer publishes required_hooks via its SPEC (REQ_121)."""
+    from miscope.analysis.analyzers.repr_geometry import SPEC
+
+    assert SPEC.required_hooks
+    assert not hasattr(RepresentationalGeometryAnalyzer(), "architecture_support")

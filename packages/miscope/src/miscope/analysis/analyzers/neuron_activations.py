@@ -5,10 +5,11 @@ Extracts MLP neuron activations reshaped to input space.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
     extract_mlp_activations,
@@ -17,15 +18,10 @@ from miscope.analysis.library import (
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="neuron_activations",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache via extract_mlp_activations
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.mlp.hook_out",),
 )
 
@@ -40,23 +36,15 @@ class NeuronActivationsAnalyzer:
 
     name = "neuron_activations"
     description = "Computes neuron activation heatmaps for (a, b) inputs"
-    required_hooks: list[str] = ["blocks.0.mlp.hook_out"]
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """
-        Extract neuron activations and reshape to (d_mlp, p, p).
-
-        Args:
-            ctx: Analysis context with cache and probe.
-
-        Returns:
-            Dict with 'activations' array of shape (d_mlp, p, p)
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        p = compute_grid_size_from_dataset(ctx.probe)
-        neuron_acts = extract_mlp_activations(ctx.cache)
+        """Extract neuron activations and reshape to (d_mlp, p, p)."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        p = compute_grid_size_from_dataset(inputs.probe)
+        neuron_acts = extract_mlp_activations(inputs.cache)
         activations = reshape_to_grid(neuron_acts, p)
         return {"activations": activations.detach().cpu().numpy()}

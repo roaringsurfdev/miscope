@@ -11,25 +11,21 @@ the grokking signal lives.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import torch
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="input_trace",
-    category="primary",
-    requires_model_weights=False,
-    # Reads ctx.logits from the forward pass; logits come from run_with_cache,
-    # so the cache must be loaded for ctx.logits to be populated.
-    requires_activation_cache=True,
+    output_scope="per_epoch",
+    # needs_cache=True because ctx.logits comes from the forward pass and
+    # the pipeline only populates inputs.logits when cache is loaded.
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=(),
     produces_summary=True,
 )
@@ -54,25 +50,15 @@ class InputTraceAnalyzer:
 
     name = "input_trace"
     description = "Per-pair predictions on all input pairs at each checkpoint"
-    # Reads logits only (output of the forward pass) — runs on any architecture.
-    required_hooks: list[str] = []
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Run predictions on all p² pairs and record train/test split.
-
-        Args:
-            ctx: Analysis context with logits, probe, and analysis_params.
-                 analysis_params must contain 'params' with 'prime', 'data_seed',
-                 'training_fraction'.
-
-        Returns:
-            Dict with 'predictions', 'correct', 'confidence', 'split'
-        """
-        assert ctx.logits is not None  # type-narrowing for pyright
-        params = ctx.analysis_params["params"]
+        """Run predictions on all p² pairs and record train/test split."""
+        assert inputs.logits is not None  # type-narrowing for pyright
+        params = context["params"]
         p = int(params["prime"])
         data_seed = int(params.get("data_seed", 598))
         training_fraction = float(params.get("training_fraction", 0.3))
@@ -80,7 +66,7 @@ class InputTraceAnalyzer:
         # Logits shape: (batch, seq_len, vocab) for transformers,
         # (batch, vocab) for MLPs. Reduce to (batch, vocab) by taking
         # the last sequence position when applicable.
-        logits = ctx.logits
+        logits = inputs.logits
         last_logits = logits[:, -1, :] if logits.ndim == 3 else logits  # (p², p)
         device = last_logits.device
         probs = last_logits.softmax(dim=-1)

@@ -15,7 +15,7 @@ from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
 from miscope.analysis.analyzers import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.landscape_flatness import FLATNESS_SUMMARY_KEYS
 from miscope.analysis.library.landscape import compute_landscape_flatness
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.families import FamilyRegistry
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,
@@ -165,12 +165,9 @@ class TestLandscapeFlatnessAnalyzerProtocol:
         cache = ActivationCache({}, small_model)
         with pytest.raises(ValueError, match="loss_fn"):
             analyzer.analyze(
-                ActivationContext(
-                    model=small_model,
+ResolvedInputs(model=small_model,
                     cache=cache,  # type: ignore
-                    probe=dummy_probe,
-                    analysis_params={},
-                )
+                    probe=dummy_probe), {}
             )
 
     def test_summary_keys(self):

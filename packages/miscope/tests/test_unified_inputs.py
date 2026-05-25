@@ -241,14 +241,26 @@ def trained_variant():
         yield variant
 
 
-def _reregister_defaults_on_teardown():
-    AnalyzerRegistry.clear()
-    from miscope.analysis.analyzers.registry import register_default_analyzers
+@pytest.fixture
+def registry_snapshot():
+    """Snapshot Spec/factory dicts; restore them after the test.
 
-    register_default_analyzers()
+    Tests below register one-off analyzers via the decorator; this fixture
+    keeps those registrations from leaking to other test files (which
+    expect the canonical default Specs unchanged).
+    """
+    from miscope.analysis import registry as reg_mod
+
+    saved_specs = dict(reg_mod._specs)
+    saved_factories = dict(reg_mod._factories)
+    yield
+    reg_mod._specs.clear()
+    reg_mod._specs.update(saved_specs)
+    reg_mod._factories.clear()
+    reg_mod._factories.update(saved_factories)
 
 
-def test_pipeline_unified_per_epoch_dispatch(trained_variant):
+def test_pipeline_unified_per_epoch_dispatch(trained_variant, registry_snapshot):
     """Unified Spec → analyzer receives ResolvedInputs, not ActivationContext."""
     from miscope.analysis import AnalysisPipeline
 
@@ -268,21 +280,18 @@ def test_pipeline_unified_per_epoch_dispatch(trained_variant):
             received_inputs.append(inputs)
             return {"sentinel": np.array([1.0], dtype=np.float32)}
 
-    try:
-        plan = plan_analysis(trained_variant, [spec])
-        AnalysisPipeline(trained_variant).run(plan=plan)
-        assert len(received_inputs) > 0
-        sample = received_inputs[0]
-        assert isinstance(sample, ResolvedInputs)
-        assert sample.epoch is not None
-        assert sample.model is not None  # ModelInput(needs_weights=True default)
-        assert sample.cache is None  # needs_cache=False
-        assert sample.logits is None
-    finally:
-        _reregister_defaults_on_teardown()
+    plan = plan_analysis(trained_variant, [spec])
+    AnalysisPipeline(trained_variant).run(plan=plan)
+    assert len(received_inputs) > 0
+    sample = received_inputs[0]
+    assert isinstance(sample, ResolvedInputs)
+    assert sample.epoch is not None
+    assert sample.model is not None  # ModelInput(needs_weights=True default)
+    assert sample.cache is None  # needs_cache=False
+    assert sample.logits is None
 
 
-def test_pipeline_unified_cross_epoch_dispatch(trained_variant):
+def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapshot):
     """Unified cross-epoch Spec → analyzer receives ResolvedInputs with
     artifacts_dir + epochs + cross_epoch_artifacts."""
     from miscope.analysis import AnalysisPipeline
@@ -316,20 +325,17 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant):
             received.append(inputs)
             return {"summary": np.array([1.0], dtype=np.float32)}
 
-    try:
-        plan = plan_analysis(trained_variant, [prim_spec, ce_spec])
-        AnalysisPipeline(trained_variant).run(plan=plan)
-        assert len(received) == 1
-        sample = received[0]
-        assert sample.epoch is None
-        assert sample.artifacts_dir is not None
-        assert sample.epochs is not None
-        assert "u_primary_for_ce" in sample.cross_epoch_artifacts
-    finally:
-        _reregister_defaults_on_teardown()
+    plan = plan_analysis(trained_variant, [prim_spec, ce_spec])
+    AnalysisPipeline(trained_variant).run(plan=plan)
+    assert len(received) == 1
+    sample = received[0]
+    assert sample.epoch is None
+    assert sample.artifacts_dir is not None
+    assert sample.epochs is not None
+    assert "u_primary_for_ce" in sample.cross_epoch_artifacts
 
 
-def test_pipeline_legacy_still_dispatches_via_ctx(trained_variant):
+def test_pipeline_legacy_still_dispatches_via_ctx(trained_variant, registry_snapshot):
     """Legacy Spec (category authored, no inputs) → analyzer still gets
     ActivationContext on .analyze(ctx)."""
     from miscope.analysis import AnalysisPipeline
@@ -352,13 +358,10 @@ def test_pipeline_legacy_still_dispatches_via_ctx(trained_variant):
             received.append(ctx)
             return {"data": np.ones((1,), dtype=np.float32)}
 
-    try:
-        plan = plan_analysis(trained_variant, [spec])
-        AnalysisPipeline(trained_variant).run(plan=plan)
-        assert len(received) > 0
-        assert isinstance(received[0], ActivationContext)
-    finally:
-        _reregister_defaults_on_teardown()
+    plan = plan_analysis(trained_variant, [spec])
+    AnalysisPipeline(trained_variant).run(plan=plan)
+    assert len(received) > 0
+    assert isinstance(received[0], ActivationContext)
 
 
 # ---------------------------------------------------------------------------

@@ -6,10 +6,11 @@ blob vs plaid neuron patterns across training.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_2d_fourier_transform,
     compute_frequency_variance_fractions,
@@ -21,15 +22,10 @@ from miscope.analysis.library import (
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="coarseness",
-    category="primary",
-    requires_model_weights=False,
-    requires_activation_cache=True,  # reads ctx.cache via extract_mlp_activations
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.mlp.hook_out",),
     produces_summary=True,
 )
@@ -37,21 +33,10 @@ SPEC = AnalyzerSpec(
 
 @register_analyzer(SPEC)
 class CoarsenessAnalyzer:
-    """Computes per-neuron coarseness across training checkpoints.
-
-    Coarseness is the ratio of low-frequency to total power in a neuron's
-    activation pattern. High coarseness (>= 0.7) indicates "blob" neurons
-    with large coherent activation regions, while low coarseness (< 0.5)
-    indicates "plaid" neurons with fine-grained checkerboard patterns.
-
-    Composes existing library functions:
-        extract_mlp_activations -> reshape_to_grid -> compute_2d_fourier_transform
-        -> compute_frequency_variance_fractions -> compute_neuron_coarseness
-    """
+    """Computes per-neuron coarseness across training checkpoints."""
 
     name = "coarseness"
     description = "Computes per-neuron coarseness (low-frequency energy ratio)"
-    required_hooks: list[str] = ["blocks.0.mlp.hook_out"]
 
     def __init__(
         self,
@@ -63,22 +48,15 @@ class CoarsenessAnalyzer:
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute per-neuron coarseness values.
+        """Compute per-neuron coarseness values."""
+        assert inputs.cache is not None  # type-narrowing for pyright
+        fourier_basis = context["fourier_basis"]
+        p = compute_grid_size_from_dataset(inputs.probe)
 
-        Args:
-            ctx: Analysis context with cache, probe, and analysis_params.
-                 analysis_params must contain 'fourier_basis'.
-
-        Returns:
-            Dict with 'coarseness' array of shape (d_mlp,)
-        """
-        assert ctx.cache is not None  # type-narrowing for pyright
-        fourier_basis = ctx.analysis_params["fourier_basis"]
-        p = compute_grid_size_from_dataset(ctx.probe)
-
-        neuron_acts = extract_mlp_activations(ctx.cache)
+        neuron_acts = extract_mlp_activations(inputs.cache)
         reshaped = reshape_to_grid(neuron_acts, p)
         fourier_neuron_acts = compute_2d_fourier_transform(reshaped, fourier_basis)
         freq_fractions = compute_frequency_variance_fractions(fourier_neuron_acts, p)

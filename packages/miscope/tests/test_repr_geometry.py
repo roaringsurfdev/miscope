@@ -29,7 +29,7 @@ from miscope.analysis.library.shape import (
     characterize_circularity,
     characterize_fourier_alignment,
 )
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.architectures import ActivationCache
 from miscope.visualization.renderers.repr_geometry import render_fisher_heatmap, render_pc_budget
 
@@ -257,15 +257,13 @@ class TestRepresentationalGeometryAnalyzer:
             )
         return cache
 
-    def _activation_context(self, p: int, d_model: int = 8, d_mlp: int = 16) -> ActivationContext:
+    def _inputs(self, p: int, d_model: int = 8, d_mlp: int = 16):
         cache = self._make_canonical_cache(p, d_model=d_model, d_mlp=d_mlp)
-        return ActivationContext(
-            # type: ignore[arg-type]
+        return ResolvedInputs(
             probe=self._make_probe(p),
-            analysis_params={"params": {"prime": p}},
             model=None,
-            cache=cache,
-        )
+            cache=cache,  # type: ignore[arg-type]
+        ), {"params": {"prime": p}}
 
     def _make_probe(self, p: int):
         """Create a probe tensor for modular addition."""
@@ -288,7 +286,7 @@ class TestRepresentationalGeometryAnalyzer:
     def test_analyze_returns_expected_keys(self):
         p = 7
         analyzer = RepresentationalGeometryAnalyzer()
-        result = analyzer.analyze(self._activation_context(p))
+        result = analyzer.analyze(*self._inputs(p))
 
         # Check all sites have all expected keys
         for site in _SITES:
@@ -310,7 +308,7 @@ class TestRepresentationalGeometryAnalyzer:
     def test_analyze_shapes(self):
         p = 7
         analyzer = RepresentationalGeometryAnalyzer()
-        result = analyzer.analyze(self._activation_context(p, d_model=8, d_mlp=16))
+        result = analyzer.analyze(*self._inputs(p, d_model=8, d_mlp=16))
 
         # Centroid shapes
         assert result["resid_post_centroids"].shape == (p, 8)
@@ -326,7 +324,7 @@ class TestRepresentationalGeometryAnalyzer:
     def test_compute_summary_extracts_scalars(self):
         p = 7
         analyzer = RepresentationalGeometryAnalyzer()
-        result = analyzer.analyze(self._activation_context(p))
+        result = analyzer.analyze(*self._inputs(p))
         summary = analyzer.compute_summary(result, {})
 
         # All summary values should be floats
@@ -356,7 +354,7 @@ class TestRepresentationalGeometryAnalyzer:
     def test_argmin_values_are_valid_class_indices(self):
         p = 7
         analyzer = RepresentationalGeometryAnalyzer()
-        result = analyzer.analyze(self._activation_context(p))
+        result = analyzer.analyze(*self._inputs(p))
 
         for site in _SITES:
             r = int(result[f"{site}_fisher_argmin_r"])

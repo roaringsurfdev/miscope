@@ -11,7 +11,7 @@ from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
 from miscope.analysis.library import (
     get_fourier_basis,
 )
-from miscope.analysis.protocols import ActivationContext
+from miscope.analysis.inputs import ResolvedInputs
 from miscope.architectures import ActivationCache
 
 
@@ -91,7 +91,7 @@ class TestAttentionFreqAnalyzerOutput:
 
         analyzer = AttentionFreqAnalyzer()
         return analyzer.analyze(
-            ActivationContext(probe=probe, analysis_params=context, cache=cache)
+ResolvedInputs(probe=probe, cache=cache), context
         )
 
     def test_returns_dict(self, analyzer_result):
@@ -239,10 +239,10 @@ class TestAttentionFreqPositionPair:
         analyzer_b = AttentionFreqAnalyzer(to_position=2, from_position=1)
 
         result_a = analyzer_a.analyze(
-            ActivationContext(probe=probe, analysis_params=context, cache=cache)
+ResolvedInputs(probe=probe, cache=cache), context
         )
         result_b = analyzer_b.analyze(
-            ActivationContext(probe=probe, analysis_params=context, cache=cache)
+ResolvedInputs(probe=probe, cache=cache), context
         )
 
         assert not np.array_equal(result_a["freq_matrix"], result_b["freq_matrix"])

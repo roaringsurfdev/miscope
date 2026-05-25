@@ -8,10 +8,11 @@ for trajectory visualization without loading per-epoch artifacts.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     compute_participation_ratio,
@@ -20,15 +21,10 @@ from miscope.analysis.library.weights import (
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
-
-
 SPEC = AnalyzerSpec(
     name="effective_dimensionality",
-    category="primary",
-    requires_model_weights=True,
-    requires_activation_cache=False,  # reads weights only; no cache access
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
     produces_summary=True,
 )
@@ -47,23 +43,15 @@ class EffectiveDimensionalityAnalyzer:
 
     name = "effective_dimensionality"
     description = "Computes weight matrix singular values for dimensionality analysis"
-    # Reads weights only — runs on any architecture.
-    required_hooks: list[str] = []
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute singular values of all trainable weight matrices.
-
-        Args:
-            ctx: Analysis context with model (probe and analysis_params unused).
-
-        Returns:
-            Dict mapping sv_{name} to singular value arrays.
-        """
-        assert ctx.model is not None  # type-narrowing for pyright
-        return compute_weight_singular_values(ctx.model)
+        """Compute singular values of all trainable weight matrices."""
+        assert inputs.model is not None  # type-narrowing for pyright
+        return compute_weight_singular_values(inputs.model)
 
     def get_summary_keys(self) -> list[str]:
         """Declare participation ratio summary keys."""
@@ -72,15 +60,7 @@ class EffectiveDimensionalityAnalyzer:
     def compute_summary(
         self, result: dict[str, np.ndarray], context: dict[str, Any]
     ) -> dict[str, float | np.ndarray]:
-        """Compute participation ratios from singular values.
-
-        Args:
-            result: Dict with sv_{name} arrays from analyze()
-            context: Analysis context (unused)
-
-        Returns:
-            Dict mapping pr_{name} to participation ratio (scalar or per-head array).
-        """
+        """Compute participation ratios from singular values."""
         summary = {}
         for name in WEIGHT_MATRIX_NAMES:
             sv_key = f"sv_{name}"

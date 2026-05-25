@@ -17,15 +17,13 @@ a cross-epoch frequency commitment trajectory.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any
 
 import numpy as np
 
+from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
-
-if TYPE_CHECKING:
-    from miscope.analysis.protocols import ActivationContext
 
 _COMMIT_THRESHOLD = 0.15  # Fraction of neuron energy at one frequency to count as "committed"
 
@@ -142,9 +140,8 @@ def _snapshot(
 
 SPEC = AnalyzerSpec(
     name="fourier_nucleation",
-    category="primary",
-    requires_model_weights=True,
-    requires_activation_cache=False,  # reads weights only (embed.W_E, blocks.0.mlp.in.W)
+    output_scope="per_epoch",
+    inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
 )
 
@@ -163,9 +160,6 @@ class FourierNucleationAnalyzer:
 
     name = "fourier_nucleation"
     description = "Iterative Fourier projection of MLP neuron response profiles"
-    # Reads transformer weights only (embed.W_E and blocks.0.mlp.in.W).
-    # Family registration filters; KeyError on missing weights is the safety net.
-    required_hooks: list[str] = []
 
     def __init__(self, iterations: int = 12, sharpness: float = 0.7):
         self.iterations = iterations
@@ -173,24 +167,16 @@ class FourierNucleationAnalyzer:
 
     def analyze(
         self,
-        ctx: ActivationContext,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Project neuron response profiles onto Fourier basis, iteratively sharpening.
-
-        Args:
-            ctx: Analysis context with bundle and analysis_params.
-                 analysis_params must contain ctx.analysis_params["params"]["prime"].
-
-        Returns:
-            Dict with keys: aggregate_energy, neuron_peak_freq, neuron_committed_count,
-            frequencies, prime, iterations, sharpness
-        """
-        assert ctx.model is not None  # type-narrowing for pyright
-        prime = int(ctx.analysis_params["params"]["prime"])
+        """Project neuron response profiles onto Fourier basis, iteratively sharpening."""
+        assert inputs.model is not None  # type-narrowing for pyright
+        prime = int(context["params"]["prime"])
 
         # (d_model, d_mlp) in TransformerLens convention
-        W_in = ctx.model.get_weight("blocks.0.mlp.in.W").detach().cpu().numpy()
-        W_E = ctx.model.get_weight("embed.W_E").detach().cpu().numpy()  # (vocab_size, d_model)
+        W_in = inputs.model.get_weight("blocks.0.mlp.in.W").detach().cpu().numpy()
+        W_E = inputs.model.get_weight("embed.W_E").detach().cpu().numpy()
 
         # W_in is (d_model, d_mlp) in TransformerLens convention.
         # Neuron response to each token: (W_E[:prime] @ W_in).T = (d_mlp, prime)
