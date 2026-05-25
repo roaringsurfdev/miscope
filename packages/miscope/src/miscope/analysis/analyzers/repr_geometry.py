@@ -42,6 +42,8 @@ from miscope.analysis.library.shape import (
     characterize_circularity,
     characterize_fourier_alignment,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 from miscope.core import architecture as canonical_hooks
 
 # Activation sites to probe. Each maps the site label (preserved as the
@@ -84,6 +86,17 @@ def _get_summary_keys() -> list[str]:
     return scalar_keys + pca_keys
 
 
+SPEC = AnalyzerSpec(
+    name="repr_geometry",
+    category="primary",
+    requires_model_weights=False,
+    requires_activation_cache=True,  # reads ctx.cache[canonical_hook] at 4 sites
+    required_hooks=tuple(_SITES.values()),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class RepresentationalGeometryAnalyzer:
     """Computes geometric properties of class manifolds in activation space.
 

@@ -12,11 +12,23 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from miscope.analysis.library import extract_parameter_snapshot
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="parameter_snapshot",
+    category="primary",
+    requires_model_weights=True,
+    requires_activation_cache=False,  # reads weights only; no cache access
+    required_hooks=(),
+)
+
+
+@register_analyzer(SPEC)
 class ParameterSnapshotAnalyzer:
     """Stores per-epoch weight matrix snapshots for trajectory analysis.
 

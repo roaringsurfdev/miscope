@@ -21,6 +21,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
@@ -137,6 +140,16 @@ def _snapshot(
     return agg_energy, peak_freq, committed_count
 
 
+SPEC = AnalyzerSpec(
+    name="fourier_nucleation",
+    category="primary",
+    requires_model_weights=True,
+    requires_activation_cache=False,  # reads weights only (embed.W_E, blocks.0.mlp.in.W)
+    required_hooks=(),
+)
+
+
+@register_analyzer(SPEC)
 class FourierNucleationAnalyzer:
     """Surfaces latent Fourier frequency bias in MLP weights via iterative projection.
 

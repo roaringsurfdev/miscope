@@ -14,11 +14,23 @@ from miscope.analysis.library import (
     extract_mlp_activations,
     reshape_to_grid,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="neuron_activations",
+    category="primary",
+    requires_model_weights=False,
+    requires_activation_cache=True,  # reads ctx.cache via extract_mlp_activations
+    required_hooks=("blocks.0.mlp.hook_out",),
+)
+
+
+@register_analyzer(SPEC)
 class NeuronActivationsAnalyzer:
     """Extracts MLP neuron activations reshaped to input space.
 

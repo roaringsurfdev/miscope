@@ -167,7 +167,7 @@ class TestGlobalCentroidPCAProtocol:
         assert GlobalCentroidPCA().requires == ["repr_geometry"]
 
     def test_registered_in_registry(self):
-        assert "global_centroid_pca" in AnalyzerRegistry._cross_epoch_analyzers
+        assert AnalyzerRegistry.get_spec("global_centroid_pca").category == "cross_epoch"
 
     def test_analyze_is_callable(self):
         assert callable(GlobalCentroidPCA().analyze_across_epochs)

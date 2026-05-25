@@ -43,6 +43,8 @@ from miscope.analysis.library.dmd import (
     track_eigenvalues_across_windows,
 )
 from miscope.analysis.library.pca import pca
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 _MATRICES = ["W_in", "W_out"]
 
@@ -62,6 +64,16 @@ _PCA_MAX_COMPONENTS = 50
 _CONTEXT_REFERENCE_EPOCH_KEY = "parameter_dmd_reference_epoch"
 
 
+SPEC = AnalyzerSpec(
+    name="parameter_dmd",
+    category="cross_epoch",
+    requires=("parameter_snapshot", "neuron_grouping"),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class ParameterDMD:
     """Cross-epoch analyzer: per-(group, matrix) windowed + per-regime DMD.
 

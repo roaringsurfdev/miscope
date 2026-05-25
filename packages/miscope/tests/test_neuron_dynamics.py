@@ -138,7 +138,7 @@ class TestCommitmentEpochs:
 class TestNeuronDynamicsAnalyzer:
     def test_registration(self):
         """NeuronDynamicsAnalyzer is registered as a cross-epoch analyzer."""
-        assert "neuron_dynamics" in AnalyzerRegistry._cross_epoch_analyzers
+        assert AnalyzerRegistry.get_spec("neuron_dynamics").category == "cross_epoch"
 
     def test_analyze_across_epochs(
         self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]

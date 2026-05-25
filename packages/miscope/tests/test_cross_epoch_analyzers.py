@@ -108,7 +108,7 @@ class TestCrossEpochAnalyzerProtocol:
         assert callable(analyzer.analyze_across_epochs)
 
     def test_registered_in_registry(self):
-        assert "parameter_trajectory" in [name for name in AnalyzerRegistry._cross_epoch_analyzers]
+        assert AnalyzerRegistry.get_spec("parameter_trajectory").category == "cross_epoch"
 
 
 # ── Analyzer output tests ────────────────────────────────────────────

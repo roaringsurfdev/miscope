@@ -36,6 +36,8 @@ from miscope.analysis.library.grouping import (
     group_neurons,
     group_neurons_summary,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 from miscope.core.grouping import GroupAssignment, GroupSummary
 
 # Context keys the family may set to influence the analyzer.
@@ -49,6 +51,16 @@ _DEFAULT_FEATURE_SOURCE = "weight"
 _DEFAULT_N_GROUPS = 8
 
 
+SPEC = AnalyzerSpec(
+    name="neuron_grouping",
+    category="secondary",
+    requires=("parameter_snapshot",),
+    requires_model_weights=False,  # consumes artifact dict; no model needed
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class NeuronGrouping:
     """Per-epoch neuron grouping. Consumes parameter_snapshot artifacts."""
 

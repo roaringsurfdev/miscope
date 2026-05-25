@@ -26,6 +26,8 @@ from miscope.analysis.library.dmd import (
     detect_regime_boundaries,
     track_eigenvalues_across_windows,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 
@@ -35,6 +37,16 @@ _WINDOW_STRIDE = 1
 _ENERGY_THRESHOLD = 0.99
 
 
+SPEC = AnalyzerSpec(
+    name="activation_dmd",
+    category="cross_epoch",
+    requires=("repr_geometry",),
+    requires_model_weights=False,
+    requires_activation_cache=False,
+)
+
+
+@register_analyzer(SPEC)
 class ActivationDMD:
     """Cross-epoch analyzer: windowed + per-regime DMD on centroid trajectories.
 

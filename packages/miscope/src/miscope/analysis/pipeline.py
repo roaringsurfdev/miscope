@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
     ActivationContext,
     AnalysisRunConfig,
@@ -131,6 +132,7 @@ class AnalysisPipeline:
         force: bool = False,
         progress_callback: Callable[[float, str], None] | None = None,
         extra_context: dict[str, Any] | None = None,
+        plan: Plan | None = None,
     ) -> None:
         """Execute analysis pipeline across checkpoints.
 
@@ -138,7 +140,9 @@ class AnalysisPipeline:
         No in-memory buffer is maintained across epochs.
 
         Args:
-            force: If True, recompute even if artifacts exist
+            force: If True, recompute even if artifacts exist. Ignored when
+                ``plan`` is provided (the plan already reflects the desired
+                force state).
             progress_callback: Optional callback(progress, description) for UI updates.
                                Progress is a float from 0.0 to 1.0.
             extra_context: Optional dict merged into the analysis context after
@@ -147,21 +151,34 @@ class AnalysisPipeline:
                            ``{"parameter_dmd_reference_epoch": 20000}``) without
                            editing family code. Caller-supplied keys override
                            any matching family-supplied keys.
+            plan: Optional pre-built ``Plan`` describing the work to perform.
+                If ``None``, the pipeline calls ``plan_analysis`` on its
+                registered analyzers. Passing a plan lets callers preview
+                work before execution (REQ_119).
         """
-        if not self._analyzers and not self._cross_epoch_analyzers:
+        if plan is None and not self._analyzers and not self._cross_epoch_analyzers:
             return
 
-        available_epochs = self.variant.get_available_checkpoints()
-        if self.config.checkpoints is not None:
-            target_epochs = [e for e in self.config.checkpoints if e in available_epochs]
-        else:
-            target_epochs = available_epochs
+        if plan is None:
+            plan = self._build_plan(force)
 
-        if not target_epochs:
+        # When the caller hands in a Spec-built Plan, the pipeline may need
+        # to instantiate analyzers from the Registry that were never passed
+        # to register_*. Do so up front so phase loops can look them up.
+        self._absorb_plan_references(plan)
+
+        # Preserve the pre-REQ_119 early-return: when no checkpoints are
+        # available, skip everything (including cross-epoch and secondary).
+        if not plan.target_epochs:
             return
 
-        # Phase 1: Per-epoch analysis
-        work_queue = self._build_work_queue(target_epochs, force)
+        primary_by_name = {a.name: a for a in self._analyzers}
+        work_queue: list[tuple[Analyzer, list[int]]] = [
+            (primary_by_name[item.analyzer_name], list(item.epochs))
+            for item in plan.per_epoch
+            if item.analyzer_name in primary_by_name and item.epochs
+        ]
+
         context = self.variant.family.prepare_analysis_context(
             self.variant.params,
             self._device,
@@ -171,6 +188,13 @@ class AnalysisPipeline:
 
         if work_queue:
             all_epochs_needed = sorted(set(e for _, needed in work_queue for e in needed))
+
+            # REQ_120: the Plan tells us whether any active primary analyzer
+            # reads ctx.cache. When none do, skip the forward pass entirely.
+            # ``needs_activation_cache`` defaults to True for any item whose
+            # Spec flag is unknown (legacy Analyzer instances), preserving
+            # today's behavior.
+            needs_cache = plan.needs_activation_cache
 
             probe = self.variant.family.generate_analysis_dataset(
                 self.variant.params,
@@ -193,6 +217,7 @@ class AnalysisPipeline:
                     probe,
                     context,
                     summary_collectors,
+                    needs_cache=needs_cache,
                 )
 
             for analyzer_name, collector in summary_collectors.items():
@@ -200,12 +225,12 @@ class AnalysisPipeline:
                     self._save_summary(analyzer_name, collector)
 
         # Phase 1.5: Secondary analysis (REQ_048)
-        if self._secondary_analyzers:
-            self._run_secondary_analyzers(context, force, progress_callback)
+        if self._secondary_analyzers and plan.secondary:
+            self._run_secondary_from_plan(plan.secondary, context, progress_callback)
 
         # Phase 2: Cross-epoch analysis (REQ_038)
-        if self._cross_epoch_analyzers:
-            self._run_cross_epoch_analyzers(context, force, progress_callback)
+        if self._cross_epoch_analyzers and plan.cross_epoch:
+            self._run_cross_epoch_from_plan(plan.cross_epoch, context, progress_callback)
 
         # Save manifest with metadata at end of run
         if work_queue:
@@ -214,6 +239,68 @@ class AnalysisPipeline:
 
         if progress_callback:
             progress_callback(1.0, "Analysis complete")
+
+    def _absorb_plan_references(self, plan: Plan) -> None:
+        """Instantiate Spec-only analyzers referenced by a Plan (REQ_120).
+
+        When the caller built the Plan from Specs (via
+        ``plan_analysis(variant, registry.list_for_family(family))``) but
+        did not also call ``pipeline.register_*`` for each one, look up
+        the missing factories in the Registry and register the instances.
+        This makes the canonical entry-point pattern a one-liner.
+        """
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        primary_names = {a.name for a in self._analyzers}
+        secondary_names = {a.name for a in self._secondary_analyzers}
+        cross_epoch_names = {a.name for a in self._cross_epoch_analyzers}
+
+        for item in plan.per_epoch:
+            if item.analyzer_name in primary_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
+
+        for item in plan.secondary:
+            if item.analyzer_name in secondary_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._secondary_analyzers.append(
+                    AnalyzerRegistry.create(item.analyzer_name)
+                )
+
+        for item in plan.cross_epoch:
+            if item.analyzer_name in cross_epoch_names:
+                continue
+            if AnalyzerRegistry.has_spec(item.analyzer_name):
+                self._cross_epoch_analyzers.append(
+                    AnalyzerRegistry.create(item.analyzer_name)
+                )
+
+    def _build_plan(self, force: bool) -> Plan:
+        """Build a Plan from the pipeline's registered analyzers.
+
+        Applies the ``config.analyzers`` filter to secondary analyzers
+        (preserving the historical asymmetry — primary and cross-epoch
+        phases ignore this filter).
+        """
+        if self.config.analyzers:
+            config_names = set(self.config.analyzers)
+            secondaries = [a for a in self._secondary_analyzers if a.name in config_names]
+        else:
+            secondaries = list(self._secondary_analyzers)
+
+        analyzers: list[Any] = [
+            *self._analyzers,
+            *secondaries,
+            *self._cross_epoch_analyzers,
+        ]
+        return plan_analysis(
+            self.variant,
+            analyzers,
+            force=force,
+            checkpoints=self.config.checkpoints,
+        )
 
     def get_completed_epochs(self, analyzer_name: str) -> list[int]:
         """Return list of epochs with completed analysis for given analyzer.
@@ -255,24 +342,6 @@ class AnalysisPipeline:
 
         return []
 
-    def _build_work_queue(
-        self, target_epochs: list[int], force: bool
-    ) -> list[tuple[Analyzer, list[int]]]:
-        """Build work queue of (analyzer, epochs_needed) tuples."""
-        work_queue = []
-
-        for analyzer in self._analyzers:
-            if force:
-                missing = target_epochs
-            else:
-                completed = set(self.get_completed_epochs(analyzer.name))
-                missing = [e for e in target_epochs if e not in completed]
-
-            if missing:
-                work_queue.append((analyzer, missing))
-
-        return work_queue
-
     def _run_single_epoch(
         self,
         epoch: int,
@@ -280,6 +349,7 @@ class AnalysisPipeline:
         probe: torch.Tensor,
         context: dict[str, Any],
         summary_collectors: dict[str, dict[str, Any]] | None = None,
+        needs_cache: bool = True,
     ) -> None:
         """Run all relevant analyzers on a single checkpoint.
 
@@ -292,13 +362,23 @@ class AnalysisPipeline:
         published by the current model is skipped with an info-level log
         entry. Legacy analyzers without ``required_hooks`` continue to
         run unconditionally and consume the bundle.
+
+        REQ_120: when ``needs_cache=False`` (no analyzer at this epoch
+        reads ``ctx.cache`` or ``ctx.logits`` per their Specs), the
+        forward pass is skipped — ``ctx.cache`` and ``ctx.logits`` are
+        ``None``. Analyzers that quietly read the cache without declaring
+        it on their Spec will fail; the audit step (Phase 2) is how that
+        risk is bounded.
         """
         state_dict = self.variant.load_checkpoint(epoch)
         model = self.variant.family.create_model(self.variant.params, device=self._device)
         model.load_state_dict(state_dict)
 
-        with torch.inference_mode():
-            logits, cache = model.run_with_cache(probe)
+        if needs_cache:
+            with torch.inference_mode():
+                logits, cache = model.run_with_cache(probe)
+        else:
+            logits, cache = None, None
 
         ctx = ActivationContext(
             probe=probe,
@@ -478,33 +558,29 @@ class AnalysisPipeline:
     # Phase 1.5: Secondary analysis (REQ_048)
     # ------------------------------------------------------------------
 
-    def _run_secondary_analyzers(
+    def _run_secondary_from_plan(
         self,
+        items: list[PlanItem],
         context: dict[str, Any],
-        force: bool,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> None:
-        """Execute secondary analyzers after per-epoch primary phase completes.
+        """Execute secondary analyzers as described by Plan items.
 
-        Each secondary analyzer loads per-epoch artifact data from its declared
-        dependency and produces new per-epoch artifacts. No model loading occurs.
-
-        Target epochs are derived from the dependency's completed set, not from
-        config.checkpoints. If a dependency has no completed epochs, the analyzer
-        is skipped with a warning.
+        Each item carries its analyzer name, the dependency name, and the
+        target epochs already filtered by the Planner. A blocked item
+        (empty epochs, non-empty ``blocked_by``) is logged and skipped.
         """
         from miscope.analysis.artifact_loader import ArtifactLoader
 
         loader = ArtifactLoader(self.artifacts_dir)
+        secondary_by_name = {a.name: a for a in self._secondary_analyzers}
 
-        config_names = set(self.config.analyzers) if self.config.analyzers else None
-
-        for analyzer in self._secondary_analyzers:
-            if config_names is not None and analyzer.name not in config_names:
+        for item in items:
+            analyzer = secondary_by_name.get(item.analyzer_name)
+            if analyzer is None:
                 continue
 
-            dependency_epochs = self.get_completed_epochs(analyzer.depends_on)
-            if not dependency_epochs:
+            if item.blocked_by:
                 logger.warning(
                     "Secondary analyzer '%s' depends on '%s' but no epochs have been computed "
                     "for that analyzer. Skipping.",
@@ -513,12 +589,7 @@ class AnalysisPipeline:
                 )
                 continue
 
-            if force:
-                target_epochs = dependency_epochs
-            else:
-                completed = set(self.get_completed_epochs(analyzer.name))
-                target_epochs = [e for e in dependency_epochs if e not in completed]
-
+            target_epochs = list(item.epochs)
             if not target_epochs:
                 continue
 
@@ -557,47 +628,34 @@ class AnalysisPipeline:
     # Phase 2: Cross-epoch analysis (REQ_038)
     # ------------------------------------------------------------------
 
-    def _run_cross_epoch_analyzers(
+    def _run_cross_epoch_from_plan(
         self,
+        items: list[PlanItem],
         context: dict[str, Any],
-        force: bool,
         progress_callback: Callable[[float, str], None] | None = None,
     ) -> None:
-        """Execute cross-epoch analyzers after per-epoch phase completes.
+        """Execute cross-epoch analyzers as described by Plan items.
 
-        Validates that required per-epoch analyzers have completed,
-        then runs each cross-epoch analyzer and saves results.
+        A blocked item raises ``RuntimeError`` — preserving the existing
+        behavior of the pipeline. The choice of raise vs. skip moves to a
+        configurable knob in step 1.5 (REQ_119 Notes).
         """
         available_epochs = sorted(self.variant.get_available_checkpoints())
         # Inject variant so analyzers that load checkpoints directly can access it
         cross_epoch_context = {**context, "variant": self.variant}
+        cross_epoch_by_name = {a.name: a for a in self._cross_epoch_analyzers}
 
-        for analyzer in self._cross_epoch_analyzers:
-            # Skip if already computed (unless force or stale)
-            cross_epoch_path = os.path.join(
-                self.artifacts_dir,
-                analyzer.name,
-                "cross_epoch.npz",
-            )
-            if os.path.exists(cross_epoch_path) and not force:
-                from miscope.analysis.freshness import cross_epoch_is_stale
+        for item in items:
+            analyzer = cross_epoch_by_name.get(item.analyzer_name)
+            if analyzer is None:
+                continue
 
-                if not cross_epoch_is_stale(
-                    cross_epoch_path,
-                    list(analyzer.requires),
-                    self.artifacts_dir,
-                    available_epochs,
-                ):
-                    continue
-
-            # Validate dependencies
-            for required in analyzer.requires:
-                completed = self.get_completed_epochs(required)
-                if not completed:
-                    raise RuntimeError(
-                        f"Cross-epoch analyzer '{analyzer.name}' requires "
-                        f"'{required}' but no epochs have been analyzed."
-                    )
+            if item.blocked_by:
+                missing = item.blocked_by[0]
+                raise RuntimeError(
+                    f"Cross-epoch analyzer '{analyzer.name}' requires "
+                    f"'{missing}' but no epochs have been analyzed."
+                )
 
             if progress_callback:
                 progress_callback(

@@ -16,11 +16,24 @@ from miscope.analysis.library import (
     compute_frequency_variance_fractions,
     compute_grid_size_from_dataset,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="attention_freq",
+    category="primary",
+    requires_model_weights=False,
+    requires_activation_cache=True,  # reads ctx.cache["blocks.0.attn.hook_pattern"]
+    required_hooks=("blocks.0.attn.hook_pattern",),
+    produces_summary=True,
+)
+
+
+@register_analyzer(SPEC)
 class AttentionFreqAnalyzer:
     """Computes frequency decomposition of attention patterns per head.
 

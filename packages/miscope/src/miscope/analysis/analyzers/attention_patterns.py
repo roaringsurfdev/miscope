@@ -13,11 +13,23 @@ import numpy as np
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
 )
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
     from miscope.analysis.protocols import ActivationContext
 
 
+SPEC = AnalyzerSpec(
+    name="attention_patterns",
+    category="primary",
+    requires_model_weights=False,
+    requires_activation_cache=True,  # reads ctx.cache["blocks.0.attn.hook_pattern"]
+    required_hooks=("blocks.0.attn.hook_pattern",),
+)
+
+
+@register_analyzer(SPEC)
 class AttentionPatternsAnalyzer:
     """Captures per-head attention patterns across all position pairs.
 
