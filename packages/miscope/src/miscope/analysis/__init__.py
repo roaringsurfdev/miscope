@@ -11,6 +11,7 @@ from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.freshness import FreshnessReport, check_freshness
 from miscope.analysis.pipeline import AnalysisPipeline
+from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
     AnalysisRunConfig,
     Analyzer,
@@ -26,6 +27,9 @@ __all__ = [
     "ArtifactLoader",
     "CrossEpochAnalyzer",
     "FreshnessReport",
+    "Plan",
+    "PlanItem",
     "SecondaryAnalyzer",
     "check_freshness",
+    "plan_analysis",
 ]

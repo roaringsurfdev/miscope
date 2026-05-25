@@ -1,6 +1,6 @@
 # REQ_119: Analysis Planner — Plan/Execute Separation
 
-**Status:** Draft
+**Status:** Completed (implementation; awaiting merge approval)
 **Priority:** High — the duplication between [`pipeline._build_work_queue`](../../../packages/miscope/src/miscope/analysis/pipeline.py#L258) and [`freshness.py`](../../../packages/miscope/src/miscope/analysis/freshness.py) is the source of stealth bugs across multiple entry points. Each new entry point reinvents the decision tree with subtle variation. Step 1 of 5 in the ETL exploration's forward plan.
 **Branch:** `feature/req-119-analysis-planner`
 **Supersedes:** None.
@@ -117,7 +117,9 @@ This is a **mechanical refactor** with one new object. No analyzer protocol chan
 
 ## Notes
 
-- The duplication being killed: [`pipeline._build_work_queue`](../../../packages/miscope/src/miscope/analysis/pipeline.py#L258) vs [`freshness.cross_epoch_is_stale`](../../../packages/miscope/src/miscope/analysis/freshness.py) + the inline per-epoch missing-check.
+- The duplication being killed: `pipeline._build_work_queue` vs `freshness.cross_epoch_is_stale` + the inline per-epoch missing-check.
+- **Implementation note (2026-05-24):** `Plan` describes *post-execution* state. When a primary analyzer is in the same plan as its downstream secondary or cross-epoch dependent, the planner treats the primary's planned outputs as if they exist. Without this, a single-pass `plan_analysis(...)` would mark every secondary/cross-epoch as blocked at planning time even though the same `pipeline.run(plan=...)` call would satisfy the dependency mid-execution. The forward-projection lives in `plan_analysis`; primitive helpers (`_plan_secondary_item`, `_plan_cross_epoch_item`) accept an optional `projected_completed` map and fall back to disk-only state when called standalone (e.g. from `freshness.check_freshness`).
+- **`fill_checkpoints.py` migration is a no-op** (per REQ): the script only generates checkpoints and prints follow-up instructions to re-run the analysis pipeline; it never calls `AnalysisPipeline` directly.
 - The `Plan` object is intentionally passive in v1 — it is a description, not an executor. Execution stays in `pipeline.run()`. The shape will gain capability flags (model/cache requirements) in step 1.5 once analyzer Specs exist, and will evolve again in step 2 when input declarations get structured.
 - **What this REQ does *not* solve.** The hard-coded analyzer instantiation pattern in [scripts/run_analysis.py:67-89](../../../scripts/run_analysis.py#L67-L89) (the long block of commented-out `pipeline.register(...)` lines, with three separate `register` / `register_secondary` / `register_cross_epoch` entry points) remains. So does the always-load behavior for model state on every epoch — `model.run_with_cache(probe)` runs even when no registered analyzer consumes the cache. Both are explicit step 1.5 scope; they cannot be solved cleanly without analyzer-side declarations.
 - The user's framing from the design dialogue: "ETL lives in parallel with the Family/Variant analysis navigation that is more user-friendly. A user navigates a family and its variants. A background process (eventually) extracts the data for analysis." This REQ respects that framing — Planner takes a `Variant` as input; it does not replace variant navigation.
