@@ -236,11 +236,11 @@ class ModuloAdditionEmbedMLPFamily(BaseModelFamily):
 
 
 def load_modulo_addition_embed_mlp_family(
-    model_families_dir: Path | str = "model_families",
+    data_root: Path | str = "data",
 ) -> ModuloAdditionEmbedMLPFamily:
-    """Load the learned-embedding MLP family from the standard location."""
-    family_json = Path(model_families_dir) / "modulo_addition_learned_emb_mlp" / "family.json"
-    family = ModuloAdditionEmbedMLPFamily.from_json(family_json)
+    """Load the learned-embedding MLP family from the unified data root."""
+    family_json = Path(data_root) / "modulo_addition_learned_emb_mlp" / "family.json"
+    family = ModuloAdditionEmbedMLPFamily.from_json(family_json, data_root=data_root)
     assert isinstance(family, ModuloAdditionEmbedMLPFamily)
     return family
 

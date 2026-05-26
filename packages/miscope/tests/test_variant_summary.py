@@ -309,12 +309,29 @@ def test_write_variant_summary_overwrites_on_rerun(tmp_path):
 
 
 def test_build_variant_registry_one_entry_per_variant(tmp_path):
-    family_name = "modulo_addition_1layer"
-    family_dir = tmp_path / family_name
+    from miscope.families.base_model_family import BaseModelFamily
 
-    # Write two fake variant_summary.json files
+    family_name = "modulo_addition_1layer"
+    config = {
+        "name": family_name,
+        "display_name": "Modulo Addition (1 Layer)",
+        "description": "Test",
+        "architecture": {},
+        "domain_parameters": {
+            "prime": {"type": "int"},
+            "seed": {"type": "int"},
+            "data_seed": {"type": "int"},
+        },
+        "analyzers": [],
+        "visualizations": [],
+        "analysis_dataset": {"type": "modulo_addition_grid"},
+        "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
+    }
+    family = BaseModelFamily(config, data_root=tmp_path)
+    family.variants_dir.mkdir(parents=True)
+
     for prime, mseed in [(113, 485), (113, 999)]:
-        vdir = family_dir / f"p{prime}_mseed{mseed}"
+        vdir = family.variants_dir / f"p{prime}_seed{mseed}_dseed598"
         vdir.mkdir(parents=True)
         summary = {
             "prime": prime,
@@ -339,7 +356,7 @@ def test_build_variant_registry_one_entry_per_variant(tmp_path):
         }
         (vdir / "variant_summary.json").write_text(json.dumps(summary))
 
-    registry_path = build_variant_registry(tmp_path, family_name)
+    registry_path = build_variant_registry(family)
 
     assert registry_path.exists()
     registry = json.loads(registry_path.read_text())

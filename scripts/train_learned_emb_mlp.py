@@ -59,13 +59,13 @@ def train(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     cfg = get_config()
-    family = load_modulo_addition_embed_mlp_family(cfg.model_families_dir)
+    family = load_modulo_addition_embed_mlp_family(cfg.data_root)
 
     family._config["architecture"]["d_embed"] = d_embed
     family._config["architecture"]["d_hidden"] = d_hidden
 
     params = {"prime": prime, "seed": seed, "data_seed": data_seed}
-    variant = Variant(family, params, cfg.results_dir)  # type: ignore
+    variant = Variant(family, params)  # type: ignore
     variant.ensure_directories()
 
     model = family.create_model(params, device=device)

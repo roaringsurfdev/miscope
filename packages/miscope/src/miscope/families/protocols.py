@@ -25,8 +25,8 @@ class ModelFamily(Protocol):
     - Visualizations (which visualizations can be rendered)
     - Probe schema (what kind of probe input is valid)
 
-    The `name` property serves as the directory key for both
-    `model_families/{name}/` and `results/{name}/`.
+    The `name` property serves as the directory key under the unified data
+    root (`data/{name}/`).
     """
 
     @property
@@ -82,13 +82,23 @@ class ModelFamily(Protocol):
     def variant_pattern(self) -> str:
         """Pattern for variant directory names.
 
-        Example: "modulo_addition_1layer_p{prime}_seed{seed}"
+        Example: ``"p{prime}_seed{seed}_dseed{data_seed}"``
         """
         ...
 
     @property
-    def results_dir(self) -> Path:
-        """Root results directory used for variant discovery."""
+    def data_root(self) -> Path:
+        """Unified data root containing per-family subdirectories."""
+        ...
+
+    @property
+    def family_dir(self) -> Path:
+        """This family's directory: ``{data_root}/{name}/``."""
+        ...
+
+    @property
+    def variants_dir(self) -> Path:
+        """Directory containing this family's variants: ``{family_dir}/variants/``."""
         ...
 
     def get_variant(self, **params: Any) -> Variant:

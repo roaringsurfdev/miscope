@@ -60,7 +60,7 @@ def load_family(name: str, *, config: AppConfig | None = None) -> ModelFamily:
     from miscope.families.discovery import discover_families
 
     cfg = config or get_config()
-    families = discover_families(cfg.model_families_dir, cfg.results_dir)
+    families = discover_families(cfg.data_root)
     if name not in families:
         raise KeyError(f"Family '{name}' not found. Available: {list(families.keys())}")
     return families[name]
@@ -78,4 +78,4 @@ def list_families(*, config: AppConfig | None = None) -> list[str]:
     from miscope.families.discovery import discover_families
 
     cfg = config or get_config()
-    return list(discover_families(cfg.model_families_dir, cfg.results_dir).keys())
+    return list(discover_families(cfg.data_root).keys())

@@ -22,7 +22,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 Define Family → Train Variants → Analyze Checkpoints → Explore Visualizations
 ```
 
-1. **Define** a Model Family with architecture, analyzers, and probes (`model_families/`)
+1. **Define** a Model Family with architecture, analyzers, and probes (`data/{family}/family.json`)
 2. **Train** Variants with different domain parameters (e.g., different primes or seeds)
 3. **Analyze** each variant's checkpoints to generate per-epoch analysis artifacts
 4. **Explore** training dynamics through the dashboard or the notebook API
@@ -30,7 +30,7 @@ Define Family → Train Variants → Analyze Checkpoints → Explore Visualizati
 ## Key Features
 
 ### Model Families and Variants
-- JSON-driven family definitions in `model_families/` — architecture, analyzers, and parameter schemas
+- JSON-driven family definitions in `data/{family}/family.json` — architecture, analyzers, and parameter schemas
 - Variants differ only in domain parameters (modulus, model seed, data seed)
 - Supports per-variant intervention sub-variants for targeted experiments
 
@@ -98,16 +98,18 @@ The repo is a uv workspace organized into a publishable package and the apps tha
 ├── tests/
 │   └── integration/              # Cross-cutting tests (placeholder)
 ├── docs/                         # Documentation, requirements, notes, policies
-├── model_families/               # Family definitions (family.json files)
-│   └── modulo_addition_1layer/
-└── results/                      # Training outputs (gitignored)
+└── data/                         # Unified per-family data root (REQ_123)
     └── {family}/
-        └── {variant}/
-            ├── checkpoints/      # Model checkpoints (.safetensors)
-            ├── artifacts/        # Per-epoch analysis artifacts
-            │   └── {analyzer}/   # epoch_00000.npz, epoch_00100.npz, ...
-            ├── metadata.json     # Training metrics
-            └── config.json       # Variant configuration
+        ├── family.json           # Family definition (tracked)
+        ├── ideal_frequency_sets.json  # Optional family-level config (tracked)
+        ├── variant_registry.json # Compiled aggregate (gitignored)
+        └── variants/             # Training outputs (gitignored)
+            └── {variant}/        # e.g. p113_seed999_dseed598
+                ├── checkpoints/  # Model checkpoints (.safetensors)
+                ├── artifacts/    # Per-epoch analysis artifacts
+                │   └── {analyzer}/  # epoch_00000.npz, epoch_00100.npz, ...
+                ├── metadata.json
+                └── config.json
 ```
 
 ## Getting Started

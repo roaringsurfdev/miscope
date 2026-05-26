@@ -288,18 +288,18 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
 
 
 def load_modulo_addition_2l_mlp_family(
-    model_families_dir: Path | str = "model_families",
+    data_root: Path | str = "data",
 ) -> ModuloAddition2LMLPFamily:
-    """Load the 2-layer MLP family from the standard location.
+    """Load the 2-layer MLP family from the unified data root.
 
     Args:
-        model_families_dir: Path to model_families directory
+        data_root: Path to the unified data root (default: ``data``).
 
     Returns:
         ModuloAddition2LMLPFamily instance
     """
-    family_json = Path(model_families_dir) / "modulo_addition_2layer_mlp" / "family.json"
-    family = ModuloAddition2LMLPFamily.from_json(family_json)
+    family_json = Path(data_root) / "modulo_addition_2layer_mlp" / "family.json"
+    family = ModuloAddition2LMLPFamily.from_json(family_json, data_root=data_root)
     assert isinstance(family, ModuloAddition2LMLPFamily)
     return family
 

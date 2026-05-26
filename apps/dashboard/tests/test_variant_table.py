@@ -80,23 +80,22 @@ def test_load_table_rows_known_variant():
     )
     assert canon is not None, "Canon variant p=113/seed999/dseed598 not found in table"
     assert canon["family"] == "modulo_addition_1layer"
-    assert canon["_variant_name"] == "modulo_addition_1layer_p113_seed999_dseed598"
+    assert canon["_variant_name"] == "p113_seed999_dseed598"
     assert isinstance(canon["committed_freqs"], int)
     assert canon["committed_freqs"] > 0
 
 
 def test_load_table_rows_variant_name_format():
-    """Every _variant_name follows the expected family_pP_seedS_dseedD pattern."""
+    """Every _variant_name follows the expected pP_seedS_dseedD pattern."""
     from dashboard.pages.variant_table import _load_table_rows
 
     rows = _load_table_rows()
     for row in rows:
         name = row["_variant_name"]
-        family = row["family"]
         prime = row["prime"]
         seed = row["model_seed"]
         dseed = row["data_seed"]
-        expected = f"{family}_p{prime}_seed{seed}_dseed{dseed}"
+        expected = f"p{prime}_seed{seed}_dseed{dseed}"
         assert name == expected, f"Variant name mismatch: {name!r} != {expected!r}"
 
 
@@ -141,7 +140,7 @@ def test_on_row_selected_updates_store(monkeypatch):
 
     # Simulate the logic inside the on_row_selected callback directly.
     row = {
-        "_variant_name": "modulo_addition_1layer_p113_seed999_dseed598",
+        "_variant_name": "p113_seed999_dseed598",
         "family": "modulo_addition_1layer",
     }
     family_name = row["family"]
@@ -170,11 +169,11 @@ def test_on_row_selected_updates_store(monkeypatch):
 
     mock_state.load_variant.assert_called_once_with(
         "modulo_addition_1layer",
-        "modulo_addition_1layer_p113_seed999_dseed598",
+        "p113_seed999_dseed598",
     )
     assert len(set_props_calls) == 1
     store_data = set_props_calls[0][0][1]["data"]
     assert store_data["family_name"] == "modulo_addition_1layer"
-    assert store_data["variant_name"] == "modulo_addition_1layer_p113_seed999_dseed598"
+    assert store_data["variant_name"] == "p113_seed999_dseed598"
     assert store_data["last_field_updated"] == "variant_name"
     assert store_data["max_epochs"] == 2

@@ -189,16 +189,25 @@ def main() -> None:
         print(f"Variant: {vid}")
         print(f"  Re-running analysis into {args.output_dir}/...")
 
-        # Symlink checkpoints and config from original into output dir so the
-        # pipeline can load checkpoints while writing artifacts to output_dir.
-        original_variant_dir = PROJECT_ROOT / "results" / FAMILY / vid
+        # Symlink checkpoints and config from the canonical data root into the
+        # output dir so the pipeline can load checkpoints while writing artifacts
+        # into a parallel tree.
+        original_variant_dir = cfg.data_root / FAMILY / "variants" / vid
         if not original_variant_dir.exists():
             print(f"  SKIP — original variant directory not found: {original_variant_dir}")
             all_errors.append(f"  SKIP    {vid} — original not found")
             continue
 
-        output_variant_dir = args.output_dir / FAMILY / vid
+        output_variant_dir = args.output_dir / FAMILY / "variants" / vid
         output_variant_dir.mkdir(parents=True, exist_ok=True)
+
+        # Mirror the family-level config so discover_families finds the family
+        # under the regression output root.
+        for cfg_name in ("family.json", "ideal_frequency_sets.json"):
+            src = cfg.data_root / FAMILY / cfg_name
+            dst = args.output_dir / FAMILY / cfg_name
+            if src.exists() and not dst.exists():
+                dst.symlink_to(src.resolve())
 
         for name in ("checkpoints", "config.json", "metadata.json", "variant_summary.json"):
             src = original_variant_dir / name
@@ -206,7 +215,7 @@ def main() -> None:
             if src.exists() and not dst.exists():
                 dst.symlink_to(src.resolve())
 
-        out_families = discover_families(cfg.model_families_dir, args.output_dir)
+        out_families = discover_families(args.output_dir)
         out_family = out_families[FAMILY]
         variant = next((v for v in out_family.variants if v.name == vid), None)
         if variant is None:
@@ -216,7 +225,7 @@ def main() -> None:
 
         run_pipeline(variant, force=args.force)
 
-        output_artifacts_dir = args.output_dir / FAMILY / vid / "artifacts"
+        output_artifacts_dir = output_variant_dir / "artifacts"
         errors = compare_variant(entry, output_artifacts_dir)
 
         if errors:

@@ -118,14 +118,13 @@ class TestFamilySelectorComponent:
 
     @pytest.fixture
     def mock_family_dir(self):
-        """Create a mock model_families directory with a family.json."""
+        """Create a mock data root with a family.json and one trained variant."""
         import torch
         from safetensors.torch import save_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create model_families directory
-            families_dir = Path(tmpdir) / "model_families"
-            family_dir = families_dir / "test_family"
+            data_root = Path(tmpdir)
+            family_dir = data_root / "test_family"
             family_dir.mkdir(parents=True)
 
             # Create family.json
@@ -141,14 +140,12 @@ class TestFamilySelectorComponent:
                 "analyzers": [],
                 "visualizations": [],
                 "analysis_dataset": {"type": "test"},
-                "variant_pattern": "test_family_p{prime}_seed{seed}",
+                "variant_pattern": "p{prime}_seed{seed}",
             }
             with open(family_dir / "family.json", "w") as f:
                 json.dump(family_json, f)
 
-            # Create results directory with a variant
-            results_dir = Path(tmpdir) / "results" / "test_family"
-            variant_dir = results_dir / "test_family_p17_seed42"
+            variant_dir = family_dir / "variants" / "p17_seed42"
             checkpoints_dir = variant_dir / "checkpoints"
             checkpoints_dir.mkdir(parents=True)
 
@@ -171,10 +168,7 @@ class TestFamilySelectorComponent:
         from dashboard.components.variant_selector import get_family_choices
         from miscope.families.discovery import discover_families
 
-        families = discover_families(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
+        families = discover_families(data_root=Path(mock_family_dir))
 
         choices = get_family_choices(families)
 
@@ -186,10 +180,7 @@ class TestFamilySelectorComponent:
         from dashboard.components.variant_selector import get_variant_choices
         from miscope.families.discovery import discover_families
 
-        families = discover_families(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
+        families = discover_families(data_root=Path(mock_family_dir))
 
         choices = get_variant_choices(families, "test_family")
 
@@ -198,17 +189,14 @@ class TestFamilySelectorComponent:
         display_name, name = choices[0]
         assert "prime=17" in display_name
         assert "seed=42" in display_name
-        assert name == "test_family_p17_seed42"
+        assert name == "p17_seed42"
 
     def test_get_variant_choices_empty_family(self, mock_family_dir):
         """get_variant_choices returns empty list for unknown family."""
         from dashboard.components.variant_selector import get_variant_choices
         from miscope.families.discovery import discover_families
 
-        families = discover_families(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
+        families = discover_families(data_root=Path(mock_family_dir))
 
         choices = get_variant_choices(families, "nonexistent_family")
 
@@ -219,10 +207,7 @@ class TestFamilySelectorComponent:
         from dashboard.components.variant_selector import get_state_indicator
         from miscope.families.discovery import discover_families
 
-        families = discover_families(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
+        families = discover_families(data_root=Path(mock_family_dir))
 
         variants = families["test_family"].variants
         assert len(variants) == 1
@@ -236,10 +221,7 @@ class TestFamilySelectorComponent:
         from dashboard.components.variant_selector import format_variant_params
         from miscope.families.discovery import discover_families
 
-        families = discover_families(
-            model_families_dir=Path(mock_family_dir) / "model_families",
-            results_dir=Path(mock_family_dir) / "results",
-        )
+        families = discover_families(data_root=Path(mock_family_dir))
 
         variants = families["test_family"].variants
         variant = variants[0]

@@ -18,13 +18,12 @@ from miscope.families.implementations import ModuloAddition1LayerFamily
 
 
 @pytest.fixture
-def temp_project_dir() -> Path:
-    """Create a temporary project directory with model_families."""
+def temp_data_root() -> Path:
+    """Create a temporary data root containing the modulo_addition_1layer family."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
+        data_root = Path(tmpdir)
 
-        # Copy family.json to temp location
-        family_dir = root / "model_families" / "modulo_addition_1layer"
+        family_dir = data_root / "modulo_addition_1layer"
         family_dir.mkdir(parents=True)
 
         # Create family.json
@@ -56,24 +55,19 @@ def temp_project_dir() -> Path:
             "analyzers": ["dominant_frequencies", "neuron_activations", "neuron_freq_norm"],
             "visualizations": ["dominant_frequencies_bar"],
             "analysis_dataset": {"type": "modulo_addition_grid"},
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}_dseed{data_seed}",
+            "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
         }
         with open(family_dir / "family.json", "w") as f:
             json.dump(config, f)
 
-        # Create results directory
-        (root / "results").mkdir()
-
-        yield root
+        (family_dir / "variants").mkdir()
+        yield data_root
 
 
 @pytest.fixture
-def families(temp_project_dir):
-    """Discover families in the temp project."""
-    return discover_families(
-        model_families_dir=temp_project_dir / "model_families",
-        results_dir=temp_project_dir / "results",
-    )
+def families(temp_data_root):
+    """Discover families in the temp data root."""
+    return discover_families(data_root=temp_data_root)
 
 
 @pytest.fixture
@@ -206,24 +200,23 @@ class TestVariantIntegration:
         """Test creating a variant."""
         variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
 
-        assert variant.name == "modulo_addition_1layer_p113_seed42_dseed598"
+        assert variant.name == "p113_seed42_dseed598"
         assert variant.state == VariantState.UNTRAINED
 
-    def test_variant_directory_structure(self, family, temp_project_dir):
+    def test_variant_directory_structure(self, family, temp_data_root):
         """Test variant directory paths."""
         variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
 
-        expected_base = temp_project_dir / "results" / "modulo_addition_1layer"
-        assert variant.variant_dir == expected_base / "modulo_addition_1layer_p113_seed42_dseed598"
+        expected_base = temp_data_root / "modulo_addition_1layer" / "variants"
+        assert variant.variant_dir == expected_base / "p113_seed42_dseed598"
 
-    def test_discover_variants(self, family, temp_project_dir):
+    def test_discover_variants(self, family, temp_data_root):
         """Test discovering existing variants."""
-        # Create a variant directory
         variant_dir = (
-            temp_project_dir
-            / "results"
+            temp_data_root
             / "modulo_addition_1layer"
-            / "modulo_addition_1layer_p17_seed123_dseed598"
+            / "variants"
+            / "p17_seed123_dseed598"
         )
         variant_dir.mkdir(parents=True)
         (variant_dir / "checkpoints").mkdir()
@@ -232,7 +225,7 @@ class TestVariantIntegration:
         variants = family.variants
 
         assert len(variants) == 1
-        assert variants[0].name == "modulo_addition_1layer_p17_seed123_dseed598"
+        assert variants[0].name == "p17_seed123_dseed598"
         assert variants[0].params == {"prime": 17, "seed": 123, "data_seed": 598}
         assert variants[0].state == VariantState.TRAINED
 
@@ -329,7 +322,7 @@ class TestEndToEnd:
         # 2. Create a variant
         params = {"prime": 7, "seed": 42, "data_seed": 598}
         variant = family.create_variant(params)
-        assert variant.name == "modulo_addition_1layer_p7_seed42_dseed598"
+        assert variant.name == "p7_seed42_dseed598"
 
         # 3. Create model
         model = family.create_model(params)

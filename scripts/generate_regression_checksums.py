@@ -18,6 +18,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from miscope.config import get_config
+
 REFERENCE_VARIANTS = [
     # (prime, model_seed, data_seed, description)
     (113, 999, 598, "canon model"),
@@ -62,10 +64,10 @@ def checksum_variant(artifacts_dir: Path) -> list[dict]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--results-dir",
+        "--data-root",
         type=Path,
-        default=Path(__file__).parent.parent / "results",
-        help="Path to results directory (default: project_root/results)",
+        default=None,
+        help="Unified data root (default: from cfg.data_root).",
     )
     parser.add_argument(
         "--output",
@@ -74,12 +76,13 @@ def main() -> None:
         help="Output path for checksums JSON",
     )
     args = parser.parse_args()
+    data_root = args.data_root if args.data_root is not None else get_config().data_root
 
     output: dict = {"family": FAMILY, "variants": []}
 
     for prime, model_seed, data_seed, description in REFERENCE_VARIANTS:
-        variant_name = f"{FAMILY}_p{prime}_seed{model_seed}_dseed{data_seed}"
-        artifacts_dir = args.results_dir / FAMILY / variant_name / "artifacts"
+        variant_name = f"p{prime}_seed{model_seed}_dseed{data_seed}"
+        artifacts_dir = data_root / FAMILY / "variants" / variant_name / "artifacts"
 
         if not artifacts_dir.exists():
             print(f"  SKIP  {variant_name} — artifacts directory not found")

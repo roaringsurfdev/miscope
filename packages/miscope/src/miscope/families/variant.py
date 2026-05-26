@@ -51,18 +51,17 @@ class Variant:
         self,
         family: ModelFamily,
         params: dict[str, Any],
-        results_dir: Path,
     ):
         """Initialize a Variant.
 
         Args:
-            family: The ModelFamily this variant belongs to
+            family: The ModelFamily this variant belongs to. The family owns
+                the data root, so the variant's directory is derived as
+                ``family.variants_dir / self.name``.
             params: Domain parameter values (e.g., {"prime": 113, "seed": 42})
-            results_dir: Root results directory (typically "results/")
         """
         self._family = family
         self._params = params
-        self._results_dir = Path(results_dir)
 
     @property
     def family(self) -> ModelFamily:
@@ -83,9 +82,9 @@ class Variant:
     def variant_dir(self) -> Path:
         """Path to this variant's directory.
 
-        Structure: results/{family.name}/{variant_name}/
+        Structure: ``{data_root}/{family.name}/variants/{variant_name}/``
         """
-        return self._results_dir / self._family.name / self.name
+        return self._family.variants_dir / self.name
 
     @property
     def dir(self) -> Path:

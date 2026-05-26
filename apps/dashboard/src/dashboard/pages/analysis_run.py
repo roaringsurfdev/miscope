@@ -168,8 +168,7 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
 
             VariantAnalysisSummary(variant).analyze()
 
-        results_dir = variant.variant_dir.parent.parent
-        build_variant_registry(results_dir, family_name)
+        build_variant_registry(family)
 
         refresh_families()
         analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")

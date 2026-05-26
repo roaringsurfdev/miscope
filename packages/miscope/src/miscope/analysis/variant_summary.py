@@ -6,7 +6,7 @@ module for backward compatibility.  The write functions below will be removed on
 all callers are updated.
 
 Previously public API (use variant_analysis_summary.py instead):
-    build_variant_registry(results_dir, family_name) -> Path  [re-exported]
+    build_variant_registry(family) -> Path  [re-exported]
     write_variant_summary   -- DEPRECATED, use VariantAnalysisSummary.analyze()
     compute_variant_summary -- DEPRECATED
     extract_learned_frequencies -- DEPRECATED

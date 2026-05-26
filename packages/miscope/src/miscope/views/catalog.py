@@ -194,7 +194,7 @@ class BoundView:
             parts.append(f"{key}_{kwargs[key]}")
         filename = "__".join(parts) + f".{format}"
 
-        export_dir = get_config().results_dir / "exports"
+        export_dir = get_config().data_root / "exports"
         export_dir.mkdir(parents=True, exist_ok=True)
         return export_dir / filename
 

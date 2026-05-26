@@ -377,12 +377,12 @@ class TestUniversalDataViewLoaders:
             },
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "test_family_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
-        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            variant = Variant(family, {"prime": 113, "seed": 999}, root)
+            family = BaseModelFamily(config, data_root=root)
+            variant = Variant(family, {"prime": 113, "seed": 999})
             variant.variant_dir.mkdir(parents=True)
             metadata = {
                 "train_losses": [2.5, 1.0, 0.5],
@@ -435,12 +435,12 @@ class TestVariantDataviewShortcut:
             },
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "test_family_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
-        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            variant = Variant(family, {"prime": 113, "seed": 999}, root)
+            family = BaseModelFamily(config, data_root=root)
+            variant = Variant(family, {"prime": 113, "seed": 999})
             variant.variant_dir.mkdir(parents=True)
             metadata = {
                 "train_losses": [2.5, 1.0, 0.5],

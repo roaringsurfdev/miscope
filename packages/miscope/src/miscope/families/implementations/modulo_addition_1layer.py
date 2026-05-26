@@ -387,18 +387,18 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
 
 
 def load_modulo_addition_1layer_family(
-    model_families_dir: Path | str = "model_families",
+    data_root: Path | str = "data",
 ) -> ModuloAddition1LayerFamily:
-    """Load the modulo addition 1-layer family from the standard location.
+    """Load the modulo addition 1-layer family from the unified data root.
 
     Args:
-        model_families_dir: Path to model_families directory
+        data_root: Path to the unified data root (default: ``data``).
 
     Returns:
         ModuloAddition1LayerFamily instance
     """
-    family_json = Path(model_families_dir) / "modulo_addition_1layer" / "family.json"
-    family = ModuloAddition1LayerFamily.from_json(family_json)
+    family_json = Path(data_root) / "modulo_addition_1layer" / "family.json"
+    family = ModuloAddition1LayerFamily.from_json(family_json, data_root=data_root)
     assert isinstance(family, ModuloAddition1LayerFamily)
     return family
 

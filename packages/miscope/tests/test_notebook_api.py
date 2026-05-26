@@ -38,7 +38,7 @@ def sample_family_config() -> dict:
         "analyzers": ["dominant_frequencies", "neuron_activations"],
         "visualizations": ["freq_bar", "activation_heatmap"],
         "analysis_dataset": {"type": "test_grid"},
-        "variant_pattern": "test_family_p{prime}_seed{seed}",
+        "variant_pattern": "p{prime}_seed{seed}",
     }
 
 
@@ -47,22 +47,22 @@ def temp_project(sample_family_config) -> Generator[Path, None, None]:
     """Create a temporary project with family config, trained variant, and metadata."""
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
-
-        # Create model_families directory
-        family_dir = root / "model_families" / "test_family"
+        data_root = root / "data"
+        family_dir = data_root / "test_family"
         family_dir.mkdir(parents=True)
         with open(family_dir / "family.json", "w") as f:
             json.dump(sample_family_config, f)
+        variants_dir = family_dir / "variants"
+        variants_dir.mkdir()
 
-        # Create a trained variant with checkpoints
-        variant_dir = root / "results" / "test_family" / "test_family_p113_seed999"
+        # Trained variant
+        variant_dir = variants_dir / "p113_seed999"
         checkpoints_dir = variant_dir / "checkpoints"
         checkpoints_dir.mkdir(parents=True)
         (checkpoints_dir / "checkpoint_epoch_00100.safetensors").touch()
         (checkpoints_dir / "checkpoint_epoch_00500.safetensors").touch()
         (checkpoints_dir / "checkpoint_epoch_01000.safetensors").touch()
 
-        # Create metadata.json
         metadata = {
             "train_losses": [2.5, 2.0, 1.5, 1.0, 0.5],
             "test_losses": [3.0, 2.8, 2.5, 2.0, 1.0],
@@ -72,7 +72,6 @@ def temp_project(sample_family_config) -> Generator[Path, None, None]:
         with open(variant_dir / "metadata.json", "w") as f:
             json.dump(metadata, f)
 
-        # Create config.json
         config = {
             "n_layers": 1,
             "n_heads": 4,
@@ -84,7 +83,6 @@ def temp_project(sample_family_config) -> Generator[Path, None, None]:
         with open(variant_dir / "config.json", "w") as f:
             json.dump(config, f)
 
-        # Create artifacts with a real .npz file
         artifacts_dir = variant_dir / "artifacts" / "dominant_frequencies"
         artifacts_dir.mkdir(parents=True)
         np.savez(
@@ -92,13 +90,11 @@ def temp_project(sample_family_config) -> Generator[Path, None, None]:
             coefficients=np.random.rand(10),
         )
 
-        # Create a second variant (untrained)
-        untrained_dir = root / "results" / "test_family" / "test_family_p97_seed42"
-        untrained_dir.mkdir(parents=True)
+        # Untrained variant
+        (variants_dir / "p97_seed42").mkdir(parents=True)
 
-        # Create a second trained variant
-        variant2_dir = root / "results" / "test_family" / "test_family_p113_seed485"
-        variant2_checkpoints = variant2_dir / "checkpoints"
+        # Second trained variant
+        variant2_checkpoints = variants_dir / "p113_seed485" / "checkpoints"
         variant2_checkpoints.mkdir(parents=True)
         (variant2_checkpoints / "checkpoint_epoch_00100.safetensors").touch()
 
@@ -110,8 +106,7 @@ def test_config(temp_project) -> AppConfig:
     """AppConfig pointing at the temp project."""
     return AppConfig(
         project_root=temp_project,
-        results_dir=temp_project / "results",
-        model_families_dir=temp_project / "model_families",
+        data_root=temp_project / "data",
     )
 
 
@@ -194,7 +189,7 @@ class TestGetVariant:
         # Should find 3 variant directories (1 trained, 1 analyzed, 1 untrained)
         assert len(variants) == 3
         names = {v.name for v in variants}
-        assert "test_family_p113_seed999" in names
+        assert "p113_seed999" in names
 
     def test_list_variant_parameters(self, test_config):
         """family.variant_parameters returns list of param dicts."""
@@ -312,7 +307,7 @@ class TestMakeProbe:
             },
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
         family = ModuloAddition1LayerFamily(config)
 
@@ -336,7 +331,7 @@ class TestMakeProbe:
             "domain_parameters": {"prime": {"type": "int"}, "seed": {"type": "int"}},
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
         family = ModuloAddition1LayerFamily(config)
 
@@ -365,10 +360,10 @@ class TestMakeProbe:
             "domain_parameters": {"prime": {"type": "int"}, "seed": {"type": "int"}},
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
         family = ModuloAddition1LayerFamily(config)
-        variant = Variant(family, {"prime": 113, "seed": 999}, Path("/tmp/results"))
+        variant = Variant(family, {"prime": 113, "seed": 999})
 
         probe = variant.make_probe([[3, 29]])
         assert probe.shape == (1, 3)
@@ -392,10 +387,10 @@ class TestAnalysisDataset:
             "domain_parameters": {"prime": {"type": "int"}, "seed": {"type": "int"}},
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
         family = ModuloAddition1LayerFamily(config)
-        variant = Variant(family, {"prime": 7, "seed": 42}, Path("/tmp/results"))
+        variant = Variant(family, {"prime": 7, "seed": 42})
 
         dataset = variant.analysis_dataset()
         # For prime=7, should be 7^2 = 49 rows, 3 columns

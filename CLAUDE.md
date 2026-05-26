@@ -265,8 +265,10 @@ docs/                  # Documentation, requirements, notes, policies
   policies/            # Dev policies (debugging, etc.)
   origins/             # Project origin material
   issues/              # Issue write-ups
-model_families/        # JSON config + data
-results/               # Generated artifacts (gitignored)
+data/                  # Unified per-family data root (REQ_123)
+  {family}/            # family.json + ideal_frequency_sets.json (tracked)
+    variants/{vid}/    # Per-variant checkpoints/artifacts/etc. (gitignored)
+    variant_registry.json  # Compiled aggregate (gitignored)
 ```
 
 Workspace setup: root `pyproject.toml` declares `[tool.uv.workspace]` with members `packages/miscope` and `apps/dashboard`. The package's `pyproject.toml` is the publishable definition; the dashboard's is its own dependency surface (Dash + workspace miscope). `apps/fieldnotes/` is a Node/Astro project, not a uv workspace member.

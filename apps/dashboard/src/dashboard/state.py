@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from miscope import EpochContext, catalog
+from miscope.config import get_config
 from miscope.families import InterventionVariant, ModelFamily, Variant
 from miscope.families.discovery import discover_families
 
@@ -79,10 +79,7 @@ _families: dict[str, ModelFamily] | None = None
 
 
 def _load_families() -> dict[str, ModelFamily]:
-    return discover_families(
-        model_families_dir=Path("model_families"),
-        results_dir=Path("results"),
-    )
+    return discover_families(data_root=get_config().data_root)
 
 
 def get_families() -> dict[str, ModelFamily]:

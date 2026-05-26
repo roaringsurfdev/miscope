@@ -226,3 +226,10 @@ __marimo__/
 /docs/notes
 /apps/fieldnotes/src/content/drafts/*.mdx
 /.claude
+
+# Unified data root (REQ_123): ignore everything except the tracked family configs.
+/data/*
+!/data/*/
+/data/*/*
+!/data/*/family.json
+!/data/*/ideal_frequency_sets.json
