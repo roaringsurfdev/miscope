@@ -101,6 +101,14 @@ class ModelFamily(Protocol):
         """Directory containing this family's variants: ``{family_dir}/variants/``."""
         ...
 
+    @property
+    def variant_registry(self) -> list[dict[str, Any]]:
+        """Parsed ``variant_registry.json`` — list of per-variant summary entries.
+
+        Raises ``FileNotFoundError`` if the registry has not been built yet.
+        """
+        ...
+
     def get_variant(self, **params: Any) -> Variant:
         """Look up a trained variant by domain parameter values."""
         ...

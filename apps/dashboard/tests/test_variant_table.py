@@ -9,27 +9,31 @@ CoS coverage:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+from miscope.config import get_config
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_REGISTRY_PATH = Path("results/modulo_addition_1layer/variant_registry.json")
+_REGISTRY_PATH = (
+    get_config().data_root / "modulo_addition_1layer" / "variant_registry.json"
+)
 
 _requires_data = pytest.mark.skipif(
     not _REGISTRY_PATH.exists(),
-    reason="requires local results data (not available in CI)",
+    reason="requires local data tree (not available in CI)",
 )
 
 
 def _load_registry() -> list[dict]:
-    with open(_REGISTRY_PATH) as f:
-        return json.load(f)
+    from miscope.families.discovery import discover_families
+
+    families = discover_families(data_root=get_config().data_root)
+    return families["modulo_addition_1layer"].variant_registry
 
 
 # ---------------------------------------------------------------------------

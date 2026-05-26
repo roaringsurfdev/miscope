@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dcc, html
@@ -18,10 +16,10 @@ def _read_variant_summary() -> dict | None:
     ctx = variant_server_state.context
     if ctx is None:
         return None
-    summary_path = variant_server_state.variant.variant_dir / "variant_summary.json"
-    if not summary_path.exists():
+    try:
+        return variant_server_state.variant.summary
+    except FileNotFoundError:
         return None
-    return json.loads(summary_path.read_text())
 
 
 def _empty_figure(message: str = "Select a variant") -> go.Figure:

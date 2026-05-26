@@ -11,7 +11,6 @@ Lives under the "Pre-Training Analysis" top-nav menu.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 import dash_bootstrap_components as dbc
@@ -21,6 +20,7 @@ from dash import Dash, Input, Output, State, dcc, html
 from dash.exceptions import PreventUpdate
 from plotly.subplots import make_subplots
 
+from dashboard.state import get_families
 from miscope.analysis.viability_certificate import (
     ALIAS_FAILURE_THRESHOLD,
     ALIAS_WARNING_THRESHOLD,
@@ -28,7 +28,7 @@ from miscope.analysis.viability_certificate import (
     compute_certificate,
 )
 
-_REGISTRY_PATH = Path("results/modulo_addition_1layer/variant_registry.json")
+_FAMILY_NAME = "modulo_addition_1layer"
 
 _REGIME_STYLE: dict[str, dict[str, str]] = {
     "viable": {"color": "success", "label": "Viable"},
@@ -43,12 +43,14 @@ _REGIME_STYLE: dict[str, dict[str, str]] = {
 
 
 def _load_registry() -> list[dict[str, Any]]:
-    if not _REGISTRY_PATH.exists():
+    """Return the 1-layer family's variant registry, or [] if absent/broken."""
+    families = get_families()
+    family = families.get(_FAMILY_NAME)
+    if family is None:
         return []
     try:
-        with open(_REGISTRY_PATH) as f:
-            return json.load(f)
-    except Exception:
+        return family.variant_registry
+    except FileNotFoundError:
         return []
 
 

@@ -10,7 +10,7 @@ See [PROJECT.md](PROJECT.md) for the full mission and architectural principles.
 
 1. **Views are universal instruments.** Analytical lenses (PCA, Fourier, neuron activations, attention patterns, loss curves) apply to any transformer. They do not belong to a model family. The instrument does not change shape because of what it's pointed at.
 2. **Families are context providers, not view owners.** A family contributes probe construction, interpretive context (e.g., a prime-based Fourier basis), and task-specific performance metrics. It does not register or own analytical views.
-3. **Storage layout is internal to the API.** Consumers reach data through `Variant`, `ModelFamily`, and the View Catalog — never through file-path literals or direct construction of storage primitives (e.g. `ArtifactLoader`). Deployment-time file paths live in app-level config files, not in code. If an accessor doesn't exist for some piece of stored data, add the accessor — don't reach past the API.
+3. **Storage layout is internal to the API.** Consumers reach data through `Variant`, `ModelFamily`, and the View Catalog — never through file-path literals or direct construction of storage primitives (e.g. `ArtifactLoader`). This binds library code as well as app code: only the storage primitives themselves (the writers and accessor implementations) compose paths; everything else uses the accessors. Deployment-time values (host, port, etc.) live in per-app config files (e.g. `apps/dashboard/config.toml`), not in code. If an accessor doesn't exist for some piece of stored data, add the accessor — don't reach past the API.
 
 When a requirement conflicts with these constraints, flag it before implementing.
 

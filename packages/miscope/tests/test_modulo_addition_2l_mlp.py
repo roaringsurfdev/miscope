@@ -45,7 +45,9 @@ def probe() -> torch.Tensor:
 
 @pytest.fixture
 def family() -> ModuloAddition2LMLPFamily:
-    return load_modulo_addition_2l_mlp_family("model_families")
+    from miscope.config import get_config
+
+    return load_modulo_addition_2l_mlp_family(get_config().data_root)
 
 
 @pytest.fixture

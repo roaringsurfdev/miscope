@@ -152,6 +152,30 @@ class BaseModelFamily:
         """Directory containing this family's variants: ``{family_dir}/variants/``."""
         return self.family_dir / "variants"
 
+    @property
+    def variant_registry_path(self) -> Path:
+        """Path to the compiled aggregate ``variant_registry.json``."""
+        return self.family_dir / "variant_registry.json"
+
+    @property
+    def variant_registry(self) -> list[dict[str, Any]]:
+        """Parsed variant_registry.json — list of per-variant summary entries.
+
+        Reads on each access. Assign to a variable to avoid repeated disk reads.
+
+        Raises:
+            FileNotFoundError: If the registry has not been built yet.
+        """
+        if not self.variant_registry_path.exists():
+            raise FileNotFoundError(
+                f"No variant_registry.json for family {self.name!r} at "
+                f"{self.variant_registry_path}. "
+                "Build it via build_variant_registry(family) or the dashboard's "
+                "analysis run."
+            )
+        with open(self.variant_registry_path) as f:
+            return json.load(f)
+
     # --- Variant lookup ------------------------------------------------
 
     def get_variant(self, **params: Any) -> Variant:

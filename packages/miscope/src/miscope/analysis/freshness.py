@@ -387,7 +387,7 @@ def _build_cross_epoch_freshness(
 
 def _check_summary_stale(variant: Variant) -> bool:
     """Return True if variant_summary.json is absent or older than any artifact."""
-    summary_path = variant.variant_dir / "variant_summary.json"
+    summary_path = variant.summary_path
     if not summary_path.exists():
         return True
 

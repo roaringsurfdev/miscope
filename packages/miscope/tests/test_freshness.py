@@ -210,6 +210,7 @@ def _make_variant(tmp_path: Path, checkpoints: list[int]) -> MagicMock:
     variant.name = "test_variant"
     variant.artifacts_dir = str(tmp_path / "artifacts")
     variant.variant_dir = tmp_path
+    variant.summary_path = tmp_path / "variant_summary.json"
     variant.get_available_checkpoints.return_value = checkpoints
     return variant
 

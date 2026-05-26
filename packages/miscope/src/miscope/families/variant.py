@@ -239,6 +239,28 @@ class Variant:
             return json.load(f)
 
     @property
+    def summary_path(self) -> Path:
+        """Path to variant_summary.json (per-variant outcome snapshot)."""
+        return self.variant_dir / "variant_summary.json"
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        """Parsed variant_summary.json — per-variant outcome snapshot.
+
+        Reads on each access. Assign to a variable to avoid repeated disk reads.
+
+        Raises:
+            FileNotFoundError: If the summary file is absent (variant has not
+                been analyzed, or analysis predates the summary writer).
+        """
+        if not self.summary_path.exists():
+            raise FileNotFoundError(
+                f"No variant_summary.json for variant {self.name!r} at {self.summary_path}"
+            )
+        with open(self.summary_path) as f:
+            return json.load(f)
+
+    @property
     def train_losses(self) -> list[float]:
         """Per-epoch training losses. Shortcut for metadata['train_losses']."""
         return self.metadata["train_losses"]

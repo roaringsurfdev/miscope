@@ -1,0 +1,10 @@
+# Dashboard deployment configuration (REQ_124).
+#
+# Tracked in git so the default deployment values are reproducible across
+# checkouts. For environment-specific overrides, copy this file to
+# `config.local.toml` (gitignored) and pass its path to load_dashboard_config().
+
+[server]
+host = "0.0.0.0"
+port = 8060
+debug = false

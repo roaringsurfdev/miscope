@@ -6,8 +6,6 @@ Clicking a row selects that variant globally via variant-selector-store.
 
 from __future__ import annotations
 
-import json
-
 from dash import Dash, Input, Output, State, dash_table, html, set_props
 from dash.exceptions import PreventUpdate
 
@@ -39,12 +37,10 @@ def _load_table_rows() -> list[dict]:
     rows: list[dict] = []
 
     for family in families.values():
-        registry_path = family.family_dir / "variant_registry.json"
-        if not registry_path.exists():
+        try:
+            records = family.variant_registry
+        except FileNotFoundError:
             continue
-
-        with open(registry_path) as f:
-            records = json.load(f)
 
         for rec in records:
             prime = rec.get("prime")

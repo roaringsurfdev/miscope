@@ -7,7 +7,6 @@ boundaries; checkpoints are loaded directly (no per-epoch artifact dependency).
 Artifact stored as: artifacts/gradient_site/cross_epoch.npz
 """
 
-import json
 import shutil
 from typing import TYPE_CHECKING, Any
 
@@ -190,9 +189,7 @@ class GradientSiteAnalyzer:
 
 
 def _load_variant_summary(variant: "Variant") -> dict[str, Any]:
-    path = variant.variant_dir / "variant_summary.json"
-    with open(path) as f:
-        return json.load(f)
+    return variant.summary
 
 
 def _sample_window_epochs(summary: dict[str, Any], n_interior: int) -> list[int]:
