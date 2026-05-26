@@ -1,6 +1,6 @@
 # REQ_122: Retire LoadedFamily — Family Owns Its Variant Lookup
 
-**Status:** Drafted (design dialogue complete; implementation not started).
+**Status:** Completed; merged to develop 2026-05-26.
 **Priority:** Medium — the wrapper is vestigial and the `.family` unwrap escape hatch broadcasts it, but nothing is broken. The value of this REQ is removing a layer that future readers will keep asking about. Step 3 of 5 in the ETL exploration's forward plan.
 **Branch:** `feature/req-122-loaded-family-retirement`
 **Supersedes:** None.
