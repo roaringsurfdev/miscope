@@ -258,6 +258,10 @@ def render_parameter_dmd_eigenvalue_migration(
                     ),
                     showlegend=False,
                     cliponaxis=True,
+                    customdata=all_epoch,
+                    hovertemplate=(
+                        "Re(λ)=%{x:.4f}<br>Im(λ)=%{y:.4f}<br>epoch=%{customdata}<extra></extra>"
+                    ),
                 ),
                 row=r,
                 col=c,
