@@ -34,9 +34,7 @@ class TestLoadDashboardConfig:
 
     def test_frozen_dataclass(self, tmp_path):
         config_file = tmp_path / "c.toml"
-        _write_toml(
-            config_file, '[server]\nhost = "x"\nport = 1\ndebug = false\n'
-        )
+        _write_toml(config_file, '[server]\nhost = "x"\nport = 1\ndebug = false\n')
         cfg = load_dashboard_config(config_file)
         with pytest.raises(AttributeError):
             cfg.server.host = "other"  # type: ignore[misc]

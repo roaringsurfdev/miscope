@@ -71,9 +71,7 @@ def load_dashboard_config(path: Path | str | None = None) -> DashboardConfig:
 
     missing = [k for k in ("host", "port", "debug") if k not in server_raw]
     if missing:
-        raise ValueError(
-            f"Missing required keys under [server] in {config_path}: {missing}"
-        )
+        raise ValueError(f"Missing required keys under [server] in {config_path}: {missing}")
 
     return DashboardConfig(
         server=ServerConfig(

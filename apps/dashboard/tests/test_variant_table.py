@@ -19,9 +19,7 @@ from miscope.config import get_config
 # Helpers
 # ---------------------------------------------------------------------------
 
-_REGISTRY_PATH = (
-    get_config().data_root / "modulo_addition_1layer" / "variant_registry.json"
-)
+_REGISTRY_PATH = get_config().data_root / "modulo_addition_1layer" / "variant_registry.json"
 
 _requires_data = pytest.mark.skipif(
     not _REGISTRY_PATH.exists(),

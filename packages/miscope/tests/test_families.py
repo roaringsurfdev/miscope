@@ -129,9 +129,7 @@ class TestBaseModelFamily:
         with pytest.raises(NotImplementedError):
             family.create_model({"prime": 113, "seed": 42})
 
-    def test_variant_registry_returns_parsed_list(
-        self, temp_data_root, sample_family_config
-    ):
+    def test_variant_registry_returns_parsed_list(self, temp_data_root, sample_family_config):
         family = _family_from(temp_data_root, sample_family_config)
         registry = [
             {"prime": 113, "model_seed": 42, "variant_id": "p113_seed42"},

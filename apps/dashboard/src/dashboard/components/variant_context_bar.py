@@ -7,7 +7,6 @@ variant-selector-store changes.
 Sits at position sticky, top 56px (flush below the fixed dark navbar).
 """
 
-
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
 from dash.exceptions import PreventUpdate
