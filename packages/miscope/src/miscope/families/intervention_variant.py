@@ -98,11 +98,7 @@ class InterventionVariant(Variant):
         # Merge parent params with the intervention config so that
         # _save_config() serialises the full picture to config.json.
         params = {**parent.params, "intervention": intervention_config}
-        super().__init__(
-            family=parent.family,
-            params=params,
-            results_dir=parent._results_dir,
-        )
+        super().__init__(family=parent.family, params=params)
         self._parent = parent
         self._intervention_config = intervention_config
 

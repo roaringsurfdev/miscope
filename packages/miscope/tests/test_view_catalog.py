@@ -316,12 +316,12 @@ class TestVariantIntegration:
             },
             "analyzers": [],
             "visualizations": [],
-            "variant_pattern": "test_family_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
-        family = BaseModelFamily(config)
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            variant = Variant(family, {"prime": 113, "seed": 999}, root)
+            family = BaseModelFamily(config, data_root=root)
+            variant = Variant(family, {"prime": 113, "seed": 999})
 
             # Create metadata
             variant_dir = variant.variant_dir

@@ -38,19 +38,16 @@ class TestDominantFrequenciesAnalyzerProtocol:
 def temp_dirs():
     """Create temporary directories for model_families and results."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        model_families_dir = Path(tmpdir) / "model_families"
-        results_dir = Path(tmpdir) / "results"
-        model_families_dir.mkdir()
-        results_dir.mkdir()
-        yield model_families_dir, results_dir
+        data_root = Path(tmpdir)
+        yield data_root
 
 
 @pytest.fixture
 def registry_with_family(temp_dirs):
     """Create a registry with the modulo addition family."""
-    model_families_dir, results_dir = temp_dirs
+    data_root = temp_dirs
 
-    family_dir = model_families_dir / "modulo_addition_1layer"
+    family_dir = data_root / 'modulo_addition_1layer'
     family_dir.mkdir()
 
     family_json = {
@@ -74,22 +71,21 @@ def registry_with_family(temp_dirs):
         "analyzers": ["dominant_frequencies", "neuron_activations", "neuron_freq_norm"],
         "visualizations": [],
         "analysis_dataset": {"type": "modulo_addition_grid"},
-        "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+        "variant_pattern": "p{prime}_seed{seed}",
     }
     with open(family_dir / "family.json", "w") as f:
         json.dump(family_json, f)
 
     families = discover_families(
-        model_families_dir=model_families_dir,
-        results_dir=results_dir,
+        data_root=data_root,
     )
-    return families, results_dir
+    return families, data_root
 
 
 @pytest.fixture
 def trained_variant(registry_with_family):
     """Create a trained variant with minimal training."""
-    families, results_dir = registry_with_family
+    families, data_root = registry_with_family
     family = families["modulo_addition_1layer"]
     params = {"prime": 17, "seed": 42, "data_seed": 598}
     variant = family.create_variant(params)

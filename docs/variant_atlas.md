@@ -13,7 +13,7 @@ The Variant Atlas is a curated index of the model variants we've explicitly stud
 - **A navigator** for the variant set. Looking at a new analysis output and want to know "which variant am I looking at?" — start here.
 - **A consolidator** for findings that would otherwise live scattered across `notes/findings_*.md`, fieldnotes drafts, REQ validation outcomes, and project memory.
 
-It is **not exhaustive.** The full variant set has ~40 entries (see `results/modulo_addition_1layer/variant_registry.json` for the compiled aggregate, and per-variant `variant_summary.json` files for raw training metrics). The Atlas covers variants we've examined deeply enough to have research observations attached.
+It is **not exhaustive.** The full variant set has ~40 entries (see `data/modulo_addition_1layer/variant_registry.json` for the compiled aggregate, and per-variant `variant_summary.json` files under `data/modulo_addition_1layer/variants/` for raw training metrics). The Atlas covers variants we've examined deeply enough to have research observations attached.
 
 ---
 
@@ -150,8 +150,8 @@ Loss curve drops at ~14–17k but stalls before reaching the canonical floor. Se
 ## Cross-references
 
 - **Raw metrics** (machine-readable, per-variant):
-  - `results/modulo_addition_1layer/{variant_dir}/variant_summary.json` — per-variant snapshot of loss, grokking epochs, frequency commitments, performance classification.
-  - `results/modulo_addition_1layer/variant_registry.json` — compiled aggregate of all variants.
+  - `data/modulo_addition_1layer/variants/{variant_dir}/variant_summary.json` — per-variant snapshot of loss, grokking epochs, frequency commitments, performance classification.
+  - `data/modulo_addition_1layer/variant_registry.json` — compiled aggregate of all variants.
 - **Analytical lens catalog**: [analysis_atlas.md](analysis_atlas.md) — what analyses we have, what they measure, where their results live.
 - **Fieldnotes drafts** (research narrative; one entry per finding, longer-form):
   - `apps/fieldnotes/src/content/drafts/dmd-at-zoom.mdx` — REQ_117 narrative; per-variant eigenvalue signatures; p101 multi-lens convergence.

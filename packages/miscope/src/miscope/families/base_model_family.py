@@ -36,32 +36,32 @@ class BaseModelFamily:
         self,
         config: dict[str, Any],
         config_path: Path | None = None,
-        results_dir: Path | str | None = None,
+        data_root: Path | str | None = None,
     ):
         """Initialize from config dict.
 
         Args:
             config: Parsed family.json content
             config_path: Path to the family.json file (for error messages)
-            results_dir: Root results directory used for variant discovery.
-                Defaults to ``Path("results")`` if not provided.
+            data_root: Unified data root containing per-family subdirectories.
+                Defaults to ``Path("data")`` if not provided.
         """
         self._config = config
         self._config_path = config_path
-        self._results_dir = Path(results_dir) if results_dir is not None else Path("results")
+        self._data_root = Path(data_root) if data_root is not None else Path("data")
         self._validate_config()
 
     @classmethod
     def from_json(
         cls,
         path: Path | str,
-        results_dir: Path | str | None = None,
+        data_root: Path | str | None = None,
     ) -> BaseModelFamily:
         """Load a BaseModelFamily from a family.json file.
 
         Args:
             path: Path to family.json
-            results_dir: Root results directory used for variant discovery.
+            data_root: Unified data root containing per-family subdirectories.
 
         Returns:
             BaseModelFamily instance
@@ -69,7 +69,7 @@ class BaseModelFamily:
         path = Path(path)
         with open(path) as f:
             config = json.load(f)
-        return cls(config, config_path=path, results_dir=results_dir)
+        return cls(config, config_path=path, data_root=data_root)
 
     def _validate_config(self) -> None:
         """Validate required fields are present."""
@@ -138,9 +138,19 @@ class BaseModelFamily:
         return self._config["variant_pattern"]
 
     @property
-    def results_dir(self) -> Path:
-        """Root results directory used for variant discovery."""
-        return self._results_dir
+    def data_root(self) -> Path:
+        """Unified data root containing per-family subdirectories."""
+        return self._data_root
+
+    @property
+    def family_dir(self) -> Path:
+        """This family's directory: ``{data_root}/{name}/``."""
+        return self._data_root / self.name
+
+    @property
+    def variants_dir(self) -> Path:
+        """Directory containing this family's variants: ``{family_dir}/variants/``."""
+        return self.family_dir / "variants"
 
     # --- Variant lookup ------------------------------------------------
 
@@ -170,22 +180,22 @@ class BaseModelFamily:
     def variants(self) -> list[Variant]:
         """All discovered variants for this family.
 
-        Scans ``{results_dir}/{name}/`` for directories matching this
-        family's ``variant_pattern``.
+        Scans ``{variants_dir}/`` for directories matching this family's
+        ``variant_pattern``.
         """
-        family_results_dir = self._results_dir / self.name
-        if not family_results_dir.exists():
+        variants_dir = self.variants_dir
+        if not variants_dir.exists():
             return []
 
         pattern_regex = _pattern_to_regex(self.variant_pattern, self.domain_parameters)
         variants: list[Variant] = []
-        for variant_dir in family_results_dir.iterdir():
+        for variant_dir in variants_dir.iterdir():
             if not variant_dir.is_dir():
                 continue
             match = pattern_regex.match(variant_dir.name)
             if match:
                 params = _extract_params(match, self.domain_parameters)
-                variants.append(Variant(self, params, self._results_dir))
+                variants.append(Variant(self, params))
         return variants
 
     @property
@@ -199,7 +209,7 @@ class BaseModelFamily:
         Use this when you intend to create a new variant (e.g. for training),
         or when you want a Variant handle regardless of training state.
         """
-        return Variant(self, params, self._results_dir)
+        return Variant(self, params)
 
     def create_intervention_variant(
         self,

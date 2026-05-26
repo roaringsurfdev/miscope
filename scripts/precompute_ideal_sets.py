@@ -1,6 +1,6 @@
 """Pre-compute ideal frequency sets for all corpus (prime, size) combinations.
 
-Saves results to model_families/modulo_addition_1layer/ideal_frequency_sets.json.
+Saves results to data/modulo_addition_1layer/ideal_frequency_sets.json.
 This file is loaded at startup by viability_certificate.py to avoid repeating
 exhaustive search after every app restart.
 
@@ -23,7 +23,9 @@ from scipy.spatial.distance import pdist
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "miscope" / "src"))
 
-OUTPUT_PATH = Path("model_families/modulo_addition_1layer/ideal_frequency_sets.json")
+from miscope.config import get_config  # noqa: E402
+
+OUTPUT_PATH = get_config().data_root / "modulo_addition_1layer" / "ideal_frequency_sets.json"
 
 # Primes in the corpus
 CORPUS_PRIMES = [59, 89, 97, 101, 103, 107, 109, 113, 127]

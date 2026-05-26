@@ -2,7 +2,7 @@
   "family": "modulo_addition_1layer",
   "variants": [
     {
-      "variant_id": "modulo_addition_1layer_p113_seed999_dseed598",
+      "variant_id": "p113_seed999_dseed598",
       "prime": 113,
       "model_seed": 999,
       "data_seed": 598,
@@ -6737,7 +6737,7 @@
       ]
     },
     {
-      "variant_id": "modulo_addition_1layer_p109_seed485_dseed598",
+      "variant_id": "p109_seed485_dseed598",
       "prime": 109,
       "model_seed": 485,
       "data_seed": 598,
@@ -15812,7 +15812,7 @@
       ]
     },
     {
-      "variant_id": "modulo_addition_1layer_p101_seed485_dseed42",
+      "variant_id": "p101_seed485_dseed42",
       "prime": 101,
       "model_seed": 485,
       "data_seed": 42,
@@ -28632,7 +28632,7 @@
       ]
     },
     {
-      "variant_id": "modulo_addition_1layer_p59_seed485_dseed999",
+      "variant_id": "p59_seed485_dseed999",
       "prime": 59,
       "model_seed": 485,
       "data_seed": 999,

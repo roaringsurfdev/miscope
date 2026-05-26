@@ -1,6 +1,6 @@
 # REQ_123: Unified Data Root — `data/{family}/variants/{vid}/`
 
-**Status:** Drafted (design dialogue complete; implementation not started; blocked on REQ_122).
+**Status:** Implemented on `feature/req-123-unified-data-root`; pending merge to `develop`. Migration applied locally; legacy `model_families/` and `results/` trees retained as a safety net pending manual user removal.
 **Priority:** Medium — biggest blast-radius change in the ETL forward plan but the lowest *urgency*. The current `model_families/` / `results/` split works; it's just structurally arbitrary and leaks the historical accident of how things were built. Step 4 of 5 in the ETL forward plan.
 **Branch:** `feature/req-123-unified-data-root`
 **Supersedes:** None. (Implicitly retires the `model_families/` and `results/` top-level directories and the `MISCOPE_RESULTS_DIR` / `MISCOPE_MODEL_FAMILIES_DIR` env-var pair, but neither is a standing requirement.)

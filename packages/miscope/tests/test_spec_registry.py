@@ -306,13 +306,10 @@ def trained_variant():
     from miscope.families.discovery import discover_families
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        model_families_dir = Path(tmpdir) / "model_families"
-        results_dir = Path(tmpdir) / "results"
-        model_families_dir.mkdir()
-        results_dir.mkdir()
-
-        family_dir = model_families_dir / "modulo_addition_1layer"
+        data_root = Path(tmpdir)
+        family_dir = data_root / "modulo_addition_1layer"
         family_dir.mkdir()
+        (family_dir / "variants").mkdir()
         family_json = {
             "name": "modulo_addition_1layer",
             "display_name": "Modulo Addition (1 Layer)",
@@ -334,10 +331,10 @@ def trained_variant():
             "analyzers": ["dominant_frequencies"],
             "visualizations": [],
             "analysis_dataset": {"type": "modulo_addition_grid"},
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
+            "variant_pattern": "p{prime}_seed{seed}",
         }
         (family_dir / "family.json").write_text(json.dumps(family_json))
-        families = discover_families(model_families_dir=model_families_dir, results_dir=results_dir)
+        families = discover_families(data_root=data_root)
         family = families["modulo_addition_1layer"]
         variant = family.create_variant({"prime": 17, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=10, checkpoint_epochs=[0, 9], device="cpu")

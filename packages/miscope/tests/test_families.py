@@ -1,4 +1,4 @@
-"""Tests for the families module (REQ_021a)."""
+"""Tests for the families module (REQ_021a, refreshed by REQ_123)."""
 # pyright: reportArgumentType=false
 # pyright: reportInvalidTypeForm=false
 # pyright: reportReturnType=false
@@ -23,7 +23,7 @@ from miscope.families.discovery import discover_families
 
 @pytest.fixture
 def sample_family_config() -> dict:
-    """Sample family.json configuration."""
+    """Sample family.json configuration (post-REQ_123 prefix-less variant_pattern)."""
     return {
         "name": "test_family",
         "display_name": "Test Family",
@@ -42,76 +42,68 @@ def sample_family_config() -> dict:
         "analyzers": ["dominant_frequencies", "neuron_activations"],
         "visualizations": ["freq_bar", "activation_heatmap"],
         "analysis_dataset": {"type": "test_grid", "description": "Test dataset"},
-        "variant_pattern": "test_family_p{prime}_seed{seed}",
+        "variant_pattern": "p{prime}_seed{seed}",
     }
 
 
 @pytest.fixture
-def temp_project_dir(sample_family_config) -> Path:
-    """Create a temporary project directory with family and results."""
+def temp_data_root(sample_family_config) -> Path:
+    """Temporary data root containing one family and one variant directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
-
-        # Create model_families directory with family.json
-        family_dir = root / "model_families" / "test_family"
+        data_root = Path(tmpdir)
+        family_dir = data_root / "test_family"
         family_dir.mkdir(parents=True)
         with open(family_dir / "family.json", "w") as f:
             json.dump(sample_family_config, f)
 
-        # Create results directory with variant
-        results_dir = root / "results" / "test_family" / "test_family_p113_seed42"
-        results_dir.mkdir(parents=True)
-
-        yield root
+        (family_dir / "variants" / "p113_seed42").mkdir(parents=True)
+        yield data_root
 
 
 @pytest.fixture
-def temp_project_with_checkpoints(temp_project_dir) -> Path:
-    """Create a project dir with checkpoint files."""
-    variant_dir = temp_project_dir / "results" / "test_family" / "test_family_p113_seed42"
+def temp_data_root_with_checkpoints(temp_data_root) -> Path:
+    """Temp data root with checkpoint files for p113_seed42."""
+    variant_dir = temp_data_root / "test_family" / "variants" / "p113_seed42"
     checkpoints_dir = variant_dir / "checkpoints"
     checkpoints_dir.mkdir(exist_ok=True)
-
-    # Create fake checkpoint files (empty for testing)
     (checkpoints_dir / "checkpoint_epoch_00100.safetensors").touch()
     (checkpoints_dir / "checkpoint_epoch_00500.safetensors").touch()
     (checkpoints_dir / "checkpoint_epoch_01000.safetensors").touch()
-
-    return temp_project_dir
+    return temp_data_root
 
 
 @pytest.fixture
-def temp_project_with_artifacts(temp_project_with_checkpoints) -> Path:
-    """Create a project dir with both checkpoints and artifacts."""
+def temp_data_root_with_artifacts(temp_data_root_with_checkpoints) -> Path:
+    """Temp data root with checkpoints + artifacts for p113_seed42."""
     variant_dir = (
-        temp_project_with_checkpoints / "results" / "test_family" / "test_family_p113_seed42"
+        temp_data_root_with_checkpoints / "test_family" / "variants" / "p113_seed42"
     )
     artifacts_dir = variant_dir / "artifacts"
     artifacts_dir.mkdir(exist_ok=True)
-
-    # Create fake artifact file
     (artifacts_dir / "dominant_frequencies_epoch_00100.npz").touch()
+    return temp_data_root_with_checkpoints
 
-    return temp_project_with_checkpoints
+
+def _family_from(data_root: Path, sample_family_config: dict) -> BaseModelFamily:
+    """Build a BaseModelFamily anchored on the given data root."""
+    return BaseModelFamily(sample_family_config, data_root=data_root)
 
 
 # --- BaseModelFamily Tests ---
 
 
 class TestBaseModelFamily:
-    """Tests for BaseModelFamily class."""
-
-    def test_from_json(self, temp_project_dir):
-        """Test loading family from JSON file."""
-        family_json = temp_project_dir / "model_families" / "test_family" / "family.json"
-        family = BaseModelFamily.from_json(family_json)
+    def test_from_json(self, temp_data_root):
+        family_json = temp_data_root / "test_family" / "family.json"
+        family = BaseModelFamily.from_json(family_json, data_root=temp_data_root)
 
         assert family.name == "test_family"
         assert family.display_name == "Test Family"
         assert family.description == "A test family for unit tests"
+        assert family.family_dir == temp_data_root / "test_family"
+        assert family.variants_dir == temp_data_root / "test_family" / "variants"
 
     def test_properties(self, sample_family_config):
-        """Test all property accessors."""
         family = BaseModelFamily(sample_family_config)
 
         assert family.name == "test_family"
@@ -121,31 +113,21 @@ class TestBaseModelFamily:
         assert "prime" in family.domain_parameters
         assert family.domain_parameters["prime"]["type"] == "int"
         assert family.analyzers == ["dominant_frequencies", "neuron_activations"]
-        assert family.variant_pattern == "test_family_p{prime}_seed{seed}"
+        assert family.variant_pattern == "p{prime}_seed{seed}"
 
     def test_get_default_params(self, sample_family_config):
-        """Test getting default parameters."""
         family = BaseModelFamily(sample_family_config)
         defaults = family.get_default_params()
-
         assert defaults == {"prime": 113, "seed": 999}
 
     def test_missing_required_fields(self):
-        """Test validation fails for missing required fields."""
-        incomplete_config = {
-            "name": "test",
-            # Missing other required fields
-        }
-
+        incomplete_config = {"name": "test"}
         with pytest.raises(KeyError) as exc_info:
             BaseModelFamily(incomplete_config)
-
         assert "Missing required fields" in str(exc_info.value)
 
     def test_create_model_not_implemented(self, sample_family_config):
-        """Test that create_model raises NotImplementedError."""
         family = BaseModelFamily(sample_family_config)
-
         with pytest.raises(NotImplementedError):
             family.create_model({"prime": 113, "seed": 42})
 
@@ -154,160 +136,107 @@ class TestBaseModelFamily:
 
 
 class TestVariant:
-    """Tests for Variant class."""
+    def test_variant_properties(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
 
-    def test_variant_properties(self, temp_project_dir, sample_family_config):
-        """Test Variant property accessors."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_dir / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
-        assert variant.name == "test_family_p113_seed42"
+        assert variant.name == "p113_seed42"
         assert variant.family.name == "test_family"
         assert variant.params == {"prime": 113, "seed": 42}
 
-    def test_variant_paths(self, temp_project_dir, sample_family_config):
-        """Test Variant path resolution."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_dir / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
+    def test_variant_paths(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
 
-        assert variant.variant_dir == results_dir / "test_family" / "test_family_p113_seed42"
+        assert variant.variant_dir == temp_data_root / "test_family" / "variants" / "p113_seed42"
         assert variant.checkpoints_dir == variant.variant_dir / "checkpoints"
         assert variant.artifacts_dir == variant.variant_dir / "artifacts"
 
-    def test_variant_state_untrained(self, temp_project_dir, sample_family_config):
-        """Test state detection for untrained variant."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_dir / "results"
-        # Create variant with non-existent params (no directory)
-        variant = Variant(family, {"prime": 97, "seed": 123}, results_dir)
-
+    def test_variant_state_untrained(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 97, "seed": 123})
         assert variant.state == VariantState.UNTRAINED
 
-    def test_variant_state_trained(self, temp_project_with_checkpoints, sample_family_config):
-        """Test state detection for trained variant (has checkpoints, no artifacts)."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_with_checkpoints / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
+    def test_variant_state_trained(
+        self, temp_data_root_with_checkpoints, sample_family_config
+    ):
+        family = _family_from(temp_data_root_with_checkpoints, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
         assert variant.state == VariantState.TRAINED
 
-    def test_variant_state_analyzed(self, temp_project_with_artifacts, sample_family_config):
-        """Test state detection for analyzed variant."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_with_artifacts / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
+    def test_variant_state_analyzed(
+        self, temp_data_root_with_artifacts, sample_family_config
+    ):
+        family = _family_from(temp_data_root_with_artifacts, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
         assert variant.state == VariantState.ANALYZED
 
-    def test_get_available_checkpoints(self, temp_project_with_checkpoints, sample_family_config):
-        """Test checkpoint discovery."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_with_checkpoints / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
-        checkpoints = variant.get_available_checkpoints()
-        assert checkpoints == [100, 500, 1000]
+    def test_get_available_checkpoints(
+        self, temp_data_root_with_checkpoints, sample_family_config
+    ):
+        family = _family_from(temp_data_root_with_checkpoints, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
+        assert variant.get_available_checkpoints() == [100, 500, 1000]
 
     def test_variant_equality(self, sample_family_config):
-        """Test Variant equality comparison."""
         family = BaseModelFamily(sample_family_config)
-        results_dir = Path("/tmp/results")
-
-        v1 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-        v2 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-        v3 = Variant(family, {"prime": 97, "seed": 42}, results_dir)
+        v1 = Variant(family, {"prime": 113, "seed": 42})
+        v2 = Variant(family, {"prime": 113, "seed": 42})
+        v3 = Variant(family, {"prime": 97, "seed": 42})
 
         assert v1 == v2
         assert v1 != v3
 
     def test_variant_hash(self, sample_family_config):
-        """Test Variant is hashable (can be used in sets/dicts)."""
         family = BaseModelFamily(sample_family_config)
-        results_dir = Path("/tmp/results")
-
-        v1 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-        v2 = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
-        variant_set = {v1, v2}
-        assert len(variant_set) == 1
+        v1 = Variant(family, {"prime": 113, "seed": 42})
+        v2 = Variant(family, {"prime": 113, "seed": 42})
+        assert len({v1, v2}) == 1
 
 
 # --- Family discovery & lookup tests ---
 
 
 class TestFamilyDiscovery:
-    """Tests for discover_families and the family's variant-lookup API."""
-
-    def test_load_families(self, temp_project_dir):
-        """Test family discovery from directory."""
-        families = discover_families(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
+    def test_load_families(self, temp_data_root):
+        families = discover_families(data_root=temp_data_root)
         assert len(families) == 1
         assert "test_family" in families
 
-    def test_family_name(self, temp_project_dir):
-        """Test that the discovered family has the right name."""
-        families = discover_families(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
+    def test_family_name(self, temp_data_root):
+        families = discover_families(data_root=temp_data_root)
         assert families["test_family"].name == "test_family"
 
-    def test_get_variants(self, temp_project_dir):
-        """Test variant discovery via family.variants."""
-        families = discover_families(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
+    def test_get_variants(self, temp_data_root):
+        families = discover_families(data_root=temp_data_root)
         variants = families["test_family"].variants
         assert len(variants) == 1
-        assert variants[0].name == "test_family_p113_seed42"
+        assert variants[0].name == "p113_seed42"
         assert variants[0].params == {"prime": 113, "seed": 42}
 
-    def test_get_variants_multiple(self, temp_project_dir):
-        """Test discovering multiple variants."""
-        results_base = temp_project_dir / "results" / "test_family"
-        (results_base / "test_family_p97_seed42").mkdir()
-        (results_base / "test_family_p113_seed999").mkdir()
+    def test_get_variants_multiple(self, temp_data_root):
+        variants_base = temp_data_root / "test_family" / "variants"
+        (variants_base / "p97_seed42").mkdir()
+        (variants_base / "p113_seed999").mkdir()
 
-        families = discover_families(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
+        families = discover_families(data_root=temp_data_root)
         variants = families["test_family"].variants
         assert len(variants) == 3
 
         variant_names = {v.name for v in variants}
-        assert "test_family_p113_seed42" in variant_names
-        assert "test_family_p97_seed42" in variant_names
-        assert "test_family_p113_seed999" in variant_names
+        assert "p113_seed42" in variant_names
+        assert "p97_seed42" in variant_names
+        assert "p113_seed999" in variant_names
 
-    def test_create_variant(self, temp_project_dir):
-        """Test creating a new variant instance via family.create_variant."""
-        families = discover_families(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
+    def test_create_variant(self, temp_data_root):
+        families = discover_families(data_root=temp_data_root)
         variant = families["test_family"].create_variant({"prime": 97, "seed": 123})
-        assert variant.name == "test_family_p97_seed123"
+        assert variant.name == "p97_seed123"
         assert variant.state == VariantState.UNTRAINED
 
-    def test_empty_model_families_dir(self):
-        """Test discovery returns empty dict when no families directory exists."""
+    def test_empty_data_root(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            families = discover_families(
-                model_families_dir=Path(tmpdir) / "nonexistent",
-                results_dir=Path(tmpdir) / "results",
-            )
-
+            families = discover_families(data_root=Path(tmpdir) / "nonexistent")
             assert families == {}
 
 
@@ -315,29 +244,20 @@ class TestFamilyDiscovery:
 
 
 class TestPathResolution:
-    """Tests for consistent path resolution using ModelFamily.name."""
+    def test_family_name_as_directory_key(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
 
-    def test_family_name_as_directory_key(self, temp_project_dir, sample_family_config):
-        """Test that ModelFamily.name is used as directory key."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_dir / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
+        # variants_dir parent is the family directory
+        assert variant.variant_dir.parent == family.variants_dir
+        assert family.variants_dir.parent.name == family.name
 
-        # Family name should be the first directory under results/
-        assert variant.variant_dir.parent.name == family.name
-        assert variant.variant_dir.parent == results_dir / family.name
+    def test_consistent_path_structure(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
 
-    def test_consistent_path_structure(self, temp_project_dir, sample_family_config):
-        """Test that path structure follows convention."""
-        family = BaseModelFamily(sample_family_config)
-        results_dir = temp_project_dir / "results"
-        variant = Variant(family, {"prime": 113, "seed": 42}, results_dir)
-
-        # Expected structure: results/{family.name}/{variant_name}/
-        expected_variant_dir = results_dir / "test_family" / "test_family_p113_seed42"
+        expected_variant_dir = temp_data_root / "test_family" / "variants" / "p113_seed42"
         assert variant.variant_dir == expected_variant_dir
-
-        # Subdirectories
         assert variant.checkpoints_dir == expected_variant_dir / "checkpoints"
         assert variant.artifacts_dir == expected_variant_dir / "artifacts"
 
@@ -348,13 +268,10 @@ class TestPathResolution:
 
 
 class TestInterventionVariant:
-    """Tests for InterventionVariant and Variant.interventions / create_intervention_variant."""
-
     @pytest.fixture
     def base_variant(self, sample_family_config, tmp_path):
-        family = BaseModelFamily(sample_family_config)
-        results_dir = tmp_path / "results"
-        return Variant(family, {"prime": 59, "seed": 485, "data_seed": 598}, results_dir)
+        family = BaseModelFamily(sample_family_config, data_root=tmp_path)
+        return Variant(family, {"prime": 59, "seed": 485, "data_seed": 598})
 
     @pytest.fixture
     def iv_config(self):
@@ -416,7 +333,7 @@ class TestInterventionVariant:
         returned = iv.intervention_config
         assert returned == iv_config
         returned["label"] = "mutated"
-        assert iv.intervention_config["label"] == "v1"  # original unchanged
+        assert iv.intervention_config["label"] == "v1"
 
     def test_create_intervention_variant_returns_iv(self, base_variant, iv_config):
         from miscope.families.intervention_variant import InterventionVariant
@@ -425,7 +342,9 @@ class TestInterventionVariant:
         assert isinstance(iv, InterventionVariant)
         assert iv.name == "v1"
 
-    def test_create_intervention_variant_raises_if_exists(self, base_variant, iv_config, tmp_path):
+    def test_create_intervention_variant_raises_if_exists(
+        self, base_variant, iv_config, tmp_path
+    ):
         iv = base_variant.create_intervention_variant(iv_config)
         iv.variant_dir.mkdir(parents=True, exist_ok=True)
         with pytest.raises(ValueError, match="already exists"):
@@ -437,7 +356,6 @@ class TestInterventionVariant:
     def test_interventions_discovers_from_filesystem(self, base_variant, iv_config):
         import json as _json
 
-        # Simulate a migrated intervention: write config.json into interventions/v1/
         iv_dir = base_variant.variant_dir / "interventions" / "v1"
         iv_dir.mkdir(parents=True)
         config_on_disk = {**base_variant.params, "intervention": iv_config}

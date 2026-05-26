@@ -1,7 +1,8 @@
-"""Tests for application configuration (REQ_036)."""
+"""Tests for application configuration (REQ_036 / REQ_123)."""
 
 import os
 import tempfile
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,79 +15,82 @@ class TestAppConfig:
     """Tests for AppConfig and get_config()."""
 
     def test_default_paths_resolve(self):
-        """Default paths should resolve to valid project directories."""
         cfg = get_config()
-
         assert isinstance(cfg, AppConfig)
         assert isinstance(cfg.project_root, Path)
-        assert isinstance(cfg.results_dir, Path)
-        assert isinstance(cfg.model_families_dir, Path)
+        assert isinstance(cfg.data_root, Path)
 
     def test_project_root_contains_pyproject(self):
-        """Project root should contain pyproject.toml."""
         cfg = get_config()
         assert (cfg.project_root / "pyproject.toml").exists()
 
-    def test_default_results_dir(self):
-        """Default results_dir should be project_root/results."""
+    def test_default_data_root(self):
+        """Default data_root should be ``project_root / data``."""
         cfg = get_config()
-        assert cfg.results_dir == cfg.project_root / "results"
+        assert cfg.data_root == cfg.project_root / "data"
 
-    def test_default_model_families_dir(self):
-        """Default model_families_dir should be project_root/model_families."""
-        cfg = get_config()
-        assert cfg.model_families_dir == cfg.project_root / "model_families"
-
-    def test_env_override_results_dir(self):
-        """MISCOPE_RESULTS_DIR env var overrides results directory."""
+    def test_env_override_data_root(self):
+        """MISCOPE_DATA_ROOT env var overrides the data root."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"MISCOPE_RESULTS_DIR": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_DATA_ROOT": tmpdir}, clear=False):
                 cfg = get_config()
-                assert cfg.results_dir == Path(tmpdir)
-
-    def test_env_override_model_families_dir(self):
-        """MISCOPE_MODEL_FAMILIES_DIR env var overrides model families directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"MISCOPE_MODEL_FAMILIES_DIR": tmpdir}):
-                cfg = get_config()
-                assert cfg.model_families_dir == Path(tmpdir)
+                assert cfg.data_root == Path(tmpdir)
 
     def test_env_override_project_root(self):
-        """MISCOPE_PROJECT_ROOT env var overrides project root."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"MISCOPE_PROJECT_ROOT": tmpdir}):
+            with patch.dict(os.environ, {"MISCOPE_PROJECT_ROOT": tmpdir}, clear=False):
                 cfg = get_config()
                 assert cfg.project_root == Path(tmpdir).resolve()
 
     def test_config_is_frozen(self):
-        """AppConfig should be immutable."""
         cfg = get_config()
         with pytest.raises(AttributeError):
-            cfg.results_dir = Path("/tmp")  # type: ignore[misc]
+            cfg.data_root = Path("/tmp")  # type: ignore[misc]
 
-    def test_env_overrides_independent(self):
-        """Each env var override is independent."""
+    def test_legacy_tdw_data_root_accepted(self):
+        """TDW_DATA_ROOT is accepted as a legacy alias for MISCOPE_DATA_ROOT."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"MISCOPE_RESULTS_DIR": tmpdir}):
+            env = {"TDW_DATA_ROOT": tmpdir}
+            with patch.dict(os.environ, env, clear=False):
+                # Ensure MISCOPE_DATA_ROOT is unset so the legacy alias takes over.
+                os.environ.pop("MISCOPE_DATA_ROOT", None)
                 cfg = get_config()
-                # results_dir overridden, model_families_dir uses default
-                assert cfg.results_dir == Path(tmpdir)
-                assert cfg.model_families_dir == cfg.project_root / "model_families"
+                assert cfg.data_root == Path(tmpdir)
 
-    def test_legacy_tdw_vars_still_work(self):
-        """TDW_* legacy env vars are still accepted as fallbacks."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"TDW_RESULTS_DIR": tmpdir}):
-                cfg = get_config()
-                assert cfg.results_dir == Path(tmpdir)
-
-    def test_miscope_vars_take_priority_over_tdw(self):
-        """MISCOPE_* vars take priority over TDW_* legacy vars."""
+    def test_miscope_data_root_takes_priority_over_tdw(self):
         with tempfile.TemporaryDirectory() as tdw_dir:
             with tempfile.TemporaryDirectory() as miscope_dir:
-                with patch.dict(
-                    os.environ,
-                    {"TDW_RESULTS_DIR": tdw_dir, "MISCOPE_RESULTS_DIR": miscope_dir},
-                ):
+                env = {"TDW_DATA_ROOT": tdw_dir, "MISCOPE_DATA_ROOT": miscope_dir}
+                with patch.dict(os.environ, env, clear=False):
                     cfg = get_config()
-                    assert cfg.results_dir == Path(miscope_dir)
+                    assert cfg.data_root == Path(miscope_dir)
+
+    def test_deprecated_results_dir_emits_warning(self):
+        """Setting the retired MISCOPE_RESULTS_DIR alone emits a DeprecationWarning."""
+        env_clean = dict(os.environ)
+        env_clean.pop("MISCOPE_DATA_ROOT", None)
+        env_clean.pop("TDW_DATA_ROOT", None)
+        env_clean["MISCOPE_RESULTS_DIR"] = "/tmp/legacy-results"
+        with patch.dict(os.environ, env_clean, clear=True):
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                cfg = get_config()
+                assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+                # Default data_root still resolves under the project root.
+                assert cfg.data_root == cfg.project_root / "data"
+
+    def test_data_root_set_silences_deprecation(self):
+        """If MISCOPE_DATA_ROOT is set, deprecated vars do not trigger warnings."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env = {
+                "MISCOPE_DATA_ROOT": tmpdir,
+                "MISCOPE_RESULTS_DIR": "/tmp/legacy",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with warnings.catch_warnings(record=True) as caught:
+                    warnings.simplefilter("always")
+                    cfg = get_config()
+                    assert cfg.data_root == Path(tmpdir)
+                    assert not any(
+                        issubclass(w.category, DeprecationWarning) for w in caught
+                    )

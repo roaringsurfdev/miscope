@@ -290,10 +290,10 @@ class TestFourierNucleationIntegration:
 
         from miscope.families.discovery import discover_families
 
-        family_dir = tmp_path / "model_families" / "modulo_addition_1layer"
+        data_root = tmp_path
+        family_dir = data_root / "modulo_addition_1layer"
         family_dir.mkdir(parents=True)
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
+        (family_dir / "variants").mkdir()
 
         family_json = {
             "name": "modulo_addition_1layer",
@@ -319,14 +319,11 @@ class TestFourierNucleationIntegration:
             "secondary_analyzers": [],
             "cross_epoch_analyzers": [],
             "analysis_dataset": {"type": "modulo_addition_grid"},
-            "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}_dseed{data_seed}",
+            "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
         }
         (family_dir / "family.json").write_text(json.dumps(family_json))
 
-        families = discover_families(
-            model_families_dir=tmp_path / "model_families",
-            results_dir=results_dir,
-        )
+        families = discover_families(data_root=data_root)
         family = families["modulo_addition_1layer"]
         variant = family.create_variant({"prime": 11, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=5, checkpoint_epochs=[0], device="cpu")

@@ -33,10 +33,12 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages" / "miscope" / "src"))
 
+from miscope.config import get_config  # noqa: E402
+
 # %% Configuration
 
 D_MODEL = 128
-REGISTRY_PATH = Path("results/modulo_addition_1layer/variant_registry.json")
+REGISTRY_PATH = get_config().data_root / "modulo_addition_1layer" / "variant_registry.json"
 
 CALIBRATION_CASES = [
     {

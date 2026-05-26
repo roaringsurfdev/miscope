@@ -25,6 +25,7 @@ from plotly.subplots import make_subplots
 from dashboard.state import get_families
 from miscope.analysis.analyzers.gradient_site import _fourier_gradient_by_site
 from miscope.analysis.library import get_fourier_basis
+from miscope.config import get_config
 
 _SITES = ("embedding", "attention", "mlp")
 _SITE_LABELS = {"embedding": "Embedding", "attention": "Attention", "mlp": "MLP"}
@@ -41,7 +42,9 @@ _PALETTE = [
     "#FECB52",
 ]
 
-_REGISTRY_PATH = Path("results") / "modulo_addition_1layer" / "variant_registry.json"
+def _registry_path() -> Path:
+    """Resolved path to the 1-layer family's variant_registry.json."""
+    return Path(get_config().data_root) / "modulo_addition_1layer" / "variant_registry.json"
 
 # ---------------------------------------------------------------------------
 # Server-side page state
@@ -84,10 +87,11 @@ def _get_canonical_frequencies(prime: int) -> list[int]:
 
     Reads variant_registry.json; returns an empty list if no match found.
     """
-    if not _REGISTRY_PATH.exists():
+    registry_path = _registry_path()
+    if not registry_path.exists():
         return []
     try:
-        with open(_REGISTRY_PATH) as f:
+        with open(registry_path) as f:
             registry: list[dict[str, Any]] = json.load(f)
         for entry in registry:
             if entry.get("prime") != prime:

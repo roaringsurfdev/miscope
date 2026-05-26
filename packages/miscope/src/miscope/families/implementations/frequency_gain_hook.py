@@ -21,7 +21,6 @@ Usage:
     iv_variant = family.create_intervention_variant(
         prime=59, seed=485, data_seed=598,
         intervention_config=intervention_config,
-        results_dir=results_dir,
     )
     iv_variant.train(training_hook=hook)
 """

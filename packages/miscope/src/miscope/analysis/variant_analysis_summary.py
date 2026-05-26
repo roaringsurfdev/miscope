@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 if TYPE_CHECKING:
+    from miscope.families.protocols import ModelFamily
     from miscope.families.variant import Variant
 
 
@@ -41,24 +42,23 @@ def _classify_frequency_band(freq: int, prime: int) -> str:
     return "mid"
 
 
-def build_variant_registry(results_dir: Path | str, family_name: str) -> Path:
+def build_variant_registry(family: ModelFamily) -> Path:
     """Aggregate all existing variant_summary.json files into variant_registry.json.
 
-    Scans all subdirectories of results_dir/family_name for variant_summary.json
-    files and assembles them into a single registry array, adding a variant_id
-    field ("{prime}_{model_seed}_{data_seed}") to each entry.
+    Scans the family's variants directory for ``variant_summary.json`` files and
+    assembles them into a single registry array, adding a ``variant_id`` field
+    (``"{prime}_{model_seed}_{data_seed}"``) to each entry. The registry is
+    written to ``{family.family_dir}/variant_registry.json``.
 
     Args:
-        results_dir: Root results directory.
-        family_name: Name of the model family subdirectory.
+        family: ModelFamily whose variants should be aggregated.
 
     Returns:
         Path to the written variant_registry.json file.
     """
-    family_dir = Path(results_dir) / family_name
     registry: list[dict[str, Any]] = []
 
-    for summary_path in sorted(family_dir.glob("*/variant_summary.json")):
+    for summary_path in sorted(family.variants_dir.glob("*/variant_summary.json")):
         entry = json.loads(summary_path.read_text())
         prime = entry.get("prime", "?")
         model_seed = entry.get("model_seed", "?")
@@ -66,7 +66,7 @@ def build_variant_registry(results_dir: Path | str, family_name: str) -> Path:
         entry["variant_id"] = f"{prime}_{model_seed}_{data_seed}"
         registry.append(entry)
 
-    output_path = family_dir / "variant_registry.json"
+    output_path = family.family_dir / "variant_registry.json"
     output_path.write_text(json.dumps(registry, indent=2))
     return output_path
 

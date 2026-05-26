@@ -30,7 +30,7 @@ from miscope.config import get_config as _get_config
 # ---------------------------------------------------------------------------
 
 _IDEAL_SETS_PATH = (
-    _get_config().model_families_dir / "modulo_addition_1layer/ideal_frequency_sets.json"
+    _get_config().data_root / "modulo_addition_1layer/ideal_frequency_sets.json"
 )
 
 _ideal_cache: dict[tuple[int, int], tuple[list[int], float]] = {}
