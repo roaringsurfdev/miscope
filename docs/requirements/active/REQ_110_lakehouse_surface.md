@@ -48,6 +48,7 @@ The schema design is the load-bearing decision. Long-format with explicit discri
     - `circularity`, `fourier_alignment`, `curvature`, `sigmoidality`, `lissajous`, `procrustes`, `arc_length`, `loop_area`, `self_intersection`, `jerk` — shape characterizations from REQ_109.
 - [ ] **Discriminator-driven schema.** The `group_type` and `operation_type` columns are explicit (not parsed from the `group` string or table name). This makes `WHERE group_type = 'activation_site' AND operation_type = 'pca_summary'` a clean filter.
 - [ ] **Schema co-located with DataView definition** (per REQ_106). Each DataView declares its long-format schema (column names, dtypes, semantic descriptions). The schema is part of the published API.
+- [ ] **Reserved provenance columns.** Every long-format table reserves the following columns for post-v1.0 provenance / audit population: `analyzer_version: str`, `conditions_satisfied: list[str]`, `trust_tier: str`. These columns are nullable in v1.0 and populated as the audit infrastructure lands. Schema validation accepts their absence in v1.0 bundles and their presence in later bundles. Bundle manifests record which provenance columns are populated at mint time. The reservation is the cheap extensibility move: adding a column later to a published bundle requires a new bundle version; reserving the slot now makes the schema explicitly open without committing to enforcement.
 
 ### PCA tables (the worked example)
 
