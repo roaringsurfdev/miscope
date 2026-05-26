@@ -280,19 +280,20 @@ class TestModaddFourierOverride:
 
     def _setup_modadd_artifact_and_context(self, prime: int = 7, seed: int = 42):
         """Build a real modadd parameter_snapshot artifact + context."""
-        from pathlib import Path
 
         from miscope.analysis.library import extract_parameter_snapshot
+
+        # Use the real family.json from the repo's data/ tree so the family is
+        # configured the way the running pipeline configures it (including the
+        # new neuron_grouping in secondary_analyzers).
+        from miscope.config import get_config
         from miscope.families.implementations.modulo_addition_1layer import (
             ModuloAddition1LayerFamily,
         )
 
-        # Use the real family.json from the repo's model_families/ tree
-        # so the family is configured the way the running pipeline configures
-        # it (including the new neuron_grouping in secondary_analyzers).
-        repo_root = Path(__file__).resolve().parents[3]
-        family_json = repo_root / "model_families" / "modulo_addition_1layer" / "family.json"
-        family = ModuloAddition1LayerFamily.from_json(family_json)
+        data_root = get_config().data_root
+        family_json = data_root / "modulo_addition_1layer" / "family.json"
+        family = ModuloAddition1LayerFamily.from_json(family_json, data_root=data_root)
         params = {"prime": prime, "seed": seed}
         model = family.create_model(params)
         device = model.cfg.device

@@ -129,6 +129,24 @@ class TestBaseModelFamily:
         with pytest.raises(NotImplementedError):
             family.create_model({"prime": 113, "seed": 42})
 
+    def test_variant_registry_returns_parsed_list(
+        self, temp_data_root, sample_family_config
+    ):
+        family = _family_from(temp_data_root, sample_family_config)
+        registry = [
+            {"prime": 113, "model_seed": 42, "variant_id": "p113_seed42"},
+            {"prime": 97, "model_seed": 42, "variant_id": "p97_seed42"},
+        ]
+        family.variant_registry_path.write_text(json.dumps(registry))
+
+        loaded = family.variant_registry
+        assert loaded == registry
+
+    def test_variant_registry_missing_raises(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        with pytest.raises(FileNotFoundError, match="variant_registry.json"):
+            _ = family.variant_registry
+
 
 # --- Variant Tests ---
 
@@ -184,6 +202,21 @@ class TestVariant:
         v1 = Variant(family, {"prime": 113, "seed": 42})
         v2 = Variant(family, {"prime": 113, "seed": 42})
         assert len({v1, v2}) == 1
+
+    def test_summary_returns_parsed_dict(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
+        variant.variant_dir.mkdir(parents=True, exist_ok=True)
+        payload = {"prime": 113, "model_seed": 42, "failure_mode": "healthy"}
+        variant.summary_path.write_text(json.dumps(payload))
+
+        assert variant.summary == payload
+
+    def test_summary_missing_raises(self, temp_data_root, sample_family_config):
+        family = _family_from(temp_data_root, sample_family_config)
+        variant = Variant(family, {"prime": 113, "seed": 42})
+        with pytest.raises(FileNotFoundError, match="variant_summary.json"):
+            _ = variant.summary
 
 
 # --- Family discovery & lookup tests ---

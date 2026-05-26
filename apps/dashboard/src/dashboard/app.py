@@ -82,8 +82,11 @@ def create_app() -> Dash:
 
 def main() -> None:
     """Entry point for the Dash dashboard."""
+    from dashboard.config import load_dashboard_config
+
+    cfg = load_dashboard_config()
     app = create_app()
-    app.run(debug=False, host="0.0.0.0", port=8060)
+    app.run(host=cfg.server.host, port=cfg.server.port, debug=cfg.server.debug)
 
 
 if __name__ == "__main__":

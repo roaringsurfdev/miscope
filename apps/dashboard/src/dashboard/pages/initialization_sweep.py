@@ -10,10 +10,7 @@ Accessible under the "Pre-Training Analysis" top-nav menu item.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -25,7 +22,8 @@ from plotly.subplots import make_subplots
 from dashboard.state import get_families
 from miscope.analysis.analyzers.gradient_site import _fourier_gradient_by_site
 from miscope.analysis.library import get_fourier_basis
-from miscope.config import get_config
+
+_FAMILY_NAME = "modulo_addition_1layer"
 
 _SITES = ("embedding", "attention", "mlp")
 _SITE_LABELS = {"embedding": "Embedding", "attention": "Attention", "mlp": "MLP"}
@@ -41,11 +39,6 @@ _PALETTE = [
     "#FF97FF",
     "#FECB52",
 ]
-
-
-def _registry_path() -> Path:
-    """Resolved path to the 1-layer family's variant_registry.json."""
-    return Path(get_config().data_root) / "modulo_addition_1layer" / "variant_registry.json"
 
 
 # ---------------------------------------------------------------------------
@@ -87,22 +80,22 @@ def _candidate_label(mseed: int, dseed: int) -> str:
 def _get_canonical_frequencies(prime: int) -> list[int]:
     """Return learned frequencies from any trained variant with the given prime.
 
-    Reads variant_registry.json; returns an empty list if no match found.
+    Reads the family's variant registry; returns an empty list if no match found.
     """
-    registry_path = _registry_path()
-    if not registry_path.exists():
+    families = get_families()
+    family = families.get(_FAMILY_NAME)
+    if family is None:
         return []
     try:
-        with open(registry_path) as f:
-            registry: list[dict[str, Any]] = json.load(f)
-        for entry in registry:
-            if entry.get("prime") != prime:
-                continue
-            freqs = entry.get("learned_frequencies")
-            if freqs:
-                return sorted(freqs)
-    except Exception:
-        pass
+        registry = family.variant_registry
+    except FileNotFoundError:
+        return []
+    for entry in registry:
+        if entry.get("prime") != prime:
+            continue
+        freqs = entry.get("learned_frequencies")
+        if freqs:
+            return sorted(freqs)
     return []
 
 

@@ -13,8 +13,6 @@ rule-based classifier is known inadequate (pending 2-axis rewrite).
 
 from __future__ import annotations
 
-import json
-
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
@@ -355,8 +353,7 @@ def commitment_epoch(timing):
 
 
 def _load_variant_timing(variant):
-    with open(variant.variant_dir / "variant_summary.json") as f:
-        summary = json.load(f)
+    summary = variant.summary
     grok_raw = summary.get("test_loss_threshold_first_epoch")
     grok = grok_raw if grok_raw not in (None, -1) else None
     timing = {

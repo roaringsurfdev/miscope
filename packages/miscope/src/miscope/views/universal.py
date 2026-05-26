@@ -493,8 +493,6 @@ def _register_all() -> None:
     )
 
     def _load_network_sync(variant: Variant, _epoch: int | None) -> dict:
-        import json
-
         result: dict = {"repr_summary": variant.artifacts.load_summary("repr_geometry")}
 
         ngpca_path = variant.artifacts_dir / "neuron_group_pca" / "cross_epoch.npz"
@@ -503,10 +501,11 @@ def _register_all() -> None:
             result["group_spread"] = cross["mean_spread"]
             result["spread_epochs"] = cross["epochs"]
 
-        summary_path = variant.variant_dir / "variant_summary.json"
-        if summary_path.exists():
-            with open(summary_path) as f:
-                vs = json.load(f)
+        try:
+            vs = variant.summary
+        except FileNotFoundError:
+            vs = None
+        if vs is not None:
             result["markers"] = {
                 "second_descent_onset_epoch": vs.get("second_descent_onset_epoch"),
                 "effective_dimensionality_cross_over_epoch": vs.get(
@@ -1425,17 +1424,16 @@ def _register_all() -> None:
     # Two cross-epoch views measuring PR₃ and f_top3 across three domains.
 
     def _load_dimensionality_timeseries(variant: Variant, epoch: int | None) -> dict:
-        import json
-
         pt = variant.artifacts.load_cross_epoch("parameter_trajectory")
         rg = variant.artifacts.load_summary("repr_geometry")
         wg = variant.artifacts.load_cross_epoch("freq_group_weight_geometry")
 
         markers: dict[str, Any] = {}
-        summary_path = variant.variant_dir / "variant_summary.json"
-        if summary_path.exists():
-            with open(summary_path) as f:
-                vs = json.load(f)
+        try:
+            vs = variant.summary
+        except FileNotFoundError:
+            vs = None
+        if vs is not None:
             markers["onset"] = vs.get("second_descent_onset_epoch")
             markers["fd_end"] = (vs.get("first_descent_window") or {}).get("end_epoch")
             markers["eff_xover"] = vs.get("effective_dimensionality_cross_over_epoch")
@@ -1465,15 +1463,14 @@ def _register_all() -> None:
     )
 
     def _load_dimensionality_state_space(variant: Variant, epoch: int | None) -> dict:
-        import json
-
         rg = variant.artifacts.load_summary("repr_geometry")
 
         markers: dict[str, Any] = {}
-        summary_path = variant.variant_dir / "variant_summary.json"
-        if summary_path.exists():
-            with open(summary_path) as f:
-                vs = json.load(f)
+        try:
+            vs = variant.summary
+        except FileNotFoundError:
+            vs = None
+        if vs is not None:
             markers["onset"] = vs.get("second_descent_onset_epoch")
             markers["eff_xover"] = vs.get("effective_dimensionality_cross_over_epoch")
 

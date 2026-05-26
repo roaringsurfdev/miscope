@@ -7,7 +7,6 @@ variant-selector-store changes.
 Sits at position sticky, top 56px (flush below the fixed dark navbar).
 """
 
-import json
 
 import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, html
@@ -63,10 +62,8 @@ def _parse_classification(raw) -> str:
 
 def _load_variant_summary(variant) -> dict:
     try:
-        path = variant.variant_dir / "variant_summary.json"
-        with open(path) as f:
-            return json.load(f)
-    except Exception:
+        return variant.summary
+    except FileNotFoundError:
         return {}
 
 
