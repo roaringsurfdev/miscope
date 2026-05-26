@@ -152,7 +152,7 @@ def temp_dirs():
 @pytest.fixture
 def trained_variant(temp_dirs):
     data_root = temp_dirs
-    family_dir = data_root / 'modulo_addition_1layer'
+    family_dir = data_root / "modulo_addition_1layer"
     family_dir.mkdir()
     family_json = {
         "name": "modulo_addition_1layer",
@@ -404,7 +404,7 @@ class TestPipelineSecondary:
 class TestJsonFamilySecondaryAnalyzers:
     def test_secondary_analyzers_returns_list(self, temp_dirs):
         data_root = temp_dirs
-        family_dir = data_root / 'test_fam'
+        family_dir = data_root / "test_fam"
         family_dir.mkdir()
         family_json = {
             "name": "test_fam",
@@ -427,7 +427,7 @@ class TestJsonFamilySecondaryAnalyzers:
 
     def test_secondary_analyzers_defaults_to_empty(self, temp_dirs):
         data_root = temp_dirs
-        family_dir = data_root / 'test_fam2'
+        family_dir = data_root / "test_fam2"
         family_dir.mkdir()
         family_json = {
             "name": "test_fam2",

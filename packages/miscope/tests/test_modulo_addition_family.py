@@ -213,10 +213,7 @@ class TestVariantIntegration:
     def test_discover_variants(self, family, temp_data_root):
         """Test discovering existing variants."""
         variant_dir = (
-            temp_data_root
-            / "modulo_addition_1layer"
-            / "variants"
-            / "p17_seed123_dseed598"
+            temp_data_root / "modulo_addition_1layer" / "variants" / "p17_seed123_dseed598"
         )
         variant_dir.mkdir(parents=True)
         (variant_dir / "checkpoints").mkdir()

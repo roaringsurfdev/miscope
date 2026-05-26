@@ -91,6 +91,4 @@ class TestAppConfig:
                     warnings.simplefilter("always")
                     cfg = get_config()
                     assert cfg.data_root == Path(tmpdir)
-                    assert not any(
-                        issubclass(w.category, DeprecationWarning) for w in caught
-                    )
+                    assert not any(issubclass(w.category, DeprecationWarning) for w in caught)

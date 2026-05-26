@@ -75,9 +75,7 @@ def temp_data_root_with_checkpoints(temp_data_root) -> Path:
 @pytest.fixture
 def temp_data_root_with_artifacts(temp_data_root_with_checkpoints) -> Path:
     """Temp data root with checkpoints + artifacts for p113_seed42."""
-    variant_dir = (
-        temp_data_root_with_checkpoints / "test_family" / "variants" / "p113_seed42"
-    )
+    variant_dir = temp_data_root_with_checkpoints / "test_family" / "variants" / "p113_seed42"
     artifacts_dir = variant_dir / "artifacts"
     artifacts_dir.mkdir(exist_ok=True)
     (artifacts_dir / "dominant_frequencies_epoch_00100.npz").touch()
@@ -157,23 +155,17 @@ class TestVariant:
         variant = Variant(family, {"prime": 97, "seed": 123})
         assert variant.state == VariantState.UNTRAINED
 
-    def test_variant_state_trained(
-        self, temp_data_root_with_checkpoints, sample_family_config
-    ):
+    def test_variant_state_trained(self, temp_data_root_with_checkpoints, sample_family_config):
         family = _family_from(temp_data_root_with_checkpoints, sample_family_config)
         variant = Variant(family, {"prime": 113, "seed": 42})
         assert variant.state == VariantState.TRAINED
 
-    def test_variant_state_analyzed(
-        self, temp_data_root_with_artifacts, sample_family_config
-    ):
+    def test_variant_state_analyzed(self, temp_data_root_with_artifacts, sample_family_config):
         family = _family_from(temp_data_root_with_artifacts, sample_family_config)
         variant = Variant(family, {"prime": 113, "seed": 42})
         assert variant.state == VariantState.ANALYZED
 
-    def test_get_available_checkpoints(
-        self, temp_data_root_with_checkpoints, sample_family_config
-    ):
+    def test_get_available_checkpoints(self, temp_data_root_with_checkpoints, sample_family_config):
         family = _family_from(temp_data_root_with_checkpoints, sample_family_config)
         variant = Variant(family, {"prime": 113, "seed": 42})
         assert variant.get_available_checkpoints() == [100, 500, 1000]
@@ -342,9 +334,7 @@ class TestInterventionVariant:
         assert isinstance(iv, InterventionVariant)
         assert iv.name == "v1"
 
-    def test_create_intervention_variant_raises_if_exists(
-        self, base_variant, iv_config, tmp_path
-    ):
+    def test_create_intervention_variant_raises_if_exists(self, base_variant, iv_config, tmp_path):
         iv = base_variant.create_intervention_variant(iv_config)
         iv.variant_dir.mkdir(parents=True, exist_ok=True)
         with pytest.raises(ValueError, match="already exists"):

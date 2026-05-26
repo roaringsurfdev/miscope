@@ -29,9 +29,7 @@ from miscope.config import get_config as _get_config
 # search for any (prime, size) pair not in the file.
 # ---------------------------------------------------------------------------
 
-_IDEAL_SETS_PATH = (
-    _get_config().data_root / "modulo_addition_1layer/ideal_frequency_sets.json"
-)
+_IDEAL_SETS_PATH = _get_config().data_root / "modulo_addition_1layer/ideal_frequency_sets.json"
 
 _ideal_cache: dict[tuple[int, int], tuple[list[int], float]] = {}
 

@@ -340,7 +340,7 @@ def registry_with_family(temp_dirs):
     """Create a registry with effective_dimensionality analyzer configured."""
     data_root = temp_dirs
 
-    family_dir = data_root / 'modulo_addition_1layer'
+    family_dir = data_root / "modulo_addition_1layer"
     family_dir.mkdir()
 
     family_json = {

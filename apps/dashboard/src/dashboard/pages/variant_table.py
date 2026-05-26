@@ -51,9 +51,7 @@ def _load_table_rows() -> list[dict]:
             seed = rec.get("model_seed")
             dseed = rec.get("data_seed")
             family_name = rec.get("family", family.name)
-            variant_name = family.variant_pattern.format(
-                prime=prime, seed=seed, data_seed=dseed
-            )
+            variant_name = family.variant_pattern.format(prime=prime, seed=seed, data_seed=dseed)
 
             classification_raw = rec.get("performance_classification", [])
             classification = classification_raw[0] if classification_raw else "unknown"

@@ -42,9 +42,11 @@ _PALETTE = [
     "#FECB52",
 ]
 
+
 def _registry_path() -> Path:
     """Resolved path to the 1-layer family's variant_registry.json."""
     return Path(get_config().data_root) / "modulo_addition_1layer" / "variant_registry.json"
+
 
 # ---------------------------------------------------------------------------
 # Server-side page state

@@ -261,7 +261,7 @@ def temp_dirs():
 @pytest.fixture
 def trained_variant(temp_dirs):
     data_root = temp_dirs
-    family_dir = data_root / 'modulo_addition_1layer'
+    family_dir = data_root / "modulo_addition_1layer"
     family_dir.mkdir()
     family_json = {
         "name": "modulo_addition_1layer",

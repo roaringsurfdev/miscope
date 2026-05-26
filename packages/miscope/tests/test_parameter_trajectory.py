@@ -509,7 +509,7 @@ def registry_with_family(temp_dirs):
     """Create a registry with the modulo addition family including parameter_snapshot."""
     data_root = temp_dirs
 
-    family_dir = data_root / 'modulo_addition_1layer'
+    family_dir = data_root / "modulo_addition_1layer"
     family_dir.mkdir()
 
     family_json = {
