@@ -288,7 +288,7 @@ class TestFourierNucleationIntegration:
         """Small trained variant for integration testing."""
         import json
 
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
         family_dir = tmp_path / "model_families" / "modulo_addition_1layer"
         family_dir.mkdir(parents=True)
@@ -323,12 +323,12 @@ class TestFourierNucleationIntegration:
         }
         (family_dir / "family.json").write_text(json.dumps(family_json))
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=tmp_path / "model_families",
             results_dir=results_dir,
         )
-        family = registry.get_family("modulo_addition_1layer")
-        variant = registry.create_variant(family, {"prime": 11, "seed": 42, "data_seed": 598})
+        family = families["modulo_addition_1layer"]
+        variant = family.create_variant({"prime": 11, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=5, checkpoint_epochs=[0], device="cpu")
         return variant
 

@@ -14,7 +14,7 @@ import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dcc, html, no_update
 
 from dashboard.components.variant_selector import get_family_choices
-from dashboard.state import get_registry, refresh_registry, training_progress
+from dashboard.state import get_families, refresh_families, training_progress
 from dashboard.utils import parse_checkpoint_epochs
 
 
@@ -24,8 +24,8 @@ def create_training_page_nav(app: Dash) -> html.Div:
 
 def create_training_page_layout(app: Dash) -> html.Div:
     """Create the Training page layout."""
-    registry = get_registry()
-    family_choices = get_family_choices(registry, trainable_only=True)
+    families = get_families()
+    family_choices = get_family_choices(families, trainable_only=True)
     family_options = [{"label": display, "value": name} for display, name in family_choices]
     default_family = family_options[0]["value"] if family_options else None
 
@@ -164,10 +164,10 @@ def _run_training_thread(
     try:
         training_progress.update(0.05, "Initializing...")
 
-        registry = get_registry()
-        family = registry.get_family(family_name)
+        families = get_families()
+        family = families[family_name]
         params = {"prime": int(prime), "seed": int(seed), "data_seed": int(data_seed)}
-        variant = registry.create_variant(family, params)
+        variant = family.create_variant(params)
 
         checkpoint_epochs = parse_checkpoint_epochs(checkpoint_str)
         if not checkpoint_epochs:
@@ -185,7 +185,7 @@ def _run_training_thread(
             progress_callback=progress_callback,
         )
 
-        refresh_registry()
+        refresh_families()
 
         training_progress.finish(
             f"Training complete!\n"
@@ -213,8 +213,8 @@ def register_training_page_callbacks(app: Dash) -> None:
     def on_training_family_change(family_name: str | None) -> tuple[str, int, int, int]:
         if not family_name:
             return "Select a family", 113, 999, 598
-        registry = get_registry()
-        family = registry.get_family(family_name)
+        families = get_families()
+        family = families[family_name]
         defaults = family.get_default_params()
         prime = defaults.get("prime", 113)
         seed = defaults.get("seed", 999)
@@ -236,8 +236,8 @@ def register_training_page_callbacks(app: Dash) -> None:
         if not family_name or prime is None or seed is None:
             return no_update
         try:
-            registry = get_registry()
-            family = registry.get_family(family_name)
+            families = get_families()
+            family = families[family_name]
             variant_name = family.variant_pattern.format(
                 prime=int(prime), seed=int(seed), data_seed=int(data_seed or 598)
             )
@@ -268,14 +268,14 @@ def register_training_page_callbacks(app: Dash) -> None:
         if training_progress.get_state()["running"]:
             return no_update, no_update, "Training already in progress...", no_update
 
-        registry = get_registry()
-        family = registry.get_family(family_name)
+        families = get_families()
+        family = families[family_name]
         params = {
             "prime": int(prime or 113),
             "seed": int(seed or 999),
             "data_seed": int(data_seed or 598),
         }
-        check_variant = registry.create_variant(family, params)
+        check_variant = family.create_variant(params)
         checkpoint_count = len(check_variant.get_available_checkpoints())
         if checkpoint_count > 0:
             variant_name = family.variant_pattern.format(**params)

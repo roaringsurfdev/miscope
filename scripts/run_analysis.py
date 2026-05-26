@@ -35,7 +35,7 @@ ANALYZER_NAMES: list[str] | None = None
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
-variants = family.list_variants()
+variants = family.variants
 print(f"Family: {FAMILY_NAME}")
 print(f"Variants: {len(variants)}")
 for v in variants:

@@ -47,9 +47,8 @@ DEVICE = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 # Load family and variant
 # ---------------------------------------------------------------------------
 
-loaded_family = load_family(FAMILY_NAME)
-family = loaded_family.family  # underlying ModelFamily
-variant = loaded_family.get_variant(**VARIANT_PARAMS)
+family = load_family(FAMILY_NAME)
+variant = family.get_variant(**VARIANT_PARAMS)
 
 print(f"Variant: {variant.name}")
 print(f"Resume from: epoch {RESUME_FROM_EPOCH}")

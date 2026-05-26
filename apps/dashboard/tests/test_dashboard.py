@@ -169,14 +169,14 @@ class TestFamilySelectorComponent:
     def test_get_family_choices(self, mock_family_dir):
         """get_family_choices returns list of (display_name, name) tuples."""
         from dashboard.components.variant_selector import get_family_choices
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=Path(mock_family_dir) / "model_families",
             results_dir=Path(mock_family_dir) / "results",
         )
 
-        choices = get_family_choices(registry)
+        choices = get_family_choices(families)
 
         assert len(choices) == 1
         assert choices[0] == ("Test Family", "test_family")
@@ -184,14 +184,14 @@ class TestFamilySelectorComponent:
     def test_get_variant_choices(self, mock_family_dir):
         """get_variant_choices returns list of variant choices."""
         from dashboard.components.variant_selector import get_variant_choices
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=Path(mock_family_dir) / "model_families",
             results_dir=Path(mock_family_dir) / "results",
         )
 
-        choices = get_variant_choices(registry, "test_family")
+        choices = get_variant_choices(families, "test_family")
 
         assert len(choices) == 1
         # Check display name contains state indicator and params
@@ -203,28 +203,28 @@ class TestFamilySelectorComponent:
     def test_get_variant_choices_empty_family(self, mock_family_dir):
         """get_variant_choices returns empty list for unknown family."""
         from dashboard.components.variant_selector import get_variant_choices
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=Path(mock_family_dir) / "model_families",
             results_dir=Path(mock_family_dir) / "results",
         )
 
-        choices = get_variant_choices(registry, "nonexistent_family")
+        choices = get_variant_choices(families, "nonexistent_family")
 
         assert choices == []
 
     def test_get_state_indicator(self, mock_family_dir):
         """get_state_indicator returns correct symbols for states."""
         from dashboard.components.variant_selector import get_state_indicator
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=Path(mock_family_dir) / "model_families",
             results_dir=Path(mock_family_dir) / "results",
         )
 
-        variants = registry.get_variants("test_family")
+        variants = families["test_family"].variants
         assert len(variants) == 1
         variant = variants[0]
 
@@ -234,14 +234,14 @@ class TestFamilySelectorComponent:
     def test_format_variant_params(self, mock_family_dir):
         """format_variant_params creates readable parameter string."""
         from dashboard.components.variant_selector import format_variant_params
-        from miscope.families import FamilyRegistry
+        from miscope.families.discovery import discover_families
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=Path(mock_family_dir) / "model_families",
             results_dir=Path(mock_family_dir) / "results",
         )
 
-        variants = registry.get_variants("test_family")
+        variants = families["test_family"].variants
         variant = variants[0]
 
         params_str = format_variant_params(variant)

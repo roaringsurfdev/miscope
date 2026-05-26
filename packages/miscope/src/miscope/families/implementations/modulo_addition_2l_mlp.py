@@ -302,3 +302,8 @@ def load_modulo_addition_2l_mlp_family(
     family = ModuloAddition2LMLPFamily.from_json(family_json)
     assert isinstance(family, ModuloAddition2LMLPFamily)
     return family
+
+
+from miscope.families.discovery import register_family_implementation  # noqa: E402
+
+register_family_implementation("modulo_addition_2layer_mlp", ModuloAddition2LMLPFamily)

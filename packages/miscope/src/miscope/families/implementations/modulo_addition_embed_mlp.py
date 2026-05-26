@@ -243,3 +243,8 @@ def load_modulo_addition_embed_mlp_family(
     family = ModuloAdditionEmbedMLPFamily.from_json(family_json)
     assert isinstance(family, ModuloAdditionEmbedMLPFamily)
     return family
+
+
+from miscope.families.discovery import register_family_implementation  # noqa: E402
+
+register_family_implementation("modulo_addition_learned_emb_mlp", ModuloAdditionEmbedMLPFamily)

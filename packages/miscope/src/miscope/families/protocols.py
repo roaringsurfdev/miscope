@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import torch
@@ -10,6 +11,8 @@ from miscope.families.types import AnalysisDatasetSpec, ParameterSpec
 
 if TYPE_CHECKING:
     from miscope.architectures import HookedModel  # noqa: F401
+    from miscope.families.intervention_variant import InterventionVariant
+    from miscope.families.variant import Variant
 
 
 @runtime_checkable
@@ -81,6 +84,37 @@ class ModelFamily(Protocol):
 
         Example: "modulo_addition_1layer_p{prime}_seed{seed}"
         """
+        ...
+
+    @property
+    def results_dir(self) -> Path:
+        """Root results directory used for variant discovery."""
+        ...
+
+    def get_variant(self, **params: Any) -> Variant:
+        """Look up a trained variant by domain parameter values."""
+        ...
+
+    @property
+    def variants(self) -> list[Variant]:
+        """All discovered variants for this family."""
+        ...
+
+    @property
+    def variant_parameters(self) -> list[dict[str, Any]]:
+        """Parameter dicts for all discovered variants."""
+        ...
+
+    def create_variant(self, params: dict[str, Any]) -> Variant:
+        """Construct a Variant for this family without checking for files."""
+        ...
+
+    def create_intervention_variant(
+        self,
+        parent_params: dict[str, Any],
+        intervention_config: dict[str, Any],
+    ) -> InterventionVariant:
+        """Create an intervention variant nested under the parent variant."""
         ...
 
     def create_model(

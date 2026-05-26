@@ -10,9 +10,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from miscope import LoadedFamily, list_families, load_family
+from miscope import list_families, load_family
 from miscope.config import AppConfig
-from miscope.families import BaseModelFamily, Variant
+from miscope.families import BaseModelFamily, ModelFamily, Variant
 
 # --- Fixtures ---
 
@@ -121,10 +121,10 @@ def test_config(temp_project) -> AppConfig:
 class TestLoadFamily:
     """Tests for load_family() entry point."""
 
-    def test_load_family_returns_loaded_family(self, test_config):
-        """load_family returns a LoadedFamily instance."""
+    def test_load_family_returns_model_family(self, test_config):
+        """load_family returns a ModelFamily instance directly."""
         family = load_family("test_family", config=test_config)
-        assert isinstance(family, LoadedFamily)
+        assert isinstance(family, ModelFamily)
         assert family.name == "test_family"
 
     def test_load_family_not_found(self, test_config):
@@ -133,17 +133,17 @@ class TestLoadFamily:
             load_family("nonexistent", config=test_config)
 
     def test_load_family_display_name(self, test_config):
-        """LoadedFamily exposes display name."""
+        """ModelFamily exposes display name."""
         family = load_family("test_family", config=test_config)
         assert family.display_name == "Test Family"
 
     def test_load_family_description(self, test_config):
-        """LoadedFamily exposes description."""
+        """ModelFamily exposes description."""
         family = load_family("test_family", config=test_config)
         assert family.description == "A test family for unit tests"
 
     def test_load_family_repr(self, test_config):
-        """LoadedFamily has useful repr."""
+        """ModelFamily has useful repr."""
         family = load_family("test_family", config=test_config)
         r = repr(family)
         assert "test_family" in r
@@ -162,7 +162,7 @@ class TestListFamilies:
 
 
 class TestGetVariant:
-    """Tests for LoadedFamily.get_variant()."""
+    """Tests for ModelFamily.get_variant()."""
 
     def test_get_variant_by_params(self, test_config):
         """get_variant returns trained variant by parameter values."""
@@ -187,9 +187,9 @@ class TestGetVariant:
             family.get_variant(prime=97, seed=42)
 
     def test_list_variants(self, test_config):
-        """list_variants discovers all variants with directories."""
+        """family.variants discovers all variants with directories."""
         family = load_family("test_family", config=test_config)
-        variants = family.list_variants()
+        variants = family.variants
 
         # Should find 3 variant directories (1 trained, 1 analyzed, 1 untrained)
         assert len(variants) == 3
@@ -197,9 +197,9 @@ class TestGetVariant:
         assert "test_family_p113_seed999" in names
 
     def test_list_variant_parameters(self, test_config):
-        """list_variant_parameters returns list of param dicts."""
+        """family.variant_parameters returns list of param dicts."""
         family = load_family("test_family", config=test_config)
-        param_list = family.list_variant_parameters()
+        param_list = family.variant_parameters
 
         assert isinstance(param_list, list)
         assert len(param_list) == 3

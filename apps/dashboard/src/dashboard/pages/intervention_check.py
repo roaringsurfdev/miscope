@@ -23,7 +23,7 @@ from dash import Dash, Input, Output, State, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
 from dashboard.components.variant_selector import get_family_choices, get_variant_choices
-from dashboard.state import get_registry
+from dashboard.state import get_families
 from miscope.families.implementations.frequency_gain_hook import compute_hook_verification
 from miscope.visualization.renderers.intervention_check import render_hook_verification_chart
 
@@ -51,10 +51,9 @@ def _get_intervention_options(family_name: str | None, variant_name: str | None)
     if not family_name or not variant_name:
         return []
     try:
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             return []
         options = []
@@ -71,10 +70,9 @@ def _load_intervention_checkpoints(
 ) -> list[int]:
     """Return sorted checkpoint epochs for the given intervention."""
     try:
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             return []
         iv = next((i for i in variant.interventions if i.name == intervention_name), None)
@@ -96,10 +94,9 @@ def _compute_and_cache(
         return _state.last_result
 
     try:
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             return None
         iv = next((i for i in variant.interventions if i.name == intervention_name), None)
@@ -143,9 +140,9 @@ def _empty_figure(message: str = "Select an intervention") -> go.Figure:
 
 
 def create_intervention_check_page_nav(app: Dash) -> html.Div:
-    registry = get_registry()
+    families = get_families()
     family_options = [
-        {"label": display, "value": name} for display, name in get_family_choices(registry)
+        {"label": display, "value": name} for display, name in get_family_choices(families)
     ]
 
     return html.Div(
@@ -270,8 +267,8 @@ def register_intervention_check_callbacks(app: Dash) -> None:
     def on_family_selected(family_name: str | None):
         if family_name is None:
             raise PreventUpdate
-        registry = get_registry()
-        choices = get_variant_choices(registry, family_name)
+        families = get_families()
+        choices = get_variant_choices(families, family_name)
         options = [{"label": display, "value": name} for display, name in choices]
         return options, None
 

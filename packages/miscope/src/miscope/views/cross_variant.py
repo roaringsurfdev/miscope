@@ -26,8 +26,8 @@ from miscope.analysis.band_concentration import (
 )
 
 if TYPE_CHECKING:
+    from miscope.families.protocols import ModelFamily
     from miscope.families.variant import Variant
-    from miscope.loaded_family import LoadedFamily
 
 
 @dataclass
@@ -457,7 +457,7 @@ def classify_failure_mode(
 
 
 def load_family_comparison(
-    family: LoadedFamily,
+    family: ModelFamily,
     rules: ClassificationRules | None = None,
 ) -> pd.DataFrame:
     """Compute summary metrics for all variants in a family.
@@ -478,7 +478,7 @@ def load_family_comparison(
         rules = ClassificationRules()
 
     rows = []
-    for variant in family.list_variants():
+    for variant in family.variants:
         metrics = compute_variant_metrics(variant, rules)
         metrics.pop("failure_mode_reasons", None)
         rows.append(metrics)

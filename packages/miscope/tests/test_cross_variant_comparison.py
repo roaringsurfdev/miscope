@@ -236,7 +236,7 @@ class TestComputeVariantMetrics:
 class TestLoadFamilyComparison:
     def _make_family(self, variants: list) -> MagicMock:
         family = MagicMock()
-        family.list_variants.return_value = variants
+        family.variants = variants
         return family
 
     def test_returns_dataframe(self):

@@ -12,7 +12,7 @@ from dash import Dash, Input, Output, State, dash_table, html, set_props
 from dash.exceptions import PreventUpdate
 
 from dashboard.components.variant_selector import get_variant_choices
-from dashboard.state import get_registry, variant_server_state
+from dashboard.state import get_families, variant_server_state
 
 # ---------------------------------------------------------------------------
 # Classification label colours
@@ -35,12 +35,12 @@ def _load_table_rows() -> list[dict]:
 
     Returns a flat list of row dicts ready for DataTable.
     """
-    registry = get_registry()
+    families = get_families()
     rows: list[dict] = []
 
-    for family in registry.list_families():
+    for family in families.values():
         # Derive results dir for this family from an existing variant, or skip.
-        variants = registry.get_variants(family)
+        variants = family.variants
         if not variants:
             continue
 
@@ -227,10 +227,10 @@ def register_variant_table_page_callbacks(app: Dash) -> None:
                 }
             },
         )
-        registry = get_registry()
+        families = get_families()
         variant_options = [
             {"label": display, "value": name}
-            for display, name in get_variant_choices(registry, family_name)
+            for display, name in get_variant_choices(families, family_name)
         ]
         set_props("variant-selector-family-dropdown", {"value": family_name})
         set_props(

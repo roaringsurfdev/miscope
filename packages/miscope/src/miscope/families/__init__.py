@@ -1,4 +1,4 @@
-"""Model family abstractions for the Training Dynamics Workbench.
+"""Model family abstractions for MIScope.
 
 This module provides the core abstractions for grouping structurally
 similar models that share analysis logic.
@@ -6,41 +6,36 @@ similar models that share analysis logic.
 Key concepts:
 - ModelFamily: Protocol defining what a family must provide
 - Variant: A specific trained model within a family
-- FamilyRegistry: Discovers families and variants from filesystem
+- discovery: Filesystem helpers for locating and loading families
 
 Example usage:
-    from miscope.families import FamilyRegistry, Variant, VariantState
+    from miscope import load_family
 
-    # Initialize registry
-    registry = FamilyRegistry(
-        model_families_dir="model_families",
-        results_dir="results"
-    )
+    family = load_family("modulo_addition_1layer")
 
-    # Get a family
-    family = registry.get_family("modulo_addition_1layer")
+    # Look up a trained variant
+    variant = family.get_variant(prime=113, seed=999, data_seed=598)
 
-    # Discover variants
-    variants = registry.get_variants(family)
-    for variant in variants:
-        print(f"{variant.name}: {variant.state.value}")
+    # Iterate all variants
+    for v in family.variants:
+        print(f"{v.name}: {v.state.value}")
 
-    # Create a new variant
-    variant = registry.create_variant(
-        family,
-        {"prime": 113, "seed": 42}
-    )
-
-    # Create a model (requires family with implementation)
-    model = family.create_model({"prime": 113, "seed": 42})
+    # Construct a new variant (for training)
+    variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
 """
 
-# Import implementations to trigger registration
 from miscope.families.base_model_family import BaseModelFamily
+from miscope.families.discovery import (
+    discover_families,
+    list_family_dirs,
+    load_family_from_dir,
+    register_family_implementation,
+)
+
+# Importing implementations triggers self-registration with discovery.
 from miscope.families.implementations import ModuloAddition1LayerFamily  # noqa: F401
 from miscope.families.intervention_variant import InterventionVariant
 from miscope.families.protocols import ModelFamily
-from miscope.families.registry import FamilyRegistry
 from miscope.families.types import (
     AnalysisDatasetSpec,
     ArchitectureSpec,
@@ -53,9 +48,8 @@ __all__ = [
     # Protocols
     "ModelFamily",
     # Classes
-    "FamilyRegistry",
-    "InterventionVariant",
     "BaseModelFamily",
+    "InterventionVariant",
     "ModuloAddition1LayerFamily",
     "TrainingResult",
     "Variant",
@@ -64,4 +58,9 @@ __all__ = [
     "ArchitectureSpec",
     "ParameterSpec",
     "VariantState",
+    # Discovery helpers
+    "discover_families",
+    "list_family_dirs",
+    "load_family_from_dir",
+    "register_family_implementation",
 ]

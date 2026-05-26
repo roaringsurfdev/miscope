@@ -13,10 +13,10 @@ import pytest
 
 from miscope.families import (
     BaseModelFamily,
-    FamilyRegistry,
     Variant,
     VariantState,
 )
+from miscope.families.discovery import discover_families
 
 # --- Fixtures ---
 
@@ -234,80 +234,54 @@ class TestVariant:
         assert len(variant_set) == 1
 
 
-# --- FamilyRegistry Tests ---
+# --- Family discovery & lookup tests ---
 
 
-class TestFamilyRegistry:
-    """Tests for FamilyRegistry class."""
+class TestFamilyDiscovery:
+    """Tests for discover_families and the family's variant-lookup API."""
 
     def test_load_families(self, temp_project_dir):
         """Test family discovery from directory."""
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=temp_project_dir / "model_families",
             results_dir=temp_project_dir / "results",
         )
 
-        assert len(registry) == 1
-        assert "test_family" in registry
-
-    def test_get_family(self, temp_project_dir):
-        """Test getting a family by name."""
-        registry = FamilyRegistry(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
-        family = registry.get_family("test_family")
-        assert family.name == "test_family"
-
-    def test_get_family_not_found(self, temp_project_dir):
-        """Test error when family not found."""
-        registry = FamilyRegistry(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
-        with pytest.raises(KeyError) as exc_info:
-            registry.get_family("nonexistent")
-
-        assert "not found" in str(exc_info.value)
-
-    def test_list_families(self, temp_project_dir):
-        """Test listing all families."""
-        registry = FamilyRegistry(
-            model_families_dir=temp_project_dir / "model_families",
-            results_dir=temp_project_dir / "results",
-        )
-
-        families = registry.list_families()
         assert len(families) == 1
-        assert families[0].name == "test_family"
+        assert "test_family" in families
+
+    def test_family_name(self, temp_project_dir):
+        """Test that the discovered family has the right name."""
+        families = discover_families(
+            model_families_dir=temp_project_dir / "model_families",
+            results_dir=temp_project_dir / "results",
+        )
+        assert families["test_family"].name == "test_family"
 
     def test_get_variants(self, temp_project_dir):
-        """Test variant discovery for a family."""
-        registry = FamilyRegistry(
+        """Test variant discovery via family.variants."""
+        families = discover_families(
             model_families_dir=temp_project_dir / "model_families",
             results_dir=temp_project_dir / "results",
         )
 
-        variants = registry.get_variants("test_family")
+        variants = families["test_family"].variants
         assert len(variants) == 1
         assert variants[0].name == "test_family_p113_seed42"
         assert variants[0].params == {"prime": 113, "seed": 42}
 
     def test_get_variants_multiple(self, temp_project_dir):
         """Test discovering multiple variants."""
-        # Create additional variant directories
         results_base = temp_project_dir / "results" / "test_family"
         (results_base / "test_family_p97_seed42").mkdir()
         (results_base / "test_family_p113_seed999").mkdir()
 
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=temp_project_dir / "model_families",
             results_dir=temp_project_dir / "results",
         )
 
-        variants = registry.get_variants("test_family")
+        variants = families["test_family"].variants
         assert len(variants) == 3
 
         variant_names = {v.name for v in variants}
@@ -316,26 +290,25 @@ class TestFamilyRegistry:
         assert "test_family_p113_seed999" in variant_names
 
     def test_create_variant(self, temp_project_dir):
-        """Test creating a new variant instance."""
-        registry = FamilyRegistry(
+        """Test creating a new variant instance via family.create_variant."""
+        families = discover_families(
             model_families_dir=temp_project_dir / "model_families",
             results_dir=temp_project_dir / "results",
         )
 
-        variant = registry.create_variant("test_family", {"prime": 97, "seed": 123})
+        variant = families["test_family"].create_variant({"prime": 97, "seed": 123})
         assert variant.name == "test_family_p97_seed123"
         assert variant.state == VariantState.UNTRAINED
 
     def test_empty_model_families_dir(self):
-        """Test registry with no families directory."""
+        """Test discovery returns empty dict when no families directory exists."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            registry = FamilyRegistry(
+            families = discover_families(
                 model_families_dir=Path(tmpdir) / "nonexistent",
                 results_dir=Path(tmpdir) / "results",
             )
 
-            assert len(registry) == 0
-            assert registry.list_families() == []
+            assert families == {}
 
 
 # --- Path Resolution Tests ---
