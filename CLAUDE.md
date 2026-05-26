@@ -6,10 +6,11 @@ See [PROJECT.md](PROJECT.md) for the full mission and architectural principles.
 
 **Mission:** A dynamics analysis platform that standardizes and hones lenses on models as they learn. This platform asks *how did learning happen?* — not *did the model learn the task?*
 
-**Two architectural constraints that must hold across all requirements:**
+**Three architectural constraints that must hold across all requirements:**
 
 1. **Views are universal instruments.** Analytical lenses (PCA, Fourier, neuron activations, attention patterns, loss curves) apply to any transformer. They do not belong to a model family. The instrument does not change shape because of what it's pointed at.
 2. **Families are context providers, not view owners.** A family contributes probe construction, interpretive context (e.g., a prime-based Fourier basis), and task-specific performance metrics. It does not register or own analytical views.
+3. **Storage layout is internal to the API.** Consumers reach data through `Variant`, `ModelFamily`, and the View Catalog — never through file-path literals or direct construction of storage primitives (e.g. `ArtifactLoader`). Deployment-time file paths live in app-level config files, not in code. If an accessor doesn't exist for some piece of stored data, add the accessor — don't reach past the API.
 
 When a requirement conflicts with these constraints, flag it before implementing.
 
@@ -389,6 +390,6 @@ The goal is not rigid rules but shared understanding that empowers both of us to
 
 ---
 
-**Version:** 0.7
-**Last Updated:** 2026-05-07
-**Status:** Updated for monorepo layout (REQ_115) — packages/, apps/, co-located tests, scripts/
+**Version:** 0.8
+**Last Updated:** 2026-05-26
+**Status:** Added third architectural constraint — storage layout is internal to the API (post-REQ_122 review).

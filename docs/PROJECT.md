@@ -20,7 +20,9 @@ The platform **accumulates analytical capability over time.** When a lens reveal
 
 **Scientific invariant:** For any analysis run, the only independent variable is the training checkpoint. The model variant and probe dataset are held constant. Confounds introduced by researcher error — different probes, accidental model variation — make visualizations misleading. The workbench systematizes this so comparisons are meaningful.
 
-**Architectural invariant:** Analytical views are universal instruments. A lens that reveals structure in one transformer applies to any transformer. The instrument does not change shape because of the model family. Families are context providers — they contribute probe construction, interpretive context (e.g., a prime-based Fourier basis for modulo addition), and task-specific performance metrics. They do not own analytical views.
+**Architectural invariant (views & families):** Analytical views are universal instruments. A lens that reveals structure in one transformer applies to any transformer. The instrument does not change shape because of the model family. Families are context providers — they contribute probe construction, interpretive context (e.g., a prime-based Fourier basis for modulo addition), and task-specific performance metrics. They do not own analytical views.
+
+**Architectural invariant (storage encapsulation):** The on-disk layout — where checkpoints, artifacts, family configs, and registry summaries live — is internal to the API. Consumers (notebooks, dashboard pages, scripts, sketches) reach data through `Variant`, `ModelFamily`, and the View Catalog. No file-path literals (`Path("results/...")`, `Path("model_families")`) appear outside configuration; deployment-time file paths belong in app-level config files, not in code. Storage primitives such as `ArtifactLoader` are implementation details, not public surface, and may be reshaped as the storage layer evolves. If an accessor doesn't exist for some piece of stored data, the right move is to add the accessor to the API rather than reach past it.
 
 ## What This Platform Is Not
 
@@ -132,5 +134,5 @@ variant.view("parameter_trajectory").figure()   # raw Plotly fig for dashboard
 
 ---
 
-**Last Updated:** 2026-02-21
+**Last Updated:** 2026-05-26
 *(For version history and recent changes, see [CHANGELOG.md](CHANGELOG.md))*
