@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 
-from miscope.families.types import AnalysisDatasetSpec, ArchitectureSpec, ParameterSpec
+from miscope.families.types import (
+    AnalysisDatasetSpec,
+    ArchitectureSpec,
+    ParameterSpec,
+    VariantState,
+)
+from miscope.families.variant import Variant
+
+if TYPE_CHECKING:
+    from miscope.families.intervention_variant import InterventionVariant
 
 
 class BaseModelFamily:
@@ -22,23 +32,36 @@ class BaseModelFamily:
     the ModelFamily protocol directly.
     """
 
-    def __init__(self, config: dict[str, Any], config_path: Path | None = None):
+    def __init__(
+        self,
+        config: dict[str, Any],
+        config_path: Path | None = None,
+        results_dir: Path | str | None = None,
+    ):
         """Initialize from config dict.
 
         Args:
             config: Parsed family.json content
             config_path: Path to the family.json file (for error messages)
+            results_dir: Root results directory used for variant discovery.
+                Defaults to ``Path("results")`` if not provided.
         """
         self._config = config
         self._config_path = config_path
+        self._results_dir = Path(results_dir) if results_dir is not None else Path("results")
         self._validate_config()
 
     @classmethod
-    def from_json(cls, path: Path | str) -> BaseModelFamily:
+    def from_json(
+        cls,
+        path: Path | str,
+        results_dir: Path | str | None = None,
+    ) -> BaseModelFamily:
         """Load a BaseModelFamily from a family.json file.
 
         Args:
             path: Path to family.json
+            results_dir: Root results directory used for variant discovery.
 
         Returns:
             BaseModelFamily instance
@@ -46,7 +69,7 @@ class BaseModelFamily:
         path = Path(path)
         with open(path) as f:
             config = json.load(f)
-        return cls(config, config_path=path)
+        return cls(config, config_path=path, results_dir=results_dir)
 
     def _validate_config(self) -> None:
         """Validate required fields are present."""
@@ -113,6 +136,85 @@ class BaseModelFamily:
     def variant_pattern(self) -> str:
         """Pattern for variant directory names."""
         return self._config["variant_pattern"]
+
+    @property
+    def results_dir(self) -> Path:
+        """Root results directory used for variant discovery."""
+        return self._results_dir
+
+    # --- Variant lookup ------------------------------------------------
+
+    def get_variant(self, **params: Any) -> Variant:
+        """Get a trained variant by domain parameter values.
+
+        Args:
+            **params: Domain parameters (e.g., prime=113, seed=999)
+
+        Returns:
+            Variant object with convenience access to checkpoints,
+            artifacts, metadata, and forward passes.
+
+        Raises:
+            ValueError: If the variant doesn't exist or isn't trained.
+        """
+        variant = self.create_variant(params)
+        if variant.state == VariantState.UNTRAINED:
+            available = self.variant_parameters
+            raise ValueError(
+                f"Variant with params {params} not found or not trained. "
+                f"Available variants: {available}"
+            )
+        return variant
+
+    @property
+    def variants(self) -> list[Variant]:
+        """All discovered variants for this family.
+
+        Scans ``{results_dir}/{name}/`` for directories matching this
+        family's ``variant_pattern``.
+        """
+        family_results_dir = self._results_dir / self.name
+        if not family_results_dir.exists():
+            return []
+
+        pattern_regex = _pattern_to_regex(self.variant_pattern, self.domain_parameters)
+        variants: list[Variant] = []
+        for variant_dir in family_results_dir.iterdir():
+            if not variant_dir.is_dir():
+                continue
+            match = pattern_regex.match(variant_dir.name)
+            if match:
+                params = _extract_params(match, self.domain_parameters)
+                variants.append(Variant(self, params, self._results_dir))
+        return variants
+
+    @property
+    def variant_parameters(self) -> list[dict[str, Any]]:
+        """Parameter dicts for all discovered variants."""
+        return [v.params for v in self.variants]
+
+    def create_variant(self, params: dict[str, Any]) -> Variant:
+        """Construct a Variant for this family without checking for files.
+
+        Use this when you intend to create a new variant (e.g. for training),
+        or when you want a Variant handle regardless of training state.
+        """
+        return Variant(self, params, self._results_dir)
+
+    def create_intervention_variant(
+        self,
+        parent_params: dict[str, Any],
+        intervention_config: dict[str, Any],
+    ) -> InterventionVariant:
+        """Create an intervention variant nested under the parent variant.
+
+        Args:
+            parent_params: Domain parameters identifying the parent variant.
+            intervention_config: Intervention parameter dict (passed to
+                ``Variant.create_intervention_variant``).
+        """
+        parent = self.get_variant(**parent_params)
+        return parent.create_intervention_variant(intervention_config)
 
     @property
     def ui_trainable(self) -> bool:
@@ -325,4 +427,37 @@ class BaseModelFamily:
         }
 
     def __repr__(self) -> str:
-        return f"BaseModelFamily(name={self.name!r})"
+        return f"{type(self).__name__}(name={self.name!r})"
+
+
+def _pattern_to_regex(pattern: str, domain_parameters: dict[str, Any]) -> re.Pattern[str]:
+    """Convert a variant pattern to a regex for matching directory names."""
+    regex_pattern = re.escape(pattern)
+    for param_name, spec in domain_parameters.items():
+        placeholder = re.escape("{" + param_name + "}")
+        param_type = spec.get("type", "str")
+        if param_type == "int":
+            capture_group = f"(?P<{param_name}>\\d+)"
+        elif param_type == "float":
+            capture_group = f"(?P<{param_name}>\\d+\\.?\\d*)"
+        else:
+            capture_group = f"(?P<{param_name}>[^_]+)"
+        regex_pattern = regex_pattern.replace(placeholder, capture_group)
+    return re.compile(f"^{regex_pattern}$")
+
+
+def _extract_params(
+    match: re.Match[str], domain_parameters: dict[str, Any]
+) -> dict[str, Any]:
+    """Extract typed parameters from a regex match."""
+    params: dict[str, Any] = {}
+    for param_name, spec in domain_parameters.items():
+        raw_value = match.group(param_name)
+        param_type = spec.get("type", "str")
+        if param_type == "int":
+            params[param_name] = int(raw_value)
+        elif param_type == "float":
+            params[param_name] = float(raw_value)
+        else:
+            params[param_name] = raw_value
+    return params

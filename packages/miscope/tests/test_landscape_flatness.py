@@ -16,7 +16,7 @@ from miscope.analysis.analyzers import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.landscape_flatness import FLATNESS_SUMMARY_KEYS
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.landscape import compute_landscape_flatness
-from miscope.families import FamilyRegistry
+from miscope.families.discovery import discover_families
 from miscope.visualization.renderers.landscape_flatness import (
     FLATNESS_METRICS,
     render_flatness_trajectory,
@@ -351,20 +351,20 @@ def registry_with_family(temp_dirs):
     with open(family_dir / "family.json", "w") as f:
         json.dump(family_json, f)
 
-    registry = FamilyRegistry(
+    families = discover_families(
         model_families_dir=model_families_dir,
         results_dir=results_dir,
     )
-    return registry, results_dir
+    return families, results_dir
 
 
 @pytest.fixture
 def trained_variant(registry_with_family):
     """Create a trained variant with minimal training."""
-    registry, results_dir = registry_with_family
-    family = registry.get_family("modulo_addition_1layer")
+    families, results_dir = registry_with_family
+    family = families["modulo_addition_1layer"]
     params = {"prime": 17, "seed": 42, "data_seed": 598}
-    variant = registry.create_variant(family, params)
+    variant = family.create_variant(params)
 
     variant.train(
         num_epochs=50,

@@ -22,7 +22,7 @@ from dash import Dash, Input, Output, State, dcc, html
 from dash.exceptions import PreventUpdate
 from plotly.subplots import make_subplots
 
-from dashboard.state import get_registry
+from dashboard.state import get_families
 from miscope.analysis.analyzers.gradient_site import _fourier_gradient_by_site
 from miscope.analysis.library import get_fourier_basis
 
@@ -109,8 +109,8 @@ def _run_sweep(prime: int, model_seeds: list[int], data_seeds: list[int]) -> str
     import torch
 
     try:
-        registry = get_registry()
-        family = registry.get_family("modulo_addition_1layer")
+        families = get_families()
+        family = families["modulo_addition_1layer"]
     except Exception as exc:
         return f"Could not load family: {exc}"
 

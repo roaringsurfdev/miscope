@@ -21,7 +21,7 @@ def run(results_dir: Path, family_name: str) -> None:
         sys.exit(1)
 
     family = load_family(family_name)
-    for variant in family.list_variants():
+    for variant in family.variants:
         summary = VariantAnalysisSummary(variant)
         summary.analyze()
 

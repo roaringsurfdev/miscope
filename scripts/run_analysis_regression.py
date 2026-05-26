@@ -33,7 +33,7 @@ EXCLUDE_FROM_REGRESSION = {"landscape_flatness", "fourier_nucleation"}
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
-variants = family.list_variants()
+variants = family.variants
 print(f"Family: {FAMILY_NAME}")
 print(f"Variants: {len(variants)}")
 for v in variants:

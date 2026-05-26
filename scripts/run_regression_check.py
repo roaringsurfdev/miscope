@@ -176,11 +176,9 @@ def main() -> None:
             sys.exit(1)
 
     from miscope.config import get_config
-    from miscope.families.registry import FamilyRegistry
+    from miscope.families.discovery import discover_families
 
     cfg = get_config()
-    src_registry = FamilyRegistry(cfg.model_families_dir, cfg.results_dir)
-    family = src_registry.get_family(FAMILY)
 
     all_errors: list[str] = []
 
@@ -208,8 +206,9 @@ def main() -> None:
             if src.exists() and not dst.exists():
                 dst.symlink_to(src.resolve())
 
-        out_registry = FamilyRegistry(cfg.model_families_dir, args.output_dir)
-        variant = next((v for v in out_registry.get_variants(family) if v.name == vid), None)
+        out_families = discover_families(cfg.model_families_dir, args.output_dir)
+        out_family = out_families[FAMILY]
+        variant = next((v for v in out_family.variants if v.name == vid), None)
         if variant is None:
             print("  ERROR — could not load variant from output dir")
             all_errors.append(f"  ERROR   {vid} — variant load failed")

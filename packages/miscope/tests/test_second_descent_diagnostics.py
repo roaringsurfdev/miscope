@@ -410,7 +410,7 @@ class TestComputeVariantMetricsREQ065:
 class TestLoadFamilyComparisonREQ065:
     def _make_family(self, variants) -> MagicMock:
         family = MagicMock()
-        family.list_variants.return_value = variants
+        family.variants = variants
         return family
 
     @pytest.mark.skip(reason="this test is currently disabled until metrics are stabilized")

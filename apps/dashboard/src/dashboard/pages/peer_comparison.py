@@ -13,7 +13,7 @@ from dash import Dash, Input, Output, State, ctx, dcc, html
 from dash.exceptions import PreventUpdate
 from plotly.subplots import make_subplots
 
-from dashboard.state import get_registry, variant_server_state
+from dashboard.state import get_families, variant_server_state
 from miscope.families.variant import Variant
 
 # --- Constants ---
@@ -44,8 +44,8 @@ def _peer_label(variant: Variant, axis: str) -> str:
 
 def _get_axis_variants(anchor: Variant, axis: str) -> list[Variant]:
     """All variants (anchor included) sharing non-axis params with anchor."""
-    registry = get_registry()
-    all_variants = registry.get_variants(registry.get_family(anchor.family.name))
+    families = get_families()
+    all_variants = families[anchor.family.name].variants
     fixed = {k: v for k, v in anchor.params.items() if k != axis}
     siblings = [v for v in all_variants if all(v.params.get(k) == val for k, val in fixed.items())]
     return sorted(siblings, key=lambda v: v.params.get(axis, 0))

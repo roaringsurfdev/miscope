@@ -307,7 +307,7 @@ def trained_variant():
     import json
     import tempfile
 
-    from miscope.families import FamilyRegistry
+    from miscope.families.discovery import discover_families
 
     with tempfile.TemporaryDirectory() as tmpdir:
         model_families_dir = Path(tmpdir) / "model_families"
@@ -341,11 +341,11 @@ def trained_variant():
             "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
         }
         (family_dir / "family.json").write_text(json.dumps(family_json))
-        registry = FamilyRegistry(
+        families = discover_families(
             model_families_dir=model_families_dir, results_dir=results_dir
         )
-        family = registry.get_family("modulo_addition_1layer")
-        variant = registry.create_variant(family, {"prime": 17, "seed": 42, "data_seed": 598})
+        family = families["modulo_addition_1layer"]
+        variant = family.create_variant({"prime": 17, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=10, checkpoint_epochs=[0, 9], device="cpu")
         yield variant
 

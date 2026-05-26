@@ -11,7 +11,7 @@ parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
 from miscope import load_family  # noqa: E402
-from miscope.loaded_family import Variant  # noqa: E402
+from miscope.families import Variant  # noqa: E402
 
 # from miscope.visualization.export import export_animation
 

@@ -401,3 +401,10 @@ def load_modulo_addition_1layer_family(
     family = ModuloAddition1LayerFamily.from_json(family_json)
     assert isinstance(family, ModuloAddition1LayerFamily)
     return family
+
+
+# Self-register on import so the discovery helper can route family.json
+# files with name="modulo_addition_1layer" to this implementation.
+from miscope.families.discovery import register_family_implementation  # noqa: E402
+
+register_family_implementation("modulo_addition_1layer", ModuloAddition1LayerFamily)

@@ -12,7 +12,8 @@ import torch
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.inputs import ResolvedInputs
-from miscope.families import FamilyRegistry, VariantState
+from miscope.families import VariantState
+from miscope.families.discovery import discover_families
 from miscope.families.implementations import ModuloAddition1LayerFamily
 
 
@@ -67,12 +68,18 @@ def temp_project_dir() -> Path:
 
 
 @pytest.fixture
-def registry(temp_project_dir) -> FamilyRegistry:
-    """Create a FamilyRegistry with the temp project."""
-    return FamilyRegistry(
+def families(temp_project_dir):
+    """Discover families in the temp project."""
+    return discover_families(
         model_families_dir=temp_project_dir / "model_families",
         results_dir=temp_project_dir / "results",
     )
+
+
+@pytest.fixture
+def family(families):
+    """The modulo_addition_1layer family from the temp project."""
+    return families["modulo_addition_1layer"]
 
 
 # --- Family Discovery Tests ---
@@ -81,20 +88,17 @@ def registry(temp_project_dir) -> FamilyRegistry:
 class TestFamilyDiscovery:
     """Tests for family discovery and loading."""
 
-    def test_registry_discovers_family(self, registry):
-        """Test that registry discovers the modulo_addition_1layer family."""
-        assert "modulo_addition_1layer" in registry
-        assert len(registry) == 1
+    def test_registry_discovers_family(self, families):
+        """Test that discovery finds the modulo_addition_1layer family."""
+        assert "modulo_addition_1layer" in families
+        assert len(families) == 1
 
-    def test_family_is_correct_implementation(self, registry):
+    def test_family_is_correct_implementation(self, family):
         """Test that the family is loaded as ModuloAddition1LayerFamily."""
-        family = registry.get_family("modulo_addition_1layer")
         assert isinstance(family, ModuloAddition1LayerFamily)
 
-    def test_family_properties(self, registry):
+    def test_family_properties(self, family):
         """Test that family properties are correct."""
-        family = registry.get_family("modulo_addition_1layer")
-
         assert family.name == "modulo_addition_1layer"
         assert family.display_name == "Modulo Addition (1 Layer)"
         assert family.architecture["n_layers"] == 1
@@ -108,9 +112,8 @@ class TestFamilyDiscovery:
 class TestModelCreation:
     """Tests for model creation."""
 
-    def test_create_model_basic(self, registry):
+    def test_create_model_basic(self, family):
         """Test basic model creation."""
-        family = registry.get_family("modulo_addition_1layer")
         model = family.create_model({"prime": 11, "seed": 42})
 
         assert model is not None
@@ -118,18 +121,15 @@ class TestModelCreation:
         assert model.cfg.d_vocab == 12  # p + 1
         assert model.cfg.d_vocab_out == 11  # p
 
-    def test_create_model_vocab_size(self, registry):
+    def test_create_model_vocab_size(self, family):
         """Test that vocabulary size is correct for different primes."""
-        family = registry.get_family("modulo_addition_1layer")
-
         for p in [7, 11, 17]:
             model = family.create_model({"prime": p})
             assert model.cfg.d_vocab == p + 1
             assert model.cfg.d_vocab_out == p
 
-    def test_create_model_architecture(self, registry):
+    def test_create_model_architecture(self, family):
         """Test that model architecture matches family config."""
-        family = registry.get_family("modulo_addition_1layer")
         model = family.create_model({"prime": 11})
 
         assert model.cfg.n_layers == 1
@@ -138,9 +138,8 @@ class TestModelCreation:
         assert model.cfg.d_mlp == 512
         assert model.cfg.act_fn == "relu"
 
-    def test_create_model_biases_disabled(self, registry):
+    def test_create_model_biases_disabled(self, family):
         """Test that biases are disabled (requires_grad=False)."""
-        family = registry.get_family("modulo_addition_1layer")
         model = family.create_model({"prime": 11})
 
         for name, param in model.named_parameters():
@@ -154,17 +153,15 @@ class TestModelCreation:
 class TestDatasetGeneration:
     """Tests for analysis dataset generation."""
 
-    def test_generate_dataset_shape(self, registry):
+    def test_generate_dataset_shape(self, family):
         """Test that dataset has correct shape."""
-        family = registry.get_family("modulo_addition_1layer")
         p = 11
         dataset = family.generate_analysis_dataset({"prime": p})
 
         assert dataset.shape == (p * p, 3)
 
-    def test_generate_dataset_content(self, registry):
+    def test_generate_dataset_content(self, family):
         """Test that dataset contains correct values."""
-        family = registry.get_family("modulo_addition_1layer")
         p = 5
         dataset = family.generate_analysis_dataset({"prime": p})
 
@@ -182,9 +179,8 @@ class TestDatasetGeneration:
         # Column 2 should all be equals token (p)
         assert (dataset[:, 2] == p).all()
 
-    def test_get_labels(self, registry):
+    def test_get_labels(self, family):
         """Test that labels are correct."""
-        family = registry.get_family("modulo_addition_1layer")
         p = 7
         labels = family.get_labels({"prime": p})
 
@@ -206,25 +202,21 @@ class TestDatasetGeneration:
 class TestVariantIntegration:
     """Tests for variant creation and discovery."""
 
-    def test_create_variant(self, registry):
+    def test_create_variant(self, family):
         """Test creating a variant."""
-        variant = registry.create_variant(
-            "modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598}
-        )
+        variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
 
         assert variant.name == "modulo_addition_1layer_p113_seed42_dseed598"
         assert variant.state == VariantState.UNTRAINED
 
-    def test_variant_directory_structure(self, registry, temp_project_dir):
+    def test_variant_directory_structure(self, family, temp_project_dir):
         """Test variant directory paths."""
-        variant = registry.create_variant(
-            "modulo_addition_1layer", {"prime": 113, "seed": 42, "data_seed": 598}
-        )
+        variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
 
         expected_base = temp_project_dir / "results" / "modulo_addition_1layer"
         assert variant.variant_dir == expected_base / "modulo_addition_1layer_p113_seed42_dseed598"
 
-    def test_discover_variants(self, registry, temp_project_dir):
+    def test_discover_variants(self, family, temp_project_dir):
         """Test discovering existing variants."""
         # Create a variant directory
         variant_dir = (
@@ -237,7 +229,7 @@ class TestVariantIntegration:
         (variant_dir / "checkpoints").mkdir()
         (variant_dir / "checkpoints" / "checkpoint_epoch_00100.safetensors").touch()
 
-        variants = registry.get_variants("modulo_addition_1layer")
+        variants = family.variants
 
         assert len(variants) == 1
         assert variants[0].name == "modulo_addition_1layer_p17_seed123_dseed598"
@@ -251,9 +243,8 @@ class TestVariantIntegration:
 class TestAnalyzerIntegration:
     """Tests for analyzer integration with the family."""
 
-    def test_get_analyzers_for_family(self, registry):
+    def test_get_analyzers_for_family(self, family):
         """Test getting analyzers for the family."""
-        family = registry.get_family("modulo_addition_1layer")
         analyzers = AnalyzerRegistry.get_for_family(family)
 
         assert len(analyzers) == 3
@@ -262,9 +253,8 @@ class TestAnalyzerIntegration:
         assert "neuron_activations" in analyzer_names
         assert "neuron_freq_norm" in analyzer_names
 
-    def test_run_dominant_frequencies_analyzer(self, registry):
+    def test_run_dominant_frequencies_analyzer(self, family):
         """Test running the dominant frequencies analyzer."""
-        family = registry.get_family("modulo_addition_1layer")
         params = {"prime": 7, "seed": 42}
 
         model = family.create_model(params)
@@ -282,9 +272,8 @@ ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         assert "coefficients" in result
         assert result["coefficients"].shape[0] == context["fourier_basis"].shape[0]
 
-    def test_run_neuron_activations_analyzer(self, registry):
+    def test_run_neuron_activations_analyzer(self, family):
         """Test running the neuron activations analyzer."""
-        family = registry.get_family("modulo_addition_1layer")
         params = {"prime": 7, "seed": 42}
 
         model = family.create_model(params)
@@ -304,9 +293,8 @@ ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         d_mlp = model.cfg.d_mlp
         assert result["activations"].shape == (d_mlp, p, p)
 
-    def test_run_neuron_freq_norm_analyzer(self, registry):
+    def test_run_neuron_freq_norm_analyzer(self, family):
         """Test running the neuron frequency clusters analyzer."""
-        family = registry.get_family("modulo_addition_1layer")
         params = {"prime": 7, "seed": 42}
 
         model = family.create_model(params)
@@ -333,15 +321,14 @@ ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
 class TestEndToEnd:
     """End-to-end integration test."""
 
-    def test_full_workflow(self, registry):
+    def test_full_workflow(self, family):
         """Test complete workflow: family -> model -> dataset -> analysis."""
-        # 1. Get family from registry
-        family = registry.get_family("modulo_addition_1layer")
+        # 1. Family is the loaded modulo_addition_1layer implementation.
         assert isinstance(family, ModuloAddition1LayerFamily)
 
         # 2. Create a variant
         params = {"prime": 7, "seed": 42, "data_seed": 598}
-        variant = registry.create_variant(family, params)
+        variant = family.create_variant(params)
         assert variant.name == "modulo_addition_1layer_p7_seed42_dseed598"
 
         # 3. Create model

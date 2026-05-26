@@ -12,7 +12,7 @@ import pytest
 from miscope.analysis import AnalysisPipeline, ArtifactLoader
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.protocols import SecondaryAnalyzer as SecondaryAnalyzerProtocol
-from miscope.families import FamilyRegistry
+from miscope.families.discovery import discover_families
 
 # ── Minimal fake analyzers ─────────────────────────────────────────────
 
@@ -185,10 +185,12 @@ def trained_variant(temp_dirs):
     with open(family_dir / "family.json", "w") as f:
         json.dump(family_json, f)
 
-    registry = FamilyRegistry(model_families_dir=model_families_dir, results_dir=results_dir)
-    family = registry.get_family("modulo_addition_1layer")
+    families = discover_families(
+        model_families_dir=model_families_dir, results_dir=results_dir
+    )
+    family = families["modulo_addition_1layer"]
     params = {"prime": 17, "seed": 42, "data_seed": 598}
-    variant = registry.create_variant(family, params)
+    variant = family.create_variant(params)
     variant.train(num_epochs=50, checkpoint_epochs=[0, 25, 49], device="cpu")
     return variant
 

@@ -26,7 +26,7 @@ Quick start:
 from __future__ import annotations
 
 from miscope.config import AppConfig, get_config
-from miscope.loaded_family import LoadedFamily
+from miscope.families.protocols import ModelFamily
 from miscope.views import BoundView, EpochContext, ViewCatalog, ViewDefinition, catalog
 
 __all__ = [
@@ -34,7 +34,7 @@ __all__ = [
     "list_families",
     "get_config",
     "AppConfig",
-    "LoadedFamily",
+    "ModelFamily",
     # REQ_047: View Catalog
     "BoundView",
     "EpochContext",
@@ -44,7 +44,7 @@ __all__ = [
 ]
 
 
-def load_family(name: str, *, config: AppConfig | None = None) -> LoadedFamily:
+def load_family(name: str, *, config: AppConfig | None = None) -> ModelFamily:
     """Load a model family by name.
 
     Args:
@@ -52,17 +52,18 @@ def load_family(name: str, *, config: AppConfig | None = None) -> LoadedFamily:
         config: Optional config override. Uses default config if not provided.
 
     Returns:
-        LoadedFamily with variant access and convenience methods
+        ModelFamily with variant lookup methods.
 
     Raises:
-        KeyError: If family name not found
+        KeyError: If family name not found.
     """
-    from miscope.families.registry import FamilyRegistry
+    from miscope.families.discovery import discover_families
 
     cfg = config or get_config()
-    registry = FamilyRegistry(cfg.model_families_dir, cfg.results_dir)
-    family = registry.get_family(name)
-    return LoadedFamily(family, registry)
+    families = discover_families(cfg.model_families_dir, cfg.results_dir)
+    if name not in families:
+        raise KeyError(f"Family '{name}' not found. Available: {list(families.keys())}")
+    return families[name]
 
 
 def list_families(*, config: AppConfig | None = None) -> list[str]:
@@ -72,10 +73,9 @@ def list_families(*, config: AppConfig | None = None) -> list[str]:
         config: Optional config override. Uses default config if not provided.
 
     Returns:
-        List of family name strings
+        List of family name strings.
     """
-    from miscope.families.registry import FamilyRegistry
+    from miscope.families.discovery import discover_families
 
     cfg = config or get_config()
-    registry = FamilyRegistry(cfg.model_families_dir, cfg.results_dir)
-    return registry.get_family_names()
+    return list(discover_families(cfg.model_families_dir, cfg.results_dir).keys())

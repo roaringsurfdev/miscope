@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Dash, Input, Output, State, ctx, dcc, html, set_props
 from dash.exceptions import PreventUpdate
 
-from dashboard.state import get_registry, variant_server_state
+from dashboard.state import get_families, variant_server_state
 
 """
 Encapulated and reuseable component for handling standard 
@@ -28,16 +28,16 @@ REQ_021d: Dashboard Integration with Model Families
 """
 
 if TYPE_CHECKING:
-    from miscope.families import FamilyRegistry, Variant
+    from miscope.families import ModelFamily, Variant
 
 
 def get_family_choices(
-    registry: FamilyRegistry, trainable_only: bool = False
+    families: dict[str, ModelFamily], trainable_only: bool = False
 ) -> list[tuple[str, str]]:
     """Get choices for family dropdown.
 
     Args:
-        registry: The FamilyRegistry instance
+        families: Mapping of family name to ModelFamily instance.
         trainable_only: If True, exclude families that require programmatic
             variant construction (ui_trainable=False). Use on the Training page
             only; analysis pages should show all families.
@@ -45,25 +45,26 @@ def get_family_choices(
     Returns:
         List of (display_name, family_name) tuples for gr.Dropdown
     """
-    families = registry.list_families()
-    return [(f.display_name, f.name) for f in families]
+    return [(f.display_name, f.name) for f in families.values()]
 
 
-def get_variant_choices(registry: FamilyRegistry, family_name: str | None) -> list[tuple[str, str]]:
+def get_variant_choices(
+    families: dict[str, ModelFamily], family_name: str | None
+) -> list[tuple[str, str]]:
     """Get choices for variant dropdown.
 
     Args:
-        registry: The FamilyRegistry instance
+        families: Mapping of family name to ModelFamily instance.
         family_name: Name of the selected family
 
     Returns:
         List of (display_name, variant_name) tuples for gr.Dropdown
     """
-    if not family_name or family_name not in registry:
+    if not family_name or family_name not in families:
         return []
 
-    family = registry.get_family(family_name)
-    variants = registry.get_variants(family)
+    family = families[family_name]
+    variants = family.variants
 
     choices = []
     for variant in variants:
@@ -83,10 +84,9 @@ def _get_intervention_options(family_name: str | None, variant_name: str | None)
     if not family_name or not variant_name:
         return []
     try:
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             return []
         options = []
@@ -233,8 +233,8 @@ def register_variant_selector_callbacks(app: Dash) -> None:
         Input("variant-selector-family-dropdown", "id"),
     )
     def populate_families(_: str) -> list[dict]:
-        registry = get_registry()
-        choices = get_family_choices(registry)
+        families = get_families()
+        choices = get_family_choices(families)
         return [{"label": display, "value": name} for display, name in choices]
 
     @app.callback(
@@ -258,8 +258,8 @@ def register_variant_selector_callbacks(app: Dash) -> None:
             app.server.logger.debug(
                 "on_family_change: family_name has changed, update dependencies"
             )
-            registry = get_registry()
-            choices = get_variant_choices(registry, family_name)
+            families = get_families()
+            choices = get_variant_choices(families, family_name)
             options = [{"label": display, "value": name} for display, name in choices]
             set_props(
                 "variant-selector-store",

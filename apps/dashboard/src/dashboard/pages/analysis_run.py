@@ -13,7 +13,7 @@ import dash_bootstrap_components as dbc
 from dash import Dash, Input, Output, State, dcc, html, no_update
 
 from dashboard.components.variant_selector import get_family_choices, get_variant_choices
-from dashboard.state import analysis_progress, get_registry, refresh_registry
+from dashboard.state import analysis_progress, get_families, refresh_families
 
 
 def create_analysis_run_page_nav(app: Dash) -> html.Div:
@@ -22,8 +22,8 @@ def create_analysis_run_page_nav(app: Dash) -> html.Div:
 
 def create_analysis_run_page_layout(app: Dash) -> html.Div:
     """Create the Analysis Run page layout."""
-    registry = get_registry()
-    family_choices = get_family_choices(registry)
+    families = get_families()
+    family_choices = get_family_choices(families)
     family_options = [{"label": display, "value": name} for display, name in family_choices]
     default_family = family_options[0]["value"] if family_options else None
 
@@ -136,11 +136,9 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
     try:
         analysis_progress.update(0.05, "Initializing...")
 
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             analysis_progress.finish(f"Variant '{variant_name}' not found")
             return
@@ -173,7 +171,7 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
         results_dir = variant.variant_dir.parent.parent
         build_variant_registry(results_dir, family_name)
 
-        refresh_registry()
+        refresh_families()
         analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")
 
     except Exception as e:
@@ -191,8 +189,8 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
     def on_analysis_family_change(family_name: str | None) -> tuple[list, None]:
         if not family_name:
             return [], None
-        registry = get_registry()
-        choices = get_variant_choices(registry, family_name)
+        families = get_families()
+        choices = get_variant_choices(families, family_name)
         return [{"label": display, "value": name} for display, name in choices], None
 
     @app.callback(
@@ -205,9 +203,9 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
     def on_refresh_variants(n_clicks: int | None, family_name: str | None):
         if not n_clicks or not family_name:
             return no_update, no_update
-        refresh_registry()
-        registry = get_registry()
-        choices = get_variant_choices(registry, family_name)
+        refresh_families()
+        families = get_families()
+        choices = get_variant_choices(families, family_name)
         return [{"label": display, "value": name} for display, name in choices], None
 
     @app.callback(
@@ -260,10 +258,9 @@ def register_analysis_run_page_callbacks(app: Dash) -> None:
             from miscope.analysis.freshness import check_freshness
             from miscope.analysis.registry import AnalyzerRegistry
 
-            registry = get_registry()
-            family = registry.get_family(family_name)
-            variants = registry.get_variants(family)
-            variant = next((v for v in variants if v.name == variant_name), None)
+            families = get_families()
+            family = families[family_name]
+            variant = next((v for v in family.variants if v.name == variant_name), None)
             if variant is None:
                 return html.Div()
             # REQ_120: hand the freshness check the family's registered Specs.

@@ -15,7 +15,7 @@ import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dash_table, dcc, html, no_update
 from dash.exceptions import PreventUpdate
 
-from dashboard.state import get_registry, refresh_registry, training_progress
+from dashboard.state import get_families, refresh_families, training_progress
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -161,10 +161,9 @@ def _run_retrain_thread(
 ) -> None:
     try:
         training_progress.update(0.05, "Loading variant...")
-        registry = get_registry()
-        family = registry.get_family(family_name)
-        variants = registry.get_variants(family)
-        variant = next((v for v in variants if v.name == variant_name), None)
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             training_progress.finish(f"Variant not found: {variant_name}")
             return
@@ -181,7 +180,7 @@ def _run_retrain_thread(
             training_fraction=training_fraction,
             progress_callback=progress_callback,
         )
-        refresh_registry()
+        refresh_families()
         training_progress.finish(
             f"Retrain complete!\n"
             f"Variant: {variant.name}\n"
@@ -361,10 +360,9 @@ def register_checkpoint_schedule_page_callbacks(app: Dash) -> None:
         if not family_name or not variant_name:
             return "No variant loaded — select one from the left panel.", 25000, True
         try:
-            registry = get_registry()
-            family = registry.get_family(family_name)
-            variants = registry.get_variants(family)
-            variant = next((v for v in variants if v.name == variant_name), None)
+            families = get_families()
+            family = families[family_name]
+            variant = next((v for v in family.variants if v.name == variant_name), None)
             if variant is None:
                 return f"Variant not found: {variant_name}", 25000, True
             config = variant.model_config
@@ -419,10 +417,9 @@ def register_checkpoint_schedule_page_callbacks(app: Dash) -> None:
         if not family_name or not variant_name:
             return _build_empty_figure(), "", ""
         try:
-            registry = get_registry()
-            family = registry.get_family(family_name)
-            variants = registry.get_variants(family)
-            variant = next((v for v in variants if v.name == variant_name), None)
+            families = get_families()
+            family = families[family_name]
+            variant = next((v for v in family.variants if v.name == variant_name), None)
             if variant is None:
                 return _build_empty_figure(), "", ""
             train_losses = variant.train_losses
@@ -461,10 +458,9 @@ def register_checkpoint_schedule_page_callbacks(app: Dash) -> None:
         if training_progress.get_state()["running"]:
             return no_update, no_update, "A training job is already running.", no_update
         try:
-            registry = get_registry()
-            family = registry.get_family(family_name)
-            variants = registry.get_variants(family)
-            variant = next((v for v in variants if v.name == variant_name), None)
+            families = get_families()
+            family = families[family_name]
+            variant = next((v for v in family.variants if v.name == variant_name), None)
             if variant is None:
                 return no_update, no_update, f"Variant not found: {variant_name}", no_update
             existing = variant.get_available_checkpoints()

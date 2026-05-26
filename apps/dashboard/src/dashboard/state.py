@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from miscope import EpochContext, catalog
-from miscope.families import FamilyRegistry, InterventionVariant, Variant
+from miscope.families import InterventionVariant, ModelFamily, Variant
+from miscope.families.discovery import discover_families
 
 # ---------------------------------------------------------------------------
 # Job progress tracking (thread-safe)
@@ -71,30 +72,31 @@ analysis_progress = JobProgress()
 
 
 # ---------------------------------------------------------------------------
-# Family Registry (singleton)
+# Family cache (singleton)
 # ---------------------------------------------------------------------------
 
-_registry: FamilyRegistry | None = None
+_families: dict[str, ModelFamily] | None = None
 
 
-def get_registry() -> FamilyRegistry:
-    """Get or create the global FamilyRegistry instance."""
-    global _registry
-    if _registry is None:
-        _registry = FamilyRegistry(
-            model_families_dir=Path("model_families"),
-            results_dir=Path("results"),
-        )
-    return _registry
-
-
-def refresh_registry() -> None:
-    """Force registry to reload from filesystem."""
-    global _registry
-    _registry = FamilyRegistry(
+def _load_families() -> dict[str, ModelFamily]:
+    return discover_families(
         model_families_dir=Path("model_families"),
         results_dir=Path("results"),
     )
+
+
+def get_families() -> dict[str, ModelFamily]:
+    """Return all discovered families keyed by name (cached)."""
+    global _families
+    if _families is None:
+        _families = _load_families()
+    return _families
+
+
+def refresh_families() -> None:
+    """Force the family cache to reload from filesystem."""
+    global _families
+    _families = _load_families()
 
 
 # ---------------------------------------------------------------------------
@@ -127,20 +129,13 @@ class VariantServerState:
         Computes available_views once against the variant's actual artifacts.
         Returns True if the variant was found and loaded.
         """
-        registry = get_registry()
+        families = get_families()
 
-        try:
-            family = registry.get_family(family_name)
-        except KeyError:
+        family = families.get(family_name)
+        if family is None:
             return False
 
-        variants = registry.get_variants(family)
-        variant = None
-        for v in variants:
-            if v.name == variant_name:
-                variant = v
-                break
-
+        variant = next((v for v in family.variants if v.name == variant_name), None)
         if variant is None:
             return False
 

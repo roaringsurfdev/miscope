@@ -480,7 +480,7 @@ class Variant:
         runs the training loop, and saves checkpoints and metadata.
 
         data_seed is sourced from self._params["data_seed"] and must be set
-        when creating the variant via FamilyRegistry.create_variant().
+        when creating the variant via family.create_variant().
 
         Args:
             num_epochs: Total training epochs (default: from family config)
