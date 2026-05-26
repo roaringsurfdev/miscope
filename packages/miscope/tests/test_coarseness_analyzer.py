@@ -9,8 +9,9 @@ import numpy as np
 import pytest
 import torch
 
-from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
+from miscope.analysis import AnalysisPipeline, Analyzer
 from miscope.analysis.analyzers import CoarsenessAnalyzer
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.fourier import compute_neuron_coarseness
 from miscope.families.discovery import discover_families

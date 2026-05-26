@@ -11,9 +11,10 @@ import pytest
 import torch
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 
-from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
+from miscope.analysis import AnalysisPipeline, Analyzer
 from miscope.analysis.analyzers import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.landscape_flatness import FLATNESS_SUMMARY_KEYS
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.landscape import compute_landscape_flatness
 from miscope.families.discovery import discover_families

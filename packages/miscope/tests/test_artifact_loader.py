@@ -8,7 +8,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from miscope.analysis import ArtifactLoader
+from miscope.analysis.artifact_loader import ArtifactLoader
 
 
 class TestArtifactLoaderInstantiation:

@@ -8,13 +8,15 @@ Per-epoch renderers accept single-epoch data + epoch number.
 Cross-epoch renderers accept stacked data from load_epochs().
 
 Usage:
-    from miscope.analysis import ArtifactLoader
+    from miscope import load_family
     from miscope.visualization import render_dominant_frequencies
 
-    loader = ArtifactLoader(artifacts_dir)
-    epoch_data = loader.load_epoch("dominant_frequencies", epoch=100)
+    family = load_family("modulo_addition_1layer")
+    variant = family.get_variant(prime=113, seed=999, data_seed=598)
+
+    epoch_data = variant.artifacts.load_epoch("dominant_frequencies", epoch=100)
     fig = render_dominant_frequencies(epoch_data, epoch=100)
-    fig.show()  # or pass to Gradio
+    fig.show()
 """
 
 from miscope.visualization.common import get_frequency_color

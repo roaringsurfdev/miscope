@@ -100,36 +100,42 @@ pipeline.run(force=True)
 pipeline.run(epochs=[0, 1000, 5000])
 ```
 
-### Loading Artifacts (Visualization Layer)
+### Loading Artifacts (Consumer-facing)
+
+Consumers (notebooks, dashboard pages, scripts) reach a configured loader
+through ``variant.artifacts`` rather than constructing ``ArtifactLoader``
+directly. ``ArtifactLoader`` is an internal storage primitive (REQ_125) — the
+class continues to back the pipeline and cross-epoch analyzers, but it is
+not re-exported as public API.
 
 ```python
-from analysis import ArtifactLoader
+from miscope import load_family
 
-# Standalone loader - no pipeline needed
-loader = ArtifactLoader("/path/to/artifacts")
+family = load_family("modulo_addition_1layer")
+variant = family.get_variant(prime=113, seed=999, data_seed=598)
 
 # List available analyzers
-print(loader.get_available_analyzers())
-# ['dominant_frequencies', 'neuron_activations', 'neuron_freq_norm']
+print(variant.artifacts.get_available_analyzers())
+# ['dominant_frequencies', 'neuron_activations', 'neuron_freq_norm', ...]
 
-# Load artifact
-artifact = loader.load("dominant_frequencies")
-print(artifact["epochs"])        # [0, 100, 200, ...]
-print(artifact["coefficients"])  # (n_epochs, n_components)
+# Per-epoch load
+epoch_data = variant.artifacts.load_epoch("dominant_frequencies", epoch=1000)
 
-# Get metadata
-metadata = loader.get_metadata("dominant_frequencies")
-print(metadata["shapes"])  # {'coefficients': [46, 114]}
+# Summary load
+summary = variant.artifacts.load_summary("repr_geometry")
+
+# Cross-epoch load
+cross = variant.artifacts.load_cross_epoch("parameter_trajectory")
 ```
 
 ## Package Structure
 
 ```
 analysis/
-  __init__.py              # Exports Analyzer, AnalysisPipeline, ArtifactLoader
+  __init__.py              # Exports Analyzer, AnalysisPipeline (ArtifactLoader is internal)
   protocols.py             # Analyzer Protocol definition
   pipeline.py              # AnalysisPipeline orchestrator
-  artifact_loader.py       # Standalone artifact loading
+  artifact_loader.py       # Internal storage primitive (REQ_125)
   analyzers/
     __init__.py
     dominant_frequencies.py  # Fourier coefficient norms
