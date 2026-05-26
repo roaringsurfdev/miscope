@@ -284,9 +284,7 @@ def _names_from_analyzers_with_disk_union(
                 registered_per_epoch.add(analyzer.name)
         else:
             # No Spec: fall back to legacy attribute inspection.
-            if hasattr(analyzer, "analyze_across_epochs") and hasattr(
-                analyzer, "requires"
-            ):
+            if hasattr(analyzer, "analyze_across_epochs") and hasattr(analyzer, "requires"):
                 registered_cross_epoch.add(analyzer.name)
             else:
                 registered_per_epoch.add(analyzer.name)
@@ -306,9 +304,7 @@ def _names_from_analyzers_with_disk_union(
     )
 
 
-def _resolve_per_epoch_names(
-    artifacts_dir: Path, names: Sequence[str] | None
-) -> list[str]:
+def _resolve_per_epoch_names(artifacts_dir: Path, names: Sequence[str] | None) -> list[str]:
     """Return per-epoch analyzer directory names to inspect.
 
     If names are explicit, return them as-is (even if empty on disk). If
@@ -331,9 +327,7 @@ def _resolve_per_epoch_names(
     return discovered
 
 
-def _resolve_cross_epoch_names(
-    artifacts_dir: Path, names: Sequence[str] | None
-) -> list[str]:
+def _resolve_cross_epoch_names(artifacts_dir: Path, names: Sequence[str] | None) -> list[str]:
     """Return cross-epoch analyzer directory names to inspect."""
     if names is not None:
         return list(names)

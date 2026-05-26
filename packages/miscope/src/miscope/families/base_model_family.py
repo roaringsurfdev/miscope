@@ -446,9 +446,7 @@ def _pattern_to_regex(pattern: str, domain_parameters: dict[str, Any]) -> re.Pat
     return re.compile(f"^{regex_pattern}$")
 
 
-def _extract_params(
-    match: re.Match[str], domain_parameters: dict[str, Any]
-) -> dict[str, Any]:
+def _extract_params(match: re.Match[str], domain_parameters: dict[str, Any]) -> dict[str, Any]:
     """Extract typed parameters from a regex match."""
     params: dict[str, Any] = {}
     for param_name, spec in domain_parameters.items():

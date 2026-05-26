@@ -144,5 +144,3 @@ class AnalyzerSpec:
         if self.is_unified:
             return derive_needs_activation_cache(self.inputs)
         return self.requires_activation_cache
-
-

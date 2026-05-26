@@ -97,9 +97,7 @@ class AnalyzerRegistry:
     @classmethod
     def get_spec(cls, name: str) -> AnalyzerSpec:
         if name not in _specs:
-            raise KeyError(
-                f"No Spec for analyzer '{name}'. Registered: {sorted(_specs)}"
-            )
+            raise KeyError(f"No Spec for analyzer '{name}'. Registered: {sorted(_specs)}")
         return _specs[name]
 
     @classmethod
@@ -117,9 +115,7 @@ class AnalyzerRegistry:
     @classmethod
     def get_factory(cls, name: str) -> Callable[[], Any]:
         if name not in _factories:
-            raise KeyError(
-                f"No factory for analyzer '{name}'. Registered: {sorted(_factories)}"
-            )
+            raise KeyError(f"No factory for analyzer '{name}'. Registered: {sorted(_factories)}")
         return _factories[name]
 
     @classmethod
@@ -168,9 +164,7 @@ class AnalyzerRegistry:
     def _legacy_register(cls, analyzer_class: type, category: Category) -> type:
         name = getattr(analyzer_class, "name", None)
         if name is None:
-            raise ValueError(
-                f"Analyzer {analyzer_class.__name__} must have a 'name' attribute"
-            )
+            raise ValueError(f"Analyzer {analyzer_class.__name__} must have a 'name' attribute")
         if name in _specs:
             # Decorator-registered Spec wins; treat the legacy call as a no-op.
             return analyzer_class
@@ -207,9 +201,7 @@ class AnalyzerRegistry:
     def get(cls, name: str) -> Analyzer:
         spec = _specs.get(name)
         if spec is None or spec.effective_category != "primary":
-            available = sorted(
-                n for n, s in _specs.items() if s.effective_category == "primary"
-            )
+            available = sorted(n for n, s in _specs.items() if s.effective_category == "primary")
             raise KeyError(f"Analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
@@ -217,12 +209,8 @@ class AnalyzerRegistry:
     def get_secondary(cls, name: str) -> SecondaryAnalyzer:
         spec = _specs.get(name)
         if spec is None or spec.effective_category != "secondary":
-            available = sorted(
-                n for n, s in _specs.items() if s.effective_category == "secondary"
-            )
-            raise KeyError(
-                f"Secondary analyzer '{name}' not found. Available: {available}"
-            )
+            available = sorted(n for n, s in _specs.items() if s.effective_category == "secondary")
+            raise KeyError(f"Secondary analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
     @classmethod
@@ -232,9 +220,7 @@ class AnalyzerRegistry:
             available = sorted(
                 n for n, s in _specs.items() if s.effective_category == "cross_epoch"
             )
-            raise KeyError(
-                f"Cross-epoch analyzer '{name}' not found. Available: {available}"
-            )
+            raise KeyError(f"Cross-epoch analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
     @classmethod
@@ -247,9 +233,7 @@ class AnalyzerRegistry:
         ]
 
     @classmethod
-    def get_secondary_for_family(
-        cls, family: ModelFamily
-    ) -> list[SecondaryAnalyzer]:
+    def get_secondary_for_family(cls, family: ModelFamily) -> list[SecondaryAnalyzer]:
         names = getattr(family, "secondary_analyzers", [])
         return [
             cls.create(n)
@@ -258,9 +242,7 @@ class AnalyzerRegistry:
         ]
 
     @classmethod
-    def get_cross_epoch_for_family(
-        cls, family: ModelFamily
-    ) -> list[CrossEpochAnalyzer]:
+    def get_cross_epoch_for_family(cls, family: ModelFamily) -> list[CrossEpochAnalyzer]:
         names = getattr(family, "cross_epoch_analyzers", [])
         return [
             cls.create(n)

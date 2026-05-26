@@ -229,9 +229,7 @@ def trained_variant():
                 }
             )
         )
-        families = discover_families(
-            model_families_dir=model_families_dir, results_dir=results_dir
-        )
+        families = discover_families(model_families_dir=model_families_dir, results_dir=results_dir)
         family = families["modulo_addition_1layer"]
         variant = family.create_variant({"prime": 17, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=10, checkpoint_epochs=[0, 9], device="cpu")

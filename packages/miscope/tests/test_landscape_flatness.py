@@ -165,9 +165,12 @@ class TestLandscapeFlatnessAnalyzerProtocol:
         cache = ActivationCache({}, small_model)
         with pytest.raises(ValueError, match="loss_fn"):
             analyzer.analyze(
-ResolvedInputs(model=small_model,
+                ResolvedInputs(
+                    model=small_model,
                     cache=cache,  # type: ignore
-                    probe=dummy_probe), {}
+                    probe=dummy_probe,
+                ),
+                {},
             )
 
     def test_summary_keys(self):

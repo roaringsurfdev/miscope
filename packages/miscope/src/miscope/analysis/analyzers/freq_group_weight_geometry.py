@@ -37,7 +37,10 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_freq_norm", scope="all_epochs"), ArtifactInput("parameter_snapshot", scope="all_epochs"),),
+    inputs=(
+        ArtifactInput("neuron_freq_norm", scope="all_epochs"),
+        ArtifactInput("parameter_snapshot", scope="all_epochs"),
+    ),
 )
 
 

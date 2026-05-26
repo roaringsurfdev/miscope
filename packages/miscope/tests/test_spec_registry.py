@@ -228,12 +228,8 @@ def test_plan_with_instance_leaves_capability_flags_none(tmp_path):
 
 def test_plan_needs_activation_cache_or_aggregate(tmp_path):
     variant = _make_variant(tmp_path, [0])
-    weights_only = AnalyzerSpec(
-        name="a", category="primary", requires_activation_cache=False
-    )
-    cache_reader = AnalyzerSpec(
-        name="b", category="primary", requires_activation_cache=True
-    )
+    weights_only = AnalyzerSpec(name="a", category="primary", requires_activation_cache=False)
+    cache_reader = AnalyzerSpec(name="b", category="primary", requires_activation_cache=True)
 
     plan_a = plan_analysis(variant, [weights_only])
     assert plan_a.needs_activation_cache is False
@@ -341,9 +337,7 @@ def trained_variant():
             "variant_pattern": "modulo_addition_1layer_p{prime}_seed{seed}",
         }
         (family_dir / "family.json").write_text(json.dumps(family_json))
-        families = discover_families(
-            model_families_dir=model_families_dir, results_dir=results_dir
-        )
+        families = discover_families(model_families_dir=model_families_dir, results_dir=results_dir)
         family = families["modulo_addition_1layer"]
         variant = family.create_variant({"prime": 17, "seed": 42, "data_seed": 598})
         variant.train(num_epochs=10, checkpoint_epochs=[0, 9], device="cpu")
@@ -387,14 +381,12 @@ def test_pipeline_skips_forward_pass_when_plan_says_so(trained_variant):
         # Patch run_with_cache to detect if the pipeline calls it.
         from miscope.architectures.hooked_transformer import HookedTransformer
 
-        with patch.object(
-            HookedTransformer, "run_with_cache", autospec=True
-        ) as mock_rwc:
+        with patch.object(HookedTransformer, "run_with_cache", autospec=True) as mock_rwc:
             pipeline.run(plan=plan)
 
-        assert (
-            mock_rwc.call_count == 0
-        ), "Pipeline ran the forward pass even though no analyzer needed cache"
+        assert mock_rwc.call_count == 0, (
+            "Pipeline ran the forward pass even though no analyzer needed cache"
+        )
     finally:
         AnalyzerRegistry.clear()
         from miscope.analysis.analyzers.registry import register_default_analyzers
@@ -427,12 +419,9 @@ def test_pipeline_runs_forward_pass_when_cache_needed(trained_variant):
         pipeline.run(plan=plan)  # would raise inside analyzer if cache absent
 
         # Confirm artifacts were written
-        analyzer_dir = (
-            Path(trained_variant.artifacts_dir) / "cache_reader_test"
-        )
+        analyzer_dir = Path(trained_variant.artifacts_dir) / "cache_reader_test"
         assert any(
-            p.name.startswith("epoch_") and p.suffix == ".npz"
-            for p in analyzer_dir.iterdir()
+            p.name.startswith("epoch_") and p.suffix == ".npz" for p in analyzer_dir.iterdir()
         )
     finally:
         AnalyzerRegistry.clear()

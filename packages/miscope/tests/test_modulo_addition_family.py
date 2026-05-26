@@ -266,7 +266,7 @@ class TestAnalyzerIntegration:
 
         analyzer = AnalyzerRegistry.get("dominant_frequencies")
         result = analyzer.analyze(
-ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "coefficients" in result
@@ -285,7 +285,7 @@ ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
 
         analyzer = AnalyzerRegistry.get("neuron_activations")
         result = analyzer.analyze(
-ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "activations" in result
@@ -306,7 +306,7 @@ ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
 
         analyzer = AnalyzerRegistry.get("neuron_freq_norm")
         result = analyzer.analyze(
-ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
 
         assert "norm_matrix" in result
@@ -350,7 +350,7 @@ class TestEndToEnd:
 
         for analyzer in analyzers:
             result = analyzer.analyze(
-ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+                ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
             )
             assert len(result) > 0
 

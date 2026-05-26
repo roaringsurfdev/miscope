@@ -44,7 +44,7 @@ class NeuronActivationsAnalyzer:
     ) -> dict[str, np.ndarray]:
         """Extract neuron activations and reshape to (d_mlp, p, p)."""
         assert inputs.cache is not None  # type-narrowing for pyright
-        p = compute_grid_size_from_dataset(inputs.probe)
+        p = compute_grid_size_from_dataset(inputs.probe)  # type: ignore
         neuron_acts = extract_mlp_activations(inputs.cache)
         activations = reshape_to_grid(neuron_acts, p)
         return {"activations": activations.detach().cpu().numpy()}

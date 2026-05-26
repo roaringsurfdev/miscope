@@ -185,9 +185,7 @@ def trained_variant(temp_dirs):
     with open(family_dir / "family.json", "w") as f:
         json.dump(family_json, f)
 
-    families = discover_families(
-        model_families_dir=model_families_dir, results_dir=results_dir
-    )
+    families = discover_families(model_families_dir=model_families_dir, results_dir=results_dir)
     family = families["modulo_addition_1layer"]
     params = {"prime": 17, "seed": 42, "data_seed": 598}
     variant = family.create_variant(params)

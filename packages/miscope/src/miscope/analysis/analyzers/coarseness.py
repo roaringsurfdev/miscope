@@ -54,7 +54,7 @@ class CoarsenessAnalyzer:
         """Compute per-neuron coarseness values."""
         assert inputs.cache is not None  # type-narrowing for pyright
         fourier_basis = context["fourier_basis"]
-        p = compute_grid_size_from_dataset(inputs.probe)
+        p = compute_grid_size_from_dataset(inputs.probe)  # type: ignore
 
         neuron_acts = extract_mlp_activations(inputs.cache)
         reshaped = reshape_to_grid(neuron_acts, p)

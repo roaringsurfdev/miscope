@@ -170,7 +170,9 @@ class TestTransientFrequencyAnalyzer:
     def test_output_keys(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         required_keys = [
             "ever_qualified_freqs",
@@ -192,7 +194,9 @@ class TestTransientFrequencyAnalyzer:
     def test_detects_transient_freq(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         ever_q = result["ever_qualified_freqs"].tolist()
         is_final = result["is_final"].tolist()
@@ -205,7 +209,9 @@ class TestTransientFrequencyAnalyzer:
     def test_persistent_freq_marked_final(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         ever_q = result["ever_qualified_freqs"].tolist()
         is_final = result["is_final"].tolist()
@@ -218,7 +224,9 @@ class TestTransientFrequencyAnalyzer:
     def test_too_small_freq_excluded(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         ever_q = result["ever_qualified_freqs"].tolist()
         # Freq 2 never had enough neurons to qualify
@@ -227,7 +235,9 @@ class TestTransientFrequencyAnalyzer:
     def test_committed_counts_shape(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         n_ever_q = len(result["ever_qualified_freqs"])
         assert result["committed_counts"].shape == (n_epochs, n_ever_q)
@@ -235,7 +245,9 @@ class TestTransientFrequencyAnalyzer:
     def test_homeless_count_for_transient(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         ever_q = result["ever_qualified_freqs"].tolist()
         is_final = result["is_final"]
@@ -252,7 +264,9 @@ class TestTransientFrequencyAnalyzer:
     def test_ragged_members_decodable(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         for i in range(len(result["ever_qualified_freqs"])):
             members = load_peak_members(result, i)
@@ -263,7 +277,9 @@ class TestTransientFrequencyAnalyzer:
     def test_peak_epoch_within_range(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         for ep in result["peak_epoch"]:
             assert int(ep) in epochs.tolist()
@@ -271,7 +287,9 @@ class TestTransientFrequencyAnalyzer:
     def test_metadata_stored(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+        )
 
         assert float(result["_neuron_threshold"]) == pytest.approx(0.70)
         assert float(result["_transient_canonical_threshold"]) == pytest.approx(0.05)
@@ -298,7 +316,9 @@ class TestTransientFrequencyAnalyzer:
             np.savez_compressed(os.path.join(nd_dir, "cross_epoch.npz"), **nd_data)  # type: ignore
 
             analyzer = TransientFrequencyAnalyzer()
-            result = analyzer.analyze(ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={})
+            result = analyzer.analyze(
+                ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            )
 
         assert len(result["ever_qualified_freqs"]) == 0
         assert result["committed_counts"].shape == (n_epochs, 0)

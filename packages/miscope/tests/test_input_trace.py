@@ -356,7 +356,9 @@ class TestIntegrationArtifactRoundTrip:
             np.savez_compressed(str(epoch_dir / f"epoch_{epoch:05d}.npz"), **result)  # pyright: ignore[reportArgumentType]
 
         grad_analyzer = InputTraceGraduationAnalyzer()
-        grad_result = grad_analyzer.analyze(ResolvedInputs(artifacts_dir=str(tmp_path), epochs=tuple(epochs)), context)
+        grad_result = grad_analyzer.analyze(
+            ResolvedInputs(artifacts_dir=str(tmp_path), epochs=tuple(epochs)), context
+        )
 
         assert grad_result["graduation_epochs"].shape == (p * p,)
         assert grad_result["epochs"].shape == (len(epochs),)

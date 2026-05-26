@@ -59,7 +59,7 @@ class AttentionFreqAnalyzer:
         """Compute frequency variance fractions for each attention head."""
         assert inputs.cache is not None  # type-narrowing for pyright
         fourier_basis = context["fourier_basis"]
-        p = compute_grid_size_from_dataset(inputs.probe)
+        p = compute_grid_size_from_dataset(inputs.probe)  # type: ignore
 
         # Extract attention patterns: (p*p, n_heads, n_pos, n_pos)
         attn = inputs.cache["blocks.0.attn.hook_pattern"]

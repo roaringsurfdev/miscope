@@ -68,7 +68,10 @@ _CONTEXT_REFERENCE_EPOCH_KEY = "parameter_dmd_reference_epoch"
 SPEC = AnalyzerSpec(
     name="parameter_dmd",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("parameter_snapshot", scope="all_epochs"), ArtifactInput("neuron_grouping", scope="all_epochs"),),
+    inputs=(
+        ArtifactInput("parameter_snapshot", scope="all_epochs"),
+        ArtifactInput("neuron_grouping", scope="all_epochs"),
+    ),
 )
 
 

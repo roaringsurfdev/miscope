@@ -147,7 +147,9 @@ class TestNeuronDynamicsAnalyzer:
         """Analyzer produces expected output fields and shapes."""
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+        )
 
         assert "epochs" in result
         assert "dominant_freq" in result
@@ -171,7 +173,9 @@ class TestNeuronDynamicsAnalyzer:
         """Switch counts match known assignments."""
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
-        result = analyzer.analyze(ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={})
+        result = analyzer.analyze(
+            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+        )
 
         # Neuron 2 switches once (freq 2 → 9 at epoch 300)
         assert result["switch_counts"][2] == 1

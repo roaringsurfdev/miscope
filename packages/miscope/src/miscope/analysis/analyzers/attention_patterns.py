@@ -44,7 +44,7 @@ class AttentionPatternsAnalyzer:
     ) -> dict[str, np.ndarray]:
         """Extract attention patterns and reshape to (n_heads, n_pos, n_pos, p, p)."""
         assert inputs.cache is not None  # type-narrowing for pyright
-        p = compute_grid_size_from_dataset(inputs.probe)
+        p = compute_grid_size_from_dataset(inputs.probe)  # type: ignore
 
         # Shape: (p*p, n_heads, seq_to, seq_from)
         attn = inputs.cache["blocks.0.attn.hook_pattern"]

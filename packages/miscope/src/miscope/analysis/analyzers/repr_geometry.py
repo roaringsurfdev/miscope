@@ -122,8 +122,8 @@ class RepresentationalGeometryAnalyzer:
                 "the family for this variant has not migrated to HookedModel."
             )
 
-        p = compute_grid_size_from_dataset(inputs.probe)
-        labels = self._compute_labels(inputs.probe, p, context)
+        p = compute_grid_size_from_dataset(inputs.probe)  # type: ignore
+        labels = self._compute_labels(inputs.probe, p, context)  # type: ignore
 
         result: dict[str, np.ndarray] = {}
         for site_name, canonical_hook in _SITES.items():

@@ -122,8 +122,7 @@ class Plan:
         ``model.run_with_cache(probe)``.
         """
         return any(
-            item.requires_activation_cache is None
-            or item.requires_activation_cache
+            item.requires_activation_cache is None or item.requires_activation_cache
             for item in self.per_epoch
         )
 
@@ -158,9 +157,7 @@ class Plan:
         if self.secondary:
             for item in sorted(self.secondary, key=lambda x: x.analyzer_name):
                 dep = f" (depends_on={item.depends_on})" if item.depends_on else ""
-                lines.append(
-                    f"  ✗ {item.analyzer_name:<40} {len(item.epochs)} epoch(s){dep}"
-                )
+                lines.append(f"  ✗ {item.analyzer_name:<40} {len(item.epochs)} epoch(s){dep}")
         else:
             lines.append("  (nothing to do)")
 

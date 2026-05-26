@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
@@ -263,17 +264,13 @@ class AnalysisPipeline:
             if item.analyzer_name in secondary_names:
                 continue
             if AnalyzerRegistry.has_spec(item.analyzer_name):
-                self._secondary_analyzers.append(
-                    AnalyzerRegistry.create(item.analyzer_name)
-                )
+                self._secondary_analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
 
         for item in plan.cross_epoch:
             if item.analyzer_name in cross_epoch_names:
                 continue
             if AnalyzerRegistry.has_spec(item.analyzer_name):
-                self._cross_epoch_analyzers.append(
-                    AnalyzerRegistry.create(item.analyzer_name)
-                )
+                self._cross_epoch_analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
 
     def _build_plan(self, force: bool) -> Plan:
         """Build a Plan from the pipeline's registered analyzers.
@@ -402,9 +399,7 @@ class AnalysisPipeline:
                     )
                     continue
 
-            inputs = self._materialize_per_epoch_inputs(
-                spec, epoch, model, cache, logits, probe
-            )
+            inputs = self._materialize_per_epoch_inputs(spec, epoch, model, cache, logits, probe)
             result = analyzer.analyze(inputs, context)
 
             self._save_epoch_artifact(analyzer.name, epoch, result)
@@ -461,15 +456,11 @@ class AnalysisPipeline:
                 wants_cache = wants_cache or inp.needs_cache
             elif isinstance(inp, ArtifactInput):
                 if inp.scope == "epoch":
-                    artifacts[inp.analyzer_name] = loader.load_epoch(
-                        inp.analyzer_name, epoch
-                    )
+                    artifacts[inp.analyzer_name] = loader.load_epoch(inp.analyzer_name, epoch)
                 elif inp.scope == "all_epochs":
                     cross_artifacts[inp.analyzer_name] = loader.load(inp.analyzer_name)
                 elif inp.scope == "summary":
-                    summary_artifacts[inp.analyzer_name] = loader.load_summary(
-                        inp.analyzer_name
-                    )
+                    summary_artifacts[inp.analyzer_name] = loader.load_summary(inp.analyzer_name)
 
         return ResolvedInputs(
             epoch=epoch,
@@ -658,7 +649,7 @@ class AnalysisPipeline:
                     "Secondary analyzer '%s' depends on '%s' but no epochs have been computed "
                     "for that analyzer. Skipping.",
                     analyzer.name,
-                    analyzer.depends_on,
+                    analyzer.depends_on,  # type: ignore
                 )
                 continue
 
@@ -677,7 +668,11 @@ class AnalysisPipeline:
 
             from miscope.analysis.registry import AnalyzerRegistry
 
-            spec = AnalyzerRegistry.get_spec(analyzer.name) if AnalyzerRegistry.has_spec(analyzer.name) else None
+            spec = (
+                AnalyzerRegistry.get_spec(analyzer.name)
+                if AnalyzerRegistry.has_spec(analyzer.name)
+                else None
+            )
 
             for i, epoch in enumerate(tqdm(target_epochs, desc=f"Secondary: {analyzer.name}")):
                 if progress_callback:
@@ -687,14 +682,20 @@ class AnalysisPipeline:
                     )
 
                 inputs = self._materialize_per_epoch_inputs(
-                    spec, epoch, model=None, cache=None, logits=None, probe=None  # type: ignore[arg-type]
+                    spec,
+                    epoch,
+                    model=None,
+                    cache=None,
+                    logits=None,
+                    probe=None,  # type: ignore[arg-type]
                 )
                 # Back-compat for one-off test analyzers without a registered
                 # Spec: load the dependency's artifact via the analyzer's
                 # ``depends_on`` attribute.
                 if spec is None and hasattr(analyzer, "depends_on"):
-                    inputs.artifacts[analyzer.depends_on] = loader.load_epoch(
-                        analyzer.depends_on, epoch
+                    inputs.artifacts[analyzer.depends_on] = loader.load_epoch(  # type: ignore
+                        analyzer.depends_on,  # type: ignore
+                        epoch,  # type: ignore
                     )
                 result = analyzer.analyze(inputs, context)
 
@@ -762,7 +763,7 @@ class AnalysisPipeline:
             self._save_cross_epoch_artifact(analyzer.name, result)
 
     def _best_effort_load_all_epochs(
-        self, loader: "ArtifactLoader", analyzer_name: str
+        self, loader: ArtifactLoader, analyzer_name: str
     ) -> dict[str, np.ndarray] | None:
         """Try to materialize an ``ArtifactInput(scope="all_epochs")``.
 
@@ -800,9 +801,7 @@ class AnalysisPipeline:
             try:
                 return loader.load_cross_epoch(analyzer_name)
             except Exception as e:
-                logger.debug(
-                    "Cross-epoch load failed for %s: %s", analyzer_name, e
-                )
+                logger.debug("Cross-epoch load failed for %s: %s", analyzer_name, e)
         return None
 
     def _materialize_cross_epoch_inputs(
@@ -822,9 +821,7 @@ class AnalysisPipeline:
             for inp in spec.inputs:
                 if isinstance(inp, ArtifactInput):
                     if inp.scope == "all_epochs":
-                        materialized = self._best_effort_load_all_epochs(
-                            loader, inp.analyzer_name
-                        )
+                        materialized = self._best_effort_load_all_epochs(loader, inp.analyzer_name)
                         if materialized is not None:
                             cross_artifacts[inp.analyzer_name] = materialized
                     elif inp.scope == "summary":

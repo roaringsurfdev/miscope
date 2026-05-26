@@ -85,7 +85,7 @@ class LandscapeFlatnessAnalyzer:
         # nn.Module surface is sufficient for the perturbation logic.
         return compute_landscape_flatness(
             model=inputs.model,
-            probe=inputs.probe,
+            probe=inputs.probe,  # type: ignore
             loss_fn=context["loss_fn"],
             n_directions=self.n_directions,
             epsilon=self.epsilon,
