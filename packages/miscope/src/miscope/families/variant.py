@@ -190,10 +190,19 @@ class Variant:
 
     @property
     def artifacts(self) -> ArtifactLoader:
-        """ArtifactLoader for this variant's analysis artifacts.
+        """Configured loader for this variant's analysis artifacts.
+
+        This is the canonical consumer-facing surface for loading artifacts.
+        Provides ``load_epoch``, ``load_summary``, ``load_cross_epoch``,
+        ``load_epochs``, plus introspection helpers such as
+        ``get_available_analyzers`` and ``get_epochs``.
 
         Returns a new loader each call (no caching). Assign to a variable
         if loading multiple artifacts in sequence.
+
+        Note (REQ_125): ``ArtifactLoader`` is an internal storage primitive
+        and is not re-exported from ``miscope.analysis``. Reach it through
+        this property rather than importing the class directly.
         """
         from miscope.analysis.artifact_loader import ArtifactLoader
 

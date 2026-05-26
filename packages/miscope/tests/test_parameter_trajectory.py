@@ -9,8 +9,9 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
+from miscope.analysis import AnalysisPipeline, Analyzer
 from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,

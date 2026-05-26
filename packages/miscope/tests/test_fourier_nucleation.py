@@ -344,7 +344,8 @@ class TestFourierNucleationIntegration:
         assert os.path.exists(artifact_path)
 
     def test_artifact_loadable_via_loader(self, trained_variant):
-        from miscope.analysis import AnalysisPipeline, ArtifactLoader
+        from miscope.analysis import AnalysisPipeline
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(FourierNucleationAnalyzer(iterations=3))

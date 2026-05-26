@@ -17,7 +17,6 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library import COMPONENT_GROUPS
 
 # Rolling PR₃ is defined in the dimensionality_dynamics renderer; importing
@@ -47,7 +46,7 @@ def _nearest_idx(epochs_arr, target_ep):
 
 def load_mlp_param_trajectory(variant):
     """Load W_in ⊕ W_out flattened per epoch — full MLP parameter space."""
-    loader = ArtifactLoader(str(variant.variant_dir / "artifacts"))
+    loader = variant.artifacts
     epochs = sorted(loader.get_epochs("parameter_snapshot"))
     mlp_keys = COMPONENT_GROUPS["mlp"]
     rows = []
@@ -389,7 +388,7 @@ def run_saddle_pipeline(variant, terminal=None, window=10):
 
     epochs, X = load_mlp_param_trajectory(variant)
 
-    loader = ArtifactLoader(str(variant.variant_dir / "artifacts"))
+    loader = variant.artifacts
     pt = loader.load_cross_epoch("parameter_trajectory")
     pt_eps = pt["epochs"]
     mlp_proj = pt["mlp__projections"]

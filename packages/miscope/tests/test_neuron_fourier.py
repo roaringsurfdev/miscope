@@ -402,8 +402,9 @@ class TestNeuronFourierPipelineIntegration:
         assert epochs == snapshot_epochs
 
     def test_artifacts_have_correct_shapes(self, trained_variant):
-        from miscope.analysis import AnalysisPipeline, ArtifactLoader
+        from miscope.analysis import AnalysisPipeline
         from miscope.analysis.analyzers import NeuronFourierAnalyzer, ParameterSnapshotAnalyzer
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         p = 17
         d_mlp = 512

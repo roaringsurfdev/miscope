@@ -338,7 +338,7 @@ class TestAnalysisPipelineArtifactLoading:
 
     def test_artifacts_loadable_by_loader(self, trained_variant):
         """Artifacts created by pipeline are discoverable by ArtifactLoader."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(MockAnalyzer())
@@ -350,7 +350,7 @@ class TestAnalysisPipelineArtifactLoading:
 
     def test_load_epoch_returns_data(self, trained_variant):
         """Can load a single epoch's data via ArtifactLoader."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(MockAnalyzer())
@@ -366,7 +366,7 @@ class TestAnalysisPipelineArtifactLoading:
 
     def test_load_all_epochs_stacked(self, trained_variant):
         """Can load all epochs stacked via ArtifactLoader.load()."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(MockAnalyzer())
@@ -383,7 +383,7 @@ class TestAnalysisPipelineArtifactLoading:
 
     def test_load_stacked_data_shape(self, trained_variant):
         """Stacked data has correct shape (n_epochs, ...)."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(MockAnalyzer())
@@ -396,7 +396,7 @@ class TestAnalysisPipelineArtifactLoading:
 
     def test_load_nonexistent_raises(self, trained_variant):
         """Loading nonexistent analyzer raises FileNotFoundError."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         loader = ArtifactLoader(pipeline.artifacts_dir)
@@ -582,7 +582,7 @@ class TestPipelineSummaryStatistics:
 
     def test_summary_loadable_by_artifact_loader(self, trained_variant):
         """Summary statistics are loadable via ArtifactLoader."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(SummaryMockAnalyzer())

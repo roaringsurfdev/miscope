@@ -190,7 +190,7 @@ class TestDominantFrequenciesAnalyzerIntegration:
 
     def test_artifact_contains_epochs(self, trained_variant):
         """Artifact loader discovers correct epochs."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(DominantFrequenciesAnalyzer())
@@ -203,7 +203,7 @@ class TestDominantFrequenciesAnalyzerIntegration:
 
     def test_artifact_contains_coefficients(self, trained_variant):
         """Artifact contains coefficients array."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(DominantFrequenciesAnalyzer())
@@ -215,7 +215,7 @@ class TestDominantFrequenciesAnalyzerIntegration:
 
     def test_artifact_coefficients_shape(self, trained_variant):
         """Artifact coefficients have correct shape."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(DominantFrequenciesAnalyzer())
@@ -236,7 +236,7 @@ class TestDominantFrequenciesAnalyzerIntegration:
 
     def test_coefficients_change_across_epochs(self, trained_variant):
         """Coefficients differ between epochs (training changes weights)."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(DominantFrequenciesAnalyzer())

@@ -8,7 +8,6 @@ This package provides:
 """
 
 from miscope.analysis.analyzers import AnalyzerRegistry
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.freshness import FreshnessReport, check_freshness
 from miscope.analysis.pipeline import AnalysisPipeline
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
@@ -19,12 +18,17 @@ from miscope.analysis.protocols import (
     SecondaryAnalyzer,
 )
 
+# Note: ``ArtifactLoader`` is an internal storage primitive and is intentionally
+# not re-exported here (REQ_125). Consumers should reach a configured loader
+# through ``variant.artifacts`` (returns an instance) rather than importing the
+# class directly. The class continues to live at
+# ``miscope.analysis.artifact_loader`` for pipeline and cross-epoch analyzer use.
+
 __all__ = [
     "Analyzer",
     "AnalyzerRegistry",
     "AnalysisPipeline",
     "AnalysisRunConfig",
-    "ArtifactLoader",
     "CrossEpochAnalyzer",
     "FreshnessReport",
     "Plan",

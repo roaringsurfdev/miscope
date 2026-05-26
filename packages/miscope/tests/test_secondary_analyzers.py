@@ -9,8 +9,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from miscope.analysis import AnalysisPipeline, ArtifactLoader
+from miscope.analysis import AnalysisPipeline
 from miscope.analysis.analyzers import AnalyzerRegistry
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.protocols import SecondaryAnalyzer as SecondaryAnalyzerProtocol
 from miscope.families.discovery import discover_families
 

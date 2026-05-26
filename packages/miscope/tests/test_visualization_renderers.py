@@ -338,7 +338,7 @@ class TestVisualizationIntegration:
 
     def test_load_epoch_and_render_dominant_frequencies(self, realistic_artifacts):
         """Can load single epoch and render dominant frequencies."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_dominant_frequencies
 
         loader = ArtifactLoader(str(realistic_artifacts))
@@ -349,7 +349,7 @@ class TestVisualizationIntegration:
 
     def test_load_epoch_and_render_neuron_heatmap(self, realistic_artifacts):
         """Can load single epoch and render neuron heatmap."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_neuron_heatmap
 
         loader = ArtifactLoader(str(realistic_artifacts))
@@ -360,7 +360,7 @@ class TestVisualizationIntegration:
 
     def test_load_epoch_and_render_freq_clusters(self, realistic_artifacts):
         """Can load single epoch and render frequency clusters."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_freq_clusters
 
         loader = ArtifactLoader(str(realistic_artifacts))
@@ -371,7 +371,7 @@ class TestVisualizationIntegration:
 
     def test_all_renderers_no_exceptions(self, realistic_artifacts):
         """All renderers work without exceptions on realistic data."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import (
             get_dominant_indices,
             get_most_active_neurons,
@@ -684,7 +684,7 @@ class TestCoarsenessVisualizationIntegration:
 
     def test_load_epoch_and_render_distribution(self, coarseness_artifacts):
         """Can load single epoch and render coarseness distribution."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_coarseness_distribution
 
         loader = ArtifactLoader(str(coarseness_artifacts))
@@ -694,7 +694,7 @@ class TestCoarsenessVisualizationIntegration:
 
     def test_load_summary_and_render_trajectory(self, coarseness_artifacts):
         """Can load summary and render coarseness trajectory."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_coarseness_trajectory
 
         loader = ArtifactLoader(str(coarseness_artifacts))
@@ -704,7 +704,7 @@ class TestCoarsenessVisualizationIntegration:
 
     def test_load_summary_and_render_blob_count(self, coarseness_artifacts):
         """Can load summary and render blob count trajectory."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_blob_count_trajectory
 
         loader = ArtifactLoader(str(coarseness_artifacts))
@@ -714,7 +714,7 @@ class TestCoarsenessVisualizationIntegration:
 
     def test_load_epoch_and_render_by_neuron(self, coarseness_artifacts):
         """Can load single epoch and render coarseness by neuron."""
-        from miscope.analysis import ArtifactLoader
+        from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.visualization import render_coarseness_by_neuron
 
         loader = ArtifactLoader(str(coarseness_artifacts))

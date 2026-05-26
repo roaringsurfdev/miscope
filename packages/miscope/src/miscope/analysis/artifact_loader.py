@@ -1,4 +1,10 @@
-"""Standalone artifact loader for visualization components.
+"""Internal storage primitive: ArtifactLoader.
+
+Consumers should access a configured loader via ``variant.artifacts`` rather
+than importing this class directly. The class is part of the storage layer
+and is used internally by the analysis pipeline and cross-epoch analyzers;
+only the public-API signal changed in REQ_125 — the class itself, its
+methods, and its on-disk contract are unchanged.
 
 Supports per-epoch artifact storage where each analyzer's results
 are stored as individual files per epoch:

@@ -9,8 +9,9 @@ import numpy as np
 import plotly.graph_objects as go
 import pytest
 
-from miscope.analysis import AnalysisPipeline, Analyzer, ArtifactLoader
+from miscope.analysis import AnalysisPipeline, Analyzer
 from miscope.analysis.analyzers import EffectiveDimensionalityAnalyzer
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.weights import (
     ATTENTION_MATRICES,
     WEIGHT_MATRIX_NAMES,
