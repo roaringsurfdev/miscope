@@ -39,12 +39,7 @@ def _load_table_rows() -> list[dict]:
     rows: list[dict] = []
 
     for family in families.values():
-        # Derive results dir for this family from an existing variant, or skip.
-        variants = family.variants
-        if not variants:
-            continue
-
-        registry_path = variants[0].variant_dir.parent / "variant_registry.json"
+        registry_path = family.family_dir / "variant_registry.json"
         if not registry_path.exists():
             continue
 
@@ -56,7 +51,9 @@ def _load_table_rows() -> list[dict]:
             seed = rec.get("model_seed")
             dseed = rec.get("data_seed")
             family_name = rec.get("family", family.name)
-            variant_name = f"{family_name}_p{prime}_seed{seed}_dseed{dseed}"
+            variant_name = family.variant_pattern.format(
+                prime=prime, seed=seed, data_seed=dseed
+            )
 
             classification_raw = rec.get("performance_classification", [])
             classification = classification_raw[0] if classification_raw else "unknown"
