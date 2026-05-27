@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 import torch
 
+from miscope.core.basis_projection import BasisProjectionSite
 from miscope.families.types import AnalysisDatasetSpec, ParameterSpec
 
 if TYPE_CHECKING:
@@ -70,6 +71,21 @@ class ModelFamily(Protocol):
 
         These analyzers run after all per-epoch analysis completes
         and consume per-epoch artifacts to produce cross-epoch results.
+        """
+        ...
+
+    @property
+    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """Named sites the family supplies for basis-projection analyzers (REQ_126).
+
+        Each site bundles a composer function that produces a matrix ready
+        for projection onto the family's basis (the projection is performed
+        by ``weight_basis_projection`` / ``activation_basis_projection`` via
+        REQ_109 primitives — never inline in the family). Families without
+        a registered basis return an empty tuple.
+
+        See :class:`miscope.core.basis_projection.BasisProjectionSite` for
+        the per-site contract.
         """
         ...
 

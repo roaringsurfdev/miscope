@@ -33,7 +33,8 @@
     "repr_geometry"
   ],
   "secondary_analyzers": [
-    "neuron_fourier"
+    "neuron_fourier",
+    "weight_basis_projection"
   ],
   "cross_epoch_analyzers": [
     "parameter_trajectory",

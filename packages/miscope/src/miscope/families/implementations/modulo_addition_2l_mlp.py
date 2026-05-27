@@ -24,10 +24,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 
 from miscope.analysis.library import get_fourier_basis
 from miscope.architectures import HookedOneHotMLP, HookedOneHotMLPConfig
+from miscope.core.basis_projection import BasisProjectionSite
 from miscope.families.base_model_family import BaseModelFamily
 
 
@@ -223,7 +225,32 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
             "fourier_basis": fourier_basis,
             "loss_fn": loss_fn,
             "labels": labels,
+            # REQ_126: family-supplied sites for weight_basis_projection.
+            "basis_projection_sites": self.basis_projection_sites,
         }
+
+    @property
+    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: weight-side sites for ``weight_basis_projection``.
+
+        Two sites — the 2L MLP has no embedding or attention to project. Both
+        reproduce ``neuron_fourier``'s MLP-architecture dispatch path in
+        :func:`miscope.analysis.library.fourier.compose_neuron_fourier_weights`.
+        """
+        return (
+            BasisProjectionSite(
+                name="mlp_in",
+                compose=_compose_mlp_in_2l,
+                period_axes=(0,),
+                description="(W_in[:, :p] + W_in[:, p:])^T / 2 — averaged a/b half: (p, d_hidden)",
+            ),
+            BasisProjectionSite(
+                name="mlp_out",
+                compose=_compose_mlp_out_2l,
+                period_axes=(0,),
+                description="W_out — already in (p, d_hidden) form",
+            ),
+        )
 
     def make_probe(
         self,
@@ -285,6 +312,23 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
                 )
             ),
         }
+
+
+def _compose_mlp_in_2l(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``mlp_in`` site for 2L MLP: averaged a/b halves of ``W_in``.
+
+    ``W_in`` is ``(d_hidden, 2p)``; the two halves are the input weights
+    for the one-hot a and b inputs. Averaging them and transposing yields
+    ``(p, d_hidden)`` — same shape as the transformer family's ``mlp_in``.
+    """
+    p = int(context["params"]["prime"])
+    W_in = np.asarray(snapshot["W_in"])
+    return (W_in[:, :p] + W_in[:, p:]).T / 2.0  # type: ignore[no-any-return]
+
+
+def _compose_mlp_out_2l(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``mlp_out`` site for 2L MLP: ``W_out`` already shaped ``(p, d_hidden)``."""
+    return np.asarray(snapshot["W_out"])
 
 
 def load_modulo_addition_2l_mlp_family(
