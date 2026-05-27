@@ -43,7 +43,7 @@ Every analyzer entry carries a **status** and a **bucket**.
 
 **Bucket** describes the validation strategy and which downstream REQ picks up the work:
 
-- `refactor` — same conceptual measurement, cleaner implementation built on REQ_109 primitives. Parity validation against the old analyzer is meaningful. Pure renames (`weight_spectra`, `parameter_trajectory`) picked up by REQ_111 (narrowed); scope-tightening refactors (`representation_geometry` defusion, `gradient_site` generalization) deferred to follow-up REQs once REQ_126 lands.
+- `refactor` — same conceptual measurement, cleaner implementation built on REQ_109 primitives. Parity validation against the old analyzer is meaningful. Pure renames (`weight_spectra`, `parameter_trajectory`) shipped via REQ_111 (staging, 2026-05-27); scope-tightening refactors (`representation_geometry` defusion, `gradient_site` generalization) deferred to follow-up REQs once REQ_126 lands.
 - `reorganization` — new conceptual shape. Inputs, outputs, or scope change. Validation against primitives + research-grade reference (reproducing known findings on canon variants), not parity. Picked up by a new scoped REQ.
 - `new` — net-new capability. No old analyzer exists. Validated against primitive correctness and reproduction of reference computations.
 - `retain` — no change planned.
@@ -100,13 +100,13 @@ Per-epoch capture of all 9 weight matrices: `W_E, W_pos, W_Q, W_K, W_V, W_O, W_i
 - **c. Name:** Clean.
 
 ### `weight_spectra`
-**Status:** existing-rename (currently `effective_dimensionality`) | **Bucket:** refactor
+**Status:** existing (shipped via REQ_111, 2026-05-27) | **Bucket:** refactor (complete)
 
-Per-epoch singular values of all weight matrices; participation ratios as summary. Rename clarifies scope (computes spectra; participation ratio is one of several derivable metrics). REQ_111 covers the rename + REQ_109 primitive integration.
+Per-epoch full SVD of all weight matrices: singular values plus left and right singular vectors; participation ratios as summary. Successor to `effective_dimensionality`. Parity validated bit-exactly against the legacy analyzer on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598).
 
-- **a. Validity:** *Existence* trivial (SVD defined for any matrix). *Faithfulness*: singular values preserved; left/right singular vectors are discarded — recover them if downstream needs basis directions. *Interpretive*: "effective rank" via participation ratio assumes spectral mass distribution is the right capacity measure; stable rank and hard-threshold rank carry different semantics. *Statistical*: deterministic on fixed weights.
-- **b. Primitives:** SVD, participation ratio (REQ_109). Consumes `parameter_snapshot`.
-- **c. Name:** current `effective_dimensionality` overpromises — the analyzer returns spectra, of which effective dim is one summary. Rename to `weight_spectra` clarifies scope.
+- **a. Validity:** *Existence* trivial (SVD defined for any matrix). *Faithfulness*: singular values **and** left/right singular vectors retained — downstream subspace and basis-direction views work from artifacts without recomputing SVD. *Interpretive*: "effective rank" via participation ratio assumes spectral mass distribution is the right capacity measure; stable rank and hard-threshold rank carry different semantics. *Statistical*: deterministic on fixed weights.
+- **b. Primitives:** `compute_svd` (REQ_111; raw, non-centered SVD primitive added to `library/pca.py`, returns `SVDResult` from `core/svd.py`), participation ratio (REQ_109). Consumes `parameter_snapshot`.
+- **c. Name:** Clean. The legacy `effective_dimensionality` overpromised — the analyzer returns spectra, of which effective dim is one summary.
 
 ### `representation_geometry`
 **Status:** existing-rename (currently `repr_geometry`) | **Bucket:** refactor
@@ -124,13 +124,13 @@ The class-manifold framing generalizes to any classifier (residues = classes for
 - **c. Name:** source = representations (per-class activations at sites), transform = geometric measurements. The fused Fourier-basis fields stretch the name's coverage; surfacing them separately would tighten the contract.
 
 ### `parameter_trajectory`
-**Status:** existing-rename (currently `parameter_trajectory_pca`) | **Bucket:** refactor
+**Status:** existing (shipped via REQ_111 mechanical port, 2026-05-27) | **Bucket:** refactor (complete)
 
-Cross-epoch PCA on weight trajectories with first-order velocity. Rename drops the implementation detail (PCA) from the name. Acceleration / curvature / torsion live in Dynamical Proxies → Trajectory geometry, fed by this analyzer's outputs.
+Cross-epoch PCA on weight trajectories with first-order velocity. Acceleration / curvature / torsion live in Dynamical Proxies → Trajectory geometry, fed by this analyzer's outputs. The registered analyzer name and artifact directory layout were already aligned in earlier work; REQ_111 closed the file/class gap (`parameter_trajectory_pca.py` → `parameter_trajectory.py`; `ParameterTrajectoryPCA` → `ParameterTrajectory`).
 
 - **a. Validity:** *Existence* requires multiple checkpoints (T ≥ 2 for velocity). *Faithfulness*: PCA preserves variance ordering across the trajectory but discards absolute axes — orientation is arbitrary, so cross-variant PCA-frame comparisons need a registration step. *Interpretive*: "principal directions of training" presumes weight motion is well-summarized by a low-dim affine subspace — true under steady regimes, fragile during reorganization (saddle crossing, basin jump). *Statistical*: deterministic on a given checkpoint set, but resolution depends on checkpoint density — sparse cadences alias fast motion.
 - **b. Primitives:** PCA, finite-difference velocity (REQ_109). Consumes `parameter_snapshot` time series. Feeds `trajectory_metrics` (planned).
-- **c. Name:** current `parameter_trajectory_pca` bakes implementation (PCA) into the name; rename drops it. Source = parameters over time, transform = trajectory summary.
+- **c. Name:** Clean. The legacy `parameter_trajectory_pca` baked implementation (PCA) into the contract; the current name leaves room for future trajectory summaries beyond PCA.
 
 ### `representation_trajectory`
 **Status:** planned-consolidation (absorbs `global_centroid_pca` and the trajectory portion of `centroid_dmd`) | **Bucket:** reorganization
@@ -419,9 +419,9 @@ How current analyzers map to Atlas entries:
 | Existing analyzer | Target | Bucket |
 |---|---|---|
 | `parameter_snapshot` | Universal Core / `parameter_snapshot` | retain |
-| `effective_dimensionality` | Universal Core / `weight_spectra` | refactor |
+| `effective_dimensionality` | Universal Core / `weight_spectra` | refactor — shipped 2026-05-27 (REQ_111); legacy retained for the deprecation window |
 | `repr_geometry` | Universal Core / `representation_geometry` | refactor |
-| `parameter_trajectory_pca` | Universal Core / `parameter_trajectory` | refactor |
+| `parameter_trajectory_pca` | Universal Core / `parameter_trajectory` | refactor — shipped 2026-05-27 (REQ_111 mechanical port); registered name and artifact layout were already aligned in earlier work |
 | `global_centroid_pca` | Universal Core / `representation_trajectory` | reorganization |
 | `centroid_dmd` *(trajectory portion)* | Universal Core / `representation_trajectory` | reorganization |
 | `centroid_dmd` *(modal portion)* | Dynamical / `activation_dmd` (REQ_117) | reorganization |
@@ -494,7 +494,7 @@ Subsequent releases extend the baseline rather than disrupting it. External rese
 - [REQ_107: Discoverability Registry](requirements/active/REQ_107_discoverability_registry.md) — programmatic registry. The Atlas and the registry complement each other: the registry enumerates fields programmatically; the Atlas explains the territory in prose.
 - [REQ_109: Measurement Primitives](requirements/staging/REQ_109_measurement_primitives.md) — primitives library. Every Atlas analyzer (existing or planned) consumes REQ_109 primitives for its transform step.
 - [REQ_110: Lakehouse Surface](requirements/active/REQ_110_lakehouse_surface.md) — tabular output contract. Atlas analyzers respect it where applicable.
-- [REQ_111: Universal Core Pure Renames](requirements/active/REQ_111_parallel_analyzer_buildout.md) — narrowed after the Atlas (a)(b)(c) pass to cover only `weight_spectra` (← `effective_dimensionality`) and `parameter_trajectory` (← `parameter_trajectory_pca`). Phase 1a of the Atlas-driven reorganization.
+- [REQ_111: Universal Core Pure Renames](requirements/staging/REQ_111_parallel_analyzer_buildout.md) — *staging*; narrowed after the Atlas (a)(b)(c) pass to cover only `weight_spectra` (← `effective_dimensionality`) and `parameter_trajectory` (← `parameter_trajectory_pca`). Phase 1a of the Atlas-driven reorganization. Both renames merged 2026-05-27; `weight_spectra` parity recorded bit-exact on canon.
 - [REQ_126: Family Basis Projection Consolidation](requirements/active/REQ_126_basis_projection_consolidation.md) — keystone of phase 1. Absorbs six Fourier-locked analyzers into two universal ones (`weight_basis_projection`, `activation_basis_projection`); defuses Fourier fields from `representation_geometry`. Unlocks REQ_102's `coarseness` retirement.
 - [REQ_117: DMD Reorganization](requirements/staging/REQ_117_dmd_reorganization.md) — canonical home for `activation_dmd` and `parameter_dmd` (both shipped 2026-05). Supersedes REQ_073; absorbs the Research Claude drafts that proposed the windowed treatment. Includes validation outcomes per-variant in the Notes section.
 - [REQ_118: Neuron Grouping Primitive](requirements/staging/REQ_118_neuron_grouping.md) — prerequisite for REQ_117's parameter track (shipped 2026-05). Canonical home for `neuron_grouping`.
