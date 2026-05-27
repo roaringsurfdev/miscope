@@ -74,7 +74,7 @@ def _synthetic_snapshot(p: int, d_model: int, d_mlp: int, n_heads: int, d_head: 
 
 
 def _synthetic_context(p: int, sites) -> dict:
-    return {"params": {"prime": p}, "basis_projection_sites": sites}
+    return {"params": {"prime": p}, "weight_basis_projection_sites": sites}
 
 
 def _run_analyzer(snapshot: dict, sites, p: int) -> dict[str, np.ndarray]:
@@ -97,7 +97,7 @@ def test_1d_site_shapes_and_keys():
     )
 
     fam = ModuloAddition1LayerFamily.__new__(ModuloAddition1LayerFamily)
-    sites = tuple(s for s in fam.basis_projection_sites if s.name == "embedding")
+    sites = tuple(s for s in fam.weight_basis_projection_sites if s.name == "embedding")
     p, d_model = 13, 8
     snapshot = _synthetic_snapshot(p=p, d_model=d_model, d_mlp=16, n_heads=2, d_head=4)
     result = _run_analyzer(snapshot, sites=sites, p=p)
@@ -130,7 +130,7 @@ def test_2d_site_shapes_and_keys():
     )
 
     fam = ModuloAddition1LayerFamily.__new__(ModuloAddition1LayerFamily)
-    sites = tuple(s for s in fam.basis_projection_sites if s.name == "attn_qk")
+    sites = tuple(s for s in fam.weight_basis_projection_sites if s.name == "attn_qk")
     p, n_heads, d_head = 13, 2, 4
     snapshot = _synthetic_snapshot(p=p, d_model=8, d_mlp=16, n_heads=n_heads, d_head=d_head)
     result = _run_analyzer(snapshot, sites=sites, p=p)
@@ -205,7 +205,7 @@ def canon_new_result(canon_snapshot):
     )
 
     fam = ModuloAddition1LayerFamily.__new__(ModuloAddition1LayerFamily)
-    return _run_analyzer(canon_snapshot, sites=fam.basis_projection_sites, p=PRIME)
+    return _run_analyzer(canon_snapshot, sites=fam.weight_basis_projection_sites, p=PRIME)
 
 
 @skip_no_canon

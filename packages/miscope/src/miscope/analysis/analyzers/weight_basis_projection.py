@@ -44,7 +44,7 @@ class WeightBasisProjectionAnalyzer:
     """Project family-declared weight sites onto the family's basis.
 
     For each :class:`BasisProjectionSite` the family declares in
-    ``context["basis_projection_sites"]``, runs the site's composer on the
+    ``context["weight_basis_projection_sites"]``, runs the site's composer on the
     ``parameter_snapshot`` artifact and projects the result via REQ_109
     primitives. Outputs are namespaced by site (``{site_name}_*`` keys).
     """
@@ -60,7 +60,7 @@ class WeightBasisProjectionAnalyzer:
     ) -> dict[str, np.ndarray]:
         """Project each declared site for the current epoch."""
         snapshot = inputs.artifacts["parameter_snapshot"]
-        sites: tuple[BasisProjectionSite, ...] = context.get("basis_projection_sites", ())
+        sites: tuple[BasisProjectionSite, ...] = context.get("weight_basis_projection_sites", ())
         if not sites:
             return {}
 

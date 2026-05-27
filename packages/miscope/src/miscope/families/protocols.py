@@ -75,17 +75,27 @@ class ModelFamily(Protocol):
         ...
 
     @property
-    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """Named sites the family supplies for basis-projection analyzers (REQ_126).
+    def weight_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """Weight-side sites for ``weight_basis_projection`` (REQ_126).
 
-        Each site bundles a composer function that produces a matrix ready
-        for projection onto the family's basis (the projection is performed
-        by ``weight_basis_projection`` / ``activation_basis_projection`` via
-        REQ_109 primitives — never inline in the family). Families without
-        a registered basis return an empty tuple.
+        Each site bundles a composer ``(parameter_snapshot_dict, context)
+        -> ndarray`` and a period-axis spec. The projection itself is
+        performed by the analyzer via REQ_109 primitives — never inline
+        in the family. Families without a registered basis return an
+        empty tuple.
 
-        See :class:`miscope.core.basis_projection.BasisProjectionSite` for
-        the per-site contract.
+        See :class:`miscope.core.basis_projection.BasisProjectionSite`.
+        """
+        ...
+
+    @property
+    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """Activation-side sites for ``activation_basis_projection`` (REQ_126).
+
+        Parallel to ``weight_basis_projection_sites`` but the composer
+        takes ``(activation_cache, context) -> ndarray`` and each site
+        declares the canonical hooks its composer reads. The analyzer
+        aggregates ``required_hooks`` across sites for its Spec.
         """
         ...
 

@@ -30,7 +30,8 @@
     "parameter_snapshot",
     "effective_dimensionality",
     "input_trace",
-    "repr_geometry"
+    "repr_geometry",
+    "activation_basis_projection"
   ],
   "secondary_analyzers": [
     "neuron_fourier",

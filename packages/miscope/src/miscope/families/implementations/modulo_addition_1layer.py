@@ -261,8 +261,9 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             # NeuronGrouping analyzer dispatches on this when present and
             # bypasses the universal kmeans path.
             "neuron_grouping_override": self._neuron_grouping_override,
-            # REQ_126: family-supplied sites for weight_basis_projection.
-            "basis_projection_sites": self.basis_projection_sites,
+            # REQ_126: family-supplied sites for basis-projection analyzers.
+            "weight_basis_projection_sites": self.weight_basis_projection_sites,
+            "activation_basis_projection_sites": self.activation_basis_projection_sites,
         }
 
     def _neuron_grouping_override(
@@ -317,7 +318,7 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
         return assignment, magnitudes
 
     @property
-    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+    def weight_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
         """REQ_126: weight-side sites for ``weight_basis_projection``.
 
         Five sites cover the absorbed Fourier analyzers:
@@ -357,6 +358,37 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
                 compose=_compose_mlp_out,
                 period_axes=(0,),
                 description="(W_out @ W_U)^T — composed neuron output weight: (p, d_mlp)",
+            ),
+        )
+
+    @property
+    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_basis_projection``.
+
+        Two sites absorb the activation-side Fourier analyzers:
+        - ``attn_pattern`` reproduces ``attention_freq`` (post-softmax
+          attention pattern on the equals-token row, reshaped to a (p, p)
+          (a, b) grid per head).
+        - ``mlp_out`` reproduces ``neuron_freq_norm`` (MLP last-position
+          activations reshaped to a (p, p) (a, b) grid per neuron) and is
+          the REQ_102 gate for retiring ``coarseness``.
+        """
+        return (
+            BasisProjectionSite(
+                name="attn_pattern",
+                compose=_compose_attn_pattern_activation,
+                period_axes=(1, 2),
+                description=(
+                    "attention pattern at (to=2, from=0) reshaped to (n_heads, p, p)"
+                ),
+                required_hooks=("blocks.0.attn.hook_pattern",),
+            ),
+            BasisProjectionSite(
+                name="mlp_out",
+                compose=_compose_mlp_out_activation,
+                period_axes=(1, 2),
+                description="MLP last-position activations reshaped to (d_mlp, p, p)",
+                required_hooks=("blocks.0.mlp.hook_out",),
             ),
         )
 
@@ -487,6 +519,47 @@ def _compose_attn_qk(snapshot: dict[str, Any], context: dict[str, Any]) -> np.nd
     Q = np.einsum("td,hdk->htk", W_E, W_Q)  # (n_heads, p, d_head)
     K = np.einsum("td,hdk->htk", W_E, W_K)  # (n_heads, p, d_head)
     return np.einsum("htk,hsk->hts", Q, K)
+
+
+def _compose_attn_pattern_activation(cache: Any, context: dict[str, Any]) -> np.ndarray:
+    """``attn_pattern`` activation site: per-head equals-token attention reshaped to (a, b) grid.
+
+    Pulls the post-softmax pattern at ``blocks.0.attn.hook_pattern`` shape
+    ``(p^2, n_heads, n_pos, n_pos)``, selects the ``(to=2, from=0)`` cell,
+    and reshapes the leading batch axis as a ``(p, p)`` (a, b) grid.
+
+    Result shape: ``(n_heads, p, p)``. Period axes: (1, 2).
+    """
+    p = int(context["params"]["prime"])
+    attn = cache["blocks.0.attn.hook_pattern"]
+    attn_pair = attn[:, :, 2, 0]  # (p^2, n_heads)
+    if hasattr(attn_pair, "detach"):
+        attn_pair = attn_pair.detach().cpu().numpy()
+    else:
+        attn_pair = np.asarray(attn_pair)
+    grid = attn_pair.reshape(p, p, -1).transpose(2, 0, 1)  # (n_heads, p, p)
+    return grid
+
+
+def _compose_mlp_out_activation(cache: Any, context: dict[str, Any]) -> np.ndarray:
+    """``mlp_out`` activation site: last-position MLP activations on the (a, b) grid.
+
+    Pulls ``blocks.0.mlp.hook_out`` shape ``(p^2, seq_len, d_mlp)``,
+    selects the last position, and reshapes to a ``(p, p)`` (a, b) grid
+    per neuron.
+
+    Result shape: ``(d_mlp, p, p)``. Period axes: (1, 2).
+    """
+    p = int(context["params"]["prime"])
+    acts = cache["blocks.0.mlp.hook_out"]
+    if hasattr(acts, "ndim") and acts.ndim == 3:
+        acts = acts[:, -1, :]
+    if hasattr(acts, "detach"):
+        acts = acts.detach().cpu().numpy()
+    else:
+        acts = np.asarray(acts)
+    grid = acts.reshape(p, p, -1).transpose(2, 0, 1)  # (d_mlp, p, p)
+    return grid
 
 
 def load_modulo_addition_1layer_family(
