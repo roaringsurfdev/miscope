@@ -1,6 +1,6 @@
 # REQ_073: Weight-Space DMD Analysis
 
-**Status:** Superseded by [REQ_117](REQ_117_dmd_reorganization.md) (DMD Reorganization — Activation and Parameter, Windowed and Per-Regime).
+**Status:** Superseded by [REQ_117](REQ_117_dmd_reorganization.md) (DMD Reorganization — Activation and Parameter, Windowed and Per-Regime). Moved to staging 2026-05-27 to ride alongside REQ_117 into the next milestone archive at release time. Follows the supersession-staging precedent set by REQ_097, REQ_098, REQ_104 (all superseded by REQ_109 and parked in staging together).
 **Branch:** TBD
 **Attribution:** Drafted by Engineering Claude
 

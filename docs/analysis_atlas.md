@@ -493,7 +493,7 @@ Suggested v1 PyPI scope (the **clean baseline**):
 - **Dynamical Proxies** — partial:
   - Trajectory geometry: velocity (existing); `trajectory_metrics` planned.
   - Landscape geometry: `landscape_flatness` (existing); `hessian_topk` planned.
-  - Operator dynamics: `gradient_site` refactored; `parameter_dmd` (REQ_073) and `cross_site_coupling` planned.
+  - Operator dynamics: `activation_dmd` and `parameter_dmd` shipped 2026-05 via REQ_117; `gradient_site` refactor and `cross_site_coupling` planned.
   - Phase-space fits: all planned (`lissajous_fit`, `saddle_center_center_fit`, `saddle_transport_sigmoidality`). Subset may ship in v1 if the Class Centroid PCA write-up depends on them.
 
 Subsequent releases extend the baseline rather than disrupting it. External researchers landing on v1 see a working tool with explicit documentation of what's coming. Honesty over completeness.
@@ -512,7 +512,7 @@ Subsequent releases extend the baseline rather than disrupting it. External rese
 - [REQ_126: Family Basis Projection Consolidation](requirements/staging/REQ_126_basis_projection_consolidation.md) — *staging* (2026-05-27). Keystone of phase 1. Shipped across three PRs: `weight_basis_projection`, `activation_basis_projection`, `centroid_fourier_alignment`. Six absorbed analyzers + one defused field; REQ_102's `coarseness` blob/plaid gate verified on canon. Downstream-visualization migration deferred to a separate REQ.
 - [REQ_117: DMD Reorganization](requirements/staging/REQ_117_dmd_reorganization.md) — canonical home for `activation_dmd` and `parameter_dmd` (both shipped 2026-05). Supersedes REQ_073; absorbs the Research Claude drafts that proposed the windowed treatment. Includes validation outcomes per-variant in the Notes section.
 - [REQ_118: Neuron Grouping Primitive](requirements/staging/REQ_118_neuron_grouping.md) — prerequisite for REQ_117's parameter track (shipped 2026-05). Canonical home for `neuron_grouping`.
-- [REQ_073: Weight-Space DMD](requirements/active/REQ_073_weight_space_dmd.md) — superseded by REQ_117. Retained for archaeology.
+- [REQ_073: Weight-Space DMD](requirements/staging/REQ_073_weight_space_dmd.md) — superseded by REQ_117 (shipped 2026-05); moved to staging 2026-05-27 to ride alongside into the next milestone archive. Retained for archaeology.
 - [Variant Atlas](variant_atlas.md) — companion document for variants studied across these analyzers. The Analysis Atlas catalogs lenses; the Variant Atlas catalogs models being studied.
 - [REQ_055: Attention Head Phase Analysis](requirements/active/REQ_055_attention_head_phase_analysis.md) — possibly overlaps with `cross_site_coupling`; coordinate scope when implementing.
 - [REQ_102: Analyzer Deprecation](requirements/active/REQ_102_analyzer_deprecation.md) — close-out track for phase 1 retirements. Gated per-analyzer by REQ_111, REQ_126, REQ_117 validation outcomes. As of 2026-05-27, REQ_126's gates pass on canon but the close-out is deferred until the downstream-visualization migration completes (per user direction — don't retire active surfaces until consumers have ported over).
