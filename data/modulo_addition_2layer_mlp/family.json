@@ -35,7 +35,8 @@
   ],
   "secondary_analyzers": [
     "neuron_fourier",
-    "weight_basis_projection"
+    "weight_basis_projection",
+    "centroid_fourier_alignment"
   ],
   "cross_epoch_analyzers": [
     "parameter_trajectory",
