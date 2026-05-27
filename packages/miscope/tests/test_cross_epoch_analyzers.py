@@ -13,9 +13,9 @@ from miscope.analysis import AnalysisPipeline
 from miscope.analysis.analyzers import (
     AnalyzerRegistry,
     ParameterSnapshotAnalyzer,
-    ParameterTrajectoryPCA,
+    ParameterTrajectory,
 )
-from miscope.analysis.analyzers.parameter_trajectory_pca import _GROUPS
+from miscope.analysis.analyzers.parameter_trajectory import _GROUPS
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.pca import pca
@@ -93,21 +93,21 @@ def artifacts_with_snapshots():
 class TestCrossEpochAnalyzerProtocol:
     """Tests for CrossEpochAnalyzer protocol conformance."""
 
-    def test_parameter_trajectory_pca_conforms(self):
-        """ParameterTrajectoryPCA satisfies CrossEpochAnalyzer protocol."""
-        analyzer = ParameterTrajectoryPCA()
+    def test_parameter_trajectory_conforms(self):
+        """ParameterTrajectory satisfies CrossEpochAnalyzer protocol."""
+        analyzer = ParameterTrajectory()
         assert isinstance(analyzer, UnifiedAnalyzer)
 
     def test_has_name(self):
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         assert analyzer.name == "parameter_trajectory"
 
     def test_has_requires(self):
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         assert analyzer.requires == ["parameter_snapshot"]
 
     def test_has_analyze_method(self):
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         assert callable(analyzer.analyze)
 
     def test_registered_in_registry(self):
@@ -117,12 +117,12 @@ class TestCrossEpochAnalyzerProtocol:
 # ── Analyzer output tests ────────────────────────────────────────────
 
 
-class TestParameterTrajectoryPCA:
-    """Tests for ParameterTrajectoryPCA analyzer."""
+class TestParameterTrajectory:
+    """Tests for ParameterTrajectory analyzer."""
 
     def test_returns_dict(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -130,7 +130,7 @@ class TestParameterTrajectoryPCA:
 
     def test_contains_epochs(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -138,7 +138,7 @@ class TestParameterTrajectoryPCA:
 
     def test_contains_all_groups(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -155,7 +155,7 @@ class TestParameterTrajectoryPCA:
 
     def test_projections_shape(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -168,7 +168,7 @@ class TestParameterTrajectoryPCA:
     def test_numerical_equivalence_with_library(self, artifacts_with_snapshots):
         """Cross-epoch results match direct library function calls."""
         artifacts_dir, epochs, snapshots = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -192,7 +192,7 @@ class TestParameterTrajectoryPCA:
     def test_component_groups_differ(self, artifacts_with_snapshots):
         """Different component groups produce different PCA results."""
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -216,7 +216,7 @@ class TestArtifactLoaderCrossEpoch:
     def test_has_cross_epoch_true_when_present(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         # Create the cross-epoch file
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -229,7 +229,7 @@ class TestArtifactLoaderCrossEpoch:
 
     def test_load_cross_epoch(self, artifacts_with_snapshots):
         artifacts_dir, epochs, _ = artifacts_with_snapshots
-        analyzer = ParameterTrajectoryPCA()
+        analyzer = ParameterTrajectory()
         result = analyzer.analyze(
             ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
         )
@@ -305,7 +305,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_produces_artifact(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(ParameterTrajectory())
         pipeline.run()
 
         cross_epoch_path = os.path.join(
@@ -318,7 +318,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_loadable(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(ParameterTrajectory())
         pipeline.run()
 
         loader = ArtifactLoader(pipeline.artifacts_dir)
@@ -330,7 +330,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_skips_if_exists(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(ParameterTrajectory())
         pipeline.run()
 
         # Modify the cross-epoch file to detect if it gets overwritten
@@ -347,7 +347,7 @@ class TestPipelineCrossEpoch:
         time.sleep(0.05)
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline2.register_cross_epoch(ParameterTrajectory())
         pipeline2.run()
 
         mtime_after = os.path.getmtime(cross_epoch_path)
@@ -356,7 +356,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_force_recomputes(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(ParameterTrajectory())
         pipeline.run()
 
         cross_epoch_path = os.path.join(
@@ -371,7 +371,7 @@ class TestPipelineCrossEpoch:
         time.sleep(0.05)
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline2.register_cross_epoch(ParameterTrajectory())
         pipeline2.run(force=True)
 
         mtime_after = os.path.getmtime(cross_epoch_path)
@@ -381,7 +381,7 @@ class TestPipelineCrossEpoch:
         """Cross-epoch analyzer fails if required per-epoch analyzer hasn't run."""
         pipeline = AnalysisPipeline(trained_variant)
         # Don't register ParameterSnapshotAnalyzer — only register cross-epoch
-        pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+        pipeline.register_cross_epoch(ParameterTrajectory())
         with pytest.raises(RuntimeError, match="requires.*parameter_snapshot"):
             pipeline.run()
 

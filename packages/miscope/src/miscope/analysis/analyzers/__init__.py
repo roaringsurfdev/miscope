@@ -38,7 +38,7 @@ from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnaly
 # Cross-epoch Analyzers
 from miscope.analysis.analyzers.activation_dmd import ActivationDMD
 from miscope.analysis.analyzers.parameter_dmd import ParameterDMD
-from miscope.analysis.analyzers.parameter_trajectory_pca import ParameterTrajectoryPCA
+from miscope.analysis.analyzers.parameter_trajectory import ParameterTrajectory
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.analyzers.repr_geometry import RepresentationalGeometryAnalyzer
 from miscope.analysis.analyzers.transient_frequency import TransientFrequencyAnalyzer
@@ -61,7 +61,7 @@ __all__ = [
     "NeuronDynamicsAnalyzer",
     "NeuronFreqClustersAnalyzer",
     "ParameterSnapshotAnalyzer",
-    "ParameterTrajectoryPCA",
+    "ParameterTrajectory",
     "RepresentationalGeometryAnalyzer",
     "GlobalCentroidPCA",
     "CentroidDMD",

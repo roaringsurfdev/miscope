@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Parity validated bit-exactly against `effective_dimensionality` on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) at 5 epochs per variant; no inline `np.linalg.svd` in `analyze()`
   - `effective_dimensionality` retained for the parallel deprecation window; retirement will be tracked under REQ_102 once consumers migrate
 
+### Changed
+
+- **`ParameterTrajectory` analyzer rename** (REQ_111) — mechanical port of `parameter_trajectory_pca` → `parameter_trajectory`
+  - Analyzer class renamed `ParameterTrajectoryPCA` → `ParameterTrajectory`; file `parameter_trajectory_pca.py` → `parameter_trajectory.py` (preserves history via `git mv`)
+  - Registered analyzer name (`"parameter_trajectory"`) and artifact directory layout were already aligned in earlier work — this rename closes the file/class gap, no on-disk artifact changes
+  - Transform steps already routed through REQ_109 primitives (`pca`, `compute_velocity`); confirmed by audit, no implementation change
+  - Consumer references updated: `analyzers/__init__.py`, `tests/test_cross_epoch_analyzers.py`, `scripts/run_regression_check.py`, `visualization/renderers/parameter_trajectory.py` docstring
+
 ## [0.8.3] - 2026-04-05
 
 ### Added

@@ -5,7 +5,8 @@ velocity from precomputed cross-epoch analysis results.
 
 All renderers accept precomputed PCA results (projections, explained
 variance) rather than raw weight snapshots. PCA computation happens
-at analysis time via ParameterTrajectoryPCA (REQ_038), not at render time.
+at analysis time via ``ParameterTrajectory`` (REQ_038; renamed REQ_111),
+not at render time.
 """
 
 import numpy as np
