@@ -1,145 +1,150 @@
 # REQ_102: Analyzer Deprecation (Retire Stale Paths)
 
-**Status:** Draft
-**Priority:** Medium
+**Status:** Draft (rescoped after Analysis Atlas (a)(b)(c) audit pass)
+**Priority:** Medium — close-out track for the Atlas-driven phase 1 consolidations. Bounded by prerequisite REQs completing.
 **Branch:** TBD
-**Dependencies:** REQ_106 (defines the layering principles whose violation is one of the deprecation criteria); REQ_109 (supplies the primitive layer the new analyzers consume — formerly REQ_097 + REQ_098 + REQ_104, now consolidated); REQ_111 (parallel analyzer build-out + parity validation — gates "migrate-track" retirements: no analyzer is listed for retirement here without a recorded REQ_111 validation outcome).
-**Attribution:** Engineering Claude
+**Dependencies:**
+- REQ_106 (defines the layering principles whose violation is one of the deprecation criteria).
+- REQ_109 (primitive layer — *staging*; the new analyzers consume it).
+- REQ_111 (Universal Core pure renames — gates the `effective_dimensionality` and `parameter_trajectory_pca` retirements via parity validation).
+- REQ_126 (Family basis projection consolidation — gates the `coarseness` retirement via blob-vs-plaid preservation verification; gates the five Fourier-analyzer retirements via absorption parity).
+- REQ_117 (DMD reorganization — *staging*; absorbed `centroid_dmd`'s modal paths).
+
+**Atlas reference:** [docs/analysis_atlas.md](../../analysis_atlas.md) — the consolidation map is the canonical source → target mapping for every retirement.
+
+**Attribution:** Engineering Claude.
+
+---
+
+## Scope evolution
+
+The original REQ_102 retired a short list (`coarseness`, `fourier_nucleation`, `centroid_dmd`) plus the migrate-track tail of REQ_111. The Analysis Atlas (a)(b)(c) audit pass (2026-05-27) updated this scope:
+
+- **`fourier_nucleation` is no longer retired.** The Atlas marks it `retain` — the iterative refinement is the value; only the one-shot projection step is absorbed (into REQ_126).
+- **`centroid_dmd`** is substantially complete via REQ_117 (staging): modal paths absorbed by `activation_dmd` + `parameter_dmd`; trajectory portion deferred to a future `representation_trajectory` reorganization. The wrapper class is retired here once its remaining consumers migrate.
+- **`coarseness` retirement is gated on REQ_126** verifying that `activation_basis_projection` preserves the blob-vs-plaid signal.
+- **Migrate-track retirements redistribute.** Five Fourier-analyzer retirements (`dominant_frequencies`, `attention_fourier`, `neuron_fourier`, `attention_freq`, `neuron_freq_clusters`) gate on REQ_126; two pure-rename retirements (`effective_dimensionality`, `parameter_trajectory_pca`) gate on REQ_111 (narrowed).
+
+This REQ becomes the close-out track for the Atlas-driven phase 1 consolidations.
 
 ---
 
 ## Problem Statement
 
-Several analyzers have either been superseded by better approaches, never proved their value, or carry layering violations (per REQ_106) that cannot be cleanly migrated. Carrying them forward into the publishable library raises the maintenance burden and confuses external readers about which paths are canonical.
+Several analyzers have been superseded or carry layering violations that warrant retirement. Carrying them forward into the publishable library raises maintenance burden and confuses external readers about which paths are canonical.
 
-Three analyzers identified for deprecation by the user during discovery:
+Retirement candidates and their gates:
 
-- **`coarseness`** — superseded by more specific frequency analyses.
-- **`fourier_nucleation`** — exploratory, did not yield durable results.
-- **`centroid_dmd`** — most of the value lives in two extractable pieces
-  (Global / Trajectory PCA, eigendecomposition plot); the DMD framing
-  itself is being retired.
+| Retiring analyzer | Replaced by | Gating REQ |
+|---|---|---|
+| `coarseness` | `activation_basis_projection` | REQ_126 (blob-vs-plaid preservation check) |
+| `dominant_frequencies` | `weight_basis_projection` | REQ_126 (absorption parity) |
+| `attention_fourier` | `weight_basis_projection` | REQ_126 (absorption parity) |
+| `neuron_fourier` | `weight_basis_projection` | REQ_126 (absorption parity) |
+| `attention_freq` | `activation_basis_projection` | REQ_126 (absorption parity) |
+| `neuron_freq_clusters` | `activation_basis_projection` | REQ_126 (absorption parity) |
+| `effective_dimensionality` | `weight_spectra` | REQ_111 (parity validation) |
+| `parameter_trajectory_pca` | `parameter_trajectory` | REQ_111 (parity validation) |
+| `centroid_dmd` (wrapper) | `activation_dmd` + `parameter_dmd` | REQ_117 (already shipped — pending consumer migration) |
 
-The PCA consolidation (REQ_098) implicitly retires `effective_dimensionality`
-as a standalone analyzer (its outputs become fields on `PCAResult`).
-`dominant_frequencies` is similarly retired by REQ_097 (frequency cleanup).
+REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-implements an upstream derivation, mixes data-plane access into measure code, or cannot conform to declared-dependencies discipline is a deprecation candidate if migration would amount to a rewrite. Audit before declaring; some violations are migrations under their owning REQ, not retirements here.
 
-REQ_106 introduces a third deprecation criterion: **layering-principle violations that cannot be migrated within the consolidation effort.** An analyzer that re-implements an upstream derivation, mixes data-plane access into measure code, or cannot conform to declared-dependencies discipline is a deprecation candidate if migration would amount to a rewrite. Audit before declaring; some violations are migrations, not retirements.
-
-**Two retirement tracks** (clarified after REQ_111 carve-out):
-
-- **No-replacement retirements** — analyzers with no canonical successor: `coarseness`, `fourier_nucleation`, exploratory paths in `centroid_dmd` not extracted. These can be retired here directly once the audit confirms no live consumers.
-- **Migrate-track retirements** — analyzers whose canonical successor is being built in parallel under REQ_111: `dominant_frequencies` → new site-aware Fourier analyzer; `effective_dimensionality` → absorbed into PCA-result fields; `parameter_trajectory_pca`, `freq_group_weight_geometry`, `repr_geometry`, `neuron_group_pca`, `global_centroid_pca`, `centroid_dmd` (PCA paths) → consolidated PCA analyzers in REQ_111. **No migrate-track analyzer is listed for retirement here until its REQ_111 parity validation outcome is recorded** (matches / old-has-bug / new-has-bug-fixed / both-kept).
+**Retirement gating principle:** No analyzer is retired here without a recorded validation outcome from its owning REQ.
 
 ---
 
 ## Conditions of Satisfaction
 
-### Extractions (do these BEFORE deletion)
+### REQ_117-gated retirement (already shipped — pending consumer migration)
 
-- [ ] `centroid_dmd`: extract Global PCA and Trajectory PCA paths into
-  appropriate library functions / analyzers. Decide whether they're
-  consumed by an existing analyzer (e.g., `parameter_trajectory_pca`)
-  or warrant a new one.
-- [ ] `centroid_dmd`: extract the eigendecomposition plot. If it's still
-  research-useful, port to a standalone view backed by a small library
-  function. If not, retire with a note in this REQ's Notes.
+- [ ] `centroid_dmd` (wrapper class): remaining consumers migrated to `activation_dmd` / `parameter_dmd` artifacts. Wrapper removed from `analysis/analyzers/`, `registry.py`, `__init__.py`. Old artifact directories left in place (read-only legacy); loader continues to read them on request.
 
-### Retirements
+### REQ_126-gated retirements
 
-- [ ] `coarseness` analyzer: removed from `analysis/analyzers/`,
-  `registry.py`, `__init__.py`. Existing `coarseness` artifacts left in
-  place (read-only legacy); loader continues to read them on request.
-- [ ] `fourier_nucleation` analyzer: removed similarly.
-- [ ] `centroid_dmd` analyzer: removed once extractions are complete.
-- [ ] `dominant_frequencies` analyzer: removed after REQ_097's new
-  analyzer + view migrations are in place.
-- [ ] `effective_dimensionality` analyzer: removed after REQ_098's PCA
-  consolidation absorbs its outputs into per-matrix PCA results.
+- [ ] `coarseness` analyzer: removed after REQ_126 records blob-vs-plaid preservation verification on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598).
+- [ ] `dominant_frequencies` analyzer: removed after REQ_126 records absorption parity for the W_E-site weight basis projection.
+- [ ] `attention_fourier` analyzer: removed after REQ_126 records absorption parity for attention-site weight basis projections.
+- [ ] `neuron_fourier` analyzer: removed after REQ_126 records absorption parity for MLP-input weight basis projections.
+- [ ] `attention_freq` analyzer: removed after REQ_126 records absorption parity for attention-site activation basis projections.
+- [ ] `neuron_freq_clusters` analyzer: removed after REQ_126 records absorption parity for MLP activation basis projections.
 
-### Layering audit (new — REQ_106 criterion)
+### REQ_111-gated retirements
 
-- [ ] For each analyzer in the registry, run REQ_106's grep tests against its source: does its `analyze()` call `np.linalg.svd` directly? Does it inline filesystem path construction? Does it re-derive a field that exists upstream?
-- [ ] For each violation, classify: **migrate** (rewrite to use the canonical primitive — e.g., move SVD to PCA library), or **retire** (the analyzer's value doesn't justify the rewrite).
-- [ ] Migration candidates land under their owning REQ (PCA → REQ_098, frequency → REQ_097, geometry → REQ_104). This REQ owns the retire decisions.
-- [ ] Layering audit results recorded in this REQ's Notes section as the audit completes.
+- [ ] `effective_dimensionality` analyzer: removed after REQ_111 records parity validation outcome (*matches* or *old-has-bug-fixed-in-new*) for `weight_spectra`.
+- [ ] `parameter_trajectory_pca` analyzer: removed after REQ_111 records parity validation outcome for `parameter_trajectory`.
 
-### Cleanup
+### Layering audit (REQ_106 criterion)
 
-- [ ] Family configurations updated: each `family.json` removes references
-  to deprecated analyzers from its `analyzers` list.
-- [ ] `analysis/analyzers/__init__.py` no longer imports / exports
-  deprecated analyzer classes.
-- [ ] `analysis/analyzers/registry.py` no longer registers deprecated
-  analyzer classes.
-- [ ] Renderers / views that referenced deprecated analyzers either
-  deleted or migrated to the canonical replacements.
-- [ ] CHANGELOG entry on next release describing the retirement and pointing
-  to replacements.
+- [ ] For each surviving analyzer in the registry post-consolidation, run REQ_106's grep tests against its source: does its `analyze()` call `np.linalg.svd` directly? Does it inline filesystem path construction? Does it re-derive a field that exists upstream?
+- [ ] For each violation, classify: **migrate** (rewrite under owning REQ) or **retire** (value doesn't justify rewrite).
+- [ ] Audit results recorded in this REQ's Notes section.
+
+### Cleanup (applies to every retirement)
+
+- [ ] Family configurations updated: each `family.json` removes references to retired analyzers from its `analyzers` list.
+- [ ] `analysis/analyzers/__init__.py` no longer imports / exports retired analyzer classes.
+- [ ] `analysis/analyzers/registry.py` no longer registers retired classes.
+- [ ] Renderers / views that referenced retired analyzers either deleted or migrated. Dashboard churn may be hidden behind the visualization layer per user direction (acknowledged as separate cleanup track; not blocking).
+- [ ] CHANGELOG entry on the release describing each retirement and pointing to its replacement.
 
 ### Documentation
 
 - [ ] `analysis/README.md` updated to reflect the canonical analyzer set.
-- [ ] Each retired analyzer file (in git history) has a final commit
-  with deprecation notice + pointer to replacement, before deletion.
+- [ ] Each retired analyzer file (in git history) carries a final commit with deprecation notice + pointer to replacement before deletion.
 
 ---
 
 ## Constraints
 
 **Must:**
-- Extractions happen before retirement. No information loss in flight.
-- Existing artifacts on disk remain readable. Researchers with old `results/`
-  trees should not lose access to historical data — `ArtifactLoader` continues
-  to load `coarseness` etc. if asked, even after the analyzer is gone.
-- Family configurations stay valid throughout. No release with a
-  configuration referencing a removed analyzer.
+- No retirement without a recorded validation outcome under the owning REQ.
+- Existing artifacts on disk remain readable. Researchers with old `results/` trees continue to access historical data — `ArtifactLoader` reads retired-analyzer artifacts if asked.
+- Family configurations stay valid throughout. No release with a config referencing a removed analyzer.
 
 **Must avoid:**
-- Silent retirement. Each retirement gets a CHANGELOG entry with a clear
-  pointer to what supersedes it (or a note that nothing does, if the
-  capability was abandoned).
-- Removing analyzers whose outputs are still being read by views or
-  notebooks. Audit the consumer surface before deleting.
+- **Silent retirement.** Each retirement gets a CHANGELOG entry with a clear pointer to its successor.
+- **Retiring analyzers whose outputs are still being read** by views or notebooks without prior migration. Audit consumer surface before deleting.
+- **Bundling retirement with refactor.** Retirements happen here; refactors and consolidations happen under their owning REQ.
 
 **Flexible:**
-- Order of retirement. Suggest: do extractions first, then retire
-  `coarseness` and `fourier_nucleation` (no consumers), then `centroid_dmd`
-  (after extractions land), then `dominant_frequencies` (after REQ_097),
-  then `effective_dimensionality` (after REQ_098).
-- Whether to keep deprecated-analyzer code around in a `deprecated/`
-  subdirectory for one release before deletion. Default: no — git history
-  is sufficient.
+- Order of retirement within a gating bucket. Default: simplest first (REQ_117-gated; then REQ_111-gated as parity validation lands; then REQ_126-gated as REQ_126 completes per analyzer).
+- Whether to keep retired-analyzer code in a `deprecated/` subdirectory for one release before deletion. Default: no — git history is sufficient.
 
 ---
 
 ## Architecture Notes
 
-**Audit before deleting.** For each candidate analyzer:
+**Audit before deleting.** For each candidate:
+
 1. Grep the codebase for the analyzer name (analyzer string, class name).
-2. Confirm no view, no `load_data`, no notebook consumes its artifacts.
-3. Confirm the family configurations don't list it.
-4. Run the REQ_106 layering grep tests to determine migrate-vs-retire.
-5. Then delete (or migrate, with a follow-up commit under the owning REQ).
+2. Confirm no view, no `load_data`, no notebook consumes its artifacts (or, if some do, that they've been migrated).
+3. Confirm family configurations don't list it.
+4. Run REQ_106 layering grep tests on surviving analyzers.
+5. Then delete (or migrate under the owning REQ).
 
-**`coarseness` and `fourier_nucleation` audit:** likely have no live consumers
-based on user note. Verify before deleting.
+**Subtractive REQ.** This is mostly subtraction. The risk is consumer surface — views, notebooks, downstream analyzers that still read old artifacts. Audit is the safeguard.
 
-**`centroid_dmd` audit:** has at least the eigendecomposition plot to
-preserve. The Global / Trajectory PCA pieces likely overlap with what
-`parameter_trajectory_pca` already does — verify before re-extracting to
-avoid duplication.
+**Dashboard cleanup is a separate track.** Per user direction, dashboard pages may continue to load via legacy paths during the parallel period; the visualization layer absorbs the churn. A future REQ may pick up dashboard migration explicitly. Not blocking here.
 
 ---
 
 ## Notes
 
-- This REQ is mostly subtraction and is low-risk if the audit step is
-  honored. The deletion of `coarseness` and `fourier_nucleation` should
-  happen first (safe, no extractions needed).
-- The user expressed mild uncertainty about `centroid_dmd` ("maybe
-  centroid_dmd, though I'd like to pull the Global and Trajectory PCA
-  from that, as well as the eigendecomposition plot"). Treat as
-  conditional: extract the keepers, then delete the rest.
-- This REQ pairs naturally with REQ_103 (PyPI Publication Hardening) —
-  the publishable library should not include retired analyzers.
+### Layering audit results
+
+*(empty until first audit pass)*
+
+### Per-retirement evidence pointers
+
+Format: `{analyzer} retired {date}, gated by {REQ}: {outcome pointer}`.
+
+- *(empty until first retirement)*
+
+### Pairings
+
+- This REQ pairs with REQ_103 (PyPI Publication Hardening) — the publishable library should not include retired analyzers. CHANGELOG entries from retirements feed REQ_103's release notes.
+- The full source → target map lives in the Atlas's consolidation map ([docs/analysis_atlas.md](../../analysis_atlas.md)). This REQ does not duplicate it; it cites it.
+
+### Closure
+
+This REQ closes when the last gated retirement is recorded. After that, the surviving analyzer set matches the Atlas's target inventory (~16 analyzers + new analyzers landing under future REQs).
