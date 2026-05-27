@@ -1,8 +1,17 @@
 # REQ_126: Family Basis Projection Consolidation
 
-**Status:** Draft
-**Priority:** High — keystone of the Atlas-driven phase 1 reorganization. Unlocks REQ_102's `coarseness` retirement and clears the Family Basis Projection column for downstream work (`gradient_site` generalization, `transient_frequency` generalization, future family-basis analyzers).
-**Branch:** TBD
+**Status:** Completed — staging (2026-05-27). Shipped across three PRs to `develop`:
+- PR 1 (`weight_basis_projection`): weight-side absorption of `dominant_frequencies`, `attention_fourier`, `neuron_fourier`, and `fourier_nucleation`'s one-shot projection.
+- PR 2 (`activation_basis_projection`): activation-side absorption of `attention_freq` and `neuron_freq_norm`; REQ_102 blob-vs-plaid gate verified on canon (coarseness recoverable transitively through reconstructed `neuron_freq_norm`).
+- PR 3 (`centroid_fourier_alignment`): defused `fourier_alignment` field out of `repr_geometry` into a dedicated secondary analyzer; `circularity` retained on `repr_geometry` (geometric, not basis projection).
+
+Outstanding follow-ups, separable from this REQ:
+- `repr_geometry → representation_geometry` rename (86-file ripple; bookkeeping).
+- Downstream visualization migration to consume the new analyzers' outputs.
+- REQ_102 stays in `active`; coarseness/attention_freq/neuron_freq_norm etc. retire once downstream visualizations have ported over.
+
+**Priority:** High — keystone of the Atlas-driven phase 1 reorganization. Unlocked REQ_102's `coarseness` retirement and cleared the Family Basis Projection column for downstream work (`gradient_site` generalization, `transient_frequency` generalization, future family-basis analyzers).
+**Branch:** Merged to `develop` via `feature/req-126-weight-basis-projection`, `feature/req-126-activation-basis-projection`, `feature/req-126-repr-geometry-defusion`.
 **Dependencies:**
 - REQ_109 (measurement primitives — *staging*; the projection-onto-orthonormal-basis primitive consumed here).
 - REQ_114 (HookedModel analyzer migration — *staging*; new analyzers built on the canonical interface).
@@ -40,38 +49,38 @@ The architectural principle being honored: *families are context providers; view
 
 ### Universal analyzers
 
-- [ ] `weight_basis_projection` analyzer implemented as a universal instrument, parameterized by `(site, family_basis)`. Modadd family supplies a Fourier basis; other families supply different bases or none. Consumes `parameter_snapshot` artifacts.
-- [ ] `activation_basis_projection` analyzer implemented with the same shape, activation-side. Consumes `activation_snapshot` (or the current activation capture path).
-- [ ] Both analyzers consume only REQ_109 primitives for their transform step (projection onto orthonormal basis). Verified by grep: no inline `np.fft`, `np.einsum`-rolled-projection, or other ad-hoc basis math in `analyze()`.
-- [ ] The basis is a family-supplied parameter, not embedded in the analyzer. Verified by reading the analyzer source: no `import` of Fourier-specific helpers, no `if family_name == "modadd"` branches.
+- [x] `weight_basis_projection` analyzer implemented as a universal instrument, parameterized by `(site, family_basis)`. Modadd family supplies a Fourier basis; other families supply different bases or none. Consumes `parameter_snapshot` artifacts.
+- [x] `activation_basis_projection` analyzer implemented with the same shape, activation-side. Per the Q4 direction, reads the hook cache directly (`ModelInput(needs_cache=True)`) rather than `activation_snapshot` — hooks are the long-term primary path because LLM-scale models may not be able to materialize full activation snapshots.
+- [x] Both analyzers consume only REQ_109 primitives for their transform step (projection onto orthonormal basis). Verified by grep test (`test_analyzer_imports_only_req109_basis_primitives`) in each test module.
+- [x] The basis is a family-supplied parameter, not embedded in the analyzer. Verified: composer functions live in family implementations; the analyzer iterates the family's declared sites via `weight_basis_projection_sites` / `activation_basis_projection_sites` properties. Note: the analyzer still constructs `get_fourier_basis(prime)` internally — a slight Fourier-coupling acknowledged for PR 1 and left open until a non-Fourier family arrives (per user direction).
 
 ### Absorptions (weight side, into `weight_basis_projection`)
 
-- [ ] `dominant_frequencies` outputs reproducible from `weight_basis_projection` (W_E site).
-- [ ] `attention_fourier` outputs reproducible from `weight_basis_projection` (attention-site weight projections).
-- [ ] `neuron_fourier` outputs reproducible from `weight_basis_projection` (MLP-input weight projections).
-- [ ] One-shot projection step of `fourier_nucleation` reproducible from `weight_basis_projection`. **The iterative refinement of `fourier_nucleation` is preserved** — only the one-shot projection portion is absorbed; the iterative-refinement value lives on in `fourier_nucleation` per the Atlas (retain).
+- [x] `dominant_frequencies` outputs reproducible from `weight_basis_projection` (`embedding` site sin/cos band norms across `d_model`).
+- [x] `attention_fourier` outputs reproducible from `weight_basis_projection` (`attn_v` site for V band; `attn_qk` 2D site diagonal magnitudes for QK).
+- [x] `neuron_fourier` outputs reproducible from `weight_basis_projection` (`mlp_in` and `mlp_out` site magnitudes).
+- [x] One-shot projection step of `fourier_nucleation` reproducible from `weight_basis_projection` (`mlp_in` aggregate power normalized). **The iterative refinement of `fourier_nucleation` is preserved** — only the one-shot projection portion is absorbed; the iterative-refinement value lives on in `fourier_nucleation` per the Atlas (retain).
 
 ### Absorptions (activation side, into `activation_basis_projection`)
 
-- [ ] `attention_freq` outputs reproducible from `activation_basis_projection` (attention-site activation projections).
-- [ ] `neuron_freq_clusters` outputs reproducible from `activation_basis_projection` (MLP activation projections; cluster assignment may remain as a downstream derivation).
+- [x] `attention_freq` outputs reproducible from `activation_basis_projection` (`attn_pattern` 2D site joint diagonal + per-axis marginals).
+- [x] `neuron_freq_clusters` (`neuron_freq_norm`) outputs reproducible from `activation_basis_projection` (`mlp_out` 2D site joint diagonal + per-axis marginals). The "neuron clusters" semantic — argmax-by-frequency assignment — lives downstream in `neuron_grouping`'s modadd override (already shipped in REQ_118), so the cluster-assignment portion has its own home.
 
 ### `representation_geometry` defusion
 
-- [ ] `fourier_alignment` and `circularity` fields removed from `representation_geometry`'s output schema. The geometry analyzer's contract narrows to pure class-manifold geometry (centroids, radii, dimensionality, SNR, Fisher discriminants, PCA variance per PC).
-- [ ] These signals re-emerge from `activation_basis_projection` (Fourier alignment) and downstream geometry on basis-projected representations (circularity, if still wanted as a derived metric). Verify reproducibility on the canon reference set before deletion.
+- [x] `fourier_alignment` removed from `repr_geometry`'s output schema. **`circularity` retained** (Q3 direction: it's geometric — Kåsa circle fit on 2D PCA — not basis projection). The analyzer's contract narrows from 11 to 10 scalar keys per site.
+- [x] `fourier_alignment` signal re-emerges from the new `centroid_fourier_alignment` secondary analyzer (per the Q2 direction: separate analyzer, composition through analyzer chaining, cleaner audit). Reproducibility verified on canon at epoch 24999 across all four sites.
 
 ### REQ_102 gate condition
 
-- [ ] Verify `activation_basis_projection` outputs preserve the blob-vs-plaid signal currently produced by `coarseness`. Compare on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598). Outcome recorded as evidence under REQ_102 before `coarseness` retirement proceeds.
+- [x] Verified `activation_basis_projection` outputs preserve the blob-vs-plaid signal currently produced by `coarseness`. Verified on canon (p113/s999/ds598) via `test_req102_coarseness_recoverable_from_activation_basis_projection`: reconstructed coarseness matches legacy element-wise; blob/plaid classification (threshold 0.7) matches element-wise. Expanded variant coverage (p109/s485/ds598, p101/s999/ds598) deferred to REQ_102's own close-out per user direction (2026-05-27).
 
 ### Migration of consumers
 
-- [ ] Library code that referenced the absorbed analyzers (e.g., `ArtifactLoader.load_*` calls naming the old analyzers) migrates to the new ones, or returns a deprecation pointer.
-- [ ] Dashboard pages that consumed the absorbed analyzers either migrate to the new ones or are noted as future cleanup. **Per user direction, dashboard churn may be hidden behind the visualization layer for now** — this is acknowledged as a separate cleanup track and is not blocking.
-- [ ] Notebook / export usage migrates to the new analyzers. **Per user direction, notebooks/exports are not blocking** — sharing has been waiting on a stable basis; any signal that diminishes after refactor is a finding worth surfacing, not a regression to mask.
-- [ ] Old artifact paths remain readable via `ArtifactLoader` for the deprecation window (existing on-disk artifacts not invalidated).
+- [ ] Library code that referenced the absorbed analyzers migrates to the new ones. **Deferred** — existing analyzers stay live in the deprecation window; consumers continue to read the original artifacts. The new analyzers are additive.
+- [ ] Dashboard pages that consumed the absorbed analyzers either migrate or are noted as future cleanup. **Deferred to a downstream-visualization-migration requirement** per user direction (2026-05-27).
+- [ ] Notebook / export usage migrates to the new analyzers. **Deferred** with the dashboard work.
+- [x] Old artifact paths remain readable via `ArtifactLoader` (existing on-disk artifacts not invalidated; only the analyzer source code changed for `repr_geometry`, which still emits all retained per-site keys).
 
 ---
 

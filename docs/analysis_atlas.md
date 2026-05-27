@@ -1,7 +1,7 @@
 # Analysis Atlas
 
 **Status:** Living document
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-27 — REQ_126 (Family Basis Projection Consolidation) shipped to staging.
 **Audience:** Researchers using miscope, contributors planning new analyzers, future collaborators making consolidation and scope decisions.
 
 ---
@@ -43,7 +43,7 @@ Every analyzer entry carries a **status** and a **bucket**.
 
 **Bucket** describes the validation strategy and which downstream REQ picks up the work:
 
-- `refactor` — same conceptual measurement, cleaner implementation built on REQ_109 primitives. Parity validation against the old analyzer is meaningful. Pure renames (`weight_spectra`, `parameter_trajectory`) shipped via REQ_111 (staging, 2026-05-27); scope-tightening refactors (`representation_geometry` defusion, `gradient_site` generalization) deferred to follow-up REQs once REQ_126 lands.
+- `refactor` — same conceptual measurement, cleaner implementation built on REQ_109 primitives. Parity validation against the old analyzer is meaningful. Pure renames (`weight_spectra`, `parameter_trajectory`) shipped via REQ_111 (staging, 2026-05-27); `representation_geometry`'s `fourier_alignment` defusion shipped via REQ_126 PR 3 (staging, 2026-05-27). Remaining: `repr_geometry → representation_geometry` rename (86-file ripple, separable) and `gradient_site` generalization onto REQ_109 primitives.
 - `reorganization` — new conceptual shape. Inputs, outputs, or scope change. Validation against primitives + research-grade reference (reproducing known findings on canon variants), not parity. Picked up by a new scoped REQ.
 - `new` — net-new capability. No old analyzer exists. Validated against primitive correctness and reproduction of reference computations.
 - `retain` — no change planned.
@@ -109,9 +109,9 @@ Per-epoch full SVD of all weight matrices: singular values plus left and right s
 - **c. Name:** Clean. The legacy `effective_dimensionality` overpromised — the analyzer returns spectra, of which effective dim is one summary.
 
 ### `representation_geometry`
-**Status:** existing-rename (currently `repr_geometry`) | **Bucket:** refactor
+**Status:** existing-rename (currently `repr_geometry`); REQ_126 PR 3 defused `fourier_alignment` out into `centroid_fourier_alignment` (shipped 2026-05-27). The rename is bookkeeping (86-file ripple), separable. | **Bucket:** refactor (defusion complete; rename pending)
 
-Per-epoch class manifold geometry at 4 sites: centroids, radii, dimensionality, mean radius, center spread, SNR, Fisher discriminants, PCA variance per PC. The `fourier_alignment` and `circularity` fields are conceptually Family Basis Projections; surface them through that column even though they currently live in this analyzer's output dictionary.
+Per-epoch class manifold geometry at 4 sites: centroids, radii, dimensionality, mean radius, center spread, SNR, **circularity**, Fisher discriminants, PCA variance per PC. **`fourier_alignment` removed** from this analyzer's output as of REQ_126 PR 3 — that signal lives in `centroid_fourier_alignment` (Family Basis Projection column). **`circularity` retained** per the REQ_126 Q3 direction: it's geometric (Kåsa circle fit on the centroid 2D PCA) rather than basis projection. The name is more accurate now that the fused Fourier field is gone.
 
 The class-manifold framing generalizes to any classifier (residues = classes for modadd; could be any output label). Generalization to non-classifier tasks (regression, generative) is an open question; see *Open questions* below.
 
@@ -120,8 +120,8 @@ The class-manifold framing generalizes to any classifier (residues = classes for
   - *Faithfulness:* PCA preserves variance ordering, not interpretation of individual axes; sign and intra-eigenspace rotation are arbitrary.
   - *Interpretive:* "centroid" presumes a meaningful class label. "Fisher discriminant" presumes class distributions are well-summarized by mean + scatter — when classes are multi-modal or ring-shaped, the score can still be computed but no longer carries its usual separation interpretation.
   - *Statistical:* finite-sample centroid drift on the order of σ / √n_per_class.
-- **b. Primitives:** centroid, radius, participation ratio, Fisher score, PCA (all REQ_109). The `fourier_alignment` and `circularity` fields use a family-supplied basis — Family Basis Projection content currently fused into this analyzer.
-- **c. Name:** source = representations (per-class activations at sites), transform = geometric measurements. The fused Fourier-basis fields stretch the name's coverage; surfacing them separately would tighten the contract.
+- **b. Primitives:** centroid, radius, participation ratio, Fisher score, PCA, `characterize_circularity` (all REQ_109). Feeds `centroid_fourier_alignment` via its per-site `*_centroids` keys.
+- **c. Name:** source = representations (per-class activations at sites), transform = geometric measurements. Clean post-defusion; only the rename `repr_geometry → representation_geometry` is outstanding.
 
 ### `parameter_trajectory`
 **Status:** existing (shipped via REQ_111 mechanical port, 2026-05-27) | **Bucket:** refactor (complete)
@@ -222,29 +222,42 @@ Random-perturbation flatness proxy. Coarse but cheap. Lives in Universal Core be
 
 ## Family Basis Projections
 
-Stubs only. Full schemas defer to family-led work — they require the family's context and learned-algorithm interpretation.
+### `weight_basis_projection` *(home: REQ_126 PR 1, shipped 2026-05-27)*
+**Status:** existing | **Bucket:** retain
 
-### `weight_basis_projection`
-**Status:** planned-consolidation (absorbs `dominant_frequencies`, `attention_fourier`, `neuron_fourier`, projection step of `fourier_nucleation`) | **Bucket:** reorganization
-
-Projects weight matrices onto a family-supplied basis, parameterized by site. Modadd family supplies a Fourier basis; other families supply different bases or none.
+Projects weight matrices onto a family-supplied basis, parameterized by site. Family declares a tuple of `BasisProjectionSite` (named composer + period-axis spec). Modadd 1L declares 5 sites (`embedding`, `attn_v`, `attn_qk` 2D, `mlp_in`, `mlp_out`); 2L MLP declares 2 (`mlp_in`, `mlp_out`). Per-site output schema is uniform: 1D sites emit cos/sin coeffs + magnitudes/phases/power/fractional_power/dominant_frequency; 2D sites emit four coefficient cubes (`cc`/`cs`/`sc`/`ss`) + joint magnitudes/power/fractional_power/dominant_frequency_pair. Parity validated against the four absorbed analyzers on canon at epoch 24999 (rtol=1e-3 reflecting float32→float64 accumulation shift).
 
 - **a. Validity:**
   - *Existence:* requires a family-supplied basis — modadd supplies Fourier, generic transformer families don't (yet).
   - *Faithfulness:* projection discards orthogonal-to-basis content by design.
   - *Interpretive:* features named in the basis (e.g., "frequency k") refer to algorithmic structure *only if the family's basis matches the algorithm the model learned*. For canon-style modadd this is well-established; for variants in pathology (failed grokkers, partial-frequency models) the basis may not be the right one — divergence is itself a finding.
   - *Statistical:* deterministic projection; no sampling concern beyond what the basis carries.
-- **b. Primitives:** projection onto orthonormal basis (REQ_109). Consumes `parameter_snapshot` + family basis. Absorbs `dominant_frequencies`, `attention_fourier`, `neuron_fourier`, and the projection step of `fourier_nucleation`.
+- **b. Primitives:** `project_onto_fourier_basis` + `get_fourier_basis` (REQ_109). Consumes `parameter_snapshot` + family-declared sites. Absorbs `dominant_frequencies`, `attention_fourier`, `neuron_fourier`, and the projection step of `fourier_nucleation`.
 - **c. Name:** source = weights, transform = projection onto basis, parameters = (site, family basis). Clean.
 
-### `activation_basis_projection`
-**Status:** planned-consolidation (absorbs `attention_freq`, `neuron_freq_clusters`) | **Bucket:** reorganization
+### `activation_basis_projection` *(home: REQ_126 PR 2, shipped 2026-05-27)*
+**Status:** existing | **Bucket:** retain
 
-Same shape, activation-side. Family-supplied basis, parameterized by site.
+Same shape, activation-side. Reads the hook cache directly (`ModelInput(needs_cache=True)`) rather than an intermediate `activation_snapshot` artifact — hooks are the long-term primary path because LLM-scale models may not be able to materialize a full snapshot. Per 2D site, emits joint outputs (4 coefficient cubes + joint magnitudes/power) **and** per-axis 1D marginals (project mean-over-the-other-axis along each period axis); the marginals are required to reconstruct the legacy per-frequency variance fractions, which mixed joint diagonal energy with per-axis marginal energy at the same k.
+
+Modadd 1L declares 2 sites (`attn_pattern`, `mlp_out`); 2L MLP declares 1 (`mlp_out`). Sites whose required hooks aren't published by the architecture are skipped at runtime (the `repr_geometry` pattern). Parity validated on canon for `attention_freq` and `neuron_freq_norm`; REQ_102 blob-vs-plaid gate verified — `coarseness` reproducible transitively through reconstructed `neuron_freq_norm` (element-wise classification match at threshold 0.7).
 
 - **a. Validity:** same shape as `weight_basis_projection` on the activation side. Adds dependence on probe set coverage — the basis decomposition is only as informative as the activations the probe set elicited.
-- **b. Primitives:** projection onto orthonormal basis (REQ_109). Consumes `activation_snapshot` + family basis. Absorbs `attention_freq`, `neuron_freq_clusters`.
+- **b. Primitives:** `project_onto_fourier_basis` + `get_fourier_basis` (REQ_109). Consumes the hook cache + family-declared sites. Absorbs `attention_freq`, `neuron_freq_clusters` (`neuron_freq_norm`).
 - **c. Name:** source = activations, transform = projection onto basis. Parallel to weight version.
+
+### `centroid_fourier_alignment` *(home: REQ_126 PR 3, shipped 2026-05-27)*
+**Status:** existing | **Bucket:** retain
+
+Per-site Fourier alignment of class-centroid 2D PCA projections — the signal that used to live as a fused field inside `repr_geometry`. Defused into its own secondary analyzer per the REQ_126 Q2 direction: composition through analyzer chaining; clean separate audit. Consumes `repr_geometry` per-site centroids; recomputes 2D PCA per site; runs `characterize_fourier_alignment(projection_2d, p)`. Scope: class centroids only — parameter-group-centroid Fourier alignment is out of scope per Q2.
+
+- **a. Validity:**
+  - *Existence:* requires `repr_geometry` artifact with per-site centroids + a family with a Fourier basis (modadd).
+  - *Faithfulness:* the PCA orientation is arbitrary, but the Kåsa circle fit + angular-frequency search absorb the sign; result is rotation-invariant.
+  - *Interpretive:* high R² = the angular ordering of class centroids matches a Fourier mode at the family's modulus; low R² = either the centroids aren't on a circle or the angular ordering doesn't match a frequency. The latter is itself a finding.
+  - *Statistical:* deterministic given centroids; subject to the upstream PCA's finite-sample centroid drift.
+- **b. Primitives:** `pca`, `characterize_fourier_alignment` (REQ_109). Consumes `repr_geometry` per-site `*_centroids`.
+- **c. Name:** source = class centroids, transform = Fourier-alignment characterization. Clean.
 
 ### `fourier_frequency_quality`
 **Status:** existing | **Bucket:** retain (becomes derived view on `weight_basis_projection`)
@@ -274,9 +287,9 @@ Detects frequencies that appear in neuron groupings transiently. Currently depen
 - **c. Name:** *Refactor signal — pending.* Fourier-locking is in scope but not in the name; generalization will need a rename (candidate: `transient_group_membership`).
 
 ### `coarseness`
-**Status:** retire (subsumed by `activation_basis_projection`) | **Bucket:** retire
+**Status:** retire — pending REQ_102 close-out (subsumed by `activation_basis_projection`) | **Bucket:** retire
 
-Blob-vs-plaid neuron classification via low-frequency energy ratio. Verify that `activation_basis_projection` outputs preserve the signal before retiring.
+Blob-vs-plaid neuron classification via low-frequency energy ratio. The REQ_126 gate check verified the signal is preserved on canon (reconstructed coarseness matches element-wise; blob-vs-plaid classification matches at threshold 0.7). Retirement deferred to REQ_102 close-out, after the downstream-visualization migration completes.
 
 ---
 
@@ -420,7 +433,7 @@ How current analyzers map to Atlas entries:
 |---|---|---|
 | `parameter_snapshot` | Universal Core / `parameter_snapshot` | retain |
 | `effective_dimensionality` | Universal Core / `weight_spectra` | refactor — shipped 2026-05-27 (REQ_111); legacy retained for the deprecation window |
-| `repr_geometry` | Universal Core / `representation_geometry` | refactor |
+| `repr_geometry` | Universal Core / `representation_geometry` | refactor — `fourier_alignment` defused 2026-05-27 (REQ_126 PR 3); rename pending |
 | `parameter_trajectory_pca` | Universal Core / `parameter_trajectory` | refactor — shipped 2026-05-27 (REQ_111 mechanical port); registered name and artifact layout were already aligned in earlier work |
 | `global_centroid_pca` | Universal Core / `representation_trajectory` | reorganization |
 | `centroid_dmd` *(trajectory portion)* | Universal Core / `representation_trajectory` | reorganization |
@@ -432,21 +445,22 @@ How current analyzers map to Atlas entries:
 | `freq_group_weight_geometry` | Universal Core / `group_geometry` | reorganization |
 | `intragroup_manifold` | Universal Core / `group_geometry` | reorganization |
 | `neuron_dynamics` | Universal Core / `neuron_dynamics` (rename pending) | retain |
-| `dominant_frequencies` | Family Basis / `weight_basis_projection` | reorganization |
-| `attention_fourier` | Family Basis / `weight_basis_projection` | reorganization |
-| `neuron_fourier` | Family Basis / `weight_basis_projection` | reorganization |
-| `attention_freq` | Family Basis / `activation_basis_projection` | reorganization |
-| `neuron_freq_clusters` | Family Basis / `activation_basis_projection` | reorganization |
+| `dominant_frequencies` | Family Basis / `weight_basis_projection` | reorganization — absorbed 2026-05-27 (REQ_126 PR 1); legacy retained pending downstream-visualization migration |
+| `attention_fourier` | Family Basis / `weight_basis_projection` | reorganization — absorbed 2026-05-27 (REQ_126 PR 1); legacy retained pending downstream-visualization migration |
+| `neuron_fourier` | Family Basis / `weight_basis_projection` | reorganization — absorbed 2026-05-27 (REQ_126 PR 1); legacy retained pending downstream-visualization migration |
+| `attention_freq` | Family Basis / `activation_basis_projection` | reorganization — absorbed 2026-05-27 (REQ_126 PR 2); legacy retained pending downstream-visualization migration |
+| `neuron_freq_clusters` (`neuron_freq_norm`) | Family Basis / `activation_basis_projection` | reorganization — absorbed 2026-05-27 (REQ_126 PR 2); legacy retained pending downstream-visualization migration |
+| `repr_geometry.fourier_alignment` *(fused field)* | Family Basis / `centroid_fourier_alignment` | reorganization — defused 2026-05-27 (REQ_126 PR 3) |
 | `fourier_frequency_quality` | Family Basis / retain | retain |
-| `fourier_nucleation` | Family Basis / retain | retain |
+| `fourier_nucleation` | Family Basis / retain | retain — one-shot projection step covered by `weight_basis_projection`; iterative refinement retained per Atlas |
 | `transient_frequency` | Family Basis / retain (open) | retain |
-| `coarseness` | retire | retire |
+| `coarseness` | retire — pending REQ_102 | retire — REQ_126 gate verified on canon 2026-05-27; retirement deferred to REQ_102 close-out |
 | `landscape_flatness` | Universal Core / Dynamical landscape | retain |
 | `gradient_site` | Dynamical / `gradient_site` (refactored) | refactor |
 | `input_trace` | Universal Core / `input_trace` | retain |
 | `input_trace_graduation` | Universal Core / `input_trace_graduation` | retain |
 
-**Net:** 25 existing analyzers → ~16 target analyzers + 4 planned-new entries.
+**Net:** 25 existing analyzers → ~16 target analyzers + 4 planned-new entries. As of 2026-05-27, REQ_126 added three new analyzers (`weight_basis_projection`, `activation_basis_projection`, `centroid_fourier_alignment`); 5 absorbed analyzers remain on-disk pending downstream-visualization migration (carved off as a separate REQ).
 
 ---
 
@@ -495,13 +509,13 @@ Subsequent releases extend the baseline rather than disrupting it. External rese
 - [REQ_109: Measurement Primitives](requirements/staging/REQ_109_measurement_primitives.md) — primitives library. Every Atlas analyzer (existing or planned) consumes REQ_109 primitives for its transform step.
 - [REQ_110: Lakehouse Surface](requirements/active/REQ_110_lakehouse_surface.md) — tabular output contract. Atlas analyzers respect it where applicable.
 - [REQ_111: Universal Core Pure Renames](requirements/staging/REQ_111_parallel_analyzer_buildout.md) — *staging*; narrowed after the Atlas (a)(b)(c) pass to cover only `weight_spectra` (← `effective_dimensionality`) and `parameter_trajectory` (← `parameter_trajectory_pca`). Phase 1a of the Atlas-driven reorganization. Both renames merged 2026-05-27; `weight_spectra` parity recorded bit-exact on canon.
-- [REQ_126: Family Basis Projection Consolidation](requirements/active/REQ_126_basis_projection_consolidation.md) — keystone of phase 1. Absorbs six Fourier-locked analyzers into two universal ones (`weight_basis_projection`, `activation_basis_projection`); defuses Fourier fields from `representation_geometry`. Unlocks REQ_102's `coarseness` retirement.
+- [REQ_126: Family Basis Projection Consolidation](requirements/staging/REQ_126_basis_projection_consolidation.md) — *staging* (2026-05-27). Keystone of phase 1. Shipped across three PRs: `weight_basis_projection`, `activation_basis_projection`, `centroid_fourier_alignment`. Six absorbed analyzers + one defused field; REQ_102's `coarseness` blob/plaid gate verified on canon. Downstream-visualization migration deferred to a separate REQ.
 - [REQ_117: DMD Reorganization](requirements/staging/REQ_117_dmd_reorganization.md) — canonical home for `activation_dmd` and `parameter_dmd` (both shipped 2026-05). Supersedes REQ_073; absorbs the Research Claude drafts that proposed the windowed treatment. Includes validation outcomes per-variant in the Notes section.
 - [REQ_118: Neuron Grouping Primitive](requirements/staging/REQ_118_neuron_grouping.md) — prerequisite for REQ_117's parameter track (shipped 2026-05). Canonical home for `neuron_grouping`.
 - [REQ_073: Weight-Space DMD](requirements/active/REQ_073_weight_space_dmd.md) — superseded by REQ_117. Retained for archaeology.
 - [Variant Atlas](variant_atlas.md) — companion document for variants studied across these analyzers. The Analysis Atlas catalogs lenses; the Variant Atlas catalogs models being studied.
 - [REQ_055: Attention Head Phase Analysis](requirements/active/REQ_055_attention_head_phase_analysis.md) — possibly overlaps with `cross_site_coupling`; coordinate scope when implementing.
-- [REQ_102: Analyzer Deprecation](requirements/active/REQ_102_analyzer_deprecation.md) — close-out track for phase 1 retirements. Gated per-analyzer by REQ_111, REQ_126, REQ_117 validation outcomes.
+- [REQ_102: Analyzer Deprecation](requirements/active/REQ_102_analyzer_deprecation.md) — close-out track for phase 1 retirements. Gated per-analyzer by REQ_111, REQ_126, REQ_117 validation outcomes. As of 2026-05-27, REQ_126's gates pass on canon but the close-out is deferred until the downstream-visualization migration completes (per user direction — don't retire active surfaces until consumers have ported over).
 - [Roadmap_Analysis_rough.md](requirements/Roadmap_Analysis_rough.md) — superseded *Analysis Catalog* section. Other sections remain valid in that document.
 
 ---
