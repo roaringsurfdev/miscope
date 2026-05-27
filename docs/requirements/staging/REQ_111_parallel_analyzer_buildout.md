@@ -1,8 +1,8 @@
 # REQ_111: Universal Core Pure Renames + Primitive Integration
 
-**Status:** Draft (rescoped after Analysis Atlas (a)(b)(c) audit pass)
+**Status:** Completed — both renames merged to `develop` (2026-05-27); awaiting release.
 **Priority:** Medium — small, low-risk, immediately reduces name drift. The fastest demonstration that the Atlas's (a)(b)(c) annotations drive real code change.
-**Branch:** TBD
+**Branches:** `feature/req-111-weight-spectra`, `feature/req-111-parameter-trajectory` (both merged)
 **Dependencies:**
 - REQ_109 (measurement primitives — *staging*; SVD, participation ratio, PCA, finite-difference velocity primitives consumed here).
 - REQ_114 (HookedModel analyzer migration — *staging*; analyzers built on the canonical interface).

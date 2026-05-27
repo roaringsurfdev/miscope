@@ -6,7 +6,7 @@
 **Dependencies:**
 - REQ_106 (defines the layering principles whose violation is one of the deprecation criteria).
 - REQ_109 (primitive layer — *staging*; the new analyzers consume it).
-- REQ_111 (Universal Core pure renames — gates the `effective_dimensionality` and `parameter_trajectory_pca` retirements via parity validation).
+- REQ_111 (Universal Core pure renames — *staging*; gates the `effective_dimensionality` retirement via parity validation. The `parameter_trajectory_pca` retirement is degenerate — the rename was already aligned at the registered-name level, so REQ_111's mechanical port closed the file/class gap with no separate analyzer left to retire).
 - REQ_126 (Family basis projection consolidation — gates the `coarseness` retirement via blob-vs-plaid preservation verification; gates the five Fourier-analyzer retirements via absorption parity).
 - REQ_117 (DMD reorganization — *staging*; absorbed `centroid_dmd`'s modal paths).
 
@@ -23,7 +23,7 @@ The original REQ_102 retired a short list (`coarseness`, `fourier_nucleation`, `
 - **`fourier_nucleation` is no longer retired.** The Atlas marks it `retain` — the iterative refinement is the value; only the one-shot projection step is absorbed (into REQ_126).
 - **`centroid_dmd`** is substantially complete via REQ_117 (staging): modal paths absorbed by `activation_dmd` + `parameter_dmd`; trajectory portion deferred to a future `representation_trajectory` reorganization. The wrapper class is retired here once its remaining consumers migrate.
 - **`coarseness` retirement is gated on REQ_126** verifying that `activation_basis_projection` preserves the blob-vs-plaid signal.
-- **Migrate-track retirements redistribute.** Five Fourier-analyzer retirements (`dominant_frequencies`, `attention_fourier`, `neuron_fourier`, `attention_freq`, `neuron_freq_clusters`) gate on REQ_126; two pure-rename retirements (`effective_dimensionality`, `parameter_trajectory_pca`) gate on REQ_111 (narrowed).
+- **Migrate-track retirements redistribute.** Five Fourier-analyzer retirements (`dominant_frequencies`, `attention_fourier`, `neuron_fourier`, `attention_freq`, `neuron_freq_clusters`) gate on REQ_126. The pure-rename retirement of `effective_dimensionality` gates on REQ_111 (narrowed). The originally-paired `parameter_trajectory_pca` retirement is degenerate — that rename was already aligned at the registered-name level, so REQ_111's mechanical port closed the file/class gap and left no separate analyzer to retire.
 
 This REQ becomes the close-out track for the Atlas-driven phase 1 consolidations.
 
@@ -43,8 +43,8 @@ Retirement candidates and their gates:
 | `neuron_fourier` | `weight_basis_projection` | REQ_126 (absorption parity) |
 | `attention_freq` | `activation_basis_projection` | REQ_126 (absorption parity) |
 | `neuron_freq_clusters` | `activation_basis_projection` | REQ_126 (absorption parity) |
-| `effective_dimensionality` | `weight_spectra` | REQ_111 (parity validation) |
-| `parameter_trajectory_pca` | `parameter_trajectory` | REQ_111 (parity validation) |
+| `effective_dimensionality` | `weight_spectra` | REQ_111 (parity validation — bit-exact, recorded) |
+| ~~`parameter_trajectory_pca`~~ | `parameter_trajectory` | Already complete via REQ_111 mechanical port — no separate analyzer to retire |
 | `centroid_dmd` (wrapper) | `activation_dmd` + `parameter_dmd` | REQ_117 (already shipped — pending consumer migration) |
 
 REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-implements an upstream derivation, mixes data-plane access into measure code, or cannot conform to declared-dependencies discipline is a deprecation candidate if migration would amount to a rewrite. Audit before declaring; some violations are migrations under their owning REQ, not retirements here.
@@ -70,8 +70,8 @@ REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-i
 
 ### REQ_111-gated retirements
 
-- [ ] `effective_dimensionality` analyzer: removed after REQ_111 records parity validation outcome (*matches* or *old-has-bug-fixed-in-new*) for `weight_spectra`.
-- [ ] `parameter_trajectory_pca` analyzer: removed after REQ_111 records parity validation outcome for `parameter_trajectory`.
+- [ ] `effective_dimensionality` analyzer: removed after REQ_111 records parity validation outcome (*matches* or *old-has-bug-fixed-in-new*) for `weight_spectra`. REQ_111 recorded **bit-exact parity on the canon reference set (2026-05-27)** — retirement is unblocked; pending consumer migration (dashboard pages, family.json) before removal.
+- [x] ~~`parameter_trajectory_pca`~~ — degenerate retirement, complete via REQ_111 mechanical port (2026-05-27). The registered analyzer name was already `parameter_trajectory`; only the file (`parameter_trajectory_pca.py` → `parameter_trajectory.py`) and class (`ParameterTrajectoryPCA` → `ParameterTrajectory`) carried the old name. No separate analyzer is registered to remove.
 
 ### Layering audit (REQ_106 criterion)
 
