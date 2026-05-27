@@ -1,6 +1,6 @@
 # REQ_125: Research Notebook Template & ArtifactLoader Privacy
 
-**Status:** Implemented on `feature/req-125-research-retrofit`; pending merge to `develop`. Bulk notebook retrofit remained deferred per follow-up discussion.
+**Status:** Completed (merged to `develop`). Bulk notebook retrofit remained deferred per follow-up discussion.
 **Priority:** Low–Medium — propagation lever (notebook template + `ArtifactLoader` privacy signal) matters more than mass-retrofitting old notebooks. With the template in place and the privacy signal active, future notebook composition lands on the right patterns without per-notebook touch-ups.
 **Branch:** `feature/req-125-research-retrofit` (to be created at start of implementation).
 **Dependencies:** REQ_123 (Unified Data Root) and REQ_124 (Per-App Config + Storage Encapsulation) — both landed on `develop`. REQ_124 added the API accessors (`variant.summary`, `family.variant_registry`) this REQ documents in the template.

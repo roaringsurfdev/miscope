@@ -1,6 +1,6 @@
 # REQ_124: Per-App Configuration Files & Storage-Encapsulation Enforcement
 
-**Status:** CoS drafted; implementation queued behind REQ_123 (now landed on `develop`). Ready to pick up.
+**Status:** Completed (merged to `develop`).
 **Priority:** Medium — the path-literal enforcement closes a structural gap that REQ_123's data-root unification opened; the per-app config piece is small but unlocks deployable dashboard configuration.
 **Branch:** `feature/req-124-per-app-config` (to be created at start of implementation).
 **Dependencies:** REQ_123 (Unified Data Root) — landed. This REQ assumes `cfg.data_root`, `family.family_dir`, `family.variants_dir` exist.
