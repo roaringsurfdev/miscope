@@ -298,7 +298,9 @@ class TestRepresentationalGeometryAnalyzer:
             assert f"{site}_center_spread" in result
             assert f"{site}_snr" in result
             assert f"{site}_circularity" in result
-            assert f"{site}_fourier_alignment" in result
+            # REQ_126 PR 3: fourier_alignment defused into
+            # ``centroid_fourier_alignment``; no longer emitted here.
+            assert f"{site}_fourier_alignment" not in result
             assert f"{site}_fisher_mean" in result
             assert f"{site}_fisher_min" in result
             assert f"{site}_fisher_argmin_r" in result
@@ -318,8 +320,9 @@ class TestRepresentationalGeometryAnalyzer:
         assert result["resid_post_dimensionality"].shape == (p,)
 
     def test_summary_keys_match_scalars(self):
+        # REQ_126 PR 3: fourier_alignment defused → 10 scalar keys (was 11).
         summary_keys = _get_summary_keys()
-        assert len(summary_keys) == 4 * 14  # 4 sites × (11 scalar + 3 PCA variance keys)
+        assert len(summary_keys) == 4 * 13  # 4 sites × (10 scalar + 3 PCA variance keys)
 
     def test_compute_summary_extracts_scalars(self):
         p = 7

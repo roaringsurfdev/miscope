@@ -39,7 +39,6 @@ from miscope.analysis.library.geometry import compute_fisher_matrix
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import (
     characterize_circularity,
-    characterize_fourier_alignment,
 )
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -59,14 +58,17 @@ _SITES: dict[str, str] = {
     "resid_post": canonical_hooks.hook(canonical_hooks.BLOCKS, 0, canonical_hooks.HOOK_OUT),
 }
 
-# Summary keys: 11 scalar measures per site
+# Summary keys: 10 scalar measures per site. (REQ_126 PR 3 defused the
+# Fourier-alignment field out of this analyzer's contract — it now lives
+# in ``centroid_fourier_alignment``, a secondary analyzer that consumes
+# this analyzer's per-site centroids. ``circularity`` is geometric, not
+# basis-projection, and stays here per the REQ_126 Q3 direction.)
 _SCALAR_KEYS = [
     "mean_radius",
     "mean_dim",
     "center_spread",
     "snr",
     "circularity",
-    "fourier_alignment",
     "fisher_mean",
     "fisher_min",
     "fisher_argmin_r",
@@ -103,7 +105,11 @@ class RepresentationalGeometryAnalyzer:
     For each checkpoint, extracts activations at 4 network sites, groups
     them by output class, and computes per-class and global geometric
     measures including centroids, radii, dimensionality, SNR, circularity,
-    Fourier alignment, and Fisher discriminant ratios.
+    and Fisher discriminant ratios.
+
+    Fourier alignment (the family-basis-projection content that used to
+    fuse into this analyzer's output) lives in the
+    ``centroid_fourier_alignment`` secondary analyzer per REQ_126 PR 3.
     """
 
     name = "repr_geometry"
@@ -227,9 +233,11 @@ class RepresentationalGeometryAnalyzer:
         center_spread = compute_center_spread(centroids)
         snr = (center_spread**2 / mean_radius**2) if mean_radius > 0 else 0.0
 
-        # Single PCA over centroids feeds circularity, fourier_alignment, and
-        # the pca_var_pc{1,2,3} summary fractions — collapses what was three
-        # redundant SVDs per (epoch, site) down to one.
+        # Single PCA over centroids feeds circularity and the
+        # pca_var_pc{1,2,3} summary fractions. Fourier alignment was
+        # defused out of this analyzer in REQ_126 PR 3 and now lives in
+        # the ``centroid_fourier_alignment`` secondary analyzer, which
+        # recomputes PCA from the centroids it reads from this artifact.
         n_components = min(3, centroids.shape[0], centroids.shape[1])
         centroid_pca = pca(centroids, n_components=n_components)
         var_ratio = centroid_pca.explained_variance_ratio
@@ -244,9 +252,6 @@ class RepresentationalGeometryAnalyzer:
 
         circularity = (
             characterize_circularity(projection_2d, var_explained_2d) if n_components >= 2 else 0.0
-        )
-        fourier_align = (
-            characterize_fourier_alignment(projection_2d, p) if n_components >= 2 else 0.0
         )
         fisher_mean, fisher_min = compute_fisher_discriminant(
             activations, labels, centroids=centroids
@@ -275,7 +280,6 @@ class RepresentationalGeometryAnalyzer:
             "center_spread": np.float64(center_spread),
             "snr": np.float64(snr),
             "circularity": np.float64(circularity),
-            "fourier_alignment": np.float64(fourier_align),
             "fisher_mean": np.float64(fisher_mean),
             "fisher_min": np.float64(fisher_min),
             "fisher_argmin_r": np.float64(argmin_r),
