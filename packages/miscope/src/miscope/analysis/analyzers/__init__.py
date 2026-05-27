@@ -33,6 +33,7 @@ from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAn
 from miscope.analysis.analyzers.neuron_grouping import NeuronGrouping
 from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
 from miscope.analysis.analyzers.parameter_snapshot import ParameterSnapshotAnalyzer
+from miscope.analysis.analyzers.weight_basis_projection import WeightBasisProjectionAnalyzer
 
 
 # Cross-epoch Analyzers
@@ -75,5 +76,6 @@ __all__ = [
     "TransientFrequencyAnalyzer",
     "NeuronGrouping",
     "ParameterDMD",
+    "WeightBasisProjectionAnalyzer",
     "WeightSpectraAnalyzer",
 ]

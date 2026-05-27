@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
+from miscope.core.basis_projection import BasisProjectionSite
 from miscope.families.types import (
     AnalysisDatasetSpec,
     ArchitectureSpec,
@@ -126,6 +127,15 @@ class BaseModelFamily:
     def cross_epoch_analyzers(self) -> list[str]:
         """Cross-epoch analyzer identifiers valid for this family."""
         return self._config.get("cross_epoch_analyzers", [])
+
+    @property
+    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: family-supplied sites for basis-projection analyzers.
+
+        Default is empty — families that supply a basis override this in
+        their subclass.
+        """
+        return ()
 
     @property
     def analysis_dataset(self) -> AnalysisDatasetSpec:

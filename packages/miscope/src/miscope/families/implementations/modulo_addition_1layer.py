@@ -20,6 +20,7 @@ from miscope.analysis.library.fourier import (
 )
 from miscope.analysis.library.grouping import group_neurons
 from miscope.architectures import HookedTransformer, HookedTransformerConfig
+from miscope.core.basis_projection import BasisProjectionSite
 from miscope.core.grouping import GroupAssignment
 from miscope.families.base_model_family import BaseModelFamily
 
@@ -260,6 +261,8 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             # NeuronGrouping analyzer dispatches on this when present and
             # bypasses the universal kmeans path.
             "neuron_grouping_override": self._neuron_grouping_override,
+            # REQ_126: family-supplied sites for weight_basis_projection.
+            "basis_projection_sites": self.basis_projection_sites,
         }
 
     def _neuron_grouping_override(
@@ -312,6 +315,50 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             confidence_threshold=threshold,
         )
         return assignment, magnitudes
+
+    @property
+    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: weight-side sites for ``weight_basis_projection``.
+
+        Five sites cover the absorbed Fourier analyzers:
+        - ``embedding`` reproduces ``dominant_frequencies``.
+        - ``attn_v`` and ``attn_qk`` together reproduce ``attention_fourier``.
+        - ``mlp_in`` reproduces ``neuron_fourier``'s theta-side and
+          ``fourier_nucleation``'s one-shot projection.
+        - ``mlp_out`` reproduces ``neuron_fourier``'s xi-side.
+        """
+        return (
+            BasisProjectionSite(
+                name="embedding",
+                compose=_compose_embedding,
+                period_axes=(0,),
+                description="W_E[:p] — token embeddings, excluding equals token",
+            ),
+            BasisProjectionSite(
+                name="attn_v",
+                compose=_compose_attn_v,
+                period_axes=(1,),
+                description="(W_E[:p] @ W_V[h]) per head: (n_heads, p, d_head)",
+            ),
+            BasisProjectionSite(
+                name="attn_qk",
+                compose=_compose_attn_qk,
+                period_axes=(1, 2),
+                description="(W_E[:p] @ W_Q[h]) (W_E[:p] @ W_K[h])^T per head: (n_heads, p, p)",
+            ),
+            BasisProjectionSite(
+                name="mlp_in",
+                compose=_compose_mlp_in,
+                period_axes=(0,),
+                description="W_E[:p] @ W_in — composed neuron input weight: (p, d_mlp)",
+            ),
+            BasisProjectionSite(
+                name="mlp_out",
+                compose=_compose_mlp_out,
+                period_axes=(0,),
+                description="(W_out @ W_U)^T — composed neuron output weight: (p, d_mlp)",
+            ),
+        )
 
     def compute_loss(
         self,
@@ -384,6 +431,62 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
         if device is not None:
             tensor = tensor.to(device)
         return tensor
+
+
+def _compose_embedding(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``embedding`` site: token embedding rows for 0..p-1."""
+    p = int(context["params"]["prime"])
+    return np.asarray(snapshot["W_E"])[:p]
+
+
+def _compose_mlp_in(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``mlp_in`` site: per-token composed input weight ``W_E[:p] @ W_in``.
+
+    Result shape: ``(p, d_mlp)``. Each column is one neuron's effective
+    response to each token value 0..p-1 — the same matrix used by
+    ``neuron_fourier`` (theta) and ``fourier_nucleation``'s one-shot
+    projection.
+    """
+    p = int(context["params"]["prime"])
+    W_E = np.asarray(snapshot["W_E"])
+    W_in = np.asarray(snapshot["W_in"])
+    return W_E[:p] @ W_in
+
+
+def _compose_mlp_out(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``mlp_out`` site: per-token composed output weight ``(W_out @ W_U)^T``.
+
+    Result shape: ``(p, d_mlp)``. Matches ``neuron_fourier``'s xi convention.
+    """
+    p = int(context["params"]["prime"])
+    W_out = np.asarray(snapshot["W_out"])
+    W_U = np.asarray(snapshot["W_U"])
+    return (W_out @ W_U[:, :p]).T  # type: ignore[no-any-return]
+
+
+def _compose_attn_v(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``attn_v`` site: per-head value projection of token embeddings.
+
+    Result shape: ``(n_heads, p, d_head)``. Period axis is axis 1.
+    """
+    p = int(context["params"]["prime"])
+    W_E = np.asarray(snapshot["W_E"])[:p]  # (p, d_model)
+    W_V = np.asarray(snapshot["W_V"])  # (n_heads, d_model, d_head)
+    return np.einsum("td,hdk->htk", W_E, W_V)
+
+
+def _compose_attn_qk(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``attn_qk`` site: per-head ``Q K^T`` in token space.
+
+    Result shape: ``(n_heads, p, p)``. Period axes are 1 and 2 (2D Fourier).
+    """
+    p = int(context["params"]["prime"])
+    W_E = np.asarray(snapshot["W_E"])[:p]  # (p, d_model)
+    W_Q = np.asarray(snapshot["W_Q"])  # (n_heads, d_model, d_head)
+    W_K = np.asarray(snapshot["W_K"])  # (n_heads, d_model, d_head)
+    Q = np.einsum("td,hdk->htk", W_E, W_Q)  # (n_heads, p, d_head)
+    K = np.einsum("td,hdk->htk", W_E, W_K)  # (n_heads, p, d_head)
+    return np.einsum("htk,hsk->hts", Q, K)
 
 
 def load_modulo_addition_1layer_family(
