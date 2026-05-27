@@ -42,7 +42,8 @@
     "repr_geometry",
     "attention_fourier",
     "fourier_nucleation",
-    "input_trace"
+    "input_trace",
+    "activation_basis_projection"
   ],
   "secondary_analyzers": [
     "neuron_fourier",

@@ -129,8 +129,17 @@ class BaseModelFamily:
         return self._config.get("cross_epoch_analyzers", [])
 
     @property
-    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """REQ_126: family-supplied sites for basis-projection analyzers.
+    def weight_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: weight-side sites for ``weight_basis_projection``.
+
+        Default is empty — families that supply a basis override this in
+        their subclass.
+        """
+        return ()
+
+    @property
+    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_basis_projection``.
 
         Default is empty — families that supply a basis override this in
         their subclass.

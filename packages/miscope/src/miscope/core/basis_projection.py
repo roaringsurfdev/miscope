@@ -37,9 +37,14 @@ class BasisProjectionSite(NamedTuple):
             non-period unit; length 2 = 2D projection per non-period unit.
         description: One-line human-readable description of what the site
             represents (e.g., ``"W_E embedding excluding equals token"``).
+        required_hooks: Canonical hook names the activation-side composer
+            reads from the cache. Empty for weight-side sites (whose
+            composer reads a parameter_snapshot dict, not the cache). The
+            analyzer aggregates these into its Spec's ``required_hooks``.
     """
 
     name: str
     compose: Callable[[Any, dict[str, Any]], np.ndarray]
     period_axes: tuple[int, ...]
     description: str
+    required_hooks: tuple[str, ...] = ()

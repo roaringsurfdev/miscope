@@ -225,12 +225,13 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
             "fourier_basis": fourier_basis,
             "loss_fn": loss_fn,
             "labels": labels,
-            # REQ_126: family-supplied sites for weight_basis_projection.
-            "basis_projection_sites": self.basis_projection_sites,
+            # REQ_126: family-supplied sites for basis-projection analyzers.
+            "weight_basis_projection_sites": self.weight_basis_projection_sites,
+            "activation_basis_projection_sites": self.activation_basis_projection_sites,
         }
 
     @property
-    def basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+    def weight_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
         """REQ_126: weight-side sites for ``weight_basis_projection``.
 
         Two sites — the 2L MLP has no embedding or attention to project. Both
@@ -249,6 +250,23 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
                 compose=_compose_mlp_out_2l,
                 period_axes=(0,),
                 description="W_out — already in (p, d_hidden) form",
+            ),
+        )
+
+    @property
+    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_basis_projection``.
+
+        One site — ``neuron_freq_norm`` is the only activation Fourier
+        analyzer this family registers.
+        """
+        return (
+            BasisProjectionSite(
+                name="mlp_out",
+                compose=_compose_mlp_out_activation_2l,
+                period_axes=(1, 2),
+                description="MLP hidden-layer activations reshaped to (d_hidden, p, p)",
+                required_hooks=("blocks.0.mlp.hook_out",),
             ),
         )
 
@@ -329,6 +347,27 @@ def _compose_mlp_in_2l(snapshot: dict[str, Any], context: dict[str, Any]) -> np.
 def _compose_mlp_out_2l(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
     """``mlp_out`` site for 2L MLP: ``W_out`` already shaped ``(p, d_hidden)``."""
     return np.asarray(snapshot["W_out"])
+
+
+def _compose_mlp_out_activation_2l(cache: Any, context: dict[str, Any]) -> np.ndarray:
+    """``mlp_out`` activation site for 2L MLP: hidden-layer activations on (a, b) grid.
+
+    MLP-class architectures produce seq-less activations; the cache tensor
+    is shape ``(p^2, d_hidden)`` (no sequence dim). Reshape to a (p, p)
+    (a, b) grid per neuron.
+
+    Result shape: ``(d_hidden, p, p)``. Period axes: (1, 2).
+    """
+    p = int(context["params"]["prime"])
+    acts = cache["blocks.0.mlp.hook_out"]
+    if hasattr(acts, "ndim") and acts.ndim == 3:
+        acts = acts[:, -1, :]
+    if hasattr(acts, "detach"):
+        acts = acts.detach().cpu().numpy()
+    else:
+        acts = np.asarray(acts)
+    grid = acts.reshape(p, p, -1).transpose(2, 0, 1)
+    return grid
 
 
 def load_modulo_addition_2l_mlp_family(
