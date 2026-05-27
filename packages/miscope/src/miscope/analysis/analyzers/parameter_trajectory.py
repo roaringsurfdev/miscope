@@ -1,8 +1,15 @@
-"""REQ_038: Parameter trajectory PCA cross-epoch analyzer.
+"""Parameter trajectory cross-epoch analyzer (REQ_038; renamed REQ_111).
 
-Consumes parameter_snapshot per-epoch artifacts and produces
-PCA projections, explained variance, and velocity metrics for
-all component groups (all, embedding, attention, mlp).
+Consumes parameter_snapshot per-epoch artifacts and produces trajectory
+summaries — currently PCA projections, explained variance, and velocity —
+for all component groups (all, embedding, attention, mlp). The name no
+longer commits to PCA as the only trajectory summary: future implementations
+may layer in additional reductions without breaking the contract.
+
+Transform steps route through REQ_109 primitives: PCA via
+:func:`miscope.analysis.library.pca.pca`, finite-difference velocity via
+:func:`miscope.analysis.library.dynamics.compute_velocity` (called through
+:func:`compute_parameter_velocity`).
 """
 
 from typing import Any
@@ -32,8 +39,8 @@ SPEC = AnalyzerSpec(
 
 
 @register_analyzer(SPEC)
-class ParameterTrajectoryPCA:
-    """Cross-epoch analyzer for parameter trajectory PCA projection."""
+class ParameterTrajectory:
+    """Cross-epoch analyzer for parameter trajectory summaries (PCA + velocity)."""
 
     name = "parameter_trajectory"
     requires = ["parameter_snapshot"]

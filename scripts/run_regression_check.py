@@ -65,7 +65,7 @@ def run_pipeline(variant, force: bool) -> None:
         NeuronFreqClustersAnalyzer,
         NeuronGroupPCAAnalyzer,
         ParameterSnapshotAnalyzer,
-        ParameterTrajectoryPCA,
+        ParameterTrajectory,
         RepresentationalGeometryAnalyzer,
         TransientFrequencyAnalyzer,
     )
@@ -88,7 +88,7 @@ def run_pipeline(variant, force: bool) -> None:
     pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
     pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
     pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-    pipeline.register_cross_epoch(ParameterTrajectoryPCA())
+    pipeline.register_cross_epoch(ParameterTrajectory())
     pipeline.register_cross_epoch(GlobalCentroidPCA())
     pipeline.register_cross_epoch(CentroidDMD())
     pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
