@@ -6,5 +6,6 @@ dependencies. Importable from any layer (renderers, dashboard, notebooks).
 
 from miscope.core import architecture, weights
 from miscope.core.pca import PCAResult
+from miscope.core.svd import SVDResult
 
-__all__ = ["PCAResult", "architecture", "weights"]
+__all__ = ["PCAResult", "SVDResult", "architecture", "weights"]

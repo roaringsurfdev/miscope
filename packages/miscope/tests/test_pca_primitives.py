@@ -1,10 +1,11 @@
-"""Unit tests for PCA primitives (REQ_109 phase 1a)."""
+"""Unit tests for PCA primitives (REQ_109 phase 1a) + raw-SVD primitive (REQ_111)."""
 
 import numpy as np
 import pytest
 
-from miscope.analysis.library.pca import pca, pca_rolling, pca_summary
+from miscope.analysis.library.pca import compute_svd, pca, pca_rolling, pca_summary
 from miscope.core.pca import PCAResult
+from miscope.core.svd import SVDResult
 
 
 class TestPCABasic:
@@ -258,3 +259,80 @@ class TestPCARolling:
     def test_rejects_1d_input(self):
         with pytest.raises(ValueError, match="2D input"):
             pca_rolling(np.array([1.0, 2.0, 3.0]), window_size=2)
+
+
+class TestComputeSvd:
+    def test_returns_svd_result(self):
+        M = np.array([[1.0, 0.0], [0.0, 2.0]])
+        result = compute_svd(M)
+        assert isinstance(result, SVDResult)
+
+    def test_does_not_mean_center(self):
+        # Distinguishes raw SVD from PCA. A constant-mean matrix has nonzero
+        # singular values; pca() would yield zero after centering.
+        M = np.full((4, 3), 5.0)
+        result = compute_svd(M)
+        # Largest singular value is the matrix's L2 norm = ||5 * 1 1 1; 5 1 1 1; ...||
+        # = 5 * sqrt(4*3) = 5 * sqrt(12)
+        np.testing.assert_allclose(result.singular_values[0], 5.0 * np.sqrt(12), atol=1e-10)
+
+    def test_matches_numpy_svd(self):
+        rng = np.random.default_rng(0)
+        M = rng.normal(size=(8, 5))
+        result = compute_svd(M)
+        U_np, S_np, Vt_np = np.linalg.svd(M, full_matrices=False)
+        np.testing.assert_allclose(result.singular_values, S_np, rtol=1e-12)
+        # SVD basis sign ambiguity: compare reconstructions
+        recon = result.left_vectors @ np.diag(result.singular_values) @ result.right_vectors
+        np.testing.assert_allclose(recon, M, atol=1e-10)
+
+    def test_thin_svd_shapes(self):
+        rng = np.random.default_rng(0)
+        M = rng.normal(size=(10, 4))
+        result = compute_svd(M)
+        assert result.left_vectors.shape == (10, 4)
+        assert result.singular_values.shape == (4,)
+        assert result.right_vectors.shape == (4, 4)
+
+    def test_full_matrices_shapes(self):
+        rng = np.random.default_rng(0)
+        M = rng.normal(size=(10, 4))
+        result = compute_svd(M, full_matrices=True)
+        assert result.left_vectors.shape == (10, 10)
+        assert result.singular_values.shape == (4,)
+        assert result.right_vectors.shape == (4, 4)
+
+    def test_rank_full(self):
+        rng = np.random.default_rng(0)
+        M = rng.normal(size=(6, 4))
+        result = compute_svd(M)
+        assert result.rank == 4
+
+    def test_rank_deficient(self):
+        # Build an explicitly rank-2 matrix.
+        rng = np.random.default_rng(0)
+        A = rng.normal(size=(6, 2))
+        B = rng.normal(size=(2, 5))
+        M = A @ B
+        result = compute_svd(M)
+        assert result.rank == 2
+
+    def test_rank_zero_matrix(self):
+        M = np.zeros((4, 3))
+        result = compute_svd(M)
+        assert result.rank == 0
+
+    def test_singular_values_descending(self):
+        rng = np.random.default_rng(0)
+        M = rng.normal(size=(20, 8))
+        result = compute_svd(M)
+        diffs = np.diff(result.singular_values)
+        assert (diffs <= 1e-12).all()
+
+    def test_rejects_1d_input(self):
+        with pytest.raises(ValueError, match="2D input"):
+            compute_svd(np.array([1.0, 2.0, 3.0]))
+
+    def test_rejects_3d_input(self):
+        with pytest.raises(ValueError, match="2D input"):
+            compute_svd(np.zeros((2, 3, 4)))

@@ -71,6 +71,7 @@ from miscope.analysis.library.weights import (
     WEIGHT_MATRIX_NAMES,
     compute_participation_ratio,
     compute_weight_singular_values,
+    compute_weight_spectra,
     extract_neuron_weight_matrix,
     extract_parameter_snapshot,
 )
@@ -128,6 +129,7 @@ __all__ = [
     "extract_parameter_snapshot",
     "extract_neuron_weight_matrix",
     "compute_weight_singular_values",
+    "compute_weight_spectra",
     "compute_participation_ratio",
     "WEIGHT_MATRIX_NAMES",
     "COMPONENT_GROUPS",

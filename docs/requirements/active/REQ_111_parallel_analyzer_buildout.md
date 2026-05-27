@@ -94,7 +94,13 @@ This REQ renames both and routes their transform steps through REQ_109 primitive
 
 Format: `{old_analyzer} → {new_analyzer}: {outcome}, {date}, {pointer to evidence}`.
 
-- *(empty until first rename ships)*
+- `effective_dimensionality → weight_spectra`: **matches bit-exactly** (max abs diff = 0.0, max rel diff = 0.0) across all 9 weight matrices on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) at 5 epochs each. 2026-05-27. Evidence: `tests/test_weight_spectra.py::TestWeightSpectraIntegration::test_parity_singular_values_match_effective_dimensionality` (CI) + canon snapshot diff via `compute_svd` on `parameter_snapshot/*.npz` artifacts. Bit-exactness follows from both paths routing through the same LAPACK `gesdd` call; the old path discarded U/Vt via `compute_uv=False`, the new path retains them via `full_matrices=False`.
+
+### Design notes for `weight_spectra`
+
+- New pure primitive: `miscope.analysis.library.pca.compute_svd(matrix) -> SVDResult` (with `SVDResult` in `miscope.core.svd`). Raw, non-mean-centered SVD — distinct from `pca()`, which mean-centers and is intended for sample distributions. The weight matrices are the linear maps themselves, not samples.
+- `compute_weight_singular_values` retained for the parallel period; refactored to delegate to a new `compute_weight_spectra(model) -> dict[name, (U, S, Vt)]` helper. No call sites outside `effective_dimensionality` and tests, so the slight overhead of always computing U/Vt is bounded to the deprecation window.
+- `WeightSpectraAnalyzer` adds `u_{name}` and `vt_{name}` to the per-epoch artifact alongside the legacy `sv_{name}`. Keys, shapes, and PR-summary semantics for `sv_*` and `pr_*` are unchanged from `effective_dimensionality`.
 
 ### Why parallel construction (not in-place rename)
 
