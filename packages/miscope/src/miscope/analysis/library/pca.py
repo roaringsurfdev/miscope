@@ -1,17 +1,22 @@
-"""PCA primitives.
+"""PCA + raw-SVD primitives.
 
-Three modes:
+PCA modes (mean-centered SVD):
     - :func:`pca` — single sample set.
     - :func:`pca_summary` — one basis fit across a stack of sample sets
       (also called *trajectory PCA*).
     - :func:`pca_rolling` — windowed PCA across the sample axis.
 
-All modes use mean-centered SVD via :func:`numpy.linalg.svd`. Sign convention
-is whatever ``np.linalg.svd`` returns; consumers handle sign flips downstream.
+Raw SVD (no centering):
+    - :func:`compute_svd` — SVD of a matrix as a linear map (e.g. weight
+      matrices), where the matrix itself is the object of study rather than
+      a sample distribution. Returns :class:`miscope.core.svd.SVDResult`.
+
+All routines use :func:`numpy.linalg.svd`. Sign convention is whatever NumPy
+returns; consumers handle sign flips downstream.
 
 Pure-input contract: functions take ``np.ndarray`` (or sequences of arrays)
-and return :class:`miscope.core.pca.PCAResult`. No knowledge of ``Variant``,
-``Epoch``, or ``Site``.
+and return typed result objects. No knowledge of ``Variant``, ``Epoch``, or
+``Site``.
 """
 
 from collections.abc import Sequence
@@ -19,6 +24,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from miscope.core.pca import PCAResult
+from miscope.core.svd import SVDResult
 
 
 def pca(X: np.ndarray, n_components: int | None = None) -> PCAResult:
@@ -178,3 +184,41 @@ def pca_rolling(
         pca(X[start : start + window_size], n_components=n_components)
         for start in range(0, n_samples - window_size + 1, stride)
     ]
+
+
+def compute_svd(matrix: np.ndarray, full_matrices: bool = False) -> SVDResult:
+    """Raw (non-centered) SVD of a matrix.
+
+    For matrices where the linear map itself is the object of study —
+    e.g. weight matrices — rather than a sample distribution. No mean
+    centering is applied. Use :func:`pca` instead when the input rows
+    are samples drawn from a distribution.
+
+    Args:
+        matrix: 2D ``(m, n)`` array.
+        full_matrices: Passed through to :func:`numpy.linalg.svd`. Default
+            ``False`` returns thin-SVD shapes: ``U: (m, k)``, ``S: (k,)``,
+            ``Vt: (k, n)`` with ``k = min(m, n)``.
+
+    Returns:
+        :class:`SVDResult` with singular values, left/right vectors, and
+        numerical rank.
+    """
+    if matrix.ndim != 2:
+        raise ValueError(f"compute_svd expects 2D input, got shape {matrix.shape}")
+
+    U, S, Vt = np.linalg.svd(matrix, full_matrices=full_matrices)
+
+    if S.size > 0 and S[0] > 0:
+        m, n = matrix.shape
+        tol = max(m, n) * np.finfo(S.dtype).eps * float(S[0])
+        rank = int((S > tol).sum())
+    else:
+        rank = 0
+
+    return SVDResult(
+        singular_values=S,
+        left_vectors=U,
+        right_vectors=Vt,
+        rank=rank,
+    )

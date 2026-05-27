@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from miscope.analysis.library.pca import compute_svd
 from miscope.core import architecture as canonical_hooks
 from miscope.core import weights as canonical_weights
 
@@ -180,25 +181,44 @@ def compute_weight_singular_values(model: HookedModel) -> dict[str, np.ndarray]:
         Attention matrices: shape (n_heads, d_head).
         Other matrices: shape (min(rows, cols),).
     """
+    spectra = compute_weight_spectra(model)
+    return {f"sv_{name}": sv for name, (_, sv, _) in spectra.items()}
+
+
+def compute_weight_spectra(
+    model: HookedModel,
+) -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Compute full SVD (U, S, Vt) of all trainable weight matrices.
+
+    Routes through :func:`miscope.analysis.library.pca.compute_svd` for
+    each matrix. Attention matrices are decomposed per head.
+
+    Args:
+        model: ``HookedModel`` providing canonical-name weight access.
+
+    Returns:
+        Dict mapping legacy weight name to ``(U, S, Vt)``.
+        Attention matrices: each component has a leading ``n_heads`` axis.
+        Other matrices: thin-SVD shapes.
+    """
     snapshot = extract_parameter_snapshot(model)
-    result = {}
+    result: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
 
     for name in WEIGHT_MATRIX_NAMES:
         if name not in snapshot:
             continue  # Weight not available for this architecture
         matrix = snapshot[name]
-        key = f"sv_{name}"
 
         if name in ATTENTION_MATRICES:
-            # Shape: (n_heads, d_model, d_head) or (n_heads, d_head, d_model)
             n_heads = matrix.shape[0]
-            head_svs = []
-            for h in range(n_heads):
-                sv = np.linalg.svd(matrix[h], compute_uv=False)
-                head_svs.append(sv)
-            result[key] = np.array(head_svs)
+            heads = [compute_svd(matrix[h]) for h in range(n_heads)]
+            u = np.array([r.left_vectors for r in heads])
+            s = np.array([r.singular_values for r in heads])
+            vt = np.array([r.right_vectors for r in heads])
+            result[name] = (u, s, vt)
         else:
-            result[key] = np.linalg.svd(matrix, compute_uv=False)
+            r = compute_svd(matrix)
+            result[name] = (r.left_vectors, r.singular_values, r.right_vectors)
 
     return result
 

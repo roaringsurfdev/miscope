@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`weight_spectra` analyzer** (REQ_111) — successor to `effective_dimensionality`
+  - New analyzer `weight_spectra` retains per-matrix singular values **and** left/right singular vectors (`u_{name}`, `vt_{name}`), enabling subspace and spectral-basis views to work directly from artifacts
+  - New pure primitive `miscope.analysis.library.pca.compute_svd(matrix) -> SVDResult` (raw, non-centered SVD; distinct from `pca()`, which mean-centers for sample distributions)
+  - New helper `compute_weight_spectra(model)` in `library/weights.py` routes through `compute_svd` for every weight matrix; attention matrices decompose per head
+  - Parity validated bit-exactly against `effective_dimensionality` on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) at 5 epochs per variant; no inline `np.linalg.svd` in `analyze()`
+  - `effective_dimensionality` retained for the parallel deprecation window; retirement will be tracked under REQ_102 once consumers migrate
+
 ## [0.8.3] - 2026-04-05
 
 ### Added
