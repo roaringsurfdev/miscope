@@ -27,9 +27,7 @@
   },
   "analyzers": [
     "neuron_activations",
-    "neuron_freq_norm",
     "parameter_snapshot",
-    "effective_dimensionality",
     "repr_geometry"
   ],
   "secondary_analyzers": [],

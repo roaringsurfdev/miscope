@@ -31,32 +31,26 @@
     }
   },
   "analyzers": [
-    "attention_freq",
     "attention_patterns",
-    "dominant_frequencies",
     "neuron_activations",
-    "neuron_freq_norm",
     "parameter_snapshot",
-    "effective_dimensionality",
     "landscape_flatness",
     "repr_geometry",
-    "attention_fourier",
     "fourier_nucleation",
     "input_trace",
-    "activation_basis_projection"
+    "weight_basis_projection",
+    "activation_basis_projection",
+    "weight_spectra"
   ],
   "secondary_analyzers": [
-    "neuron_fourier",
     "fourier_frequency_quality",
     "neuron_grouping",
-    "weight_basis_projection",
     "centroid_fourier_alignment"
   ],
   "cross_epoch_analyzers": [
     "parameter_trajectory",
     "neuron_dynamics",
     "global_centroid_pca",
-    "centroid_dmd",
     "activation_dmd",
     "parameter_dmd",
     "input_trace_graduation",
