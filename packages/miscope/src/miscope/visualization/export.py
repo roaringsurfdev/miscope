@@ -235,7 +235,7 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "per_epoch",
     ),
     "parameters.singular_value_spectrum": (
-        "effective_dimensionality",
+        "weight_spectra",
         "render_singular_value_spectrum",
         "per_epoch",
     ),
@@ -256,7 +256,7 @@ _VISUALIZATION_REGISTRY: dict[str, tuple[str, str, str]] = {
         "summary",
     ),
     "parameters.effective_dimensionality": (
-        "effective_dimensionality",
+        "weight_spectra",
         "render_dimensionality_trajectory",
         "summary",
     ),

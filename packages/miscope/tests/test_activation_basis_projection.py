@@ -275,6 +275,15 @@ def test_req102_coarseness_recoverable_from_activation_basis_projection(
     blob-vs-plaid classification) is preserved by transitivity. This
     test records that evidence under canonical conditions.
     """
+    coarseness_path = (
+        CANON_VARIANT_DIR / "artifacts" / "coarseness" / f"epoch_{PARITY_EPOCH:05d}.npz"
+    )
+    if not coarseness_path.is_file():
+        pytest.skip(
+            "Legacy coarseness artifact absent on canon — the REQ_102 "
+            "blob-vs-plaid preservation gate needs canon refreshed with the "
+            "coarseness analyzer to record this evidence."
+        )
     legacy_coarseness = _load_legacy_npz("coarseness")["coarseness"]  # (d_mlp,)
     reconstructed_neuron_freq_norm = _reconstruct_legacy_neuron_freq_norm(
         canon_new_result, PRIME, "mlp_out"
