@@ -46,12 +46,6 @@ from miscope.visualization.renderers.band_concentration import (
     render_concentration_trajectory,
     render_rank_alignment_trajectory,
 )
-from miscope.visualization.renderers.coarseness import (
-    render_blob_count_trajectory,
-    render_coarseness_by_neuron,
-    render_coarseness_distribution,
-    render_coarseness_trajectory,
-)
 from miscope.visualization.renderers.data_compatibility import (
     render_data_compatibility_overlap,
     render_data_compatibility_spectrum,
@@ -116,10 +110,6 @@ from miscope.visualization.renderers.neuron_activations import (
     render_neuron_across_epochs,
     render_neuron_grid,
     render_neuron_heatmap,
-)
-from miscope.visualization.renderers.neuron_fourier import (
-    render_neuron_fourier_heatmap,
-    render_neuron_fourier_heatmap_output,
 )
 from miscope.visualization.renderers.neuron_freq_clusters import (
     get_neuron_specialization,
@@ -218,11 +208,6 @@ __all__ = [
     # REQ_025: Attention patterns
     "render_attention_heads",
     "render_attention_single_head",
-    # REQ_024: Coarseness
-    "render_coarseness_trajectory",
-    "render_coarseness_distribution",
-    "render_blob_count_trajectory",
-    "render_coarseness_by_neuron",
     # REQ_030: Effective dimensionality
     "render_dimensionality_trajectory",
     "render_singular_value_spectrum",
@@ -266,9 +251,6 @@ __all__ = [
     "render_parameter_dmd_eigenvalue_migration",
     "render_parameter_dmd_track_trajectories",
     "render_parameter_dmd_per_regime_vs_windowed",
-    # REQ_049: Neuron Fourier decomposition
-    "render_neuron_fourier_heatmap",
-    "render_neuron_fourier_heatmap_output",
     # REQ_077: Site gradient convergence
     "render_site_gradient_convergence",
     "render_site_gradient_heatmap",

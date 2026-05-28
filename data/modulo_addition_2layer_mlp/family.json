@@ -26,16 +26,14 @@
   },
   "analyzers": [
     "neuron_activations",
-    "neuron_freq_norm",
     "parameter_snapshot",
-    "effective_dimensionality",
     "input_trace",
     "repr_geometry",
-    "activation_basis_projection"
+    "weight_basis_projection",
+    "activation_basis_projection",
+    "weight_spectra"
   ],
   "secondary_analyzers": [
-    "neuron_fourier",
-    "weight_basis_projection",
     "centroid_fourier_alignment"
   ],
   "cross_epoch_analyzers": [

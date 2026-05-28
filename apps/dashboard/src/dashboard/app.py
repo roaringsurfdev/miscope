@@ -13,7 +13,6 @@ from dashboard.layout import create_default_layout
 from dashboard.pages.activation_dmd import register_activation_dmd_callbacks
 from dashboard.pages.activation_heatmaps import register_activation_heatmap_page_callbacks
 from dashboard.pages.analysis_run import register_analysis_run_page_callbacks
-from dashboard.pages.centroid_dmd import register_centroid_dmd_callbacks
 from dashboard.pages.checkpoint_schedule import register_checkpoint_schedule_page_callbacks
 from dashboard.pages.dimensionality import register_dimensionality_page_callbacks
 from dashboard.pages.dimensionality_dynamics import register_dimensionality_dynamics_page_callbacks
@@ -28,7 +27,6 @@ from dashboard.pages.neuron_group import register_neuron_group_page_callbacks
 from dashboard.pages.parameter_dmd import register_parameter_dmd_callbacks
 from dashboard.pages.peer_comparison import register_peer_comparison_page_callbacks
 from dashboard.pages.repr_geometry import register_repr_geometry_page_callbacks
-from dashboard.pages.summary import register_summary_page_callbacks
 from dashboard.pages.training import register_training_page_callbacks
 from dashboard.pages.transient_frequency import register_transient_page_callbacks
 from dashboard.pages.variant_table import register_variant_table_page_callbacks
@@ -55,13 +53,11 @@ def create_app() -> Dash:
     # page-specific callbacks
     register_activation_heatmap_page_callbacks(app)
     register_analysis_run_page_callbacks(app)
-    register_centroid_dmd_callbacks(app)
     register_activation_dmd_callbacks(app)
     register_parameter_dmd_callbacks(app)
     register_neuron_dynamics_page_callbacks(app)
     register_repr_geometry_page_callbacks(app)
     register_weight_geometry_page_callbacks(app)
-    register_summary_page_callbacks(app)
     register_dimensionality_page_callbacks(app)
     register_loss_landscape_page_callbacks(app)
     register_dimensionality_dynamics_page_callbacks(app)

@@ -61,6 +61,7 @@ Requirements that have been documented but are not yet scheduled for implementat
 | [REQ_019](future/REQ_019_multiscale_activation_visualization.md) | Multi-scale activation visualization (downsampled) | Medium | Medium |
 | [REQ_034](future/REQ_034_turn_detection.md) | Grokking turn detection | High | Medium |
 | [REQ_035](future/REQ_035_dashboard_interaction.md) | Dashboard interaction + Dash migration | High | High |
+| [REQ_128](future/REQ_128_analyzer_input_provisioning.md) | Analyzer input provisioning — lazy accessor vs eager materialization | Medium | Medium |
 
 ### Completed Milestones
 

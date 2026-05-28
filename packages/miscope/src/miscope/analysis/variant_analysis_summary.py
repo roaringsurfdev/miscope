@@ -118,13 +118,13 @@ class VariantAnalysisData:
         self.neurons_loaded = True
 
     def load_effective_dimensionality_data(self):
-        effective_dimensionality_data = self.variant.artifacts.load_summary(
-            "effective_dimensionality"
-        )
-        self.effective_dimensionality_pr_epochs = list(effective_dimensionality_data["epochs"])
-        self.effective_dimensionality_pr_w_e = list(effective_dimensionality_data["pr_W_E"])
-        self.effective_dimensionality_pr_w_in = list(effective_dimensionality_data["pr_W_in"])
-        self.effective_dimensionality_pr_w_out = list(effective_dimensionality_data["pr_W_out"])
+        # REQ_127: re-pointed to weight_spectra (successor analyzer); summary
+        # key set (epochs, pr_W_E, pr_W_in, pr_W_out, ...) is identical.
+        spectra_summary = self.variant.artifacts.load_summary("weight_spectra")
+        self.effective_dimensionality_pr_epochs = list(spectra_summary["epochs"])
+        self.effective_dimensionality_pr_w_e = list(spectra_summary["pr_W_E"])
+        self.effective_dimensionality_pr_w_in = list(spectra_summary["pr_W_in"])
+        self.effective_dimensionality_pr_w_out = list(spectra_summary["pr_W_out"])
         self.effective_dimensionality_loaded = True
 
     def load_geometry(self):

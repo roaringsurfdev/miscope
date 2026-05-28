@@ -354,16 +354,16 @@ class TestExportVariantVisualization:
         for epoch in [100, 200, 300]:
             np.savez(df_dir / f"epoch_{epoch:05d}.npz", coefficients=np.random.rand(50))
 
-        # Create coarseness summary
-        coarse_dir = artifacts / "coarseness"
-        coarse_dir.mkdir(parents=True)
-        for epoch in [100, 200, 300]:
-            np.savez(coarse_dir / f"epoch_{epoch:05d}.npz", coarseness_scores=np.random.rand(32))
+        # Create weight_spectra summary (REQ_127: successor to the retired
+        # coarseness summary as the fixture's summary-based artifact).
+        spectra_dir = artifacts / "weight_spectra"
+        spectra_dir.mkdir(parents=True)
         np.savez(
-            coarse_dir / "summary.npz",
+            spectra_dir / "summary.npz",
             epochs=np.array([100, 200, 300]),
-            mean_coarseness=np.random.rand(3),
-            blob_count=np.array([5, 10, 15]),
+            pr_W_E=np.random.rand(3),
+            pr_W_in=np.random.rand(3),
+            pr_W_out=np.random.rand(3),
         )
 
         return variant
@@ -389,9 +389,9 @@ class TestExportVariantVisualization:
         assert "parameters.embeddings.fourier_coefficients" in available
         assert "activations.mlp.neuron_frequency_clusters" in available
         assert "loss_landscape.perturbation_distribution" in available
-        # Summary-based
-        assert "activations.mlp.coarseness_trajectory" in available
+        # Summary-based (REQ_127 retired coarseness_trajectory)
         assert "loss_landscape.flatness_trajectory" in available
+        assert "parameters.effective_dimensionality" in available
         # Snapshot-based
         assert "parameters.pca.pc1_pc2" in available
         assert "parameters.pca.scatter_3d" in available
@@ -486,7 +486,7 @@ class TestExportVariantVisualization:
             mock_get.return_value = lambda summary_data, current_epoch, **kw: mock_fig
             path = export_variant_visualization(
                 mock_variant_dir,
-                "activations.mlp.coarseness_trajectory",
+                "parameters.effective_dimensionality",
                 output_dir=output_dir / "exports",
                 width=400,
                 height=300,

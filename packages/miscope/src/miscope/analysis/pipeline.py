@@ -411,7 +411,13 @@ class AnalysisPipeline:
                 for key, value in summary.items():
                     collector["values"][key].append(value)
 
-        # Explicit cleanup to prevent GPU memory accumulation
+        # Explicit cleanup to prevent GPU memory accumulation. The last
+        # analyzer iteration's `inputs`/`result`/`summary` still hold
+        # references to model + cache (via ResolvedInputs) when this point
+        # is reached; clearing them first lets the subsequent `del model,
+        # cache, ...` actually release those objects so empty_cache() can
+        # reclaim the GPU memory.
+        inputs = result = summary = None  # noqa: F841 — drop trailing refs
         del model, cache, logits, state_dict
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

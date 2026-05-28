@@ -286,9 +286,13 @@ class TestGlobalCatalog:
         assert view_def.epoch_source_analyzer is None
 
     def test_dominant_frequencies_has_epoch_source(self):
-        """parameters.embeddings.fourier_coefficients has epoch_source_analyzer set."""
+        """parameters.embeddings.fourier_coefficients has epoch_source_analyzer set.
+
+        REQ_127 re-pointed this view from dominant_frequencies to the
+        weight_basis_projection embedding site.
+        """
         view_def = _catalog.get("parameters.embeddings.fourier_coefficients")
-        assert view_def.epoch_source_analyzer == "dominant_frequencies"
+        assert view_def.epoch_source_analyzer == "weight_basis_projection"
 
 
 # ---------------------------------------------------------------------------

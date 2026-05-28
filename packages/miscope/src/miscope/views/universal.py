@@ -84,6 +84,96 @@ def _make_summary(
 # ---------------------------------------------------------------------------
 
 
+def _adapt_activation_freq_legacy(
+    art: dict[str, Any], site: str, output_key: str
+) -> dict[str, Any]:
+    """Reconstruct legacy ``neuron_freq_norm`` / ``attention_freq`` shape
+    ``(n_freq, d_unit)`` (per-frequency fraction matrix) from
+    ``activation_basis_projection`` per-site outputs (REQ_127).
+
+    Computes ``(power_diag + axis_a_marginal_power + axis_b_marginal_power)``
+    per ``(unit, freq)`` and normalizes across the frequency axis. The
+    aggregation is structurally equivalent to the old 3x3-block-summation
+    formula but uses a different basis normalization, so per-column scaling
+    differs from the legacy artifact (Pearson ~0.99 on canon, Spearman
+    ~0.83 — heatmap visuals are functionally identical under the
+    renderer's ``zmin=0, zmax=1`` normalization; absolute values shift
+    per neuron).
+
+    Works on per-epoch ``(d_unit, n_freq, n_freq)`` and stacked
+    ``(n_epochs, d_unit, n_freq, n_freq)`` shapes.
+    """
+    import numpy as _np
+
+    power = art[f"{site}_power"]
+    p_a = art[f"{site}_axis_a_marginal_power"]
+    p_b = art[f"{site}_axis_b_marginal_power"]
+    diag = _np.diagonal(power, axis1=-2, axis2=-1)
+    block = diag + p_a + p_b
+    block_sum = block.sum(axis=-1, keepdims=True)
+    fractions = (block / _np.maximum(block_sum, 1e-10)).astype(_np.float32)
+    # Swap to legacy (n_freq, d_unit) layout.
+    fractions = _np.moveaxis(fractions, -1, -2)
+    return {output_key: fractions}
+
+
+def _adapt_attention_fourier_legacy(art: dict[str, Any]) -> dict[str, Any]:
+    """Reconstruct the legacy ``attention_fourier`` shape
+    (``qk_freq_norms`` + ``v_freq_norms``, both per-head per-frequency fractions
+    summing to 1 across frequencies) from ``weight_basis_projection`` attn_qk
+    and attn_v outputs (REQ_127).
+
+    ``qk_freq_norms[h, k]`` is the diagonal entry of the joint 2D magnitude
+    matrix, normalized; ``v_freq_norms[h, k]`` is the L2 norm of attn_v
+    magnitudes across the value dimension, normalized.
+
+    Works on both per-epoch ``(n_heads, ...)`` and stacked
+    ``(n_epochs, n_heads, ...)`` artifact shapes — operates on the trailing
+    axes.
+    """
+    import numpy as _np
+
+    qk_mag = art["attn_qk_magnitudes"]
+    qk_diag = _np.diagonal(qk_mag, axis1=-2, axis2=-1)
+    qk_sum = qk_diag.sum(axis=-1, keepdims=True)
+    qk_freq_norms = qk_diag / _np.maximum(qk_sum, 1e-10)
+
+    v_mag = art["attn_v_magnitudes"]
+    v_band = _np.linalg.norm(v_mag, axis=-1)
+    v_sum = v_band.sum(axis=-1, keepdims=True)
+    v_freq_norms = v_band / _np.maximum(v_sum, 1e-10)
+
+    return {
+        "qk_freq_norms": qk_freq_norms.astype(_np.float32),
+        "v_freq_norms": v_freq_norms.astype(_np.float32),
+    }
+
+
+def _adapt_embedding_coefficients_legacy(
+    cos_coeffs: Any, sin_coeffs: Any
+) -> Any:
+    """Reconstruct the legacy ``dominant_frequencies`` ``coefficients`` shape from
+    ``weight_basis_projection`` embedding-site cos/sin coefficients (REQ_127).
+
+    Legacy convention: 1D vector of L2 norms across ``d_model`` arranged as
+    ``[const, sin_1, cos_1, sin_2, cos_2, ...]``. The new analyzer omits the
+    constant term; this adapter leaves the DC slot at zero.
+
+    Operates on the last two axes so both single-epoch and stacked-epoch
+    inputs round-trip through one helper.
+    """
+    import numpy as _np
+
+    cos_norms = _np.linalg.norm(cos_coeffs, axis=-1)
+    sin_norms = _np.linalg.norm(sin_coeffs, axis=-1)
+    n_freq = cos_norms.shape[-1]
+    out_shape = cos_norms.shape[:-1] + (1 + 2 * n_freq,)
+    out = _np.zeros(out_shape, dtype=_np.float32)
+    out[..., 1::2] = sin_norms
+    out[..., 2::2] = cos_norms
+    return out
+
+
 def _register_all() -> None:
     """Register all universal views into the module-level catalog."""
     import miscope.visualization as viz
@@ -92,29 +182,11 @@ def _register_all() -> None:
     # --- Per-epoch views ---
 
     for name, analyzer, renderer_name in [
-        (
-            "parameters.embeddings.fourier_coefficients",
-            "dominant_frequencies",
-            "render_dominant_frequencies",
-        ),
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
-        ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
-        (
-            "activations.mlp.neuron_freq_distribution",
-            "neuron_freq_norm",
-            "render_neuron_freq_distribution",
-        ),
-        ("activations.mlp.coarseness_distribution", "coarseness", "render_coarseness_distribution"),
-        ("activations.mlp.coarseness_by_neuron", "coarseness", "render_coarseness_by_neuron"),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
         (
-            "activations.attention.head_frequency_clusters",
-            "attention_freq",
-            "render_attention_freq_heatmap",
-        ),
-        (
             "parameters.singular_value_spectrum",
-            "effective_dimensionality",
+            "weight_spectra",
             "render_singular_value_spectrum",
         ),
         (
@@ -122,38 +194,108 @@ def _register_all() -> None:
             "landscape_flatness",
             "render_perturbation_distribution",
         ),
-        (
-            "activations.mlp.neuron_fourier_heatmap",
-            "neuron_fourier",
-            "render_neuron_fourier_heatmap",
-        ),
-        (
-            "activations.mlp.neuron_fourier_heatmap_output",
-            "neuron_fourier",
-            "render_neuron_fourier_heatmap_output",
-        ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+
+    # --- MLP + attention activation Fourier views (REQ_127 re-point) ---
+    # Re-pointed from neuron_freq_norm / attention_freq to
+    # activation_basis_projection. The adapter shapes the new
+    # site-namespaced output back into the legacy norm_matrix /
+    # freq_matrix layout the renderers expect. Per-column scaling
+    # shifts (~0.99 Pearson) are absorbed by the renderer's
+    # 0-1 colorscale normalization.
+
+    _abp_per_epoch_req = [
+        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH)
+    ]
+
+    def _make_activation_freq_loader(site: str, output_key: str) -> Any:
+        def loader(variant: Variant, epoch: int | None) -> dict:
+            art = variant.artifacts.load_epoch("activation_basis_projection", epoch)
+            return _adapt_activation_freq_legacy(art, site, output_key)
+
+        return loader
+
+    def _render_freq_clusters(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_freq_clusters(data, epoch=epoch or 0, **kwargs)
+
+    def _render_neuron_freq_distribution(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_neuron_freq_distribution(data, epoch=epoch or 0, **kwargs)
+
+    def _render_attention_freq_heatmap(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_attention_freq_heatmap(data, epoch=epoch or 0, **kwargs)
+
+    for name, render_fn, site, output_key in [
+        (
+            "activations.mlp.neuron_frequency_clusters",
+            _render_freq_clusters,
+            "mlp_out",
+            "norm_matrix",
+        ),
+        (
+            "activations.mlp.neuron_freq_distribution",
+            _render_neuron_freq_distribution,
+            "mlp_out",
+            "norm_matrix",
+        ),
+        (
+            "activations.attention.head_frequency_clusters",
+            _render_attention_freq_heatmap,
+            "attn_pattern",
+            "freq_matrix",
+        ),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_make_activation_freq_loader(site, output_key),
+                renderer=render_fn,
+                epoch_source_analyzer="activation_basis_projection",
+                required_analyzers=_abp_per_epoch_req,
+            )
+        )
+
+    # --- Embedding Fourier coefficients (REQ_127 re-point) ---
+    # Reads weight_basis_projection embedding-site cos/sin coefficients and
+    # adapts to the legacy `coefficients` shape that render_dominant_frequencies
+    # expects. DC term is zero (new analyzer omits it).
+
+    def _load_embedding_fourier_coefficients(variant: Variant, epoch: int | None) -> dict:
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        return {
+            "coefficients": _adapt_embedding_coefficients_legacy(
+                art["embedding_cos_coeffs"], art["embedding_sin_coeffs"]
+            )
+        }
+
+    def _render_embedding_fourier_coefficients(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_dominant_frequencies(data, epoch=epoch or 0, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="parameters.embeddings.fourier_coefficients",
+            load_data=_load_embedding_fourier_coefficients,
+            renderer=_render_embedding_fourier_coefficients,
+            epoch_source_analyzer="weight_basis_projection",
+            required_analyzers=[
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)
+            ],
+        )
+    )
 
     # --- Summary (cross-epoch aggregate) views ---
 
     for name, analyzer, renderer_name in [
-        ("activations.mlp.coarseness_trajectory", "coarseness", "render_coarseness_trajectory"),
-        ("activations.mlp.blob_count_trajectory", "coarseness", "render_blob_count_trajectory"),
         (
             "parameters.effective_dimensionality",
-            "effective_dimensionality",
+            "weight_spectra",
             "render_dimensionality_trajectory",
-        ),
-        (
-            "activations.attention.frequency_clusters",
-            "attention_freq",
-            "render_attention_specialization_trajectory",
-        ),
-        (
-            "activations.attention.head_frequency_range",
-            "attention_freq",
-            "render_attention_dominant_frequencies",
         ),
         ("loss_landscape.flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
         (
@@ -164,24 +306,51 @@ def _register_all() -> None:
     ]:
         _catalog.register(_make_summary(name, analyzer, getattr(viz, renderer_name)))
 
-    # --- Cross-epoch stacked view ---
-    # Loads all epochs stacked; no cursor.
+    # --- Attention frequency clusters summary (REQ_127 re-point) ---
+    # render_attention_specialization_trajectory expects per-epoch
+    # (epochs, max_frac_per_head). Built on the fly from stacked
+    # activation_basis_projection by computing max-across-frequency of
+    # the legacy-shaped per-head fraction matrix.
 
-    def _load_dominant_frequencies_over_time(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_epochs("dominant_frequencies")
+    def _load_attention_freq_clusters_summary(variant: Variant, epoch: int | None) -> dict:
+        import numpy as _np
 
-    def _render_dominant_frequencies_over_time(
+        # Selective load: only the attn_pattern power keys the adapter reads.
+        # Loading all keys would stack the (d_mlp, n_freq, n_freq) mlp_out
+        # cubes across every epoch — multi-GB, OOM (REQ_127).
+        art = variant.artifacts.load_epochs(
+            "activation_basis_projection",
+            fields=[
+                "attn_pattern_power",
+                "attn_pattern_axis_a_marginal_power",
+                "attn_pattern_axis_b_marginal_power",
+            ],
+        )
+        # _adapt_activation_freq_legacy returns (n_epochs, n_freq, n_heads)
+        # for stacked input.
+        adapted = _adapt_activation_freq_legacy(
+            art, "attn_pattern", "freq_matrix"
+        )["freq_matrix"]
+        max_frac_per_head = adapted.max(axis=1)  # (n_epochs, n_heads)
+        return {
+            "epochs": art["epochs"],
+            "max_frac_per_head": max_frac_per_head,
+        }
+
+    def _render_attention_specialization_trajectory(
         data: Any, epoch: int | None, **kwargs: Any
     ) -> go.Figure:
-        return viz.render_dominant_frequencies_over_time(data, **kwargs)
+        return viz.render_attention_specialization_trajectory(
+            data, current_epoch=epoch or 0, **kwargs
+        )
 
     _catalog.register(
         ViewDefinition(
-            name="activations.mlp.dominant_frequencies_over_time",
-            load_data=_load_dominant_frequencies_over_time,
-            renderer=_render_dominant_frequencies_over_time,
+            name="activations.attention.frequency_clusters",
+            load_data=_load_attention_freq_clusters_summary,
+            renderer=_render_attention_specialization_trajectory,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("dominant_frequencies", ArtifactKind.EPOCH)],
+            required_analyzers=_abp_per_epoch_req,
         )
     )
 
@@ -465,6 +634,14 @@ def _register_all() -> None:
     def _load_repr_geometry_summary(variant: Variant, _epoch: int | None) -> dict:
         return variant.artifacts.load_summary("repr_geometry")
 
+    # REQ_127 Phase B: the timeseries panel's Fourier-alignment trace was
+    # defused out of repr_geometry into centroid_fourier_alignment (REQ_126
+    # PR 3). Compose the two sources so the renderer sees one flat summary.
+    def _load_geometry_timeseries(variant: Variant, _epoch: int | None) -> dict:
+        from miscope.views.dataviews import RepresentationGeometryTimeseries
+
+        return RepresentationGeometryTimeseries.from_variant(variant).as_summary_dict()
+
     def _render_geometry_timeseries(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", None)
         return viz.render_geometry_timeseries(data, site=site, current_epoch=epoch)
@@ -472,9 +649,12 @@ def _register_all() -> None:
     _catalog.register(
         ViewDefinition(
             name="geometry.timeseries",
-            load_data=_load_repr_geometry_summary,
+            load_data=_load_geometry_timeseries,
             renderer=_render_geometry_timeseries,
             epoch_source_analyzer=None,
+            # Only repr_geometry is required. centroid_fourier_alignment is an
+            # optional enrichment — the composition degrades gracefully when a
+            # (non-refreshed) variant lacks it, so it must NOT gate availability.
             required_analyzers=[AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY)],
         )
     )
@@ -590,44 +770,6 @@ def _register_all() -> None:
         )
     )
 
-    # --- Centroid DMD views (REQ_051) ---
-    # All load from centroid_dmd cross_epoch.npz; epoch is a cursor.
-
-    def _load_centroid_dmd(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_cross_epoch("centroid_dmd")
-
-    def _render_dmd_eigenvalues(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", "resid_post")
-        return viz.render_dmd_eigenvalues(data, site=site)
-
-    def _render_dmd_residual(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", None)
-        log_y = kwargs.pop("log_y", True)
-        return viz.render_dmd_residual(data, site=site, current_epoch=epoch, log_y=log_y)
-
-    def _render_dmd_reconstruction(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", "resid_post")
-        epochs_arr = data["epochs"]
-        resolved_epoch = epoch if epoch is not None else int(epochs_arr[-1])
-        return viz.render_dmd_reconstruction(data, resolved_epoch, site=site)
-
-    _dmd_req = [AnalyzerRequirement("centroid_dmd", ArtifactKind.CROSS_EPOCH)]
-
-    for name, renderer in [
-        ("geometry.dmd_eigenvalues", _render_dmd_eigenvalues),
-        ("geometry.dmd_residual", _render_dmd_residual),
-        ("geometry.dmd_reconstruction", _render_dmd_reconstruction),
-    ]:
-        _catalog.register(
-            ViewDefinition(
-                name=name,
-                load_data=_load_centroid_dmd,
-                renderer=renderer,
-                epoch_source_analyzer=None,
-                required_analyzers=_dmd_req,
-            )
-        )
-
     # --- Activation DMD views (REQ_117) ---
     # Per-site windowed DMD with peak-based regime detection and per-regime
     # recursive DMD. All four views load from activation_dmd cross_epoch.npz;
@@ -716,20 +858,50 @@ def _register_all() -> None:
             )
         )
 
-    # --- Attention Fourier views (REQ_055) ---
-    # Per-epoch heatmaps and stacked temporal alignment trajectory.
+    # --- Attention Fourier views (REQ_055; re-pointed to weight_basis_projection per REQ_127) ---
+    # Per-epoch heatmaps and stacked temporal alignment trajectory. The legacy
+    # `qk_freq_norms` / `v_freq_norms` shape is reconstructed from the new
+    # analyzer's attn_qk / attn_v outputs via `_adapt_attention_fourier_legacy`.
 
-    for name, analyzer, renderer_name in [
-        ("parameters.attention.qk_fourier_heatmap", "attention_fourier", "render_qk_freq_heatmap"),
-        ("parameters.attention.v_fourier_heatmap", "attention_fourier", "render_v_freq_heatmap"),
-    ]:
-        _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+    def _load_attention_fourier_per_epoch(variant: Variant, epoch: int | None) -> dict:
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        return _adapt_attention_fourier_legacy(art)
 
     def _load_attention_fourier_stacked(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_epochs("attention_fourier")
+        # Selective load: only the attn magnitude keys the adapter reads
+        # (avoid stacking the full weight_basis_projection per epoch).
+        art = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["attn_qk_magnitudes", "attn_v_magnitudes"],
+        )
+        out = _adapt_attention_fourier_legacy(art)
+        out["epochs"] = art["epochs"]
+        return out
+
+    def _render_qk_freq_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_qk_freq_heatmap(data, epoch=epoch or 0, **kwargs)
+
+    def _render_v_freq_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_v_freq_heatmap(data, epoch=epoch or 0, **kwargs)
 
     def _render_head_alignment_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_head_alignment_trajectory(data, **kwargs)
+
+    _wbp_per_epoch_req = [AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)]
+
+    for name, render_fn in [
+        ("parameters.attention.qk_fourier_heatmap", _render_qk_freq_heatmap),
+        ("parameters.attention.v_fourier_heatmap", _render_v_freq_heatmap),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_attention_fourier_per_epoch,
+                renderer=render_fn,
+                epoch_source_analyzer="weight_basis_projection",
+                required_analyzers=_wbp_per_epoch_req,
+            )
+        )
 
     _catalog.register(
         ViewDefinition(
@@ -737,14 +909,15 @@ def _register_all() -> None:
             load_data=_load_attention_fourier_stacked,
             renderer=_render_head_alignment_trajectory,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("attention_fourier", ArtifactKind.EPOCH)],
+            required_analyzers=_wbp_per_epoch_req,
         )
     )
 
     # --- Band concentration views (REQ_058) ---
     # Concentration trajectory and rank alignment trajectory per variant.
     # Both load from neuron_dynamics cross_epoch; rank alignment also loads
-    # dominant_frequencies to get embedding band magnitudes.
+    # weight_basis_projection (embedding site) and adapts to the legacy
+    # `coefficients` shape that compute_rank_alignment_trajectory expects.
 
     def _load_band_concentration(variant: Variant, epoch: int | None) -> dict:
         from miscope.analysis.band_concentration import compute_band_concentration_trajectory
@@ -771,7 +944,18 @@ def _register_all() -> None:
         from miscope.analysis.band_concentration import compute_rank_alignment_trajectory
 
         cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
-        coeff_epochs = variant.artifacts.load_epochs("dominant_frequencies")
+        # Selective load: only the embedding cos/sin keys the adapter reads.
+        wbp_epochs = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["embedding_cos_coeffs", "embedding_sin_coeffs"],
+        )
+        coeff_epochs = {
+            "epochs": wbp_epochs["epochs"],
+            "coefficients": _adapt_embedding_coefficients_legacy(
+                wbp_epochs["embedding_cos_coeffs"],
+                wbp_epochs["embedding_sin_coeffs"],
+            ),
+        }
         prime = int(variant.model_config["prime"])
         threshold = 0.75
         return compute_rank_alignment_trajectory(cross_epoch, coeff_epochs, threshold, prime)
@@ -787,7 +971,7 @@ def _register_all() -> None:
             epoch_source_analyzer=None,
             required_analyzers=[
                 AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH),
-                AnalyzerRequirement("dominant_frequencies", ArtifactKind.EPOCH),
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH),
             ],
         )
     )
@@ -884,13 +1068,22 @@ def _register_all() -> None:
     # --- Multi-stream specialization (REQ_066) ---
     # Loads from four artifact sources; W_E loaded selectively to avoid
     # pulling all weight matrices from parameter_snapshot across all epochs.
+    # REQ_127: re-pointed from attention_fourier → weight_basis_projection
+    # (via legacy adapter) and effective_dimensionality → weight_spectra.
 
     def _load_multi_stream_specialization(variant: Variant, _epoch: int | None) -> dict:
+        # Selective load: only the attn magnitude keys the adapter reads.
+        wbp_stacked = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["attn_qk_magnitudes", "attn_v_magnitudes"],
+        )
+        attn_legacy = _adapt_attention_fourier_legacy(wbp_stacked)
+        attn_legacy["epochs"] = wbp_stacked["epochs"]
         return {
             "neuron_dynamics": variant.artifacts.load_cross_epoch("neuron_dynamics"),
-            "attn_fourier_epochs": variant.artifacts.load_epochs("attention_fourier"),
+            "attn_fourier_epochs": attn_legacy,
             "embedding_w_e": variant.artifacts.load_epochs("parameter_snapshot", fields=["W_E"]),
-            "eff_dim_summary": variant.artifacts.load_summary("effective_dimensionality"),
+            "eff_dim_summary": variant.artifacts.load_summary("weight_spectra"),
             "prime": int(variant.model_config["prime"]),
         }
 
@@ -921,9 +1114,9 @@ def _register_all() -> None:
             epoch_source_analyzer=None,
             required_analyzers=[
                 AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH),
-                AnalyzerRequirement("attention_fourier", ArtifactKind.EPOCH),
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH),
                 AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
-                AnalyzerRequirement("effective_dimensionality", ArtifactKind.SUMMARY),
+                AnalyzerRequirement("weight_spectra", ArtifactKind.SUMMARY),
             ],
         )
     )
