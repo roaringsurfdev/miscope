@@ -84,6 +84,39 @@ def _make_summary(
 # ---------------------------------------------------------------------------
 
 
+def _adapt_activation_freq_legacy(
+    art: dict[str, Any], site: str, output_key: str
+) -> dict[str, Any]:
+    """Reconstruct legacy ``neuron_freq_norm`` / ``attention_freq`` shape
+    ``(n_freq, d_unit)`` (per-frequency fraction matrix) from
+    ``activation_basis_projection`` per-site outputs (REQ_127).
+
+    Computes ``(power_diag + axis_a_marginal_power + axis_b_marginal_power)``
+    per ``(unit, freq)`` and normalizes across the frequency axis. The
+    aggregation is structurally equivalent to the old 3x3-block-summation
+    formula but uses a different basis normalization, so per-column scaling
+    differs from the legacy artifact (Pearson ~0.99 on canon, Spearman
+    ~0.83 — heatmap visuals are functionally identical under the
+    renderer's ``zmin=0, zmax=1`` normalization; absolute values shift
+    per neuron).
+
+    Works on per-epoch ``(d_unit, n_freq, n_freq)`` and stacked
+    ``(n_epochs, d_unit, n_freq, n_freq)`` shapes.
+    """
+    import numpy as _np
+
+    power = art[f"{site}_power"]
+    p_a = art[f"{site}_axis_a_marginal_power"]
+    p_b = art[f"{site}_axis_b_marginal_power"]
+    diag = _np.diagonal(power, axis1=-2, axis2=-1)
+    block = diag + p_a + p_b
+    block_sum = block.sum(axis=-1, keepdims=True)
+    fractions = (block / _np.maximum(block_sum, 1e-10)).astype(_np.float32)
+    # Swap to legacy (n_freq, d_unit) layout.
+    fractions = _np.moveaxis(fractions, -1, -2)
+    return {output_key: fractions}
+
+
 def _adapt_attention_fourier_legacy(art: dict[str, Any]) -> dict[str, Any]:
     """Reconstruct the legacy ``attention_fourier`` shape
     (``qk_freq_norms`` + ``v_freq_norms``, both per-head per-frequency fractions
@@ -150,18 +183,7 @@ def _register_all() -> None:
 
     for name, analyzer, renderer_name in [
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
-        ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
-        (
-            "activations.mlp.neuron_freq_distribution",
-            "neuron_freq_norm",
-            "render_neuron_freq_distribution",
-        ),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
-        (
-            "activations.attention.head_frequency_clusters",
-            "attention_freq",
-            "render_attention_freq_heatmap",
-        ),
         (
             "parameters.singular_value_spectrum",
             "effective_dimensionality",
@@ -174,6 +196,68 @@ def _register_all() -> None:
         ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+
+    # --- MLP + attention activation Fourier views (REQ_127 re-point) ---
+    # Re-pointed from neuron_freq_norm / attention_freq to
+    # activation_basis_projection. The adapter shapes the new
+    # site-namespaced output back into the legacy norm_matrix /
+    # freq_matrix layout the renderers expect. Per-column scaling
+    # shifts (~0.99 Pearson) are absorbed by the renderer's
+    # 0-1 colorscale normalization.
+
+    _abp_per_epoch_req = [
+        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH)
+    ]
+
+    def _make_activation_freq_loader(site: str, output_key: str) -> Any:
+        def loader(variant: Variant, epoch: int | None) -> dict:
+            art = variant.artifacts.load_epoch("activation_basis_projection", epoch)
+            return _adapt_activation_freq_legacy(art, site, output_key)
+
+        return loader
+
+    def _render_freq_clusters(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_freq_clusters(data, epoch=epoch or 0, **kwargs)
+
+    def _render_neuron_freq_distribution(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_neuron_freq_distribution(data, epoch=epoch or 0, **kwargs)
+
+    def _render_attention_freq_heatmap(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_attention_freq_heatmap(data, epoch=epoch or 0, **kwargs)
+
+    for name, render_fn, site, output_key in [
+        (
+            "activations.mlp.neuron_frequency_clusters",
+            _render_freq_clusters,
+            "mlp_out",
+            "norm_matrix",
+        ),
+        (
+            "activations.mlp.neuron_freq_distribution",
+            _render_neuron_freq_distribution,
+            "mlp_out",
+            "norm_matrix",
+        ),
+        (
+            "activations.attention.head_frequency_clusters",
+            _render_attention_freq_heatmap,
+            "attn_pattern",
+            "freq_matrix",
+        ),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_make_activation_freq_loader(site, output_key),
+                renderer=render_fn,
+                epoch_source_analyzer="activation_basis_projection",
+                required_analyzers=_abp_per_epoch_req,
+            )
+        )
 
     # --- Embedding Fourier coefficients (REQ_127 re-point) ---
     # Reads weight_basis_projection embedding-site cos/sin coefficients and
@@ -213,11 +297,6 @@ def _register_all() -> None:
             "effective_dimensionality",
             "render_dimensionality_trajectory",
         ),
-        (
-            "activations.attention.frequency_clusters",
-            "attention_freq",
-            "render_attention_specialization_trajectory",
-        ),
         ("loss_landscape.flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
         (
             "activations.mlp.fourier_quality_trajectory",
@@ -226,6 +305,44 @@ def _register_all() -> None:
         ),
     ]:
         _catalog.register(_make_summary(name, analyzer, getattr(viz, renderer_name)))
+
+    # --- Attention frequency clusters summary (REQ_127 re-point) ---
+    # render_attention_specialization_trajectory expects per-epoch
+    # (epochs, max_frac_per_head). Built on the fly from stacked
+    # activation_basis_projection by computing max-across-frequency of
+    # the legacy-shaped per-head fraction matrix.
+
+    def _load_attention_freq_clusters_summary(variant: Variant, epoch: int | None) -> dict:
+        import numpy as _np
+
+        art = variant.artifacts.load_epochs("activation_basis_projection")
+        # _adapt_activation_freq_legacy returns (n_epochs, n_freq, n_heads)
+        # for stacked input.
+        adapted = _adapt_activation_freq_legacy(
+            art, "attn_pattern", "freq_matrix"
+        )["freq_matrix"]
+        max_frac_per_head = adapted.max(axis=1)  # (n_epochs, n_heads)
+        return {
+            "epochs": art["epochs"],
+            "max_frac_per_head": max_frac_per_head,
+        }
+
+    def _render_attention_specialization_trajectory(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_attention_specialization_trajectory(
+            data, current_epoch=epoch or 0, **kwargs
+        )
+
+    _catalog.register(
+        ViewDefinition(
+            name="activations.attention.frequency_clusters",
+            load_data=_load_attention_freq_clusters_summary,
+            renderer=_render_attention_specialization_trajectory,
+            epoch_source_analyzer=None,
+            required_analyzers=_abp_per_epoch_req,
+        )
+    )
 
     # --- Parameter trajectory PCA views ---
     # Loads cross_epoch.npz; epoch is used as the cursor highlight.
