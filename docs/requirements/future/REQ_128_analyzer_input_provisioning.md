@@ -67,3 +67,21 @@ Open scoping questions (for the dedicated session):
 - **This is the producer-side twin of REQ_127.** That REQ's `feedback_granular_analyzer_load_epochs_fields` lesson (consumer loaders must use `fields=`) is the same insight applied to view loaders; REQ_128 asks whether the *analyzer input* path deserves the same treatment structurally rather than per-call.
 - The minimal viable version might be just "let `ArtifactInput` declare fields, and have `_materialize_per_epoch_inputs` honor them" — a small, low-risk change that captures most of the memory win without re-architecting to lazy handles. The fuller lazy-accessor model is the more complete answer but a bigger contract change. The scoping session should weigh minimal-fields vs. full-lazy.
 - Revisit the REQ_127 Phase A.2f pipeline band-aid (`inputs = result = summary = None` before `del`) here — a cleaner provisioning model likely subsumes it.
+
+### Field evidence (2026-05-27, observed during REQ_127 close-out)
+
+Re-analyzing `p101/s999/ds598` (full pipeline, now running the new granular
+analyzers per the updated family.json) reproduced the memory problem on the
+**analysis side**, distinct from the view-side OOM REQ_127 fixed: disk I/O was
+infrequent while process memory climbed and did **not** release until the WSL
+instance was restarted. Two candidate contributors to separate during scoping:
+(1) eager materialization of the larger new artifacts for chained analyzers
+(the structural concern this REQ targets); (2) WSL2's tendency to hold
+page-cache memory and not return it to the host during heavy file I/O, which
+can present as a non-releasing climb independent of any Python-level retention.
+A scoping pass should measure RSS-vs-page-cache separately (e.g. `/proc/<pid>`
+RSS vs system cache) before attributing the climb, so the fix targets the real
+cause rather than an environmental artifact. Note the secondary-analyzer
+per-epoch loop in `pipeline.py` (where chained analyzers like
+`centroid_fourier_alignment` run) lacks even the A.2f reference-release
+cleanup that `_run_single_epoch` got — a concrete first place to look.
