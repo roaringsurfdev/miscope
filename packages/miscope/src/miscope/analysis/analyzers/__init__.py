@@ -19,7 +19,6 @@ from miscope.analysis.analyzers.centroid_fourier_alignment import (
 )
 from miscope.analysis.analyzers.coarseness import CoarsenessAnalyzer
 from miscope.analysis.analyzers.dominant_frequencies import DominantFrequenciesAnalyzer
-from miscope.analysis.analyzers.effective_dimensionality import EffectiveDimensionalityAnalyzer
 from miscope.analysis.analyzers.fourier_frequency_quality import FourierFrequencyQualityAnalyzer
 from miscope.analysis.analyzers.fourier_nucleation import FourierNucleationAnalyzer
 from miscope.analysis.analyzers.freq_group_weight_geometry import FreqGroupWeightGeometryAnalyzer
@@ -63,7 +62,6 @@ __all__ = [
     "NeuronFourierAnalyzer",
     "AttentionPatternsAnalyzer",
     "DominantFrequenciesAnalyzer",
-    "EffectiveDimensionalityAnalyzer",
     "LandscapeFlatnessAnalyzer",
     "NeuronActivationsAnalyzer",
     "NeuronDynamicsAnalyzer",
