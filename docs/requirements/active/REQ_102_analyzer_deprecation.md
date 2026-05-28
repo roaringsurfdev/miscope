@@ -146,19 +146,27 @@ Finding: **this is consumer-migration, not pure deletion.** Surface by layer:
   (`_adapt_attention_fourier_legacy`, the `dominant_frequencies` coefficient
   reshaper, `effective_dimensionality → weight_spectra`). It reads the *new*
   analyzers; the old-analyzer names survive only in adapter/renderer naming.
-- **`views/dataview_universal.py` (DataView catalog, published library): NOT
-  migrated — blocker.** Directly `load_epoch("dominant_frequencies")` and
-  `load_epoch("attention_fourier")`. The DataView catalog is wired in
-  (`views/__init__.py` exports it; `variant.py` / `catalog.py` consume it), so
-  these are live library consumers reading old artifacts directly. Must migrate
-  (or confirm DataView is being deprecated) before retiring those two Fourier
-  analyzers. **Open question for the user:** REQ_127 migrated the ViewDefinition
-  path but appears to have left the DataView path — in scope for REQ_102, or its
-  own track?
-- **`visualization/renderers/dmd.py`: fed from `centroid_dmd`.** Its data
-  contract is `load_cross_epoch("centroid_dmd")`. The actual load lives in the
-  view/dataview that feeds it; re-pointing that feed to `activation_dmd` /
-  `parameter_dmd` is the REQ_117-gated consumer migration this REQ owns.
+- **`views/dataview_universal.py` (DataView catalog): aspirational, not a hard
+  blocker (resolved 2026-05-28).** It directly `load_epoch("dominant_frequencies")`
+  / `("attention_fourier")`, but the DataView tier was stubbed and subsequently
+  bypassed — per user, "we're not there yet" (a future path exists for heavier
+  DataView use in notebook research + analysis/visualization consistency). Usage
+  audit confirms the only consumers are `demos/demo_dataview_catalog.ipynb` and
+  the test suite (`test_dataview_catalog.py`, `test_view_availability.py`,
+  `test_freq_specialization_sequencing.py`) — no dashboard, no research notebooks.
+  The dataviews load artifacts by string name (no analyzer-class import), so
+  retiring the analyzers does not break imports; the affected dataview
+  definitions just won't regenerate for new variants. Action: lightly re-point or
+  prune those dataview definitions + refresh the demo/tests as part of cleanup —
+  not a load-bearing migration.
+- **`visualization/renderers/dmd.py`: obsolete dead UI code (confirmed
+  2026-05-28).** Its three renderers (`render_dmd_eigenvalues`,
+  `render_dmd_residual`, `render_dmd_reconstruction`) have **no live callers** —
+  only `test_centroid_dmd.py` exercises them; no view, page, or notebook uses
+  them. Superseded by the separate windowed DMD analyzers (`activation_dmd` =
+  Activation-space, `parameter_dmd` = Parameter-space) and their renderers. Remove
+  `renderers/dmd.py` (and its export from `visualization/__init__.py`) with the
+  `centroid_dmd` retirement. **Salvage:** see Downstream handoff below.
 - **`apps/dashboard/` pages (dimensionality, viability_certificate,
   activation_heatmaps, visualization): not blocking** per the existing
   "Dashboard cleanup is a separate track" direction above — legacy reads
@@ -183,6 +191,24 @@ of 2026-05-28, p113 and p101 have been re-analyzed with the new analyzer set, bu
 **p109 has not been refreshed.** The user will re-run p109 when we reach that
 gate (it forces a WSL restart to free memory — see REQ_128 field evidence).
 **Pause before closing any REQ_126-gated retirement until p109 is refreshed.**
+
+### Downstream handoff: Centroid Trajectory view (2026-05-28)
+
+Retiring `centroid_dmd` removes `renderers/dmd.py`, whose
+`render_dmd_reconstruction` ("actual vs DMD-reconstructed centroid trajectories")
+is the **only** place the raw per-class **Centroid Trajectory** is plotted — it
+was enmeshed in that reconstruction renderer and lives nowhere else. The modal
+DMD value is fully superseded by `activation_dmd` / `parameter_dmd`; the
+trajectory plot is the lone salvage.
+
+The analyzer-side home is `representation_trajectory` (planned consolidation
+absorbing `global_centroid_pca` + `centroid_dmd`'s trajectory portion — see
+REQ_117, Atlas consolidation map). That analyzer is **not built yet** (only
+`global_centroid_pca.py` exists). So the Centroid Trajectory **view** is genuine
+downstream work: **recreate it against `representation_trajectory` when that
+analyzer lands.** Per user, it is fine to rebuild the view from scratch rather
+than pivot the old reconstruction renderer. Capture this in the
+`representation_trajectory` reorganization REQ when it is formalized.
 
 ### Layering audit results
 
