@@ -212,12 +212,26 @@ is retained). Re-pointing them to the basis-projection replacements is a real
 refactor with parity implications — out of REQ_102's "don't bundle retirement
 with refactor" scope.
 
-**Decision: defer these two.** Retire the four with no surviving analyzer
-consumers — `coarseness`, `attention_fourier`, `neuron_fourier`, `attention_freq`.
-`neuron_freq_clusters` and `dominant_frequencies` wait on a consumer-migration
-step (re-point the 4 consumers to `activation_basis_projection` /
-`weight_basis_projection`), tracked as follow-up (candidate: its own REQ or the
-neuron-group consolidation).
+**Decision: defer these two** (confirmed with user 2026-05-28). Retire the four
+with no surviving analyzer consumers — `coarseness`, `attention_fourier`,
+`neuron_fourier`, `attention_freq` (done). The two deferred:
+
+- **`neuron_freq_clusters` / `neuron_freq_norm` — leave untouched.** Per user,
+  this is a *backbone of critical analysis*; do not change until there is clarity
+  on what should change. It was slated for "replacement" mainly because the
+  original is specialized rather than generic (reflected in the `freq_cluster`
+  naming), not because it is unwanted. Not a retirement candidate for now.
+- **`dominant_frequencies` — blocked on a `fourier_frequency_quality` refactor.**
+  The unblock path is re-pointing `fourier_frequency_quality` from
+  `dominant_frequencies` to `neuron_grouping`; if feasible it's worth doing to
+  free `dominant_frequencies`. **This is its own requirement** (candidate stub).
+  Research context: `fourier_frequency_quality` currently is *not* yielding
+  valuable information — itself a finding. It sits at the hard, unresolved
+  question of whether model performance depends on *which* frequencies are
+  chosen and *when* that choice happens; the literature's "models learn
+  frequencies from the prime / group math" frame is not supported by the data
+  here (user's assessment). Because that analyzer will need close re-examination,
+  **bit-wise parity is likely unnecessary** for any eventual re-point.
 
 **Regression checksums:** `run_regression_check.py` excludes `coarseness`
 already, but `attention_freq` / `attention_fourier` / `neuron_fourier` are in

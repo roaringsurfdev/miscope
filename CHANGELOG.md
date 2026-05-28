@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Transform steps already routed through REQ_109 primitives (`pca`, `compute_velocity`); confirmed by audit, no implementation change
   - Consumer references updated: `analyzers/__init__.py`, `tests/test_cross_epoch_analyzers.py`, `scripts/run_regression_check.py`, `visualization/renderers/parameter_trajectory.py` docstring
 
+### Removed
+
+- **Analyzer retirements** (REQ_102) — superseded analyzers removed from the publishable library. Historical on-disk artifacts remain readable; same-named renderers/views were re-pointed to the successors under REQ_127.
+  - `effective_dimensionality` → **`weight_spectra`** (REQ_111; bit-exact SV/PR parity recorded on canon)
+  - `centroid_dmd` → **`activation_dmd`** + **`parameter_dmd`** (REQ_117); the dead `renderers/dmd.py` (no live callers) removed with it. The raw Centroid Trajectory plot is downstream work against the future `representation_trajectory` analyzer
+  - `coarseness`, `attention_freq` → **`activation_basis_projection`** (REQ_126)
+  - `attention_fourier`, `neuron_fourier` → **`weight_basis_projection`** (REQ_126)
+  - Deferred (retained for now): `dominant_frequencies` (still consumed by `fourier_frequency_quality`) and `neuron_freq_clusters`/`neuron_freq_norm` (analytical backbone) — pending consumer migration
+
 ## [0.8.3] - 2026-04-05
 
 ### Added
