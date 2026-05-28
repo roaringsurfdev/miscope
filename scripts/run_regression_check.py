@@ -47,8 +47,6 @@ def run_pipeline(variant, force: bool) -> None:
     """
     from miscope.analysis import AnalysisPipeline
     from miscope.analysis.analyzers import (
-        AttentionFourierAnalyzer,
-        AttentionFreqAnalyzer,
         AttentionPatternsAnalyzer,
         DominantFrequenciesAnalyzer,
         FourierFrequencyQualityAnalyzer,
@@ -59,7 +57,6 @@ def run_pipeline(variant, force: bool) -> None:
         IntraGroupManifoldAnalyzer,
         NeuronActivationsAnalyzer,
         NeuronDynamicsAnalyzer,
-        NeuronFourierAnalyzer,
         NeuronFreqClustersAnalyzer,
         NeuronGroupPCAAnalyzer,
         ParameterSnapshotAnalyzer,
@@ -69,7 +66,6 @@ def run_pipeline(variant, force: bool) -> None:
     )
 
     pipeline = AnalysisPipeline(variant)
-    pipeline.register(AttentionFreqAnalyzer())
     pipeline.register(AttentionPatternsAnalyzer())
     pipeline.register(DominantFrequenciesAnalyzer())
     pipeline.register(InputTraceAnalyzer())
@@ -79,9 +75,7 @@ def run_pipeline(variant, force: bool) -> None:
     # LandscapeFlatnessAnalyzer excluded: stochastic by design, not regression-testable
     # FourierNucleationAnalyzer excluded to match develop-side regen scope
     pipeline.register(RepresentationalGeometryAnalyzer())
-    pipeline.register(AttentionFourierAnalyzer())
     pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-    pipeline.register_secondary(NeuronFourierAnalyzer())
     pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
     pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
     pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())

@@ -10,13 +10,10 @@ with the AnalyzerRegistry for discovery.
 from miscope.analysis.analyzers.activation_basis_projection import (  # noqa: I001
     ActivationBasisProjectionAnalyzer,
 )
-from miscope.analysis.analyzers.attention_fourier import AttentionFourierAnalyzer  # noqa: I001
-from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
-from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
+from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer  # noqa: I001
 from miscope.analysis.analyzers.centroid_fourier_alignment import (
     CentroidFourierAlignmentAnalyzer,
 )
-from miscope.analysis.analyzers.coarseness import CoarsenessAnalyzer
 from miscope.analysis.analyzers.dominant_frequencies import DominantFrequenciesAnalyzer
 from miscope.analysis.analyzers.fourier_frequency_quality import FourierFrequencyQualityAnalyzer
 from miscope.analysis.analyzers.fourier_nucleation import FourierNucleationAnalyzer
@@ -32,7 +29,6 @@ from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
 
 
 # Secondary Analyzers
-from miscope.analysis.analyzers.neuron_fourier import NeuronFourierAnalyzer
 from miscope.analysis.analyzers.neuron_freq_clusters import NeuronFreqClustersAnalyzer
 from miscope.analysis.analyzers.neuron_grouping import NeuronGrouping
 from miscope.analysis.analyzers.neuron_group_pca import NeuronGroupPCAAnalyzer
@@ -54,11 +50,8 @@ __all__ = [
     "ActivationBasisProjectionAnalyzer",
     "ActivationDMD",
     "AnalyzerRegistry",
-    "AttentionFourierAnalyzer",
-    "AttentionFreqAnalyzer",
     "FourierFrequencyQualityAnalyzer",
     "FourierNucleationAnalyzer",
-    "NeuronFourierAnalyzer",
     "AttentionPatternsAnalyzer",
     "DominantFrequenciesAnalyzer",
     "LandscapeFlatnessAnalyzer",
@@ -70,7 +63,6 @@ __all__ = [
     "RepresentationalGeometryAnalyzer",
     "GlobalCentroidPCA",
     "CentroidFourierAlignmentAnalyzer",
-    "CoarsenessAnalyzer",
     "GradientSiteAnalyzer",
     "InputTraceAnalyzer",
     "InputTraceGraduationAnalyzer",
