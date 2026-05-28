@@ -652,10 +652,10 @@ def _register_all() -> None:
             load_data=_load_geometry_timeseries,
             renderer=_render_geometry_timeseries,
             epoch_source_analyzer=None,
-            required_analyzers=[
-                AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY),
-                AnalyzerRequirement("centroid_fourier_alignment", ArtifactKind.EPOCH),
-            ],
+            # Only repr_geometry is required. centroid_fourier_alignment is an
+            # optional enrichment — the composition degrades gracefully when a
+            # (non-refreshed) variant lacks it, so it must NOT gate availability.
+            required_analyzers=[AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY)],
         )
     )
 
