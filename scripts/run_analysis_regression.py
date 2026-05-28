@@ -29,7 +29,15 @@ COOLING_PERIOD = 1 * 20  # timer to allow machine to cool between runs
 # Regression-specific analyzer selection. LandscapeFlatnessAnalyzer and
 # FourierNucleationAnalyzer were excluded from regression in the legacy
 # script (the former is stochastic; the latter is initialization-only).
-EXCLUDE_FROM_REGRESSION = {"landscape_flatness", "fourier_nucleation"}
+DEPRECATED_ANALYZERS = {
+    "effective_dimensionality",
+    "centroid_dmd",
+    "coarseness",
+    "attention_freq",
+    "attention_fourier",
+    "neuron_fourier",
+}
+EXCLUDE_FROM_REGRESSION = DEPRECATED_ANALYZERS | {"landscape_flatness", "fourier_nucleation"}
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
@@ -42,8 +50,8 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-# include_list = ['p113_seed999_dseed598']
-include_list = ["p109_seed485_dseed598"]
+include_list = ['p113_seed999_dseed598']
+#include_list = ["p109_seed485_dseed598"]
 for i, variant in enumerate(variants):
     print(f"\n{'=' * 60}")
     print(f"[{i + 1}/{len(variants)}] {variant.name}")
