@@ -186,7 +186,7 @@ def _register_all() -> None:
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
         (
             "parameters.singular_value_spectrum",
-            "effective_dimensionality",
+            "weight_spectra",
             "render_singular_value_spectrum",
         ),
         (
@@ -294,7 +294,7 @@ def _register_all() -> None:
     for name, analyzer, renderer_name in [
         (
             "parameters.effective_dimensionality",
-            "effective_dimensionality",
+            "weight_spectra",
             "render_dimensionality_trajectory",
         ),
         ("loss_landscape.flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
@@ -1038,13 +1038,18 @@ def _register_all() -> None:
     # --- Multi-stream specialization (REQ_066) ---
     # Loads from four artifact sources; W_E loaded selectively to avoid
     # pulling all weight matrices from parameter_snapshot across all epochs.
+    # REQ_127: re-pointed from attention_fourier → weight_basis_projection
+    # (via legacy adapter) and effective_dimensionality → weight_spectra.
 
     def _load_multi_stream_specialization(variant: Variant, _epoch: int | None) -> dict:
+        wbp_stacked = variant.artifacts.load_epochs("weight_basis_projection")
+        attn_legacy = _adapt_attention_fourier_legacy(wbp_stacked)
+        attn_legacy["epochs"] = wbp_stacked["epochs"]
         return {
             "neuron_dynamics": variant.artifacts.load_cross_epoch("neuron_dynamics"),
-            "attn_fourier_epochs": variant.artifacts.load_epochs("attention_fourier"),
+            "attn_fourier_epochs": attn_legacy,
             "embedding_w_e": variant.artifacts.load_epochs("parameter_snapshot", fields=["W_E"]),
-            "eff_dim_summary": variant.artifacts.load_summary("effective_dimensionality"),
+            "eff_dim_summary": variant.artifacts.load_summary("weight_spectra"),
             "prime": int(variant.model_config["prime"]),
         }
 
@@ -1075,9 +1080,9 @@ def _register_all() -> None:
             epoch_source_analyzer=None,
             required_analyzers=[
                 AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH),
-                AnalyzerRequirement("attention_fourier", ArtifactKind.EPOCH),
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH),
                 AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
-                AnalyzerRequirement("effective_dimensionality", ArtifactKind.SUMMARY),
+                AnalyzerRequirement("weight_spectra", ArtifactKind.SUMMARY),
             ],
         )
     )
