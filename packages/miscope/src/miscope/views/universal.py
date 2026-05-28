@@ -84,6 +84,38 @@ def _make_summary(
 # ---------------------------------------------------------------------------
 
 
+def _adapt_attention_fourier_legacy(art: dict[str, Any]) -> dict[str, Any]:
+    """Reconstruct the legacy ``attention_fourier`` shape
+    (``qk_freq_norms`` + ``v_freq_norms``, both per-head per-frequency fractions
+    summing to 1 across frequencies) from ``weight_basis_projection`` attn_qk
+    and attn_v outputs (REQ_127).
+
+    ``qk_freq_norms[h, k]`` is the diagonal entry of the joint 2D magnitude
+    matrix, normalized; ``v_freq_norms[h, k]`` is the L2 norm of attn_v
+    magnitudes across the value dimension, normalized.
+
+    Works on both per-epoch ``(n_heads, ...)`` and stacked
+    ``(n_epochs, n_heads, ...)`` artifact shapes — operates on the trailing
+    axes.
+    """
+    import numpy as _np
+
+    qk_mag = art["attn_qk_magnitudes"]
+    qk_diag = _np.diagonal(qk_mag, axis1=-2, axis2=-1)
+    qk_sum = qk_diag.sum(axis=-1, keepdims=True)
+    qk_freq_norms = qk_diag / _np.maximum(qk_sum, 1e-10)
+
+    v_mag = art["attn_v_magnitudes"]
+    v_band = _np.linalg.norm(v_mag, axis=-1)
+    v_sum = v_band.sum(axis=-1, keepdims=True)
+    v_freq_norms = v_band / _np.maximum(v_sum, 1e-10)
+
+    return {
+        "qk_freq_norms": qk_freq_norms.astype(_np.float32),
+        "v_freq_norms": v_freq_norms.astype(_np.float32),
+    }
+
+
 def _adapt_embedding_coefficients_legacy(
     cos_coeffs: Any, sin_coeffs: Any
 ) -> Any:
@@ -688,20 +720,45 @@ def _register_all() -> None:
             )
         )
 
-    # --- Attention Fourier views (REQ_055) ---
-    # Per-epoch heatmaps and stacked temporal alignment trajectory.
+    # --- Attention Fourier views (REQ_055; re-pointed to weight_basis_projection per REQ_127) ---
+    # Per-epoch heatmaps and stacked temporal alignment trajectory. The legacy
+    # `qk_freq_norms` / `v_freq_norms` shape is reconstructed from the new
+    # analyzer's attn_qk / attn_v outputs via `_adapt_attention_fourier_legacy`.
 
-    for name, analyzer, renderer_name in [
-        ("parameters.attention.qk_fourier_heatmap", "attention_fourier", "render_qk_freq_heatmap"),
-        ("parameters.attention.v_fourier_heatmap", "attention_fourier", "render_v_freq_heatmap"),
-    ]:
-        _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+    def _load_attention_fourier_per_epoch(variant: Variant, epoch: int | None) -> dict:
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        return _adapt_attention_fourier_legacy(art)
 
     def _load_attention_fourier_stacked(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_epochs("attention_fourier")
+        art = variant.artifacts.load_epochs("weight_basis_projection")
+        out = _adapt_attention_fourier_legacy(art)
+        out["epochs"] = art["epochs"]
+        return out
+
+    def _render_qk_freq_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_qk_freq_heatmap(data, epoch=epoch or 0, **kwargs)
+
+    def _render_v_freq_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_v_freq_heatmap(data, epoch=epoch or 0, **kwargs)
 
     def _render_head_alignment_trajectory(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_head_alignment_trajectory(data, **kwargs)
+
+    _wbp_per_epoch_req = [AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)]
+
+    for name, render_fn in [
+        ("parameters.attention.qk_fourier_heatmap", _render_qk_freq_heatmap),
+        ("parameters.attention.v_fourier_heatmap", _render_v_freq_heatmap),
+    ]:
+        _catalog.register(
+            ViewDefinition(
+                name=name,
+                load_data=_load_attention_fourier_per_epoch,
+                renderer=render_fn,
+                epoch_source_analyzer="weight_basis_projection",
+                required_analyzers=_wbp_per_epoch_req,
+            )
+        )
 
     _catalog.register(
         ViewDefinition(
@@ -709,7 +766,7 @@ def _register_all() -> None:
             load_data=_load_attention_fourier_stacked,
             renderer=_render_head_alignment_trajectory,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("attention_fourier", ArtifactKind.EPOCH)],
+            required_analyzers=_wbp_per_epoch_req,
         )
     )
 
