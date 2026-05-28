@@ -1,9 +1,4 @@
-"""Tests for REQ_111: WeightSpectraAnalyzer.
-
-Successor to ``effective_dimensionality``. The integration block doubles as
-the parity test — both analyzers run on the same trained variant and their
-singular values are compared bit-for-bit.
-"""
+"""Tests for REQ_111: WeightSpectraAnalyzer."""
 
 import json
 import os
@@ -14,10 +9,7 @@ import numpy as np
 import pytest
 
 from miscope.analysis import AnalysisPipeline, Analyzer
-from miscope.analysis.analyzers import (
-    EffectiveDimensionalityAnalyzer,
-    WeightSpectraAnalyzer,
-)
+from miscope.analysis.analyzers import WeightSpectraAnalyzer
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.weights import (
     ATTENTION_MATRICES,
@@ -130,7 +122,7 @@ class TestWeightSpectraAnalyzerProtocol:
             assert f"pr_{name}" in summary
 
 
-# ── Integration + parity against effective_dimensionality ────────────
+# ── Integration ──────────────────────────────────────────────────────
 
 
 @pytest.fixture
@@ -141,7 +133,7 @@ def temp_dirs():
 
 @pytest.fixture
 def registry_with_family(temp_dirs):
-    """Family registered with both analyzers so the pipeline can run them."""
+    """Family registered with the analyzer so the pipeline can run it."""
     data_root = temp_dirs
     family_dir = data_root / "modulo_addition_1layer"
     family_dir.mkdir()
@@ -164,7 +156,7 @@ def registry_with_family(temp_dirs):
             "prime": {"type": "int", "description": "Modulus", "default": 113},
             "seed": {"type": "int", "description": "Random seed", "default": 999},
         },
-        "analyzers": ["effective_dimensionality", "weight_spectra"],
+        "analyzers": ["weight_spectra"],
         "visualizations": [],
         "analysis_dataset": {"type": "modulo_addition_grid"},
         "variant_pattern": "p{prime}_seed{seed}",
@@ -186,7 +178,7 @@ def trained_variant(registry_with_family):
 
 
 class TestWeightSpectraIntegration:
-    """Integration tests + parity against effective_dimensionality."""
+    """Integration tests."""
 
     def test_pipeline_creates_artifact(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
@@ -214,46 +206,3 @@ class TestWeightSpectraIntegration:
         assert "epochs" in summary
         for name in WEIGHT_MATRIX_NAMES:
             assert f"pr_{name}" in summary
-
-    def test_parity_singular_values_match_effective_dimensionality(self, trained_variant):
-        """sv_{name} per-epoch artifacts agree to ~1e-10 with the legacy analyzer."""
-        pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(EffectiveDimensionalityAnalyzer())
-        pipeline.register(WeightSpectraAnalyzer())
-        pipeline.run()
-
-        loader = ArtifactLoader(pipeline.artifacts_dir)
-        for epoch in (0, 25, 49):
-            ed = loader.load_epoch("effective_dimensionality", epoch)
-            ws = loader.load_epoch("weight_spectra", epoch)
-            for key in ed:
-                if not key.startswith("sv_"):
-                    continue
-                np.testing.assert_allclose(
-                    ws[key],
-                    ed[key],
-                    rtol=1e-10,
-                    atol=1e-12,
-                    err_msg=f"epoch={epoch} key={key} disagreement",
-                )
-
-    def test_parity_pr_summary_matches_effective_dimensionality(self, trained_variant):
-        """pr_{name} summary agrees between weight_spectra and effective_dimensionality."""
-        pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(EffectiveDimensionalityAnalyzer())
-        pipeline.register(WeightSpectraAnalyzer())
-        pipeline.run()
-
-        loader = ArtifactLoader(pipeline.artifacts_dir)
-        ed = loader.load_summary("effective_dimensionality")
-        ws = loader.load_summary("weight_spectra")
-        for name in WEIGHT_MATRIX_NAMES:
-            key = f"pr_{name}"
-            if key in ed:
-                np.testing.assert_allclose(
-                    ws[key],
-                    ed[key],
-                    rtol=1e-10,
-                    atol=1e-12,
-                    err_msg=f"summary {key} disagreement",
-                )

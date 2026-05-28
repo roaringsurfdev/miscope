@@ -54,11 +54,6 @@ from miscope.visualization.renderers.dimensionality_dynamics import (
     build_dimensionality_state_space,
     build_dimensionality_timeseries,
 )
-from miscope.visualization.renderers.dmd import (
-    render_dmd_eigenvalues,
-    render_dmd_reconstruction,
-    render_dmd_residual,
-)
 from miscope.visualization.renderers.dominant_frequencies import (
     get_dominant_indices,
     get_fourier_basis_names,
@@ -237,10 +232,6 @@ __all__ = [
     "render_fisher_heatmap",
     # REQ_050: Global centroid PCA
     "render_centroid_global_pca",
-    # REQ_051: DMD on centroid trajectories
-    "render_dmd_eigenvalues",
-    "render_dmd_residual",
-    "render_dmd_reconstruction",
     # REQ_117: Activation DMD (windowed + per-regime)
     "render_activation_dmd_residuals_with_regimes",
     "render_activation_dmd_eigenvalue_migration",

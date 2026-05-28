@@ -130,9 +130,137 @@ REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-i
 
 ## Notes
 
+### Consumer audit (2026-05-28, on `feature/req-102-analyzer-deprecation`)
+
+First audit pass over the retirement candidates. Unlock confirmed: REQ_127
+(downstream-visualization migration) merged to staging — that was the deferral
+gate per the Atlas — and REQ_111/117/126 recorded their validation outcomes.
+
+Finding: **this is consumer-migration, not pure deletion.** Surface by layer:
+
+- **Family run configs (`data/*/family.json`): clean.** No retiring analyzer
+  appears in any `analyzers` / `secondary_analyzers` / `cross_epoch_analyzers`
+  list. Their on-disk artifacts are historical; nothing schedules them.
+- **`views/universal.py` (ViewDefinition path): migrated, retirement-safe.**
+  REQ_127 re-pointed it to the new analyzers via legacy adapter functions
+  (`_adapt_attention_fourier_legacy`, the `dominant_frequencies` coefficient
+  reshaper, `effective_dimensionality → weight_spectra`). It reads the *new*
+  analyzers; the old-analyzer names survive only in adapter/renderer naming.
+- **`views/dataview_universal.py` (DataView catalog): aspirational, not a hard
+  blocker (resolved 2026-05-28).** It directly `load_epoch("dominant_frequencies")`
+  / `("attention_fourier")`, but the DataView tier was stubbed and subsequently
+  bypassed — per user, "we're not there yet" (a future path exists for heavier
+  DataView use in notebook research + analysis/visualization consistency). Usage
+  audit confirms the only consumers are `demos/demo_dataview_catalog.ipynb` and
+  the test suite (`test_dataview_catalog.py`, `test_view_availability.py`,
+  `test_freq_specialization_sequencing.py`) — no dashboard, no research notebooks.
+  The dataviews load artifacts by string name (no analyzer-class import), so
+  retiring the analyzers does not break imports; the affected dataview
+  definitions just won't regenerate for new variants. Action: lightly re-point or
+  prune those dataview definitions + refresh the demo/tests as part of cleanup —
+  not a load-bearing migration.
+- **`visualization/renderers/dmd.py`: obsolete dead UI code (confirmed
+  2026-05-28).** Its three renderers (`render_dmd_eigenvalues`,
+  `render_dmd_residual`, `render_dmd_reconstruction`) have **no live callers** —
+  only `test_centroid_dmd.py` exercises them; no view, page, or notebook uses
+  them. Superseded by the separate windowed DMD analyzers (`activation_dmd` =
+  Activation-space, `parameter_dmd` = Parameter-space) and their renderers. Remove
+  `renderers/dmd.py` (and its export from `visualization/__init__.py`) with the
+  `centroid_dmd` retirement. **Salvage:** see Downstream handoff below.
+- **`apps/dashboard/` pages (dimensionality, viability_certificate,
+  activation_heatmaps, visualization): not blocking** per the existing
+  "Dashboard cleanup is a separate track" direction above — legacy reads
+  tolerated during the parallel period.
+- **`apps/research/sketches/*`, `scripts/*`: low priority.** Exploratory; migrate
+  opportunistically or leave (artifacts remain readable).
+
+Proposed retirement order (simplest-consumer-surface first):
+
+1. `effective_dimensionality` (REQ_111) — universal path already re-pointed to
+   `weight_spectra`; verify no library-level direct loads remain, then retire.
+2. `centroid_dmd` wrapper (REQ_117) — re-point the DMD view/dataview feed to
+   `activation_dmd` / `parameter_dmd`, then retire.
+3. The six REQ_126-gated Fourier/coarseness analyzers — **gated on migrating the
+   DataView path** (blocker above) **and on the p109 refresh** (below).
+
+### p109 validation data dependency (flagged 2026-05-28)
+
+The REQ_126-gated retirements validate blob-vs-plaid / absorption preservation on
+the canon 3-variant set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598). As
+of 2026-05-28, p113 and p101 have been re-analyzed with the new analyzer set, but
+**p109 has not been refreshed.** The user will re-run p109 when we reach that
+gate (it forces a WSL restart to free memory — see REQ_128 field evidence).
+**Pause before closing any REQ_126-gated retirement until p109 is refreshed.**
+
+### Analyzer-dependency audit (2026-05-28, second pass) — 2 of 6 REQ_126-gated retirements deferred
+
+A producer/consumer audit of the analyzer dependency graph (the first audit
+checked views/families/scripts but not analyzer-to-analyzer `ArtifactInput` /
+`requires`) found that **two of the six REQ_126-gated analyzers are still
+load-bearing producers for *surviving* analyzers.** REQ_127 migrated *views*,
+not these analyzer deps. Gotcha: an artifact's name can differ from its
+file/class name (`neuron_freq_clusters` registers as `neuron_freq_norm`).
+
+| Retiring analyzer | Artifact name | Surviving analyzer consumers |
+|---|---|---|
+| `neuron_freq_clusters` | `neuron_freq_norm` | `neuron_dynamics`, `freq_group_weight_geometry`, `neuron_group_pca` (all `ArtifactInput`/`requires`) |
+| `dominant_frequencies` | `dominant_frequencies` | `fourier_frequency_quality` (`depends_on` + `ArtifactInput`) |
+
+Those consumers are themselves future-consolidation targets (Atlas: the
+neuron-group analyzers fold into a planned consolidation; `fourier_frequency_quality`
+is retained). Re-pointing them to the basis-projection replacements is a real
+refactor with parity implications — out of REQ_102's "don't bundle retirement
+with refactor" scope.
+
+**Decision: defer these two** (confirmed with user 2026-05-28). Retire the four
+with no surviving analyzer consumers — `coarseness`, `attention_fourier`,
+`neuron_fourier`, `attention_freq` (done). The two deferred:
+
+- **`neuron_freq_clusters` / `neuron_freq_norm` — leave untouched.** Per user,
+  this is a *backbone of critical analysis*; do not change until there is clarity
+  on what should change. It was slated for "replacement" mainly because the
+  original is specialized rather than generic (reflected in the `freq_cluster`
+  naming), not because it is unwanted. Not a retirement candidate for now.
+- **`dominant_frequencies` — blocked on a `fourier_frequency_quality` refactor.**
+  The unblock path is re-pointing `fourier_frequency_quality` from
+  `dominant_frequencies` to `neuron_grouping`; if feasible it's worth doing to
+  free `dominant_frequencies`. **This is its own requirement** (candidate stub).
+  Research context: `fourier_frequency_quality` currently is *not* yielding
+  valuable information — itself a finding. It sits at the hard, unresolved
+  question of whether model performance depends on *which* frequencies are
+  chosen and *when* that choice happens; the literature's "models learn
+  frequencies from the prime / group math" frame is not supported by the data
+  here (user's assessment). Because that analyzer will need close re-examination,
+  **bit-wise parity is likely unnecessary** for any eventual re-point.
+
+**Regression checksums:** `run_regression_check.py` excludes `coarseness`
+already, but `attention_freq` / `attention_fourier` / `neuron_fourier` are in
+`regression/reference_checksums.json` — retiring them requires a checksum regen
+(a pipeline run on the user's side, like p109). `run_analysis_regression.py` is
+registry-driven and auto-adapts; the hardcoded `run_regression_check.py` set is
+updated by hand as part of each retirement.
+
+### Downstream handoff: Centroid Trajectory view (2026-05-28)
+
+Retiring `centroid_dmd` removes `renderers/dmd.py`, whose
+`render_dmd_reconstruction` ("actual vs DMD-reconstructed centroid trajectories")
+is the **only** place the raw per-class **Centroid Trajectory** is plotted — it
+was enmeshed in that reconstruction renderer and lives nowhere else. The modal
+DMD value is fully superseded by `activation_dmd` / `parameter_dmd`; the
+trajectory plot is the lone salvage.
+
+The analyzer-side home is `representation_trajectory` (planned consolidation
+absorbing `global_centroid_pca` + `centroid_dmd`'s trajectory portion — see
+REQ_117, Atlas consolidation map). That analyzer is **not built yet** (only
+`global_centroid_pca.py` exists). So the Centroid Trajectory **view** is genuine
+downstream work: **recreate it against `representation_trajectory` when that
+analyzer lands.** Per user, it is fine to rebuild the view from scratch rather
+than pivot the old reconstruction renderer. Capture this in the
+`representation_trajectory` reorganization REQ when it is formalized.
+
 ### Layering audit results
 
-*(empty until first audit pass)*
+*(empty until first audit pass on surviving analyzers)*
 
 ### Per-retirement evidence pointers
 

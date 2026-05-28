@@ -24,8 +24,8 @@ REFERENCE_VARIANTS = [
     # (prime, model_seed, data_seed, description)
     (113, 999, 598, "canon model"),
     (109, 485, 598, "fast clean grokker"),
-    (101, 485, 42, "late grokker, 196 checkpoints"),
-    (59, 485, 999, "no_second_descent (most degraded)"),
+    (101, 999, 598, "late grokker"),
+    #(59, 485, 999, "no_second_descent (most degraded)"),
 ]
 
 FAMILY = "modulo_addition_1layer"
@@ -40,7 +40,17 @@ def sha256_file(path: Path) -> str:
 
 
 # Analyzers excluded from regression: their output is intentionally non-deterministic.
-EXCLUDED_ANALYZERS = {"landscape_flatness"}
+# REQ_102 retirements — excluded so stale on-disk artifacts aren't picked up by
+# the disk scan (these analyzers no longer exist; artifacts pending deletion).
+DEPRECATED_ANALYZERS = {
+    "effective_dimensionality",
+    "centroid_dmd",
+    "coarseness",
+    "attention_freq",
+    "attention_fourier",
+    "neuron_fourier",
+}
+EXCLUDED_ANALYZERS = DEPRECATED_ANALYZERS | {"landscape_flatness", "fourier_nucleation"}
 
 
 def checksum_variant(artifacts_dir: Path) -> list[dict]:
@@ -58,6 +68,7 @@ def checksum_variant(artifacts_dir: Path) -> list[dict]:
                 "size_bytes": npz_path.stat().st_size,
             }
         )
+        print(f"artifact checksum added: {rel}")
     return records
 
 

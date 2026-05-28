@@ -668,15 +668,6 @@ class TestActivationDMDProtocol:
     def test_registered_in_registry(self):
         assert AnalyzerRegistry.get_spec("activation_dmd").effective_category == "cross_epoch"
 
-    def test_distinct_from_centroid_dmd(self):
-        """Parallel construction: both analyzers exist independently."""
-        assert AnalyzerRegistry.get_spec("centroid_dmd").effective_category == "cross_epoch"
-        assert AnalyzerRegistry.get_spec("activation_dmd").effective_category == "cross_epoch"
-        assert (
-            AnalyzerRegistry.create("centroid_dmd").__class__
-            is not AnalyzerRegistry.create("activation_dmd").__class__
-        )
-
 
 class TestActivationDMDOutput:
     def test_returns_dict(self, artifacts_with_global_pca):
