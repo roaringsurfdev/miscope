@@ -13,7 +13,6 @@ from miscope.analysis.analyzers.activation_basis_projection import (  # noqa: I0
 from miscope.analysis.analyzers.attention_fourier import AttentionFourierAnalyzer  # noqa: I001
 from miscope.analysis.analyzers.attention_freq import AttentionFreqAnalyzer
 from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer
-from miscope.analysis.analyzers.centroid_dmd import CentroidDMD
 from miscope.analysis.analyzers.centroid_fourier_alignment import (
     CentroidFourierAlignmentAnalyzer,
 )
@@ -70,7 +69,6 @@ __all__ = [
     "ParameterTrajectory",
     "RepresentationalGeometryAnalyzer",
     "GlobalCentroidPCA",
-    "CentroidDMD",
     "CentroidFourierAlignmentAnalyzer",
     "CoarsenessAnalyzer",
     "GradientSiteAnalyzer",

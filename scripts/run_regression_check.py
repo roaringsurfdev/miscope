@@ -50,9 +50,7 @@ def run_pipeline(variant, force: bool) -> None:
         AttentionFourierAnalyzer,
         AttentionFreqAnalyzer,
         AttentionPatternsAnalyzer,
-        CentroidDMD,
         DominantFrequenciesAnalyzer,
-        EffectiveDimensionalityAnalyzer,
         FourierFrequencyQualityAnalyzer,
         FreqGroupWeightGeometryAnalyzer,
         GlobalCentroidPCA,
@@ -78,7 +76,6 @@ def run_pipeline(variant, force: bool) -> None:
     pipeline.register(NeuronActivationsAnalyzer())
     pipeline.register(NeuronFreqClustersAnalyzer())
     pipeline.register(ParameterSnapshotAnalyzer())
-    pipeline.register(EffectiveDimensionalityAnalyzer())
     # LandscapeFlatnessAnalyzer excluded: stochastic by design, not regression-testable
     # FourierNucleationAnalyzer excluded to match develop-side regen scope
     pipeline.register(RepresentationalGeometryAnalyzer())
@@ -90,7 +87,6 @@ def run_pipeline(variant, force: bool) -> None:
     pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
     pipeline.register_cross_epoch(ParameterTrajectory())
     pipeline.register_cross_epoch(GlobalCentroidPCA())
-    pipeline.register_cross_epoch(CentroidDMD())
     pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
     pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
     pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
