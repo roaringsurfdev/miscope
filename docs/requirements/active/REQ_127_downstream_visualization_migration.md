@@ -187,5 +187,6 @@ Audit ran across all 8 retirement-bound names (`dominant_frequencies`, `attentio
 ### Tracked deferred (post-REQ_127)
 
 - **Clean class-centroid-trajectories view.** All three centroid_dmd-backed views (`dmd_eigenvalues`, `dmd_residual`, `dmd_reconstruction`) removed during Phase A. Future REQ builds an independent centroid-trajectories view (sourced from `repr_geometry` or equivalent, not `centroid_dmd`) and finds it a dashboard home.
+- **Activation heatmap views are not load-bearing** (user note, 2026-05-27 during Phase A.2c). They aren't driving downstream analysis or foundational dynamical claims — orientation visualizations only. The Pearson ~0.99 adapter is appropriate weight; a future REQ could consider retiring them outright if they don't carry their weight on the surviving pages.
 - **Shared visualization primitives extraction.** Dropped from this REQ. Re-evaluate if redundant-idiom concentration actually surfaces post-migration.
 - **Removal of experimental `dataview_universal.py` / `dataview_catalog.py`.** If touched during Phase B, removal is preferred over extension. Otherwise stays as-is until a future cleanup REQ revisits.
