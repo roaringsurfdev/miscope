@@ -130,9 +130,63 @@ REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-i
 
 ## Notes
 
+### Consumer audit (2026-05-28, on `feature/req-102-analyzer-deprecation`)
+
+First audit pass over the retirement candidates. Unlock confirmed: REQ_127
+(downstream-visualization migration) merged to staging — that was the deferral
+gate per the Atlas — and REQ_111/117/126 recorded their validation outcomes.
+
+Finding: **this is consumer-migration, not pure deletion.** Surface by layer:
+
+- **Family run configs (`data/*/family.json`): clean.** No retiring analyzer
+  appears in any `analyzers` / `secondary_analyzers` / `cross_epoch_analyzers`
+  list. Their on-disk artifacts are historical; nothing schedules them.
+- **`views/universal.py` (ViewDefinition path): migrated, retirement-safe.**
+  REQ_127 re-pointed it to the new analyzers via legacy adapter functions
+  (`_adapt_attention_fourier_legacy`, the `dominant_frequencies` coefficient
+  reshaper, `effective_dimensionality → weight_spectra`). It reads the *new*
+  analyzers; the old-analyzer names survive only in adapter/renderer naming.
+- **`views/dataview_universal.py` (DataView catalog, published library): NOT
+  migrated — blocker.** Directly `load_epoch("dominant_frequencies")` and
+  `load_epoch("attention_fourier")`. The DataView catalog is wired in
+  (`views/__init__.py` exports it; `variant.py` / `catalog.py` consume it), so
+  these are live library consumers reading old artifacts directly. Must migrate
+  (or confirm DataView is being deprecated) before retiring those two Fourier
+  analyzers. **Open question for the user:** REQ_127 migrated the ViewDefinition
+  path but appears to have left the DataView path — in scope for REQ_102, or its
+  own track?
+- **`visualization/renderers/dmd.py`: fed from `centroid_dmd`.** Its data
+  contract is `load_cross_epoch("centroid_dmd")`. The actual load lives in the
+  view/dataview that feeds it; re-pointing that feed to `activation_dmd` /
+  `parameter_dmd` is the REQ_117-gated consumer migration this REQ owns.
+- **`apps/dashboard/` pages (dimensionality, viability_certificate,
+  activation_heatmaps, visualization): not blocking** per the existing
+  "Dashboard cleanup is a separate track" direction above — legacy reads
+  tolerated during the parallel period.
+- **`apps/research/sketches/*`, `scripts/*`: low priority.** Exploratory; migrate
+  opportunistically or leave (artifacts remain readable).
+
+Proposed retirement order (simplest-consumer-surface first):
+
+1. `effective_dimensionality` (REQ_111) — universal path already re-pointed to
+   `weight_spectra`; verify no library-level direct loads remain, then retire.
+2. `centroid_dmd` wrapper (REQ_117) — re-point the DMD view/dataview feed to
+   `activation_dmd` / `parameter_dmd`, then retire.
+3. The six REQ_126-gated Fourier/coarseness analyzers — **gated on migrating the
+   DataView path** (blocker above) **and on the p109 refresh** (below).
+
+### p109 validation data dependency (flagged 2026-05-28)
+
+The REQ_126-gated retirements validate blob-vs-plaid / absorption preservation on
+the canon 3-variant set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598). As
+of 2026-05-28, p113 and p101 have been re-analyzed with the new analyzer set, but
+**p109 has not been refreshed.** The user will re-run p109 when we reach that
+gate (it forces a WSL restart to free memory — see REQ_128 field evidence).
+**Pause before closing any REQ_126-gated retirement until p109 is refreshed.**
+
 ### Layering audit results
 
-*(empty until first audit pass)*
+*(empty until first audit pass on surviving analyzers)*
 
 ### Per-retirement evidence pointers
 
