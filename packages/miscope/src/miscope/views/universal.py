@@ -84,6 +84,31 @@ def _make_summary(
 # ---------------------------------------------------------------------------
 
 
+def _adapt_embedding_coefficients_legacy(
+    cos_coeffs: Any, sin_coeffs: Any
+) -> Any:
+    """Reconstruct the legacy ``dominant_frequencies`` ``coefficients`` shape from
+    ``weight_basis_projection`` embedding-site cos/sin coefficients (REQ_127).
+
+    Legacy convention: 1D vector of L2 norms across ``d_model`` arranged as
+    ``[const, sin_1, cos_1, sin_2, cos_2, ...]``. The new analyzer omits the
+    constant term; this adapter leaves the DC slot at zero.
+
+    Operates on the last two axes so both single-epoch and stacked-epoch
+    inputs round-trip through one helper.
+    """
+    import numpy as _np
+
+    cos_norms = _np.linalg.norm(cos_coeffs, axis=-1)
+    sin_norms = _np.linalg.norm(sin_coeffs, axis=-1)
+    n_freq = cos_norms.shape[-1]
+    out_shape = cos_norms.shape[:-1] + (1 + 2 * n_freq,)
+    out = _np.zeros(out_shape, dtype=_np.float32)
+    out[..., 1::2] = sin_norms
+    out[..., 2::2] = cos_norms
+    return out
+
+
 def _register_all() -> None:
     """Register all universal views into the module-level catalog."""
     import miscope.visualization as viz
@@ -92,11 +117,6 @@ def _register_all() -> None:
     # --- Per-epoch views ---
 
     for name, analyzer, renderer_name in [
-        (
-            "parameters.embeddings.fourier_coefficients",
-            "dominant_frequencies",
-            "render_dominant_frequencies",
-        ),
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
         ("activations.mlp.neuron_frequency_clusters", "neuron_freq_norm", "render_freq_clusters"),
         (
@@ -122,6 +142,36 @@ def _register_all() -> None:
         ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+
+    # --- Embedding Fourier coefficients (REQ_127 re-point) ---
+    # Reads weight_basis_projection embedding-site cos/sin coefficients and
+    # adapts to the legacy `coefficients` shape that render_dominant_frequencies
+    # expects. DC term is zero (new analyzer omits it).
+
+    def _load_embedding_fourier_coefficients(variant: Variant, epoch: int | None) -> dict:
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        return {
+            "coefficients": _adapt_embedding_coefficients_legacy(
+                art["embedding_cos_coeffs"], art["embedding_sin_coeffs"]
+            )
+        }
+
+    def _render_embedding_fourier_coefficients(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_dominant_frequencies(data, epoch=epoch or 0, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="parameters.embeddings.fourier_coefficients",
+            load_data=_load_embedding_fourier_coefficients,
+            renderer=_render_embedding_fourier_coefficients,
+            epoch_source_analyzer="weight_basis_projection",
+            required_analyzers=[
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)
+            ],
+        )
+    )
 
     # --- Summary (cross-epoch aggregate) views ---
 
@@ -666,7 +716,8 @@ def _register_all() -> None:
     # --- Band concentration views (REQ_058) ---
     # Concentration trajectory and rank alignment trajectory per variant.
     # Both load from neuron_dynamics cross_epoch; rank alignment also loads
-    # dominant_frequencies to get embedding band magnitudes.
+    # weight_basis_projection (embedding site) and adapts to the legacy
+    # `coefficients` shape that compute_rank_alignment_trajectory expects.
 
     def _load_band_concentration(variant: Variant, epoch: int | None) -> dict:
         from miscope.analysis.band_concentration import compute_band_concentration_trajectory
@@ -693,7 +744,14 @@ def _register_all() -> None:
         from miscope.analysis.band_concentration import compute_rank_alignment_trajectory
 
         cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
-        coeff_epochs = variant.artifacts.load_epochs("dominant_frequencies")
+        wbp_epochs = variant.artifacts.load_epochs("weight_basis_projection")
+        coeff_epochs = {
+            "epochs": wbp_epochs["epochs"],
+            "coefficients": _adapt_embedding_coefficients_legacy(
+                wbp_epochs["embedding_cos_coeffs"],
+                wbp_epochs["embedding_sin_coeffs"],
+            ),
+        }
         prime = int(variant.model_config["prime"])
         threshold = 0.75
         return compute_rank_alignment_trajectory(cross_epoch, coeff_epochs, threshold, prime)
@@ -709,7 +767,7 @@ def _register_all() -> None:
             epoch_source_analyzer=None,
             required_analyzers=[
                 AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH),
-                AnalyzerRequirement("dominant_frequencies", ArtifactKind.EPOCH),
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH),
             ],
         )
     )
