@@ -34,45 +34,20 @@ A requirement moves through three stages:
 `drafts/` and `future/` sit outside this flow — they're parking lots for ideas
 that haven't been scheduled yet.
 
-## Current Status
+## Finding current status
 
-**Latest Version:** 0.4.0 (Notebook Research API)
+This project moves quickly, so status is **not** tracked by a hand-maintained
+snapshot here (those rot). Read it from the self-documenting sources instead:
 
-### Active Requirements
+- **In flight** — the files in [`active/`](active/).
+- **About to ship** — the files in [`staging/`](staging/).
+- **Released** — the milestone directories under [`archive/`](archive/) and the
+  top-level `CHANGELOG.md`.
+- **Parking lots** — [`drafts/`](drafts/) (ideas, research notes) and
+  [`future/`](future/) (documented but unscheduled).
+- **Recent activity / who changed what** — `git log`.
 
-None — all current requirements are complete.
-
-### Drafts
-
-| Document | Description |
-|----------|-------------|
-| [analysis](drafts/analysis.md) | Large cross-epoch summaries |
-| [general](drafts/general.md) | Parallelization |
-
-### Future Requirements
-
-Requirements that have been documented but are not yet scheduled for implementation.
-
-| Requirement | Description | Priority | Effort |
-|-------------|-------------|----------|--------|
-| [REQ_014](future/REQ_014_checkpoint_click_navigation.md) | Click-to-navigate checkpoint markers | Low | Medium |
-| [REQ_015](future/REQ_015_checkpoint_editor.md) | Checkpoint editor using Train/Test loss curve | Medium | High |
-| [REQ_017](future/REQ_017_multi_model_support.md) | Support for multiple toy models | High | High |
-| [REQ_019](future/REQ_019_multiscale_activation_visualization.md) | Multi-scale activation visualization (downsampled) | Medium | Medium |
-| [REQ_034](future/REQ_034_turn_detection.md) | Grokking turn detection | High | Medium |
-| [REQ_035](future/REQ_035_dashboard_interaction.md) | Dashboard interaction + Dash migration | High | High |
-| [REQ_128](future/REQ_128_analyzer_input_provisioning.md) | Analyzer input provisioning — lazy accessor vs eager materialization | Medium | Medium |
-
-### Completed Milestones
-
-| Version | Name | Date | Requirements |
-|---------|------|------|--------------|
-| [0.4.0](archive/v0.4.0-notebook-api/) | Notebook Research API | 2026-02-13 | REQ_036, REQ_037 |
-| [0.2.1](archive/v0.2.1-coarseness/) | Coarseness Analysis | 2026-02-08 | REQ_022, REQ_023, REQ_024 |
-| [0.2.0](archive/v0.2.0-foundations/) | First Foundational Release | 2026-02-06 | REQ_020, REQ_021 (a–f) |
-| [0.1.2](archive/v0.1.2-quality/) | Quality | — | REQ_011, REQ_012, REQ_013 |
-| [0.1.1](archive/v0.1.1-cuda/) | CUDA | — | REQ_016, REQ_018 |
-| [0.1.0](archive/v0.1.0-mvp/MILESTONE_SUMMARY.md) | MVP | 2026-02-01 | REQ_001 through REQ_010 |
+Each requirement's own header carries its status, priority, and effort.
 
 ## Working with Requirements
 
