@@ -63,7 +63,7 @@ class CentroidFourierAlignmentAnalyzer:
                 continue
             site = key[: -len("_centroids")]
             alignment = _site_fourier_alignment(value, prime)
-            result[f"{site}_fourier_alignment"] = np.float64(alignment) # pyright: ignore[reportArgumentType]
+            result[f"{site}_fourier_alignment"] = np.float64(alignment)  # pyright: ignore[reportArgumentType]
         return result
 
     def get_summary_keys(self) -> list[str]:
