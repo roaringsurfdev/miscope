@@ -1,6 +1,6 @@
 # REQ_127: Downstream Visualization Migration & DataView Layer
 
-**Status:** Scoped (2026-05-27) — *Two-phase plan. Phase A (page/renderer deletions + 1-to-1 view re-points) unblocks bulk of REQ_102 retirements; Phase B (single composition object for `*_fourier_alignment`) unblocks the remainder. `effective_dimensionality` migration folded in per user direction.*
+**Status:** Phase A.2c complete (2026-05-27) — *Page/renderer deletions + Fourier view re-points (embedding, attention sites, MLP/attention activation) shipped on `feature/req-127-downstream-viz-migration`. **Paused at effective_dimensionality → weight_spectra migration:** no variant has `weight_spectra` artifacts on disk, so end-to-end validation isn't possible until a data refresh runs the new analyzer. Phase B (composition object) and remaining Phase A items (effective_dimensionality re-point, multi_stream composite, renderer cleanup, full validation) deferred until resume.*
 **Priority:** High — gates REQ_102's analyzer retirements and is the necessary follow-on to REQ_126's three PRs. Until consumers port over, the absorbed analyzers stay live and the cleanup gain from REQ_126 is only partly realized.
 **Branch:** TBD
 **Dependencies:**
@@ -73,6 +73,23 @@ A scoping pass on 2026-05-27 ran the consumer-surface audit, resolved the three 
 **Notebooks / sketches / fieldnotes:** Per the REQ_126 carve-out, signals that diminish in research notebooks after the migration are findings worth surfacing, not regressions to mask. Fieldnotes is clean (no published-figure references to any retiring analyzer). Notebooks and sketches are explicitly out of scope.
 
 ---
+
+## Implementation log (Phase A in flight)
+
+**Commits on `feature/req-127-downstream-viz-migration`:**
+
+- `a298ff8` Phase A.1 — page/renderer deletions + orphan view cleanup (14 files, -2230 +119).
+- `dda67b1` Phase A.2a — embedding views → weight_basis_projection (parity 1.6e-6).
+- `b46a1e5` Phase A.2b — attention site views → weight_basis_projection (parity ~1e-6).
+- `4539deb` Phase A.2c — activation views → activation_basis_projection (parity Pearson 0.99 / Spearman 0.83; user-confirmed appropriate for non-load-bearing visualizations).
+- `1f9009d` REQ doc — activation views aren't load-bearing (deferred item).
+
+**Remaining Phase A work (paused 2026-05-27 pending weight_spectra data refresh):**
+
+- `effective_dimensionality → weight_spectra` view re-point and summary-emitter parity. Blocker: no variant has `weight_spectra` artifacts on disk; the new analyzer needs to run before any end-to-end validation. Three call sites read summary fields (`effective_dimensionality_cross_over_epoch`, `crossover_W_E_pr`): `views/universal.py:670`, `views/universal.py:1593`/`:1629`, `pages/viability_certificate.py:72`. Writer at `analysis/variant_analysis_summary.py:_load_effective_dimensionality_key_epochs` consumes the legacy summary.
+- `multi_stream_specialization` composite view (`views/universal.py:_load_multi_stream_specialization`): internal `attention_fourier` + `effective_dimensionality` loads need re-pointing alongside the above.
+- Renderer cleanup: port-vs-retire decisions for `dominant_frequencies.py` (177 lines), `attention_fourier.py` (219 lines), `attention_freq.py` (243 lines), `neuron_freq_clusters.py` (900 lines). The renderer functions are still being called by their re-pointed views; retirement requires either porting to the new schema or accepting the renderers as transition cruft until the underlying analyzers retire.
+- Full validation pass on canon variant across surviving pages (`dimensionality`, `visualization`, `activation_heatmaps`, `neuron_dynamics`, `dimensionality_dynamics`, `multistream`, `repr_geometry`, `viability_certificate`).
 
 ## Conditions of Satisfaction
 
