@@ -24,7 +24,6 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem("Neuron Competition", href="/neuron-competition"),
                     dbc.DropdownMenuItem("PCA", href="/pca"),
                     dbc.DropdownMenuItem("Activations", href="/activations"),
-                    dbc.DropdownMenuItem("Centroid DMD", href="/centroid-dmd"),
                     dbc.DropdownMenuItem("Activation DMD", href="/activation-dmd"),
                     dbc.DropdownMenuItem("Parameter DMD", href="/parameter-dmd"),
                     dbc.DropdownMenuItem("Loss Landscape", href="/loss-landscape"),
@@ -92,10 +91,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_analysis_run_page_layout,
         create_analysis_run_page_nav,
     )
-    from dashboard.pages.centroid_dmd import (
-        create_centroid_dmd_layout,
-        create_centroid_dmd_nav,
-    )
     from dashboard.pages.checkpoint_schedule import (
         create_checkpoint_schedule_page_layout,
         create_checkpoint_schedule_page_nav,
@@ -152,7 +147,6 @@ def register_sitenav_callbacks(app: Dash) -> None:
         create_repr_geometry_page_layout,
         create_repr_geometry_page_nav,
     )
-    from dashboard.pages.summary import create_summary_page_layout, create_summary_page_nav
     from dashboard.pages.training import (
         create_training_page_layout,
         create_training_page_nav,
@@ -199,12 +193,8 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [create_repr_geometry_page_nav(app), create_repr_geometry_page_layout(app)]
         elif pathname == "/geometry_weight":
             return [create_weight_geometry_page_nav(app), create_weight_geometry_page_layout(app)]
-        elif pathname == "/summary":
-            return [create_summary_page_nav(app), create_summary_page_layout(app)]
         elif pathname == "/pca":
             return [create_dimensionality_page_nav(app), create_dimensionality_page_layout(app)]
-        elif pathname == "/centroid-dmd":
-            return [create_centroid_dmd_nav(app), create_centroid_dmd_layout(app)]
         elif pathname == "/activation-dmd":
             return [create_activation_dmd_nav(app), create_activation_dmd_layout(app)]
         elif pathname == "/parameter-dmd":

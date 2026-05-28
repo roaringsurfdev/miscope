@@ -104,8 +104,6 @@ def _register_all() -> None:
             "neuron_freq_norm",
             "render_neuron_freq_distribution",
         ),
-        ("activations.mlp.coarseness_distribution", "coarseness", "render_coarseness_distribution"),
-        ("activations.mlp.coarseness_by_neuron", "coarseness", "render_coarseness_by_neuron"),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
         (
             "activations.attention.head_frequency_clusters",
@@ -122,24 +120,12 @@ def _register_all() -> None:
             "landscape_flatness",
             "render_perturbation_distribution",
         ),
-        (
-            "activations.mlp.neuron_fourier_heatmap",
-            "neuron_fourier",
-            "render_neuron_fourier_heatmap",
-        ),
-        (
-            "activations.mlp.neuron_fourier_heatmap_output",
-            "neuron_fourier",
-            "render_neuron_fourier_heatmap_output",
-        ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
 
     # --- Summary (cross-epoch aggregate) views ---
 
     for name, analyzer, renderer_name in [
-        ("activations.mlp.coarseness_trajectory", "coarseness", "render_coarseness_trajectory"),
-        ("activations.mlp.blob_count_trajectory", "coarseness", "render_blob_count_trajectory"),
         (
             "parameters.effective_dimensionality",
             "effective_dimensionality",
@@ -150,11 +136,6 @@ def _register_all() -> None:
             "attention_freq",
             "render_attention_specialization_trajectory",
         ),
-        (
-            "activations.attention.head_frequency_range",
-            "attention_freq",
-            "render_attention_dominant_frequencies",
-        ),
         ("loss_landscape.flatness_trajectory", "landscape_flatness", "render_flatness_trajectory"),
         (
             "activations.mlp.fourier_quality_trajectory",
@@ -163,27 +144,6 @@ def _register_all() -> None:
         ),
     ]:
         _catalog.register(_make_summary(name, analyzer, getattr(viz, renderer_name)))
-
-    # --- Cross-epoch stacked view ---
-    # Loads all epochs stacked; no cursor.
-
-    def _load_dominant_frequencies_over_time(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_epochs("dominant_frequencies")
-
-    def _render_dominant_frequencies_over_time(
-        data: Any, epoch: int | None, **kwargs: Any
-    ) -> go.Figure:
-        return viz.render_dominant_frequencies_over_time(data, **kwargs)
-
-    _catalog.register(
-        ViewDefinition(
-            name="activations.mlp.dominant_frequencies_over_time",
-            load_data=_load_dominant_frequencies_over_time,
-            renderer=_render_dominant_frequencies_over_time,
-            epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("dominant_frequencies", ArtifactKind.EPOCH)],
-        )
-    )
 
     # --- Parameter trajectory PCA views ---
     # Loads cross_epoch.npz; epoch is used as the cursor highlight.
@@ -589,44 +549,6 @@ def _register_all() -> None:
             ],
         )
     )
-
-    # --- Centroid DMD views (REQ_051) ---
-    # All load from centroid_dmd cross_epoch.npz; epoch is a cursor.
-
-    def _load_centroid_dmd(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_cross_epoch("centroid_dmd")
-
-    def _render_dmd_eigenvalues(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", "resid_post")
-        return viz.render_dmd_eigenvalues(data, site=site)
-
-    def _render_dmd_residual(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", None)
-        log_y = kwargs.pop("log_y", True)
-        return viz.render_dmd_residual(data, site=site, current_epoch=epoch, log_y=log_y)
-
-    def _render_dmd_reconstruction(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
-        site = kwargs.pop("site", "resid_post")
-        epochs_arr = data["epochs"]
-        resolved_epoch = epoch if epoch is not None else int(epochs_arr[-1])
-        return viz.render_dmd_reconstruction(data, resolved_epoch, site=site)
-
-    _dmd_req = [AnalyzerRequirement("centroid_dmd", ArtifactKind.CROSS_EPOCH)]
-
-    for name, renderer in [
-        ("geometry.dmd_eigenvalues", _render_dmd_eigenvalues),
-        ("geometry.dmd_residual", _render_dmd_residual),
-        ("geometry.dmd_reconstruction", _render_dmd_reconstruction),
-    ]:
-        _catalog.register(
-            ViewDefinition(
-                name=name,
-                load_data=_load_centroid_dmd,
-                renderer=renderer,
-                epoch_source_analyzer=None,
-                required_analyzers=_dmd_req,
-            )
-        )
 
     # --- Activation DMD views (REQ_117) ---
     # Per-site windowed DMD with peak-based regime detection and per-regime
