@@ -378,9 +378,7 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
                 name="attn_pattern",
                 compose=_compose_attn_pattern_activation,
                 period_axes=(1, 2),
-                description=(
-                    "attention pattern at (to=2, from=0) reshaped to (n_heads, p, p)"
-                ),
+                description=("attention pattern at (to=2, from=0) reshaped to (n_heads, p, p)"),
                 required_hooks=("blocks.0.attn.hook_pattern",),
             ),
             BasisProjectionSite(

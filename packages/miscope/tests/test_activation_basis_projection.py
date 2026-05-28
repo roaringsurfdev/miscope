@@ -47,7 +47,9 @@ PARITY_ATOL = 1e-5
 
 
 def _canon_available() -> bool:
-    checkpoint = CANON_VARIANT_DIR / "checkpoints" / f"checkpoint_epoch_{PARITY_EPOCH:05d}.safetensors"
+    checkpoint = (
+        CANON_VARIANT_DIR / "checkpoints" / f"checkpoint_epoch_{PARITY_EPOCH:05d}.safetensors"
+    )
     legacy_neuron = (
         CANON_VARIANT_DIR / "artifacts" / "neuron_freq_norm" / f"epoch_{PARITY_EPOCH:05d}.npz"
     )
@@ -84,7 +86,7 @@ def _ctx(p: int, sites) -> dict:
 
 def _run(cache: dict, sites, p: int) -> dict[str, np.ndarray]:
     analyzer = ActivationBasisProjectionAnalyzer()
-    return analyzer.analyze(ResolvedInputs(cache=cache), _ctx(p, sites))
+    return analyzer.analyze(ResolvedInputs(cache=cache), _ctx(p, sites))  # pyright: ignore[reportArgumentType]
 
 
 def test_empty_sites_returns_empty():
@@ -100,9 +102,7 @@ def test_2d_shapes_keys_and_marginal_dimensions():
     )
 
     fam = ModuloAddition1LayerFamily.__new__(ModuloAddition1LayerFamily)
-    sites = tuple(
-        s for s in fam.activation_basis_projection_sites if s.name == "mlp_out"
-    )
+    sites = tuple(s for s in fam.activation_basis_projection_sites if s.name == "mlp_out")
     p, d_mlp = 13, 16
     cache = _synthetic_cache(p, d_mlp=d_mlp)
     result = _run(cache, sites=sites, p=p)

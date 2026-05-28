@@ -110,9 +110,7 @@ def _project_site(
         return _project_1d(matrix, basis, period_axes[0])
     if len(period_axes) == 2:
         return _project_2d_with_marginals(matrix, basis, period_axes)
-    raise ValueError(
-        f"activation_basis_projection supports 1 or 2 period axes; got {period_axes}"
-    )
+    raise ValueError(f"activation_basis_projection supports 1 or 2 period axes; got {period_axes}")
 
 
 def _project_1d(
@@ -162,9 +160,7 @@ def _project_2d_with_marginals(
     magnitudes = np.sqrt(power)
 
     total = power.sum(axis=period_axes, keepdims=True)
-    fractional_power = np.where(
-        total > 0, power / np.maximum(total, 1e-12), np.zeros_like(power)
-    )
+    fractional_power = np.where(total > 0, power / np.maximum(total, 1e-12), np.zeros_like(power))
 
     flat_axis_size = magnitudes.shape[axis_a] * magnitudes.shape[axis_b]
     moved = np.moveaxis(magnitudes, (axis_a, axis_b), (-2, -1))
@@ -182,9 +178,7 @@ def _project_2d_with_marginals(
     # if axis_a < axis_b (which it is — period_axes is ordered (axis_a, axis_b)
     # with axis_a < axis_b by construction in our family declarations).
     marginal_a_axis_b = axis_b - 1 if axis_a < axis_b else axis_b
-    marginal_a_result = project_onto_fourier_basis(
-        marginal_a, basis, period_axis=marginal_a_axis_b
-    )
+    marginal_a_result = project_onto_fourier_basis(marginal_a, basis, period_axis=marginal_a_axis_b)
 
     marginal_b = matrix.mean(axis=axis_b)
     marginal_b_result = project_onto_fourier_basis(marginal_b, basis, period_axis=axis_a)

@@ -50,8 +50,8 @@ for v in variants:
 # %% run analysis
 results = []
 exclude_list = []
-include_list = ['p113_seed999_dseed598']
-#include_list = ["p109_seed485_dseed598"]
+include_list = ["p113_seed999_dseed598"]
+# include_list = ["p109_seed485_dseed598"]
 for i, variant in enumerate(variants):
     print(f"\n{'=' * 60}")
     print(f"[{i + 1}/{len(variants)}] {variant.name}")

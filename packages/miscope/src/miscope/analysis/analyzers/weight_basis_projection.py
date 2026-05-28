@@ -90,9 +90,7 @@ def _project_site(
         return _project_1d(matrix, basis, period_axes[0])
     if len(period_axes) == 2:
         return _project_2d(matrix, basis, period_axes)
-    raise ValueError(
-        f"weight_basis_projection supports 1 or 2 period axes; got {period_axes}"
-    )
+    raise ValueError(f"weight_basis_projection supports 1 or 2 period axes; got {period_axes}")
 
 
 def _project_1d(
@@ -144,9 +142,7 @@ def _project_2d(
 
     # Fractional power sums to 1 over the joint (k_a, k_b) plane per unit.
     total = power.sum(axis=period_axes, keepdims=True)
-    fractional_power = np.where(
-        total > 0, power / np.maximum(total, 1e-12), np.zeros_like(power)
-    )
+    fractional_power = np.where(total > 0, power / np.maximum(total, 1e-12), np.zeros_like(power))
 
     # Dominant (k_a, k_b) per non-period unit. argmax over the joint plane
     # by flattening period_axes; recover the pair via unravel_index.

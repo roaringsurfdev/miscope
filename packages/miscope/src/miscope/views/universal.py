@@ -149,9 +149,7 @@ def _adapt_attention_fourier_legacy(art: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _adapt_embedding_coefficients_legacy(
-    cos_coeffs: Any, sin_coeffs: Any
-) -> Any:
+def _adapt_embedding_coefficients_legacy(cos_coeffs: Any, sin_coeffs: Any) -> Any:
     """Reconstruct the legacy ``dominant_frequencies`` ``coefficients`` shape from
     ``weight_basis_projection`` embedding-site cos/sin coefficients (REQ_127).
 
@@ -205,13 +203,11 @@ def _register_all() -> None:
     # shifts (~0.99 Pearson) are absorbed by the renderer's
     # 0-1 colorscale normalization.
 
-    _abp_per_epoch_req = [
-        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH)
-    ]
+    _abp_per_epoch_req = [AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH)]
 
     def _make_activation_freq_loader(site: str, output_key: str) -> Any:
         def loader(variant: Variant, epoch: int | None) -> dict:
-            art = variant.artifacts.load_epoch("activation_basis_projection", epoch)
+            art = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # pyright: ignore[reportArgumentType]
             return _adapt_activation_freq_legacy(art, site, output_key)
 
         return loader
@@ -219,14 +215,10 @@ def _register_all() -> None:
     def _render_freq_clusters(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_freq_clusters(data, epoch=epoch or 0, **kwargs)
 
-    def _render_neuron_freq_distribution(
-        data: Any, epoch: int | None, **kwargs: Any
-    ) -> go.Figure:
+    def _render_neuron_freq_distribution(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_neuron_freq_distribution(data, epoch=epoch or 0, **kwargs)
 
-    def _render_attention_freq_heatmap(
-        data: Any, epoch: int | None, **kwargs: Any
-    ) -> go.Figure:
+    def _render_attention_freq_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         return viz.render_attention_freq_heatmap(data, epoch=epoch or 0, **kwargs)
 
     for name, render_fn, site, output_key in [
@@ -265,7 +257,7 @@ def _register_all() -> None:
     # expects. DC term is zero (new analyzer omits it).
 
     def _load_embedding_fourier_coefficients(variant: Variant, epoch: int | None) -> dict:
-        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)  # pyright: ignore[reportArgumentType]
         return {
             "coefficients": _adapt_embedding_coefficients_legacy(
                 art["embedding_cos_coeffs"], art["embedding_sin_coeffs"]
@@ -283,9 +275,7 @@ def _register_all() -> None:
             load_data=_load_embedding_fourier_coefficients,
             renderer=_render_embedding_fourier_coefficients,
             epoch_source_analyzer="weight_basis_projection",
-            required_analyzers=[
-                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)
-            ],
+            required_analyzers=[AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)],
         )
     )
 
@@ -313,8 +303,6 @@ def _register_all() -> None:
     # the legacy-shaped per-head fraction matrix.
 
     def _load_attention_freq_clusters_summary(variant: Variant, epoch: int | None) -> dict:
-        import numpy as _np
-
         # Selective load: only the attn_pattern power keys the adapter reads.
         # Loading all keys would stack the (d_mlp, n_freq, n_freq) mlp_out
         # cubes across every epoch — multi-GB, OOM (REQ_127).
@@ -328,9 +316,7 @@ def _register_all() -> None:
         )
         # _adapt_activation_freq_legacy returns (n_epochs, n_freq, n_heads)
         # for stacked input.
-        adapted = _adapt_activation_freq_legacy(
-            art, "attn_pattern", "freq_matrix"
-        )["freq_matrix"]
+        adapted = _adapt_activation_freq_legacy(art, "attn_pattern", "freq_matrix")["freq_matrix"]
         max_frac_per_head = adapted.max(axis=1)  # (n_epochs, n_heads)
         return {
             "epochs": art["epochs"],
@@ -864,7 +850,7 @@ def _register_all() -> None:
     # analyzer's attn_qk / attn_v outputs via `_adapt_attention_fourier_legacy`.
 
     def _load_attention_fourier_per_epoch(variant: Variant, epoch: int | None) -> dict:
-        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)  # pyright: ignore[reportArgumentType]
         return _adapt_attention_fourier_legacy(art)
 
     def _load_attention_fourier_stacked(variant: Variant, epoch: int | None) -> dict:

@@ -25,7 +25,7 @@ REFERENCE_VARIANTS = [
     (113, 999, 598, "canon model"),
     (109, 485, 598, "fast clean grokker"),
     (101, 999, 598, "late grokker"),
-    #(59, 485, 999, "no_second_descent (most degraded)"),
+    # (59, 485, 999, "no_second_descent (most degraded)"),
 ]
 
 FAMILY = "modulo_addition_1layer"
