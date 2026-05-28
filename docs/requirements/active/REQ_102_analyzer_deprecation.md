@@ -192,6 +192,40 @@ of 2026-05-28, p113 and p101 have been re-analyzed with the new analyzer set, bu
 gate (it forces a WSL restart to free memory — see REQ_128 field evidence).
 **Pause before closing any REQ_126-gated retirement until p109 is refreshed.**
 
+### Analyzer-dependency audit (2026-05-28, second pass) — 2 of 6 REQ_126-gated retirements deferred
+
+A producer/consumer audit of the analyzer dependency graph (the first audit
+checked views/families/scripts but not analyzer-to-analyzer `ArtifactInput` /
+`requires`) found that **two of the six REQ_126-gated analyzers are still
+load-bearing producers for *surviving* analyzers.** REQ_127 migrated *views*,
+not these analyzer deps. Gotcha: an artifact's name can differ from its
+file/class name (`neuron_freq_clusters` registers as `neuron_freq_norm`).
+
+| Retiring analyzer | Artifact name | Surviving analyzer consumers |
+|---|---|---|
+| `neuron_freq_clusters` | `neuron_freq_norm` | `neuron_dynamics`, `freq_group_weight_geometry`, `neuron_group_pca` (all `ArtifactInput`/`requires`) |
+| `dominant_frequencies` | `dominant_frequencies` | `fourier_frequency_quality` (`depends_on` + `ArtifactInput`) |
+
+Those consumers are themselves future-consolidation targets (Atlas: the
+neuron-group analyzers fold into a planned consolidation; `fourier_frequency_quality`
+is retained). Re-pointing them to the basis-projection replacements is a real
+refactor with parity implications — out of REQ_102's "don't bundle retirement
+with refactor" scope.
+
+**Decision: defer these two.** Retire the four with no surviving analyzer
+consumers — `coarseness`, `attention_fourier`, `neuron_fourier`, `attention_freq`.
+`neuron_freq_clusters` and `dominant_frequencies` wait on a consumer-migration
+step (re-point the 4 consumers to `activation_basis_projection` /
+`weight_basis_projection`), tracked as follow-up (candidate: its own REQ or the
+neuron-group consolidation).
+
+**Regression checksums:** `run_regression_check.py` excludes `coarseness`
+already, but `attention_freq` / `attention_fourier` / `neuron_fourier` are in
+`regression/reference_checksums.json` — retiring them requires a checksum regen
+(a pipeline run on the user's side, like p109). `run_analysis_regression.py` is
+registry-driven and auto-adapts; the hardcoded `run_regression_check.py` set is
+updated by hand as part of each retirement.
+
 ### Downstream handoff: Centroid Trajectory view (2026-05-28)
 
 Retiring `centroid_dmd` removes `renderers/dmd.py`, whose
