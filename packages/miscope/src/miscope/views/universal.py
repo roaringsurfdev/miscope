@@ -315,7 +315,17 @@ def _register_all() -> None:
     def _load_attention_freq_clusters_summary(variant: Variant, epoch: int | None) -> dict:
         import numpy as _np
 
-        art = variant.artifacts.load_epochs("activation_basis_projection")
+        # Selective load: only the attn_pattern power keys the adapter reads.
+        # Loading all keys would stack the (d_mlp, n_freq, n_freq) mlp_out
+        # cubes across every epoch — multi-GB, OOM (REQ_127).
+        art = variant.artifacts.load_epochs(
+            "activation_basis_projection",
+            fields=[
+                "attn_pattern_power",
+                "attn_pattern_axis_a_marginal_power",
+                "attn_pattern_axis_b_marginal_power",
+            ],
+        )
         # _adapt_activation_freq_legacy returns (n_epochs, n_freq, n_heads)
         # for stacked input.
         adapted = _adapt_activation_freq_legacy(
@@ -847,7 +857,12 @@ def _register_all() -> None:
         return _adapt_attention_fourier_legacy(art)
 
     def _load_attention_fourier_stacked(variant: Variant, epoch: int | None) -> dict:
-        art = variant.artifacts.load_epochs("weight_basis_projection")
+        # Selective load: only the attn magnitude keys the adapter reads
+        # (avoid stacking the full weight_basis_projection per epoch).
+        art = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["attn_qk_magnitudes", "attn_v_magnitudes"],
+        )
         out = _adapt_attention_fourier_legacy(art)
         out["epochs"] = art["epochs"]
         return out
@@ -918,7 +933,11 @@ def _register_all() -> None:
         from miscope.analysis.band_concentration import compute_rank_alignment_trajectory
 
         cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
-        wbp_epochs = variant.artifacts.load_epochs("weight_basis_projection")
+        # Selective load: only the embedding cos/sin keys the adapter reads.
+        wbp_epochs = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["embedding_cos_coeffs", "embedding_sin_coeffs"],
+        )
         coeff_epochs = {
             "epochs": wbp_epochs["epochs"],
             "coefficients": _adapt_embedding_coefficients_legacy(
@@ -1042,7 +1061,11 @@ def _register_all() -> None:
     # (via legacy adapter) and effective_dimensionality → weight_spectra.
 
     def _load_multi_stream_specialization(variant: Variant, _epoch: int | None) -> dict:
-        wbp_stacked = variant.artifacts.load_epochs("weight_basis_projection")
+        # Selective load: only the attn magnitude keys the adapter reads.
+        wbp_stacked = variant.artifacts.load_epochs(
+            "weight_basis_projection",
+            fields=["attn_qk_magnitudes", "attn_v_magnitudes"],
+        )
         attn_legacy = _adapt_attention_fourier_legacy(wbp_stacked)
         attn_legacy["epochs"] = wbp_stacked["epochs"]
         return {
