@@ -634,6 +634,14 @@ def _register_all() -> None:
     def _load_repr_geometry_summary(variant: Variant, _epoch: int | None) -> dict:
         return variant.artifacts.load_summary("repr_geometry")
 
+    # REQ_127 Phase B: the timeseries panel's Fourier-alignment trace was
+    # defused out of repr_geometry into centroid_fourier_alignment (REQ_126
+    # PR 3). Compose the two sources so the renderer sees one flat summary.
+    def _load_geometry_timeseries(variant: Variant, _epoch: int | None) -> dict:
+        from miscope.views.dataviews import RepresentationGeometryTimeseries
+
+        return RepresentationGeometryTimeseries.from_variant(variant).as_summary_dict()
+
     def _render_geometry_timeseries(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", None)
         return viz.render_geometry_timeseries(data, site=site, current_epoch=epoch)
@@ -641,10 +649,13 @@ def _register_all() -> None:
     _catalog.register(
         ViewDefinition(
             name="geometry.timeseries",
-            load_data=_load_repr_geometry_summary,
+            load_data=_load_geometry_timeseries,
             renderer=_render_geometry_timeseries,
             epoch_source_analyzer=None,
-            required_analyzers=[AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY)],
+            required_analyzers=[
+                AnalyzerRequirement("repr_geometry", ArtifactKind.SUMMARY),
+                AnalyzerRequirement("centroid_fourier_alignment", ArtifactKind.EPOCH),
+            ],
         )
     )
 
