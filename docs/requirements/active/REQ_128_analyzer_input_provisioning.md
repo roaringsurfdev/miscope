@@ -1,6 +1,6 @@
 # REQ_128: Analyzer Input Provisioning — Lazy Accessor vs. Eager Materialization
 
-**Status:** Active — design decided 2026-05-28. Conditions of satisfaction below; ready for implementation after REQ_102 (see Ordering).
+**Status:** Implementation complete + validated on `feature/req-128-analyzer-input-provisioning` (2026-05-28) — awaiting merge approval to `develop`. All CoS met except the legacy-`category` cull, **deferred to REQ_129** (it is coupled to the legacy registry-coexistence layer, not input-path-isolated — see Cull CoS). Parity (rtol=1e-3) and p101 memory validation passed (see Validation).
 **Priority:** High — foundational. Establishes the input contract that **all** analyzers (new and rewritten) implement going forward; the eager-materialization pattern is also a standing memory-pressure source that compounds as analyzers chain and as artifacts grow more granular.
 **Branch:** `feature/req-128-analyzer-input-provisioning` (off `develop`). Design exploration originated on `feature/generic_analyzer` (parked).
 **Dependencies:**
@@ -59,7 +59,7 @@ Evidence that grounded the decision and sizes the work:
 - **The eager cross-epoch / summary materialization is dead.** `_materialize_cross_epoch_inputs` → `_best_effort_load_all_epochs` eagerly calls `loader.load_epochs(name)` **with no `fields=`** (full stack) into `cross_epoch_artifacts` / `summary_artifacts`. **Zero** analyzers read those fields. This is the `all_epochs` granular-cube path — the prime memory suspect — loading the whole stack into a container nobody reads.
 - **The eager per-epoch dict has 5 readers** (`inputs.artifacts[...]`, all `scope="epoch"`). `ArtifactLoader.load_epoch` (single epoch) **lacks** a `fields=` lever today; that gap closes here.
 - **Declaration breakdown:** 16 analyzers declare `ArtifactInput`; 14 `all_epochs` (all on `output_scope="cross_epoch"`), 5 `epoch`, 0 `summary`.
-- **The contract is already unified.** **0 of 34** analyzers author the legacy `category=` Spec style; 32 are unified, 2 have no Spec. The REQ_120/121 coexistence layer (`category` authoring, `is_unified`, the `if not spec.inputs` legacy branches) is dead and co-located — culled here.
+- **The contract is already unified.** **0 of 34** analyzers author the legacy `category=` Spec style; 32 are unified, 2 have no Spec. The REQ_120/121 coexistence layer (`category` authoring, `is_unified`, the `if not spec.inputs` legacy branches) is production-dead. *Correction (2026-05-28, during impl):* it is **not** input-path-isolated — it is the live target of the legacy `AnalyzerRegistry.register*` synthesis methods (test-exercised), so its cull is **deferred to REQ_129** with that whole coexistence layer rather than done here. See the Cull CoS below.
 - **Model side is small and separable:** 7 analyzers read `inputs.cache`, 7 read `inputs.model`. Out of scope for this REQ (see Constraints).
 
 **Resolutions to the original open questions:**
@@ -146,7 +146,7 @@ This lock **supersedes** any manifest-based `fields`-validation language elsewhe
 
 - [ ] `_materialize_cross_epoch_inputs`, `_best_effort_load_all_epochs`, and the eager `_materialize_per_epoch_inputs` artifact-loading branches are removed/replaced by accessor construction.
 - [ ] The REQ_127 Phase A.2f reference-nulling band-aid (`inputs = result = summary = None` before `del`) is removed once lazy provisioning makes it unnecessary, with a note confirming GPU/CPU memory still releases per epoch.
-- [ ] The dead legacy `category`-authoring scaffolding co-located on the input path is removed: `AnalyzerSpec.category` authoring + `is_unified` + `effective_*` legacy branches + the `if not spec.inputs` paths in the pipeline. (Unrelated dead code → REQ_129.)
+- [x] ~~The dead legacy `category`-authoring scaffolding co-located on the input path is removed.~~ **Deferred to REQ_129 (2026-05-28).** Implementation found this scaffolding is *not* input-path-isolated: `is_unified` / `effective_*` / `if not spec.inputs` are the live consumers of Specs **synthesized by the legacy `AnalyzerRegistry.register` / `register_secondary` / `register_cross_epoch` back-compat methods** (production-dead — all analyzers use `@register_analyzer` — but exercised by `test_spec_registry.py` and `test_secondary_analyzers.py`). Removing it cleanly = retiring the whole REQ_120/121 registry-coexistence layer (registry APIs + those test suites), which is REQ_129's "broader scaffolding" track. The residual `if not spec.inputs` branch is harmless to the unified path (never taken by a real analyzer). Per the REQ_128↔REQ_129 split, this belongs in REQ_129.
 
 ### Analyzer migration (all survivors)
 
@@ -156,8 +156,15 @@ This lock **supersedes** any manifest-based `fields`-validation language elsewhe
 
 ### Validation
 
-- [ ] Parity: re-analysis of the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) produces artifacts matching the pre-change outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). Shape-of-behavior changes are findings, not noise.
-- [ ] Memory: re-analyze `p101/s999/ds598` and record **RSS vs. system page-cache separately** (`/proc/<pid>` vs system cache) before/after. The redesign is justified architecturally regardless; this measurement *calibrates the memory claim* and tells us whether residual climb is WSL2 page-cache (environmental) rather than Python retention. A clean architectural follow-up on remaining memory pressure, if any, is a separate track.
+- [x] Parity: re-analysis matches pre-change outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). **PASS (2026-05-28).** Via `scripts/run_regression_check.py` against the develop baseline (`tests/regression/reference_checksums.json`, commit `3f406f3`):
+  - Deterministic analyzers (e.g. `neuron_dynamics`, `neuron_group_pca`, and *all* p113 migrated analyzers) reproduce the baseline **byte-identically**.
+  - SVD/PCA-heavy migrated analyzers (`parameter_trajectory`, `global_centroid_pca`) byte-differ on p101 but match develop **within `rtol=1e-3` (0 keys out of tolerance)** — confirmed by re-deriving in-process (deterministic, run1==run2) on byte-identical `parameter_snapshot` input. The byte-diff is cross-process threaded-BLAS/SVD float noise, exactly the case `rtol=1e-3` covers. Migration loading is provably behavior-preserving (`deps.load_epoch(fields=ALL)` ≡ the old `loader.load_epoch`).
+- [x] Memory: re-analyzed `p101/s999/ds598` (352 checkpoints) under `/usr/bin/time -v` + a `/proc` RSS/page-cache time-series. **Result:** peak RSS **≈5.14 GB (bounded)**, while system page-cache grew **~5.4 GB** (6.2→11.6 GB) over the run. So the previously-observed "non-releasing climb" is **substantially WSL2 page-cache (environmental)**, with Python RSS bounded — the eager duplicate full-stack load is structurally gone. Residual RSS pressure is dominated by `parameter_trajectory` loading all weight matrices × all epochs (`fields=ALL`); trimming that (per-group selective fields, or `stream`) is a clean follow-up track, not REQ_128.
+
+**Regression-tooling findings (pre-existing; surfaced during validation — candidates for REQ_119/REQ_129):**
+1. `run_regression_check.py --force` hard-`raise`s on a cross-epoch→cross-epoch dependency (computes `blocked_by` before the upstream's `cross_epoch.npz` exists). Needs the planner's noted-but-unbuilt "raise vs skip" knob (REQ_119). Two-pass run is the workaround.
+2. The baseline contains 7 analyzers the check script's `run_pipeline` no longer registers (activation_basis_projection, centroid_fourier_alignment, neuron_grouping, weight_basis_projection, weight_spectra, activation_dmd, parameter_dmd) → spurious MISSING; baseline/script drift to reconcile.
+3. The check uses **byte-identity (sha256)**, which is too strict for SVD-heavy analyzers (cross-process float non-determinism, e.g. `repr_geometry`, `parameter_trajectory`). Parity should be `rtol`-based per [[feedback_req126_float64_parity]].
 
 ---
 
