@@ -1,6 +1,6 @@
 # REQ_128: Analyzer Input Provisioning — Lazy Accessor vs. Eager Materialization
 
-**Status:** Implementation complete + validated on `feature/req-128-analyzer-input-provisioning` (2026-05-28) — awaiting merge approval to `develop`. All CoS met except the legacy-`category` cull, **deferred to REQ_129** (it is coupled to the legacy registry-coexistence layer, not input-path-isolated — see Cull CoS). Parity (rtol=1e-3) and p101 memory validation passed (see Validation).
+**Status:** Completed — merged to `develop` 2026-05-29 (merge `022b48e`; tail-end fix `7eee9e6` keyed cross-epoch reducers to `inputs.epochs`). All CoS met except the legacy-`category` cull, **deferred to REQ_129** (it is coupled to the legacy registry-coexistence layer, not input-path-isolated — see Cull CoS). Parity (rtol=1e-3) and p101 memory validation passed (see Validation). The stale-upstream IndexError surfaced at close-out is the *root-cause* (not axis-keying) half of the regression; it is owned by **REQ_131** (consumer migration off the frozen `neuron_freq_norm` upstream), where its CoS test lives.
 **Priority:** High — foundational. Establishes the input contract that **all** analyzers (new and rewritten) implement going forward; the eager-materialization pattern is also a standing memory-pressure source that compounds as analyzers chain and as artifacts grow more granular.
 **Branch:** `feature/req-128-analyzer-input-provisioning` (off `develop`). Design exploration originated on `feature/generic_analyzer` (parked).
 **Dependencies:**
