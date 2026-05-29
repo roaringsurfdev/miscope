@@ -39,8 +39,12 @@ class NeuronDynamicsAnalyzer:
     ) -> dict[str, np.ndarray]:
         """Compute neuron frequency dynamics across all epochs."""
         assert inputs.deps is not None
-        stacked = inputs.deps.load_stack("neuron_freq_norm", fields=["norm_matrix"])
-        epochs = list(stacked["epochs"])
+        assert inputs.epochs is not None
+        # Key to the run's analyzed epochs (not whatever neuron_freq_norm files
+        # happen to exist on disk) so the output epoch axis stays aligned with
+        # the other per-checkpoint analyzers that downstream summaries index by.
+        epochs = list(inputs.epochs)
+        stacked = inputs.deps.load_stack("neuron_freq_norm", epochs=epochs, fields=["norm_matrix"])
 
         norm_matrix = stacked["norm_matrix"]  # (n_epochs, n_freq, d_mlp)
         n_epochs, n_freq, d_mlp = norm_matrix.shape

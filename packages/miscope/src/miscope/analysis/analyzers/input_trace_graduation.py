@@ -57,19 +57,21 @@ class InputTraceGraduationAnalyzer:
             Dict with 'graduation_epochs', 'epochs', 'split'
         """
         assert inputs.deps is not None
+        assert inputs.epochs is not None
         min_stable_window = 3
+        sorted_epochs = sorted(inputs.epochs)
 
-        # True per-epoch reducer: stream input_trace, keeping only the per-epoch
-        # correctness row (not the whole artifact). `split` is constant across
-        # epochs — captured once.
+        # True per-epoch reducer: stream input_trace at the run's analyzed epochs,
+        # keeping only the per-epoch correctness row (not the whole artifact).
+        # `split` is constant across epochs — captured once.
         split: np.ndarray | None = None
         correct_rows: list[np.ndarray] = []
-        sorted_epochs: list[int] = []
-        for epoch, artifact in inputs.deps.stream("input_trace", fields=["split", "correct"]):
+        for _epoch, artifact in inputs.deps.stream(
+            "input_trace", epochs=sorted_epochs, fields=["split", "correct"]
+        ):
             if split is None:
                 split = artifact["split"]  # (p²,)
             correct_rows.append(artifact["correct"])
-            sorted_epochs.append(int(epoch))
 
         assert split is not None
         correct_matrix = np.array(correct_rows, dtype=bool)  # (n_epochs, n_pairs)

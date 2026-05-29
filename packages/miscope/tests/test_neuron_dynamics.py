@@ -141,6 +141,22 @@ class TestNeuronDynamicsAnalyzer:
         """NeuronDynamicsAnalyzer is registered as a cross-epoch analyzer."""
         assert AnalyzerRegistry.get_spec("neuron_dynamics").effective_category == "cross_epoch"
 
+    def test_keys_to_inputs_epochs_not_all_available(
+        self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
+    ):
+        """Regression (REQ_128): output is keyed to the run's analyzed epochs
+        (``inputs.epochs``), not to whatever neuron_freq_norm files exist on
+        disk. If it keyed to all-available, the epoch axis could diverge from
+        other per-checkpoint analyzers and overrun downstream index lookups
+        (the variant_analysis_summary IndexError on non-dense re-analysis)."""
+        artifacts_dir, epochs, _ = artifacts_with_neuron_freq_norm
+        subset = epochs[:3]  # analyze fewer epochs than exist on disk
+        result = NeuronDynamicsAnalyzer().analyze(
+            store_inputs(artifacts_dir, epochs=tuple(subset)), context={}
+        )
+        np.testing.assert_array_equal(result["epochs"], subset)
+        assert result["max_frac"].shape[0] == len(subset)
+
     def test_analyze_across_epochs(
         self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
     ):

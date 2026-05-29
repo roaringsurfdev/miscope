@@ -109,6 +109,8 @@ class ParameterDMD:
                 artifacts are absent.
         """
         assert inputs.deps is not None
+        assert inputs.epochs is not None
+        epochs = list(inputs.epochs)
 
         reference_epoch = self._resolve_reference_epoch(inputs.deps, context)
         grouping = inputs.deps.load_epoch(
@@ -121,9 +123,11 @@ class ParameterDMD:
         n_per_group = np.asarray(grouping["n_per_group"], dtype=np.int64)
         populated_groups = np.where(n_per_group > 0)[0].astype(np.int64)
 
-        # Load weight trajectories selectively (parameter_snapshot is large).
-        snapshots = inputs.deps.load_stack("parameter_snapshot", fields=["W_in", "W_out"])
-        epochs = list(snapshots["epochs"])
+        # Load weight trajectories selectively (parameter_snapshot is large), keyed
+        # to the run's analyzed epochs to keep the trajectory axis well-defined.
+        snapshots = inputs.deps.load_stack(
+            "parameter_snapshot", epochs=epochs, fields=["W_in", "W_out"]
+        )
         # snapshots["W_in"] shape:  (n_epochs, d_model, d_mlp)
         # snapshots["W_out"] shape: (n_epochs, d_mlp, d_model)
         w_in_traj = np.asarray(snapshots["W_in"], dtype=np.float64)

@@ -104,28 +104,33 @@ class DepsAccessor:
         return self._loader.load_epoch(name, epoch, fields=_resolve_fields(fields))
 
     def stream(
-        self, name: str, *, fields: FieldSpec
+        self, name: str, *, fields: FieldSpec, epochs: list[int] | None = None
     ) -> Iterator[tuple[int, dict[str, np.ndarray]]]:
         """Iterate ``(epoch, dict)`` over a per-epoch upstream, one resident.
 
         Validation and scoping happen eagerly (at call time); iteration loads
-        one epoch at a time.
+        one epoch at a time. ``epochs`` restricts iteration to a specific set
+        (e.g. the analysis run's ``inputs.epochs``); default is every available
+        epoch of the upstream.
         """
         self._require_declared(name)
         self._require_per_epoch(name)
         resolved = _resolve_fields(fields)
-        return self._iter_epochs(name, resolved)
+        return self._iter_epochs(name, resolved, epochs)
 
-    def load_stack(self, name: str, *, fields: FieldSpec) -> dict[str, np.ndarray]:
+    def load_stack(
+        self, name: str, *, fields: FieldSpec, epochs: list[int] | None = None
+    ) -> dict[str, np.ndarray]:
         """Stacked ``(n_epochs, ...)`` arrays for a per-epoch upstream.
 
         Materializes the whole stack — named so the cost is legible at the
-        call site. Prefer :meth:`stream` when an epoch-by-epoch reduction
-        suffices.
+        call site. ``epochs`` restricts the stack to a specific set (e.g. the
+        run's ``inputs.epochs``); default is every available epoch. Prefer
+        :meth:`stream` when an epoch-by-epoch reduction suffices.
         """
         self._require_declared(name)
         self._require_per_epoch(name)
-        return self._loader.load_epochs(name, fields=_resolve_fields(fields))
+        return self._loader.load_epochs(name, epochs=epochs, fields=_resolve_fields(fields))
 
     def load_cross_epoch(self, name: str, *, fields: FieldSpec) -> dict[str, np.ndarray]:
         """The single ``cross_epoch.npz`` of a cross-epoch upstream.
@@ -154,9 +159,9 @@ class DepsAccessor:
     # ----- internals --------------------------------------------------------
 
     def _iter_epochs(
-        self, name: str, resolved: list[str] | None
+        self, name: str, resolved: list[str] | None, epochs: list[int] | None = None
     ) -> Iterator[tuple[int, dict[str, np.ndarray]]]:
-        for epoch in self._loader.get_epochs(name):
+        for epoch in sorted(epochs) if epochs is not None else self._loader.get_epochs(name):
             yield epoch, self._loader.load_epoch(name, epoch, fields=resolved)
 
     def _require_declared(self, name: str) -> None:

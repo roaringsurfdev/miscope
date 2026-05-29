@@ -52,14 +52,19 @@ class FakeDeps(DepsAccessor):
     def load_epoch(self, name: str, epoch: int, *, fields: FieldSpec) -> dict[str, Any]:
         return _select(self._pe[name][epoch], fields)
 
-    def stream(self, name: str, *, fields: FieldSpec) -> Iterator[tuple[int, dict[str, Any]]]:
-        for ep in sorted(self._pe[name]):
+    def stream(
+        self, name: str, *, fields: FieldSpec, epochs: list[int] | None = None
+    ) -> Iterator[tuple[int, dict[str, Any]]]:
+        eps = sorted(epochs) if epochs is not None else sorted(self._pe[name])
+        for ep in eps:
             yield ep, _select(self._pe[name][ep], fields)
 
-    def load_stack(self, name: str, *, fields: FieldSpec) -> dict[str, Any]:
-        epochs = sorted(self._pe[name])
-        selected = [_select(self._pe[name][ep], fields) for ep in epochs]
-        stacked: dict[str, Any] = {"epochs": np.array(epochs)}
+    def load_stack(
+        self, name: str, *, fields: FieldSpec, epochs: list[int] | None = None
+    ) -> dict[str, Any]:
+        eps = sorted(epochs) if epochs is not None else sorted(self._pe[name])
+        selected = [_select(self._pe[name][ep], fields) for ep in eps]
+        stacked: dict[str, Any] = {"epochs": np.array(eps)}
         for key in selected[0] if selected else []:
             stacked[key] = np.stack([s[key] for s in selected], axis=0)
         return stacked

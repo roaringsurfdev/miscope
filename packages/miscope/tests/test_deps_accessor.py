@@ -93,6 +93,17 @@ class TestVerbs:
         assert d["data"].shape == (3, 4)
         assert "extra" not in d
 
+    def test_load_stack_epochs_subset(self, deps):
+        # epochs= restricts the stack to the requested set (the run's
+        # inputs.epochs), not every available epoch.
+        d = deps.load_stack(PER_EPOCH, fields=["data"], epochs=[0, 200])
+        np.testing.assert_array_equal(d["epochs"], [0, 200])
+        assert d["data"].shape == (2, 4)
+
+    def test_stream_epochs_subset(self, deps):
+        seen = [e for e, _ in deps.stream(PER_EPOCH, fields=["data"], epochs=[100])]
+        assert seen == [100]
+
     def test_load_cross_epoch_selective(self, deps):
         d = deps.load_cross_epoch(CROSS_EPOCH, fields=["trajectory"])
         assert set(d) == {"trajectory"}
