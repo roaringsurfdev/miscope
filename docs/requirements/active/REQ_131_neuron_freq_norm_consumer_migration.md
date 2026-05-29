@@ -1,14 +1,14 @@
 # REQ_131: Migrate `neuron_freq_norm` consumers to `activation_basis_projection` (unblock `neuron_freq_clusters` retirement)
 
-**Status:** Stub — *problem statement + captured learnings; CoS to be developed.*
-**Priority:** Medium — unblocks the second REQ_102 deferral.
-**Branch:** TBD
+**Status:** CoS developed (2026-05-29) — implementation in progress. **Now unblocked:** REQ_128 merged to `develop` (`022b48e`), so the selective/lazy loading this migration needs is available.
+**Priority:** High — unblocks the second REQ_102 deferral *and* removes the root cause of the stale-upstream `IndexError` surfaced at REQ_128 close-out.
+**Branch:** `feature/req-131-neuron-freq-norm-consumer-migration` (off `develop`).
 **Dependencies:**
 - REQ_102 (Analyzer Deprecation — deferred the `neuron_freq_clusters` retirement because of these consumers).
-- **REQ_128 (Analyzer Input Provisioning — sequence *after*).** The re-point loads the granular `activation_basis_projection` cube; without REQ_128's selective/lazy loading the backbone consumers would re-import whole-artifact memory pressure (`load_epoch` has no `fields=` today).
+- **REQ_128 (Analyzer Input Provisioning — *now merged*).** The re-point loads the granular `activation_basis_projection` cube; REQ_128's selective (`fields=`) and streaming (`stream`) accessor is what keeps the backbone consumers from re-importing whole-artifact memory pressure (`load_epoch` had no `fields=` before REQ_128).
 - REQ_126 (provides `activation_basis_projection` and the bitwise-validated reconstruction).
 
-**Attribution:** Engineering Claude (stubbed 2026-05-28, from the REQ_102 analyzer-dependency audit).
+**Attribution:** Engineering Claude (stubbed 2026-05-28 from the REQ_102 analyzer-dependency audit; CoS developed 2026-05-29).
 
 ---
 
@@ -23,9 +23,60 @@
 - **Behavior-preserving.** Because the reconstructed `norm_matrix` is bitwise-identical, the consumers' outputs are unchanged — this defuses the "backbone, don't touch" risk; it is a safe re-point, not a behavioral change.
 - **The only real complication is loading**, hence the REQ_128 dependency: consumers currently `load_epoch("neuron_freq_norm")` (small); re-pointing to the granular `activation_basis_projection` artifact wants `fields=`/lazy loading to stay cheap.
 
+## Design (developed 2026-05-29, grounded in the code on `develop`)
+
+### Consumer inventory — 3 direct, 1 transitive (count correction)
+
+The problem statement names three consumers; the REQ_128 close-out narrative says "4 consumers." Reconciled against the code: there are **3 direct readers** of `neuron_freq_norm`, plus **1 transitive** reader that inherits the fix:
+
+| Analyzer | Read shape (current) | Migration |
+|---|---|---|
+| `neuron_dynamics` | `deps.load_stack("neuron_freq_norm", epochs=inputs.epochs, fields=["norm_matrix"])` — **full trajectory** | re-point + **stream** `activation_basis_projection` |
+| `neuron_group_pca` | `deps.load_epoch("neuron_freq_norm", reference_epoch, fields=["norm_matrix"])` — **reference epoch only** | re-point single `load_epoch` |
+| `freq_group_weight_geometry` | `deps.load_epoch("neuron_freq_norm", reference_epoch, fields=["norm_matrix"])` — **reference epoch only** | re-point single `load_epoch` |
+| `transient_frequency` | reads **`neuron_dynamics`** (not `neuron_freq_norm`) via `load_cross_epoch` | **no change** — inherits `neuron_dynamics`'s now-N-aligned output |
+
+So the migration touches **3 analyzers**; `transient_frequency` needs no edit but is part of the regression's blast radius and must be re-verified.
+
+### The shared reconstruction helper
+
+Promote `_reconstruct_legacy_neuron_freq_norm` (in `tests/test_activation_basis_projection.py`) to a library helper (e.g. `analysis/library/`). It rebuilds the legacy `norm_matrix` `(n_freq, d_mlp)` from `activation_basis_projection`'s `mlp_out` site at parity tolerance (rtol=1e-3, already validated). It needs three fields and the prime:
+- `mlp_out_power` `(d_mlp, K, K)`, `mlp_out_axis_a_marginal_power` `(d_mlp, K)`, `mlp_out_axis_b_marginal_power` `(d_mlp, K)`.
+- **`prime` is sourced from `context["params"]["prime"]`** — the same path `activation_basis_projection` uses; it is present in the cross-epoch analysis context, so the two consumers that don't currently read `prime` can.
+
+### Memory shape — why `neuron_dynamics` must `stream`, not `load_stack`
+
+`neuron_freq_norm` stored a small `(n_epochs, K, d_mlp)` matrix, so `load_stack` was cheap. `activation_basis_projection`'s `mlp_out_power` is a large `(d_mlp, K, K)` cube *per epoch*. `neuron_dynamics` must therefore **`stream`** `activation_basis_projection` over `inputs.epochs`, reconstruct the small `(K, d_mlp)` `norm_matrix` per epoch (discarding the big cube), and stack only the reconstructions — keeping one power cube resident at a time. This is exactly the REQ_128 streaming spine; using `load_stack` on the raw cube would re-import the whole-artifact memory pressure this REQ is meant to avoid. The two reference-epoch consumers use a single `load_epoch` (one cube), which is fine.
+
+### Layout note
+
+`activation_basis_projection` is `output_scope="per_epoch"`, so consumers use the per-epoch verbs (`load_epoch` / `stream`), **not** `load_cross_epoch`. `neuron_dynamics`'s own output (`output_scope="cross_epoch"`) and all its artifact keys (`epochs`, `dominant_freq`, `max_frac`, `switch_counts`, `commitment_epochs`) are **unchanged** — only the input source changes, so `transient_frequency`, `variant_analysis_summary`, and the views need no edits.
+
 ## Conditions of Satisfaction
 
-*(Deferred — stub. Develop after REQ_128: promote the reconstruction helper; re-point the three consumers' `ArtifactInput`/loads to `activation_basis_projection` (selective fields); verify their outputs are unchanged on canon; then hand the `neuron_freq_clusters` retirement back to REQ_102.)*
+### Reconstruction helper
+
+- [ ] `_reconstruct_legacy_neuron_freq_norm` is promoted from the test module to a shared library helper with a clear name, signature `(abp_result, prime, site_prefix="mlp_out") -> norm_matrix (n_freq, d_mlp)`, and a docstring stating the parity claim. The test module imports the promoted helper (no duplicated formula).
+- [ ] A unit test asserts the helper reproduces the legacy `neuron_freq_norm.norm_matrix` from `activation_basis_projection` on canon within `rtol=1e-3` (the existing `test_parity_neuron_freq_norm`, re-pointed at the library helper).
+
+### Consumer migration (3 direct)
+
+- [ ] `neuron_dynamics` declares `ArtifactInput("activation_basis_projection")` (drops `neuron_freq_norm`), **streams** it over `inputs.epochs` with `fields=["mlp_out_power", "mlp_out_axis_a_marginal_power", "mlp_out_axis_b_marginal_power"]`, reconstructs the per-epoch `norm_matrix`, and produces the **same output keys/shapes** as before. At most one power cube resident at a time (no `load_stack` of the raw cube).
+- [ ] `neuron_group_pca` and `freq_group_weight_geometry` declare `ArtifactInput("activation_basis_projection")` (drop `neuron_freq_norm`), read it at the reference epoch via a single `load_epoch` with the three power fields, reconstruct `norm_matrix`, and are otherwise unchanged.
+- [ ] Each migrated analyzer sources `prime` from `context["params"]["prime"]`; the `requires`/`ArtifactInput` declarations match actual reads (REQ_128 scope enforcement passes).
+- [ ] No surviving reference to the `neuron_freq_norm` artifact remains in any analyzer (grep-clean), unblocking REQ_102's deletion of `neuron_freq_clusters`.
+
+### Parity
+
+- [ ] On canon, the migrated `neuron_dynamics`, `neuron_group_pca`, and `freq_group_weight_geometry` outputs match their pre-migration outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). **Argmax caveat:** `neuron_dynamics` takes `argmax`/`max` over the frequency axis; near-tie neurons could flip on float-noise reconstruction. If any flips occur, confirm they are at genuine near-ties (frac difference within tolerance) and record as a finding, not a regression.
+
+### Regression (the close-out bug — root cause removed)
+
+- [ ] A CoS test reproduces the stale-upstream scenario and shows the migration removes the failure mode. See the scenario below. Because the active family **always** produces `activation_basis_projection` (it is not gated on the retired `neuron_freq_clusters`), the migrated `neuron_dynamics` emits an output keyed to `inputs.epochs` (all *N*), so `variant_analysis_summary` indexing completes without `IndexError`. The test asserts: (a) `neuron_dynamics` output epoch axis length == *N*; (b) `transient_frequency` (transitive) is *N*-aligned; (c) `variant_analysis_summary.analyze()` completes for the *N*-vs-*N* case.
+
+### Closure
+
+- [ ] Hand the `neuron_freq_clusters` retirement back to REQ_102 (it can delete the analyzer, its renderer, and the `neuron_freq_norm` producer once this lands).
 
 ### Regression scenario surfaced during REQ_128 (must be a CoS test)
 
