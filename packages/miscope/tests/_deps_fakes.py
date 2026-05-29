@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 
+from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.deps import ALL, DepsAccessor, FieldSpec
 from miscope.analysis.inputs import ResolvedInputs
 
@@ -89,3 +90,39 @@ def deps_inputs(
         cross_epoch=cross_epoch,
     )
     return ResolvedInputs(deps=deps, epoch=epoch, **kwargs)
+
+
+class PermissiveDeps(DepsAccessor):
+    """A real-loader DepsAccessor with scope enforcement disabled.
+
+    For integration-style cross-epoch tests that drive an analyzer against a
+    real on-disk store: the loader, fields validation, and layout checks are
+    real (high fidelity), but any upstream name is allowed. (Scope enforcement
+    is unit-tested in ``test_deps_accessor.py``.)
+    """
+
+    def _require_declared(self, name: str) -> None:  # noqa: ARG002 — allow any name
+        return
+
+
+def store_inputs(
+    artifacts_dir: str,
+    *,
+    epochs: tuple[int, ...] | None = None,
+    epoch: int | None = None,
+    **kwargs: Any,
+) -> ResolvedInputs:
+    """ResolvedInputs with a REAL (permissive) DepsAccessor over an on-disk store.
+
+    Drop-in for the legacy ``ResolvedInputs(artifacts_dir=..., epochs=...)``: it
+    also keeps ``artifacts_dir`` set, so analyzers not yet migrated onto ``deps``
+    continue to work through the migration.
+    """
+    deps = PermissiveDeps(ArtifactLoader(str(artifacts_dir)), frozenset())
+    return ResolvedInputs(
+        deps=deps,
+        epochs=epochs,
+        epoch=epoch,
+        artifacts_dir=str(artifacts_dir),
+        **kwargs,
+    )

@@ -6,6 +6,7 @@ import tempfile
 import numpy as np
 import plotly.graph_objects as go
 import pytest
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.transient_frequency import (
@@ -14,7 +15,6 @@ from miscope.analysis.analyzers.transient_frequency import (
     _pack_ragged,
     load_peak_members,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.transient_frequency import (
     render_transient_committed_counts,
     render_transient_pc1_cohesion,
@@ -171,7 +171,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         required_keys = [
@@ -195,7 +195,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         ever_q = result["ever_qualified_freqs"].tolist()
@@ -210,7 +210,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         ever_q = result["ever_qualified_freqs"].tolist()
@@ -225,7 +225,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         ever_q = result["ever_qualified_freqs"].tolist()
@@ -236,7 +236,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         n_ever_q = len(result["ever_qualified_freqs"])
@@ -246,7 +246,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         ever_q = result["ever_qualified_freqs"].tolist()
@@ -265,7 +265,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         for i in range(len(result["ever_qualified_freqs"])):
@@ -278,7 +278,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         for ep in result["peak_epoch"]:
@@ -288,7 +288,7 @@ class TestTransientFrequencyAnalyzer:
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient
         analyzer = TransientFrequencyAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+            store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
         )
 
         assert float(result["_neuron_threshold"]) == pytest.approx(0.70)
@@ -317,7 +317,7 @@ class TestTransientFrequencyAnalyzer:
 
             analyzer = TransientFrequencyAnalyzer()
             result = analyzer.analyze(
-                ResolvedInputs(artifacts_dir=tmpdir, epochs=tuple(epochs.tolist())), context={}
+                store_inputs(tmpdir, epochs=tuple(epochs.tolist())), context={}
             )
 
         assert len(result["ever_qualified_freqs"]) == 0

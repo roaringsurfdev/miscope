@@ -12,10 +12,10 @@ import tempfile
 
 import numpy as np
 import pytest
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers.activation_dmd import ActivationDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
@@ -663,7 +663,7 @@ class TestActivationDMDProtocol:
         assert ActivationDMD().name == "activation_dmd"
 
     def test_requires(self):
-        assert ActivationDMD().requires == ["repr_geometry"]
+        assert ActivationDMD().requires == ["global_centroid_pca"]
 
     def test_registered_in_registry(self):
         assert AnalyzerRegistry.get_spec("activation_dmd").effective_category == "cross_epoch"
@@ -673,21 +673,21 @@ class TestActivationDMDOutput:
     def test_returns_dict(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         assert isinstance(result, dict)
 
     def test_contains_epochs(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         np.testing.assert_array_equal(result["epochs"], epochs)
 
     def test_contains_namespaced_keys_per_site(self, artifacts_with_global_pca):
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         for site in _SITES:
             for stage_key in [
@@ -709,7 +709,7 @@ class TestActivationDMDOutput:
     def test_trajectory_shape(self, artifacts_with_global_pca):
         artifacts_dir, epochs, n_epochs, n_classes, n_components = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         state_dim = n_classes * n_components
         for site in _SITES:
@@ -718,7 +718,7 @@ class TestActivationDMDOutput:
     def test_windowed_dmd_shapes(self, artifacts_with_global_pca):
         artifacts_dir, epochs, n_epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         # Default window_size = 10, stride = 1 -> n_windows = n_epochs - 10 + 1 = 21
         expected_n_windows = n_epochs - 10 + 1
@@ -744,7 +744,7 @@ class TestActivationDMDOutput:
 
         epochs_list = list(short_data["epochs"].astype(int))
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs_list)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs_list)), {}
         )
         for site in _SITES:
             assert len(result[f"{site}__windowed__window_starts"]) == 1
@@ -753,7 +753,7 @@ class TestActivationDMDOutput:
         """Detected regime segments must partition [0, n_windows) exactly."""
         artifacts_dir, epochs, n_epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         n_windows = n_epochs - 10 + 1
         for site in _SITES:
@@ -768,7 +768,7 @@ class TestActivationDMDOutput:
         regime detection produced."""
         artifacts_dir, epochs, *_ = artifacts_with_global_pca
         result = ActivationDMD().analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         for site in _SITES:
             n_regimes = len(result[f"{site}__regimes__segment_starts"])
@@ -782,5 +782,5 @@ class TestActivationDMDOutput:
         np.savez_compressed(os.path.join(rg_dir, "epoch_00000.npz"), dummy=np.array([0]))
         with pytest.raises(FileNotFoundError, match="global_centroid_pca"):
             ActivationDMD().analyze(
-                ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple([0])), {}
+                store_inputs(artifacts_dir, epochs=tuple([0])), {}
             )

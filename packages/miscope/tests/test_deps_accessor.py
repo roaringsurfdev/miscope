@@ -131,6 +131,13 @@ class TestLayoutMismatch:
         with pytest.raises(ArtifactLayoutError, match="stream"):
             deps.load_cross_epoch(PER_EPOCH, fields=ALL)
 
+    def test_load_cross_epoch_absent_upstream_raises_filenotfound(self, store):
+        # A declared-but-wholly-absent upstream is a missing-data error, not a
+        # layout error (no per-epoch files exist to suggest stream/load_stack).
+        deps = DepsAccessor(ArtifactLoader(store), frozenset({"absent"}))
+        with pytest.raises(FileNotFoundError, match="absent"):
+            deps.load_cross_epoch("absent", fields=ALL)
+
 
 class TestFieldsContract:
     def test_fields_none_rejected(self, deps):

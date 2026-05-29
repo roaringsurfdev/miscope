@@ -27,7 +27,6 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -57,10 +56,10 @@ class TransientFrequencyAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """Compute transient frequency metrics from neuron_dynamics artifact."""
-        assert inputs.artifacts_dir is not None
-        artifacts_dir = inputs.artifacts_dir
-        loader = ArtifactLoader(artifacts_dir)
-        nd = loader.load_cross_epoch("neuron_dynamics")
+        assert inputs.deps is not None
+        nd = inputs.deps.load_cross_epoch(
+            "neuron_dynamics", fields=["dominant_freq", "max_frac", "epochs"]
+        )
 
         dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp)
         max_frac = nd["max_frac"]  # (n_epochs, d_mlp)

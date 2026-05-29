@@ -128,12 +128,17 @@ class DepsAccessor:
         return self._loader.load_epochs(name, fields=_resolve_fields(fields))
 
     def load_cross_epoch(self, name: str, *, fields: FieldSpec) -> dict[str, np.ndarray]:
-        """The single ``cross_epoch.npz`` of a cross-epoch upstream."""
+        """The single ``cross_epoch.npz`` of a cross-epoch upstream.
+
+        A *per-epoch* upstream (epoch files but no ``cross_epoch.npz``) raises
+        :class:`ArtifactLayoutError`. A wholly-absent upstream falls through to
+        ``ArtifactLoader.load_cross_epoch``, which raises ``FileNotFoundError``.
+        """
         self._require_declared(name)
-        if not self._loader.has_cross_epoch(name):
+        if not self._loader.has_cross_epoch(name) and self._loader.get_epochs(name):
             raise ArtifactLayoutError(
-                f"'{name}' has no cross_epoch.npz. Use stream()/load_stack() for a "
-                f"per-epoch upstream."
+                f"'{name}' has per-epoch artifacts, not a cross_epoch.npz. "
+                f"Use stream()/load_stack()."
             )
         return self._loader.load_cross_epoch(name, fields=_resolve_fields(fields))
 
