@@ -20,7 +20,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="fourier_frequency_quality",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("dominant_frequencies", scope="epoch"),),
+    inputs=(ArtifactInput("dominant_frequencies"),),
     produces_summary=True,
 )
 
@@ -56,7 +56,10 @@ class FourierFrequencyQualityAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """Compute frequency quality score for one epoch."""
-        artifact = inputs.artifacts["dominant_frequencies"]
+        assert inputs.deps is not None and inputs.epoch is not None
+        artifact = inputs.deps.load_epoch(
+            "dominant_frequencies", inputs.epoch, fields=["coefficients"]
+        )
         p = context["params"]["prime"]
         fourier_basis = context["fourier_basis"].cpu().numpy()  # (p, p)
         coefficients = artifact["coefficients"]  # (p,)

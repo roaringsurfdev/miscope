@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import plotly.graph_objects as go
 import pytest
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.neuron_dynamics import (
@@ -14,7 +15,6 @@ from miscope.analysis.analyzers.neuron_dynamics import (
     _compute_commitment_epochs,
     _compute_switch_counts,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_freq_clusters import (
     render_commitment_timeline,
     render_neuron_freq_trajectory,
@@ -141,6 +141,22 @@ class TestNeuronDynamicsAnalyzer:
         """NeuronDynamicsAnalyzer is registered as a cross-epoch analyzer."""
         assert AnalyzerRegistry.get_spec("neuron_dynamics").effective_category == "cross_epoch"
 
+    def test_keys_to_inputs_epochs_not_all_available(
+        self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
+    ):
+        """Regression (REQ_128): output is keyed to the run's analyzed epochs
+        (``inputs.epochs``), not to whatever neuron_freq_norm files exist on
+        disk. If it keyed to all-available, the epoch axis could diverge from
+        other per-checkpoint analyzers and overrun downstream index lookups
+        (the variant_analysis_summary IndexError on non-dense re-analysis)."""
+        artifacts_dir, epochs, _ = artifacts_with_neuron_freq_norm
+        subset = epochs[:3]  # analyze fewer epochs than exist on disk
+        result = NeuronDynamicsAnalyzer().analyze(
+            store_inputs(artifacts_dir, epochs=tuple(subset)), context={}
+        )
+        np.testing.assert_array_equal(result["epochs"], subset)
+        assert result["max_frac"].shape[0] == len(subset)
+
     def test_analyze_across_epochs(
         self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
     ):
@@ -148,7 +164,7 @@ class TestNeuronDynamicsAnalyzer:
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
         )
 
         assert "epochs" in result
@@ -174,7 +190,7 @@ class TestNeuronDynamicsAnalyzer:
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
         )
 
         # Neuron 2 switches once (freq 2 → 9 at epoch 300)

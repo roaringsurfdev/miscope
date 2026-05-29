@@ -1,6 +1,6 @@
 # REQ_128: Analyzer Input Provisioning — Lazy Accessor vs. Eager Materialization
 
-**Status:** Active — design decided 2026-05-28. Conditions of satisfaction below; ready for implementation after REQ_102 (see Ordering).
+**Status:** Implementation complete + validated on `feature/req-128-analyzer-input-provisioning` (2026-05-28) — awaiting merge approval to `develop`. All CoS met except the legacy-`category` cull, **deferred to REQ_129** (it is coupled to the legacy registry-coexistence layer, not input-path-isolated — see Cull CoS). Parity (rtol=1e-3) and p101 memory validation passed (see Validation).
 **Priority:** High — foundational. Establishes the input contract that **all** analyzers (new and rewritten) implement going forward; the eager-materialization pattern is also a standing memory-pressure source that compounds as analyzers chain and as artifacts grow more granular.
 **Branch:** `feature/req-128-analyzer-input-provisioning` (off `develop`). Design exploration originated on `feature/generic_analyzer` (parked).
 **Dependencies:**
@@ -59,7 +59,7 @@ Evidence that grounded the decision and sizes the work:
 - **The eager cross-epoch / summary materialization is dead.** `_materialize_cross_epoch_inputs` → `_best_effort_load_all_epochs` eagerly calls `loader.load_epochs(name)` **with no `fields=`** (full stack) into `cross_epoch_artifacts` / `summary_artifacts`. **Zero** analyzers read those fields. This is the `all_epochs` granular-cube path — the prime memory suspect — loading the whole stack into a container nobody reads.
 - **The eager per-epoch dict has 5 readers** (`inputs.artifacts[...]`, all `scope="epoch"`). `ArtifactLoader.load_epoch` (single epoch) **lacks** a `fields=` lever today; that gap closes here.
 - **Declaration breakdown:** 16 analyzers declare `ArtifactInput`; 14 `all_epochs` (all on `output_scope="cross_epoch"`), 5 `epoch`, 0 `summary`.
-- **The contract is already unified.** **0 of 34** analyzers author the legacy `category=` Spec style; 32 are unified, 2 have no Spec. The REQ_120/121 coexistence layer (`category` authoring, `is_unified`, the `if not spec.inputs` legacy branches) is dead and co-located — culled here.
+- **The contract is already unified.** **0 of 34** analyzers author the legacy `category=` Spec style; 32 are unified, 2 have no Spec. The REQ_120/121 coexistence layer (`category` authoring, `is_unified`, the `if not spec.inputs` legacy branches) is production-dead. *Correction (2026-05-28, during impl):* it is **not** input-path-isolated — it is the live target of the legacy `AnalyzerRegistry.register*` synthesis methods (test-exercised), so its cull is **deferred to REQ_129** with that whole coexistence layer rather than done here. See the Cull CoS below.
 - **Model side is small and separable:** 7 analyzers read `inputs.cache`, 7 read `inputs.model`. Out of scope for this REQ (see Constraints).
 
 **Resolutions to the original open questions:**
@@ -86,18 +86,33 @@ The per-epoch artifact layout from REQ_021f — `artifacts/{analyzer}/epoch_{NNN
 
 `ResolvedInputs` slims to: `epoch` (or `epochs` for cross-epoch), the model side (`model` / `cache` / `logits` / `probe`, unchanged), and a single scoped accessor (`deps`). The eager `artifacts` / `cross_epoch_artifacts` / `summary_artifacts` dicts and the raw `artifacts_dir` string all collapse into `deps`.
 
-`deps` is scoped to the analyzer's declared `ArtifactInput`s and exposes three verbs, each honest about its memory shape, all with **required `fields`** (verb names provisional):
+`deps` is scoped to the analyzer's declared `ArtifactInput`s and exposes four verbs, each honest about its memory shape, all with **required `fields`** (verb names locked 2026-05-28):
 
 | Verb | Shape | Memory | For |
 |---|---|---|---|
-| `deps.load_epoch(name, fields=[...])` | one epoch's dict (current epoch) | one epoch | per-epoch (`scope="epoch"`) readers |
-| `deps.stream(name, fields=[...])` | iterator yielding `(epoch, dict)` | one epoch at a time | reducers / trajectory metrics; async-upgradeable (the spine) |
-| `deps.load_stack(name, fields=[...])` | stacked `(n_epochs, …)` array | whole stack (named so the cost is legible at the call site) | SVD / PCA / DMD that need the full matrix resident |
+| `deps.load_epoch(name, epoch, *, fields=[...])` | one epoch's dict at the given epoch | one epoch | per-epoch readers; also reference-epoch reads inside cross-epoch analyzers |
+| `deps.stream(name, *, fields=[...])` | iterator yielding `(epoch, dict)` | one epoch at a time | reducers / trajectory metrics; async-upgradeable (the spine) |
+| `deps.load_stack(name, *, fields=[...])` | stacked `(n_epochs, …)` array | whole stack (named so the cost is legible at the call site) | SVD / PCA / DMD that need the full matrix resident |
+| `deps.load_cross_epoch(name, *, fields=[...])` | the upstream's single `cross_epoch.npz` dict | the one artifact | upstreams that are themselves cross-epoch analyzers (neuron_dynamics, neuron_group_pca, global_centroid_pca) |
 
-- **`fields` required**, with `fields="all"` (or an `ALL` sentinel) as the explicit "I need everything" escape hatch. Requested fields are **validated against the upstream's `manifest.json`** so a misspelling raises early, not at `np.stack`.
+The first three verbs are for **per-epoch** upstreams; `load_cross_epoch` is for **cross-epoch** upstreams. Calling a per-epoch verb on a cross-epoch upstream (or vice versa) raises a layout-mismatch error. `load_epoch` takes an **explicit epoch** so it serves both per-epoch analyzers' current-epoch reads and cross-epoch analyzers' reference-epoch reads.
+
+- **`fields` required**, with `fields="all"` (or an `ALL` sentinel) as the explicit "I need everything" escape hatch. Requested fields are **validated against the upstream artifact's actual on-disk field set** — read cheaply from the `.npz` index (`np.load(path).files`, no array load) — so a misspelling raises early, not at `np.stack`. (Declared *output schema* — semantic field descriptions, registry-load enforcement, drift detection — is **out of scope here and owned by REQ_107**; see Design lock below.)
 - **Scope-enforced:** `deps.<verb>("undeclared_name", …)` raises.
 - Underneath, `deps` is a thin wrapper over `ArtifactLoader` (still the storage primitive — invariant intact); the pipeline constructs it per-analyzer from `spec.inputs`.
 - `model` / `cache` / `logits` stay eager (they come from the forward pass the pipeline must run anyway; `ModelInput.needs_cache` already gates it).
+
+### Design lock (2026-05-28, post re-audit)
+
+A fresh re-audit against the **current 26-analyzer survivor surface** (REQ_102 partially landed; deferments → REQ_130/131) confirmed the thesis and refined it:
+
+- **Surface partitions cleanly into two patterns.** 4 analyzers read a `scope="epoch"` upstream via the eager `inputs.artifacts[name]` dict (neuron_grouping, weight_basis_projection, centroid_fourier_alignment, fourier_frequency_quality). 10 analyzers read `scope="all_epochs"` upstreams by rolling their own `ArtifactLoader(inputs.artifacts_dir)`. The eager `cross_epoch_artifacts` / `summary_artifacts` dicts have **zero readers** — pure waste (worst case: `parameter_dmd` triggers a full stack of all 9 `parameter_snapshot` weight matrices × all epochs, immediately discarded, then re-loads with `fields=["W_in","W_out"]`). This is the prime memory suspect, confirmed.
+- **`ArtifactInput.scope` is dropped.** The planner never reads it (`derive_required_artifacts` uses only the name; `derive_category` uses input *types* + `output_scope`); only the deleted eager `_materialize_*` paths consumed it. `ArtifactInput` collapses to `ArtifactInput("name")` — a pure dependency declaration; the verb at the call site determines access shape. The `"summary"` scope (0 users) and the `ArtifactScope` literal disappear.
+- **Field validation uses npz keys, not the manifest.** The manifest is left untouched. Declared output-schema infrastructure (explicit field/dtype/description declarations, registry-load enforcement, drift detection) belongs to **REQ_107**, which constrains schema to live *in code, not a parallel manifest* (REQ_107 CoS lines 34/37, Constraint 61). REQ_128 needs only a runtime "does this field exist in the data I'm loading?" check, satisfied cheaply by `np.load(path).files`. Future seam: once REQ_107 lands, the accessor may additionally cross-check requested fields against the *declared* schema. (If npz-key availability proves problematic at implementation time, reassess against this finding.)
+- **Undeclared-read reconciliation is in scope.** Migration reconciles each analyzer's `ArtifactInput` declarations with its *actual* reads. Confirmed instance: `activation_dmd` declares `repr_geometry` but actually reads `global_centroid_pca` via `load_cross_epoch` (the declaration is a planner-ordering fiction — see its line-58 comment); it must declare `global_centroid_pca`. Scope enforcement surfaces these.
+- **REQ_130/131 collision handled by keeping old upstream names.** The 4 analyzers still pointing at to-be-deprecated upstreams (`neuron_freq_norm` ← neuron_dynamics / neuron_group_pca / freq_group_weight_geometry; `dominant_frequencies` ← fourier_frequency_quality) are rewritten onto the accessor **keeping the old upstream name** this pass; REQ_130/131 re-point afterward. Keeps REQ_128 atomic to "the input contract changed."
+
+This lock **supersedes** any manifest-based `fields`-validation language elsewhere in this doc (the `manifest.json` validation bullets in the Resolutions and CoS sections).
 
 ---
 
@@ -107,13 +122,13 @@ The per-epoch artifact layout from REQ_021f — `artifacts/{analyzer}/epoch_{NNN
 
 - [ ] A scoped dependency accessor type exists, constructed by the pipeline per-analyzer from `spec.inputs`, wrapping `ArtifactLoader` (the storage primitive — no path composition leaks into the accessor's callers).
 - [ ] `ResolvedInputs` carries the accessor and drops the eager `artifacts`, `cross_epoch_artifacts`, `summary_artifacts` dicts and the raw `artifacts_dir` string.
-- [ ] The accessor exposes `load_epoch`, `stream`, and `load_stack` (names may change; the three shapes must exist), each requiring `fields`.
+- [ ] The accessor exposes `load_epoch`, `stream`, `load_stack`, and `load_cross_epoch` (the four shapes must exist), each requiring `fields`.
 
 ### `fields` discipline
 
 - [ ] `fields` is a required argument on every accessor verb; there is no implicit "load everything" default.
 - [ ] An explicit escape hatch (`fields="all"` or an `ALL` sentinel) loads all fields, legibly.
-- [ ] Requested fields are validated against the upstream artifact's `manifest.json`; an unknown field raises a clear error naming the artifact and the bad field.
+- [ ] Requested fields are validated against the upstream artifact's actual on-disk field set (read from the `.npz` index, no array load); an unknown field raises a clear error naming the artifact and the bad field. (Declared-schema validation is REQ_107, not here.)
 
 ### Streaming spine
 
@@ -124,13 +139,14 @@ The per-epoch artifact layout from REQ_021f — `artifacts/{analyzer}/epoch_{NNN
 ### Scope enforcement
 
 - [ ] Calling any accessor verb with an analyzer name not in the analyzer's declared `ArtifactInput`s raises.
+- [ ] Each migrated analyzer's `ArtifactInput` declarations match its actual reads (undeclared upstreams — e.g. `activation_dmd` → `global_centroid_pca` — are declared, not left as runtime reads).
 - [ ] A test (REQ_106-style) asserts the scoping holds for the registered analyzer set.
 
 ### Cull (input-provisioning path only)
 
 - [ ] `_materialize_cross_epoch_inputs`, `_best_effort_load_all_epochs`, and the eager `_materialize_per_epoch_inputs` artifact-loading branches are removed/replaced by accessor construction.
 - [ ] The REQ_127 Phase A.2f reference-nulling band-aid (`inputs = result = summary = None` before `del`) is removed once lazy provisioning makes it unnecessary, with a note confirming GPU/CPU memory still releases per epoch.
-- [ ] The dead legacy `category`-authoring scaffolding co-located on the input path is removed: `AnalyzerSpec.category` authoring + `is_unified` + `effective_*` legacy branches + the `if not spec.inputs` paths in the pipeline. (Unrelated dead code → REQ_129.)
+- [x] ~~The dead legacy `category`-authoring scaffolding co-located on the input path is removed.~~ **Deferred to REQ_129 (2026-05-28).** Implementation found this scaffolding is *not* input-path-isolated: `is_unified` / `effective_*` / `if not spec.inputs` are the live consumers of Specs **synthesized by the legacy `AnalyzerRegistry.register` / `register_secondary` / `register_cross_epoch` back-compat methods** (production-dead — all analyzers use `@register_analyzer` — but exercised by `test_spec_registry.py` and `test_secondary_analyzers.py`). Removing it cleanly = retiring the whole REQ_120/121 registry-coexistence layer (registry APIs + those test suites), which is REQ_129's "broader scaffolding" track. The residual `if not spec.inputs` branch is harmless to the unified path (never taken by a real analyzer). Per the REQ_128↔REQ_129 split, this belongs in REQ_129.
 
 ### Analyzer migration (all survivors)
 
@@ -140,8 +156,15 @@ The per-epoch artifact layout from REQ_021f — `artifacts/{analyzer}/epoch_{NNN
 
 ### Validation
 
-- [ ] Parity: re-analysis of the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) produces artifacts matching the pre-change outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). Shape-of-behavior changes are findings, not noise.
-- [ ] Memory: re-analyze `p101/s999/ds598` and record **RSS vs. system page-cache separately** (`/proc/<pid>` vs system cache) before/after. The redesign is justified architecturally regardless; this measurement *calibrates the memory claim* and tells us whether residual climb is WSL2 page-cache (environmental) rather than Python retention. A clean architectural follow-up on remaining memory pressure, if any, is a separate track.
+- [x] Parity: re-analysis matches pre-change outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). **PASS (2026-05-28).** Via `scripts/run_regression_check.py` against the develop baseline (`tests/regression/reference_checksums.json`, commit `3f406f3`):
+  - Deterministic analyzers (e.g. `neuron_dynamics`, `neuron_group_pca`, and *all* p113 migrated analyzers) reproduce the baseline **byte-identically**.
+  - SVD/PCA-heavy migrated analyzers (`parameter_trajectory`, `global_centroid_pca`) byte-differ on p101 but match develop **within `rtol=1e-3` (0 keys out of tolerance)** — confirmed by re-deriving in-process (deterministic, run1==run2) on byte-identical `parameter_snapshot` input. The byte-diff is cross-process threaded-BLAS/SVD float noise, exactly the case `rtol=1e-3` covers. Migration loading is provably behavior-preserving (`deps.load_epoch(fields=ALL)` ≡ the old `loader.load_epoch`).
+- [x] Memory: re-analyzed `p101/s999/ds598` (352 checkpoints) under `/usr/bin/time -v` + a `/proc` RSS/page-cache time-series. **Result:** peak RSS **≈5.14 GB (bounded)**, while system page-cache grew **~5.4 GB** (6.2→11.6 GB) over the run. So the previously-observed "non-releasing climb" is **substantially WSL2 page-cache (environmental)**, with Python RSS bounded — the eager duplicate full-stack load is structurally gone. Residual RSS pressure is dominated by `parameter_trajectory` loading all weight matrices × all epochs (`fields=ALL`); trimming that (per-group selective fields, or `stream`) is a clean follow-up track, not REQ_128.
+
+**Regression-tooling findings (pre-existing; surfaced during validation — candidates for REQ_119/REQ_129):**
+1. `run_regression_check.py --force` hard-`raise`s on a cross-epoch→cross-epoch dependency (computes `blocked_by` before the upstream's `cross_epoch.npz` exists). Needs the planner's noted-but-unbuilt "raise vs skip" knob (REQ_119). Two-pass run is the workaround.
+2. The baseline contains 7 analyzers the check script's `run_pipeline` no longer registers (activation_basis_projection, centroid_fourier_alignment, neuron_grouping, weight_basis_projection, weight_spectra, activation_dmd, parameter_dmd) → spurious MISSING; baseline/script drift to reconcile.
+3. The check uses **byte-identity (sha256)**, which is too strict for SVD-heavy analyzers (cross-process float non-determinism, e.g. `repr_geometry`, `parameter_trajectory`). Parity should be `rtol`-based per [[feedback_req126_float64_parity]].
 
 ---
 

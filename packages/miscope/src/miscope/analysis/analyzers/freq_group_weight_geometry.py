@@ -20,8 +20,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, DepsAccessor, ResolvedInputs
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -38,8 +37,8 @@ SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("neuron_freq_norm", scope="all_epochs"),
-        ArtifactInput("parameter_snapshot", scope="all_epochs"),
+        ArtifactInput("neuron_freq_norm"),
+        ArtifactInput("parameter_snapshot"),
     ),
 )
 
@@ -82,14 +81,12 @@ class FreqGroupWeightGeometryAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute frequency group geometry in weight space across all checkpoints."""
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_sizes, group_labels = _build_group_labels(loader, sorted_epochs[-1])
+        group_freqs, group_sizes, group_labels = _build_group_labels(inputs.deps, sorted_epochs[-1])
 
         if not group_freqs:
             return _empty_result(sorted_epochs)
@@ -122,7 +119,7 @@ class FreqGroupWeightGeometryAnalyzer:
         Wout_circularity = np.full(n_epochs, np.nan, dtype=np.float32)
 
         for ep_idx, epoch in enumerate(sorted_epochs):
-            snap = loader.load_epoch("parameter_snapshot", epoch)
+            snap = inputs.deps.load_epoch("parameter_snapshot", epoch, fields=ALL)
             is_transformer = "W_E" in snap
 
             if "W_in" in snap:
@@ -193,7 +190,7 @@ class FreqGroupWeightGeometryAnalyzer:
 
 
 def _build_group_labels(
-    loader: ArtifactLoader,
+    deps: DepsAccessor,
     reference_epoch: int,
 ) -> tuple[list[int], list[int], np.ndarray]:
     """Assign neurons to frequency groups from the reference epoch.
@@ -206,7 +203,7 @@ def _build_group_labels(
         (d_mlp,) int array mapping each neuron to a contiguous group index
         0..n_groups-1. Neurons in excluded groups are mapped to -1.
     """
-    norm = loader.load_epoch("neuron_freq_norm", reference_epoch)
+    norm = deps.load_epoch("neuron_freq_norm", reference_epoch, fields=["norm_matrix"])
     norm_matrix = norm["norm_matrix"]  # (n_freq, d_mlp)
     d_mlp = norm_matrix.shape[1]
     dominant_freq = np.argmax(norm_matrix, axis=0)  # (d_mlp,)

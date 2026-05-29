@@ -165,14 +165,14 @@ def test_build_group_labels_ungrouped_are_negative_one():
 
 
 class _MockLoader:
-    """Mock ArtifactLoader that serves both neuron_freq_norm and parameter_snapshot."""
+    """Mock deps that serves both neuron_freq_norm and parameter_snapshot."""
 
     def __init__(self, norm_matrix, W_in_by_epoch, W_out_by_epoch=None):
         self._norm = norm_matrix
         self._W_in = W_in_by_epoch
         self._W_out = W_out_by_epoch
 
-    def load_epoch(self, name: str, epoch: int):
+    def load_epoch(self, name: str, epoch: int, *, fields=None):
         if name == "neuron_freq_norm":
             return {"norm_matrix": self._norm}
         if name == "parameter_snapshot":
@@ -187,14 +187,8 @@ class _MockLoader:
 
 
 def _run_analyzer(loader, epochs):
-    from unittest.mock import patch
-
     analyzer = FreqGroupWeightGeometryAnalyzer()
-    with patch(
-        "miscope.analysis.analyzers.freq_group_weight_geometry.ArtifactLoader",
-        return_value=loader,
-    ):
-        return analyzer.analyze(ResolvedInputs(artifacts_dir="/fake", epochs=tuple(epochs)), {})
+    return analyzer.analyze(ResolvedInputs(deps=loader, epochs=tuple(epochs)), {})
 
 
 def test_analyzer_output_keys_win_only():

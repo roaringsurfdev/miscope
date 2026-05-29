@@ -93,9 +93,8 @@ class Analyzer(Protocol):
                 per-epoch analyzers, ``inputs.epoch`` is set and any
                 ``ModelInput`` populates ``inputs.model`` / ``inputs.cache``
                 / ``inputs.logits``. For cross-epoch analyzers,
-                ``inputs.artifacts_dir`` and ``inputs.epochs`` are set;
-                any ``ArtifactInput(scope="all_epochs")`` populates
-                ``inputs.cross_epoch_artifacts[name]``.
+                ``inputs.epochs`` is set. Declared ``ArtifactInput`` upstreams
+                are read lazily through ``inputs.deps`` (REQ_128).
             context: Family-provided analysis context.
 
         Returns:

@@ -9,7 +9,6 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -17,7 +16,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="neuron_dynamics",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_freq_norm", scope="all_epochs"),),
+    inputs=(ArtifactInput("neuron_freq_norm"),),
 )
 
 
@@ -39,12 +38,13 @@ class NeuronDynamicsAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute neuron frequency dynamics across all epochs."""
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
+        # Key to the run's analyzed epochs (not whatever neuron_freq_norm files
+        # happen to exist on disk) so the output epoch axis stays aligned with
+        # the other per-checkpoint analyzers that downstream summaries index by.
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
-        stacked = loader.load_epochs("neuron_freq_norm", epochs)
+        stacked = inputs.deps.load_stack("neuron_freq_norm", epochs=epochs, fields=["norm_matrix"])
 
         norm_matrix = stacked["norm_matrix"]  # (n_epochs, n_freq, d_mlp)
         n_epochs, n_freq, d_mlp = norm_matrix.shape

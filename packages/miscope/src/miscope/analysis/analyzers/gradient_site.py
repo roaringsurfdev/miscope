@@ -69,8 +69,8 @@ class GradientSiteAnalyzer:
         cross-epoch analyzers. Use run(variant) for standalone execution.
 
         Args:
-            artifacts_dir: Variant artifacts directory (unused; checkpoints loaded directly)
-            epochs: All available checkpoint epochs (used for snapping)
+            inputs: ``inputs.epochs`` (available checkpoints, used for snapping);
+                checkpoints/data are loaded directly via ``context["variant"]``.
             context: Must include "variant"; "fourier_basis" used if present
 
         Returns:
@@ -171,10 +171,7 @@ class GradientSiteAnalyzer:
             "params": variant.params,
         }
         available_epochs = variant.get_available_checkpoints()
-        inputs = ResolvedInputs(
-            artifacts_dir=str(variant.artifacts_dir),
-            epochs=tuple(available_epochs),
-        )
+        inputs = ResolvedInputs(epochs=tuple(available_epochs))
         result = self.analyze(inputs, context)
 
         cross_epoch_path.parent.mkdir(parents=True, exist_ok=True)

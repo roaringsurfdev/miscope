@@ -12,6 +12,7 @@ import pytest
 from miscope.analysis import AnalysisPipeline
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.inputs import ALL
 from miscope.analysis.protocols import SecondaryAnalyzer as SecondaryAnalyzerProtocol
 from miscope.families.discovery import discover_families
 
@@ -34,7 +35,7 @@ class FakeSecondaryAnalyzer:
     depends_on = "fake_primary"
 
     def analyze(self, inputs, context):
-        artifact = inputs.artifacts[self.depends_on]
+        artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
         return {"doubled": artifact["value"] * 2}
 
 
@@ -45,7 +46,7 @@ class FakeSecondaryWithSummary:
     depends_on = "fake_primary"
 
     def analyze(self, inputs, context):
-        artifact = inputs.artifacts[self.depends_on]
+        artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
         return {"doubled": artifact["value"] * 2}
 
     def get_summary_keys(self):
@@ -62,7 +63,7 @@ class WrongDependencyAnalyzer:
     depends_on = "does_not_exist"
 
     def analyze(self, inputs, context):
-        inputs.artifacts[self.depends_on]
+        inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
         return {}
 
 
@@ -112,7 +113,7 @@ class TestSecondaryAnalyzerRegistry:
             depends_on = "something"
 
             def analyze(self, inputs, context):
-                inputs.artifacts[self.depends_on]
+                inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 return {}
 
         assert AnalyzerRegistry.get_secondary("decorated") is not None
@@ -232,7 +233,7 @@ class TestPipelineSecondary:
             depends_on = "parameter_snapshot"
 
             def analyze(self, inputs, context):
-                artifact = inputs.artifacts[self.depends_on]
+                artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 w_e = artifact["W_E"]
                 return {"norm": np.array([float(np.linalg.norm(w_e))])}
 
@@ -256,7 +257,7 @@ class TestPipelineSecondary:
             depends_on = "parameter_snapshot"
 
             def analyze(self, inputs, context):
-                artifact = inputs.artifacts[self.depends_on]
+                artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
@@ -296,7 +297,7 @@ class TestPipelineSecondary:
             depends_on = "parameter_snapshot"
 
             def analyze(self, inputs, context):
-                artifact = inputs.artifacts[self.depends_on]
+                artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
@@ -346,7 +347,7 @@ class TestPipelineSecondary:
             depends_on = "parameter_snapshot"
 
             def analyze(self, inputs, context):
-                inputs.artifacts[self.depends_on]
+                inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 call_order.append("secondary")
                 return {"norm": np.array([1.0])}
 
@@ -381,7 +382,7 @@ class TestPipelineSecondary:
             depends_on = "parameter_snapshot"
 
             def analyze(self, inputs, context):
-                artifact = inputs.artifacts[self.depends_on]
+                artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
                 return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
 
         from miscope.analysis.analyzers import ParameterSnapshotAnalyzer

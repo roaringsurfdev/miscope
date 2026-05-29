@@ -27,6 +27,19 @@
 
 *(Deferred — stub. Develop after REQ_128: promote the reconstruction helper; re-point the three consumers' `ArtifactInput`/loads to `activation_basis_projection` (selective fields); verify their outputs are unchanged on canon; then hand the `neuron_freq_clusters` retirement back to REQ_102.)*
 
+### Regression scenario surfaced during REQ_128 (must be a CoS test)
+
+**Scenario.** A variant has *N* checkpoints, but a previous analysis (run when `neuron_freq_clusters` was still in the family) left only *M < N* `neuron_freq_norm` epoch artifacts on disk. The family no longer includes `neuron_freq_clusters` (REQ_102 retired it on the producer side), so re-running analysis does **not** recompute `neuron_freq_norm`. The 4 consumers above still read it.
+
+**Observed failure mode (p101/s999/ds42 dashboard smoke test, 2026-05-28).** With *N=119* checkpoints and *M=95* stale `neuron_freq_norm` artifacts:
+- `neuron_dynamics` and `transient_frequency` (which load the full stack) silently produce a 95-row artifact — *misaligned* with the 119-row per-checkpoint axis the other analyzers and `variant_analysis_summary` use.
+- `variant_analysis_summary` indexes `neuron_dynamics.max_frac[epoch_index]` with an index derived from `weight_spectra`'s 119-epoch summary → `IndexError: index 118 is out of bounds for axis 0 with size 95` (or 106-vs-95 mid-run).
+- `neuron_group_pca` and `freq_group_weight_geometry` only read `neuron_freq_norm` at a *reference epoch* (`sorted_epochs[-1]`) — they happen to find the last in the 95 (e.g. 24999) and produce nominally-aligned output, so the symptom hits the trajectory-readers only.
+
+**CoS test (post-migration).** Construct or use a variant in this state (*N* checkpoints, *M < N* on-disk `neuron_freq_norm`). After REQ_131, the 4 migrated consumers read `activation_basis_projection` (which the active family *does* produce → fresh for all *N*) and emit outputs aligned with the run's analyzed epochs; `variant_analysis_summary` completes without `IndexError`. (Equivalently: confirm the migration removes the stale-upstream failure mode by removing the stale-upstream dependency.)
+
+**Related robustness concern (separate track, not REQ_131 by itself).** `variant_analysis_summary` indexes one analyzer's array (`neuron_dynamics.max_frac`) with an index derived from *another* analyzer's epoch set (`weight_spectra` summary epochs via `_get_nearest_checkpoint_epoch_index`). This cross-analyzer-axis assumption is fragile even outside this scenario; the robust version indexes each array by **its own** epochs (`neuron_dynamics_data["epochs"]` is already loaded into `analysis_data.neurons_checkpoints`). Worth a deliberate pass — likely on REQ_129's track or its own ticket.
+
 ## Notes
 
 - **Closure feeds REQ_102.** When the three consumers no longer read `neuron_freq_norm`, REQ_102 retires `neuron_freq_clusters`.

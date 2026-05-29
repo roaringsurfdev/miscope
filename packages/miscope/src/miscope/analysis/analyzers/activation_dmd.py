@@ -19,7 +19,6 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
@@ -41,7 +40,7 @@ _ENERGY_THRESHOLD = 0.99
 SPEC = AnalyzerSpec(
     name="activation_dmd",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("repr_geometry", scope="all_epochs"),),
+    inputs=(ArtifactInput("global_centroid_pca"),),
 )
 
 
@@ -55,7 +54,7 @@ class ActivationDMD:
     """
 
     name = "activation_dmd"
-    requires = ["repr_geometry"]  # transitive: global_centroid_pca validated at runtime
+    requires = ["global_centroid_pca"]
 
     def analyze(
         self,
@@ -82,18 +81,12 @@ class ActivationDMD:
         Raises:
             FileNotFoundError: If global_centroid_pca/cross_epoch.npz is absent.
         """
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
-        if not loader.has_cross_epoch("global_centroid_pca"):
-            raise FileNotFoundError(
-                "activation_dmd requires global_centroid_pca/cross_epoch.npz. "
-                "Run global_centroid_pca first."
-            )
-
-        global_pca = loader.load_cross_epoch("global_centroid_pca")
+        global_pca = inputs.deps.load_cross_epoch(
+            "global_centroid_pca", fields=[f"{site}__projections" for site in _SITES]
+        )
         result: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
 
         for site in _SITES:

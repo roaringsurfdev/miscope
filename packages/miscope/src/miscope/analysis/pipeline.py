@@ -13,7 +13,6 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
@@ -411,12 +410,12 @@ class AnalysisPipeline:
                 for key, value in summary.items():
                     collector["values"][key].append(value)
 
-        # Explicit cleanup to prevent GPU memory accumulation. The last
-        # analyzer iteration's `inputs`/`result`/`summary` still hold
-        # references to model + cache (via ResolvedInputs) when this point
-        # is reached; clearing them first lets the subsequent `del model,
-        # cache, ...` actually release those objects so empty_cache() can
-        # reclaim the GPU memory.
+        # Explicit cleanup to prevent GPU memory accumulation. ResolvedInputs
+        # still carries the eager model side (model/cache/logits); the last
+        # iteration's `inputs`/`result`/`summary` hold those references, so
+        # clearing them lets the subsequent `del model, cache, ...` release the
+        # objects and empty_cache() reclaim the GPU memory. (The artifact side
+        # is now lazy via `deps`, so it no longer contributes here — REQ_128.)
         inputs = result = summary = None  # noqa: F841 — drop trailing refs
         del model, cache, logits, state_dict
         if torch.cuda.is_available():
@@ -430,26 +429,31 @@ class AnalysisPipeline:
         cache: Any,
         logits: Any,
         probe: torch.Tensor,
+        extra_allowed: frozenset[str] = frozenset(),
     ) -> ResolvedInputs:
-        """Build a ResolvedInputs for a per-epoch unified analyzer (REQ_121)."""
+        """Build a ResolvedInputs for a per-epoch analyzer.
+
+        Upstream artifacts are reached lazily through ``inputs.deps``; only the
+        model side (from the forward pass the pipeline runs anyway) is eager.
+        ``extra_allowed`` widens the deps scope for spec-less analyzers that
+        declare a dependency via the legacy ``depends_on`` attribute.
+        """
         from miscope.analysis.artifact_loader import ArtifactLoader
-        from miscope.analysis.inputs import ArtifactInput, ModelInput, ResolvedInputs
+        from miscope.analysis.deps import DepsAccessor
+        from miscope.analysis.inputs import ModelInput, ResolvedInputs, derive_required_artifacts
 
         loader = ArtifactLoader(self.artifacts_dir)
-        artifacts: dict[str, dict[str, np.ndarray]] = {}
-        cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
-        summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
+        declared = (
+            frozenset(derive_required_artifacts(spec.inputs)) if spec is not None else frozenset()
+        )
+        deps = DepsAccessor(loader, declared | extra_allowed)
 
         # When no Spec is registered (e.g. one-off test analyzers), populate
         # conservatively — model + cache + logits + probe — so the analyzer
         # can read whatever it wants.
         if spec is None:
             return ResolvedInputs(
-                epoch=epoch,
-                model=model,
-                cache=cache,
-                logits=logits,
-                probe=probe,
+                epoch=epoch, model=model, cache=cache, logits=logits, probe=probe, deps=deps
             )
 
         # Legacy Specs (no inputs declared) carry capability flags
@@ -460,13 +464,6 @@ class AnalysisPipeline:
             if isinstance(inp, ModelInput):
                 wants_model = wants_model or inp.needs_weights
                 wants_cache = wants_cache or inp.needs_cache
-            elif isinstance(inp, ArtifactInput):
-                if inp.scope == "epoch":
-                    artifacts[inp.analyzer_name] = loader.load_epoch(inp.analyzer_name, epoch)
-                elif inp.scope == "all_epochs":
-                    cross_artifacts[inp.analyzer_name] = loader.load(inp.analyzer_name)
-                elif inp.scope == "summary":
-                    summary_artifacts[inp.analyzer_name] = loader.load_summary(inp.analyzer_name)
 
         return ResolvedInputs(
             epoch=epoch,
@@ -474,9 +471,7 @@ class AnalysisPipeline:
             cache=cache if wants_cache else None,
             logits=logits if wants_cache else None,
             probe=probe,
-            artifacts=artifacts,
-            cross_epoch_artifacts=cross_artifacts,
-            summary_artifacts=summary_artifacts,
+            deps=deps,
         )
 
     def _save_epoch_artifact(
@@ -640,9 +635,6 @@ class AnalysisPipeline:
         target epochs already filtered by the Planner. A blocked item
         (empty epochs, non-empty ``blocked_by``) is logged and skipped.
         """
-        from miscope.analysis.artifact_loader import ArtifactLoader
-
-        loader = ArtifactLoader(self.artifacts_dir)
         secondary_by_name = {a.name: a for a in self._secondary_analyzers}
 
         for item in items:
@@ -687,6 +679,13 @@ class AnalysisPipeline:
                         f"Secondary analysis: {analyzer.name} epoch {epoch}",
                     )
 
+                # Spec-less secondary analyzers declare their upstream via the
+                # legacy ``depends_on`` attribute; widen the deps scope to it.
+                extra_allowed = (
+                    frozenset({analyzer.depends_on})  # type: ignore[attr-defined]
+                    if spec is None and hasattr(analyzer, "depends_on")
+                    else frozenset()
+                )
                 inputs = self._materialize_per_epoch_inputs(
                     spec,
                     epoch,
@@ -694,15 +693,8 @@ class AnalysisPipeline:
                     cache=None,
                     logits=None,
                     probe=None,  # type: ignore[arg-type]
+                    extra_allowed=extra_allowed,
                 )
-                # Back-compat for one-off test analyzers without a registered
-                # Spec: load the dependency's artifact via the analyzer's
-                # ``depends_on`` attribute.
-                if spec is None and hasattr(analyzer, "depends_on"):
-                    inputs.artifacts[analyzer.depends_on] = loader.load_epoch(  # type: ignore
-                        analyzer.depends_on,  # type: ignore
-                        epoch,  # type: ignore
-                    )
                 result = analyzer.analyze(inputs, context)
 
                 self._save_epoch_artifact(analyzer.name, epoch, result)
@@ -768,87 +760,31 @@ class AnalysisPipeline:
             result = analyzer.analyze(inputs, cross_epoch_context)
             self._save_cross_epoch_artifact(analyzer.name, result)
 
-    def _best_effort_load_all_epochs(
-        self, loader: ArtifactLoader, analyzer_name: str
-    ) -> dict[str, np.ndarray] | None:
-        """Try to materialize an ``ArtifactInput(scope="all_epochs")``.
-
-        Three cases need handling:
-        - Upstream has per-epoch artifacts that stack cleanly → ``load_epochs``.
-        - Upstream is itself cross-epoch (only ``cross_epoch.npz``) →
-          ``load_cross_epoch``.
-        - Upstream's per-epoch artifacts have shape variation across epochs
-          (e.g., legacy partial state) → ``load_epochs`` raises and we fall
-          back to the cross-epoch artifact if present.
-
-        Returns ``None`` when no materialization is possible. Migrated
-        cross-epoch analyzers still call ``ArtifactLoader`` themselves for
-        the specific slices they need; the pre-materialized form on
-        ``inputs.cross_epoch_artifacts`` is opt-in convenience.
-        """
-        from miscope.analysis.artifact_loader import ArtifactLoader  # noqa: F401  # local for IDE
-        from miscope.analysis.planner import scan_epoch_files
-
-        analyzer_dir = self.variant.artifacts_dir / analyzer_name
-        has_per_epoch = bool(scan_epoch_files(analyzer_dir))
-        cross_epoch_path = analyzer_dir / "cross_epoch.npz"
-        has_cross_epoch = cross_epoch_path.exists()
-
-        if has_per_epoch:
-            try:
-                return loader.load_epochs(analyzer_name)
-            except (ValueError, KeyError) as e:
-                logger.debug(
-                    "Per-epoch stack failed for %s (%s); falling back to cross_epoch.npz.",
-                    analyzer_name,
-                    e,
-                )
-        if has_cross_epoch:
-            try:
-                return loader.load_cross_epoch(analyzer_name)
-            except Exception as e:
-                logger.debug("Cross-epoch load failed for %s: %s", analyzer_name, e)
-        return None
-
     def _materialize_cross_epoch_inputs(
         self,
         spec: Any,
         available_epochs: list[int],
     ) -> ResolvedInputs:
-        """Build a ResolvedInputs for a cross-epoch unified analyzer (REQ_121)."""
+        """Build a ResolvedInputs for a cross-epoch analyzer.
+
+        Upstreams are reached lazily through ``inputs.deps`` (scoped to the
+        analyzer's declared ``ArtifactInput``s). The pipeline pre-materializes
+        nothing — that eager whole-stack load was the REQ_128 memory suspect.
+        """
         from miscope.analysis.artifact_loader import ArtifactLoader
-        from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+        from miscope.analysis.deps import DepsAccessor
+        from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
         loader = ArtifactLoader(self.artifacts_dir)
-        cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
-        summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
-
-        if spec is not None:
-            for inp in spec.inputs:
-                if isinstance(inp, ArtifactInput):
-                    if inp.scope == "all_epochs":
-                        materialized = self._best_effort_load_all_epochs(loader, inp.analyzer_name)
-                        if materialized is not None:
-                            cross_artifacts[inp.analyzer_name] = materialized
-                    elif inp.scope == "summary":
-                        try:
-                            summary_artifacts[inp.analyzer_name] = loader.load_summary(
-                                inp.analyzer_name
-                            )
-                        except Exception as e:
-                            logger.debug(
-                                "Skipping summary materialization for %s: %s",
-                                inp.analyzer_name,
-                                e,
-                            )
+        allowed = (
+            frozenset(derive_required_artifacts(spec.inputs)) if spec is not None else frozenset()
+        )
+        deps = DepsAccessor(loader, allowed)
 
         return ResolvedInputs(
             epoch=None,
-            artifacts={},
-            cross_epoch_artifacts=cross_artifacts,
-            summary_artifacts=summary_artifacts,
-            artifacts_dir=self.artifacts_dir,
             epochs=tuple(available_epochs),
+            deps=deps,
         )
 
     def _save_cross_epoch_artifact(

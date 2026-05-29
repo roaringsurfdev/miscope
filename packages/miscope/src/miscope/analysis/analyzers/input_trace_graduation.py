@@ -13,7 +13,6 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -21,7 +20,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="input_trace_graduation",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("input_trace", scope="all_epochs"),),
+    inputs=(ArtifactInput("input_trace"),),
 )
 
 
@@ -57,23 +56,25 @@ class InputTraceGraduationAnalyzer:
         Returns:
             Dict with 'graduation_epochs', 'epochs', 'split'
         """
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
-        epochs = list(inputs.epochs)
         min_stable_window = 3
-        loader = ArtifactLoader(artifacts_dir)
-        sorted_epochs = sorted(epochs)
+        sorted_epochs = sorted(inputs.epochs)
 
-        first = loader.load_epoch("input_trace", sorted_epochs[0])
-        split = first["split"]  # (p²,)
-        n_pairs = len(split)
+        # True per-epoch reducer: stream input_trace at the run's analyzed epochs,
+        # keeping only the per-epoch correctness row (not the whole artifact).
+        # `split` is constant across epochs — captured once.
+        split: np.ndarray | None = None
+        correct_rows: list[np.ndarray] = []
+        for _epoch, artifact in inputs.deps.stream(
+            "input_trace", epochs=sorted_epochs, fields=["split", "correct"]
+        ):
+            if split is None:
+                split = artifact["split"]  # (p²,)
+            correct_rows.append(artifact["correct"])
 
-        correct_matrix = np.empty((len(sorted_epochs), n_pairs), dtype=bool)
-        for i, epoch in enumerate(sorted_epochs):
-            artifact = loader.load_epoch("input_trace", epoch)
-            correct_matrix[i] = artifact["correct"]
-
+        assert split is not None
+        correct_matrix = np.array(correct_rows, dtype=bool)  # (n_epochs, n_pairs)
         graduation_epochs = _compute_graduation_epochs(
             correct_matrix, sorted_epochs, min_stable_window
         )

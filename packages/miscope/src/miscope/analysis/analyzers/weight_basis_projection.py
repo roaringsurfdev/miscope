@@ -22,7 +22,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.fourier_basis import (
     PeriodicFourierBasis,
     get_fourier_basis,
@@ -35,7 +35,7 @@ from miscope.core.basis_projection import BasisProjectionSite
 SPEC = AnalyzerSpec(
     name="weight_basis_projection",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("parameter_snapshot", scope="epoch"),),
+    inputs=(ArtifactInput("parameter_snapshot"),),
 )
 
 
@@ -59,7 +59,9 @@ class WeightBasisProjectionAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Project each declared site for the current epoch."""
-        snapshot = inputs.artifacts["parameter_snapshot"]
+        assert inputs.deps is not None and inputs.epoch is not None
+        # Each site's composer may read any weight matrix → load all.
+        snapshot = inputs.deps.load_epoch("parameter_snapshot", inputs.epoch, fields=ALL)
         sites: tuple[BasisProjectionSite, ...] = context.get("weight_basis_projection_sites", ())
         if not sites:
             return {}

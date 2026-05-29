@@ -21,6 +21,23 @@ from typing import Any
 import numpy as np
 
 
+def _validate_fields(
+    analyzer_name: str, available: list[str], requested: list[str], where: str
+) -> None:
+    """Raise if any requested field is absent from an artifact's keys.
+
+    Validation reads the ``.npz`` index only (``NpzFile.files``), so it is
+    cheap — no array data is loaded to check field names.
+    """
+    available_set = set(available)
+    missing = [f for f in requested if f not in available_set]
+    if missing:
+        raise ValueError(
+            f"Artifact '{analyzer_name}' ({where}) has no field(s) {missing}. "
+            f"Available fields: {sorted(available_set)}."
+        )
+
+
 class ArtifactLoader:
     """Loads analysis artifacts for visualization components.
 
@@ -44,12 +61,17 @@ class ArtifactLoader:
             self._manifest = self._load_manifest()
         return self._manifest
 
-    def load_epoch(self, analyzer_name: str, epoch: int) -> dict[str, np.ndarray]:
+    def load_epoch(
+        self, analyzer_name: str, epoch: int, fields: list[str] | None = None
+    ) -> dict[str, np.ndarray]:
         """Load analysis results for a single epoch.
 
         Args:
             analyzer_name: Name of the analyzer (e.g., "dominant_frequencies")
             epoch: Epoch number to load
+            fields: Specific field names to load. None loads all fields.
+                Requested fields are validated against the file's actual keys
+                (cheap — reads the ``.npz`` index, not the arrays).
 
         Returns:
             Dict of numpy arrays (e.g., {"coefficients": ndarray})
@@ -57,6 +79,7 @@ class ArtifactLoader:
 
         Raises:
             FileNotFoundError: If artifact for this epoch doesn't exist
+            ValueError: If a requested field is absent from the artifact
         """
         artifact_path = os.path.join(self.artifacts_dir, analyzer_name, f"epoch_{epoch:05d}.npz")
 
@@ -65,7 +88,12 @@ class ArtifactLoader:
                 f"No artifact for '{analyzer_name}' at epoch {epoch}. Expected: {artifact_path}"
             )
 
-        return dict(np.load(artifact_path))
+        if fields is None:
+            return dict(np.load(artifact_path))
+
+        with np.load(artifact_path) as npz:
+            _validate_fields(analyzer_name, npz.files, fields, f"epoch {epoch}")
+            return {name: npz[name] for name in fields}
 
     def load_epochs(
         self,
@@ -104,6 +132,12 @@ class ArtifactLoader:
         if fields is not None:
             # Selective loading: open each npz lazily and only extract requested fields.
             # Avoids loading large arrays (e.g., W_in, W_out) when only W_E is needed.
+            # Validate against the first epoch's keys for a clear early error.
+            first_path = os.path.join(
+                self.artifacts_dir, analyzer_name, f"epoch_{epochs[0]:05d}.npz"
+            )
+            with np.load(first_path) as npz0:
+                _validate_fields(analyzer_name, npz0.files, fields, f"epoch {epochs[0]}")
             result: dict[str, list[np.ndarray]] = {k: [] for k in fields}
             for epoch in epochs:
                 artifact_path = os.path.join(
@@ -244,7 +278,9 @@ class ArtifactLoader:
         summary_path = os.path.join(self.artifacts_dir, analyzer_name, "summary.npz")
         return os.path.exists(summary_path)
 
-    def load_cross_epoch(self, analyzer_name: str) -> dict[str, np.ndarray]:
+    def load_cross_epoch(
+        self, analyzer_name: str, fields: list[str] | None = None
+    ) -> dict[str, np.ndarray]:
         """Load cross-epoch analysis results.
 
         Cross-epoch files contain results from analyzers that operate across
@@ -252,12 +288,15 @@ class ArtifactLoader:
 
         Args:
             analyzer_name: Name of the cross-epoch analyzer
+            fields: Specific field names to load. None loads all fields.
+                Requested fields are validated against the file's actual keys.
 
         Returns:
             Dict of numpy arrays from cross_epoch.npz
 
         Raises:
             FileNotFoundError: If no cross-epoch results exist
+            ValueError: If a requested field is absent from the artifact
         """
         cross_epoch_path = os.path.join(self.artifacts_dir, analyzer_name, "cross_epoch.npz")
 
@@ -266,7 +305,12 @@ class ArtifactLoader:
                 f"No cross-epoch results for '{analyzer_name}'. Expected: {cross_epoch_path}"
             )
 
-        return dict(np.load(cross_epoch_path))
+        if fields is None:
+            return dict(np.load(cross_epoch_path))
+
+        with np.load(cross_epoch_path) as npz:
+            _validate_fields(analyzer_name, npz.files, fields, "cross_epoch.npz")
+            return {name: npz[name] for name in fields}
 
     def has_cross_epoch(self, analyzer_name: str) -> bool:
         """Check whether cross-epoch results exist for an analyzer.

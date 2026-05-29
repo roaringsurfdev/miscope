@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 import plotly.graph_objects as go
 import pytest
+from _deps_fakes import store_inputs
 
 from miscope.analysis import AnalysisPipeline
 from miscope.analysis.analyzers import (
@@ -17,7 +18,6 @@ from miscope.analysis.analyzers import (
 )
 from miscope.analysis.analyzers.parameter_trajectory import _GROUPS
 from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import compute_parameter_velocity, flatten_snapshot
 from miscope.analysis.protocols import UnifiedAnalyzer
@@ -124,7 +124,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         assert isinstance(result, dict)
 
@@ -132,7 +132,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         np.testing.assert_array_equal(result["epochs"], epochs)
 
@@ -140,7 +140,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         # Groups whose weight matrices are absent from the snapshot are skipped.
         # Only assert groups that are actually present in the result.
@@ -157,7 +157,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         n = len(epochs)
         k = min(10, n)
@@ -170,7 +170,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, snapshots = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
 
         # Compare "all" group with direct primitive call
@@ -194,7 +194,7 @@ class TestParameterTrajectory:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         assert not np.allclose(
             result["all__projections"],
@@ -218,7 +218,7 @@ class TestArtifactLoaderCrossEpoch:
         # Create the cross-epoch file
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         out_dir = os.path.join(artifacts_dir, "parameter_trajectory")
         os.makedirs(out_dir, exist_ok=True)
@@ -231,7 +231,7 @@ class TestArtifactLoaderCrossEpoch:
         artifacts_dir, epochs, _ = artifacts_with_snapshots
         analyzer = ParameterTrajectory()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), {}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
         )
         out_dir = os.path.join(artifacts_dir, "parameter_trajectory")
         os.makedirs(out_dir, exist_ok=True)

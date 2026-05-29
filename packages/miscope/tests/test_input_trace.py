@@ -11,6 +11,7 @@ CoS coverage:
 
 import numpy as np
 import torch
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers.input_trace import (
     InputTraceAnalyzer,
@@ -357,7 +358,7 @@ class TestIntegrationArtifactRoundTrip:
 
         grad_analyzer = InputTraceGraduationAnalyzer()
         grad_result = grad_analyzer.analyze(
-            ResolvedInputs(artifacts_dir=str(tmp_path), epochs=tuple(epochs)), context
+            store_inputs(str(tmp_path), epochs=tuple(epochs)), context
         )
 
         assert grad_result["graduation_epochs"].shape == (p * p,)

@@ -102,7 +102,7 @@ class _MockArtifactLoader:
         self._norm = norm_matrix
         self._W_in = W_in_by_epoch  # dict epoch -> W_in array
 
-    def load_epoch(self, name: str, epoch: int):
+    def load_epoch(self, name: str, epoch: int, *, fields=None):
         if name == "neuron_freq_norm":
             return {"norm_matrix": self._norm}
         if name == "parameter_snapshot":
@@ -124,15 +124,9 @@ def _make_norm_matrix(n_freq: int, d_mlp: int, assignments: list[int]) -> np.nda
 
 
 def _run_analyzer(loader, epochs):
-    """Run analyzer using mock loader (bypasses filesystem)."""
-    from unittest.mock import patch
-
+    """Run analyzer using a mock deps that bypasses the filesystem."""
     analyzer = NeuronGroupPCAAnalyzer()
-    with patch(
-        "miscope.analysis.analyzers.neuron_group_pca.ArtifactLoader",
-        return_value=loader,
-    ):
-        return analyzer.analyze(ResolvedInputs(artifacts_dir="/fake", epochs=tuple(epochs)), {})
+    return analyzer.analyze(ResolvedInputs(deps=loader, epochs=tuple(epochs)), {})
 
 
 def test_analyzer_output_shapes():
