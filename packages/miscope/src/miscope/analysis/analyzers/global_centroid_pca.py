@@ -10,8 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -87,12 +86,10 @@ class GlobalCentroidPCA:
         Returns:
             Dict of arrays for storage in cross_epoch.npz.
         """
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
-        epoch_artifacts = [loader.load_epoch("repr_geometry", e) for e in epochs]
+        epoch_artifacts = [inputs.deps.load_epoch("repr_geometry", e, fields=ALL) for e in epochs]
 
         result: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
 

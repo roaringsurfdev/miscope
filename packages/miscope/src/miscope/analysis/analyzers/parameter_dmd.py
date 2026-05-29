@@ -35,8 +35,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ArtifactInput, DepsAccessor, ResolvedInputs
 from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
@@ -109,21 +108,22 @@ class ParameterDMD:
             FileNotFoundError: If parameter_snapshot or neuron_grouping
                 artifacts are absent.
         """
-        assert inputs.artifacts_dir is not None
-        assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
-        epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
+        assert inputs.deps is not None
 
-        reference_epoch = self._resolve_reference_epoch(loader, epochs, context)
-        grouping = loader.load_epoch("neuron_grouping", reference_epoch)
+        reference_epoch = self._resolve_reference_epoch(inputs.deps, context)
+        grouping = inputs.deps.load_epoch(
+            "neuron_grouping",
+            reference_epoch,
+            fields=["assignments", "n_groups", "n_per_group"],
+        )
         assignments = np.asarray(grouping["assignments"], dtype=np.int64)
         n_groups = int(grouping["n_groups"])
         n_per_group = np.asarray(grouping["n_per_group"], dtype=np.int64)
         populated_groups = np.where(n_per_group > 0)[0].astype(np.int64)
 
         # Load weight trajectories selectively (parameter_snapshot is large).
-        snapshots = loader.load_epochs("parameter_snapshot", epochs, fields=["W_in", "W_out"])
+        snapshots = inputs.deps.load_stack("parameter_snapshot", fields=["W_in", "W_out"])
+        epochs = list(snapshots["epochs"])
         # snapshots["W_in"] shape:  (n_epochs, d_model, d_mlp)
         # snapshots["W_out"] shape: (n_epochs, d_mlp, d_model)
         w_in_traj = np.asarray(snapshots["W_in"], dtype=np.float64)
@@ -153,8 +153,7 @@ class ParameterDMD:
 
     def _resolve_reference_epoch(
         self,
-        loader: ArtifactLoader,
-        epochs: list[int],
+        deps: DepsAccessor,
         context: dict[str, Any],
     ) -> int:
         """Pick the neuron_grouping epoch to use as the partition source.
@@ -163,7 +162,7 @@ class ParameterDMD:
         via the ``parameter_dmd_reference_epoch`` context key.
         """
         configured = context.get(_CONTEXT_REFERENCE_EPOCH_KEY)
-        available = sorted(loader.get_epochs("neuron_grouping"))
+        available = sorted(deps.epochs("neuron_grouping"))
         if not available:
             raise FileNotFoundError(
                 "parameter_dmd requires neuron_grouping artifacts. Run neuron_grouping first."

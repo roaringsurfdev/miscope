@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import plotly.graph_objects as go
 import pytest
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.neuron_dynamics import (
@@ -14,7 +15,6 @@ from miscope.analysis.analyzers.neuron_dynamics import (
     _compute_commitment_epochs,
     _compute_switch_counts,
 )
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.visualization.renderers.neuron_freq_clusters import (
     render_commitment_timeline,
     render_neuron_freq_trajectory,
@@ -148,7 +148,7 @@ class TestNeuronDynamicsAnalyzer:
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
         )
 
         assert "epochs" in result
@@ -174,7 +174,7 @@ class TestNeuronDynamicsAnalyzer:
         artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            ResolvedInputs(artifacts_dir=artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
         )
 
         # Neuron 2 switches once (freq 2 → 9 at epoch 300)

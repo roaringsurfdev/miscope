@@ -67,6 +67,9 @@ class FakeDeps(DepsAccessor):
     def load_cross_epoch(self, name: str, *, fields: FieldSpec) -> dict[str, Any]:
         return _select(self._ce[name], fields)
 
+    def epochs(self, name: str) -> list[int]:
+        return sorted(self._pe.get(name, {}))
+
 
 def deps_inputs(
     epoch_artifacts: dict[str, dict[str, Any]] | None = None,

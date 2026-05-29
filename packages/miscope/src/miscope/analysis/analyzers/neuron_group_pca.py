@@ -15,8 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, DepsAccessor, ResolvedInputs
 from miscope.analysis.library import extract_neuron_weight_matrix
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -61,14 +60,12 @@ class NeuronGroupPCAAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute group coordination metrics across all checkpoints."""
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_members = _assign_groups(loader, sorted_epochs[-1])
+        group_freqs, group_members = _assign_groups(inputs.deps, sorted_epochs[-1])
 
         if not group_freqs:
             return _empty_result(sorted_epochs)
@@ -80,7 +77,7 @@ class NeuronGroupPCAAnalyzer:
 
         W_ins: list[np.ndarray] = []
         for ep_idx, epoch in enumerate(sorted_epochs):
-            snap = loader.load_epoch("parameter_snapshot", epoch)
+            snap = inputs.deps.load_epoch("parameter_snapshot", epoch, fields=ALL)
             W_in = extract_neuron_weight_matrix(snap)  # (d_space, M) — architecture-agnostic
             W_ins.append(W_in)
             for g_idx, members in enumerate(group_members):
@@ -122,7 +119,7 @@ class NeuronGroupPCAAnalyzer:
 
 
 def _assign_groups(
-    loader: ArtifactLoader,
+    deps: DepsAccessor,
     reference_epoch: int,
 ) -> tuple[list[int], list[np.ndarray]]:
     """Assign neurons to frequency groups using the reference epoch.
@@ -135,7 +132,7 @@ def _assign_groups(
         (group_freqs, group_members): parallel lists of frequency index
         and member neuron indices for each group.
     """
-    norm = loader.load_epoch("neuron_freq_norm", reference_epoch)
+    norm = deps.load_epoch("neuron_freq_norm", reference_epoch, fields=["norm_matrix"])
     norm_matrix = norm["norm_matrix"]  # (n_freq, d_mlp)
     dominant_freq = np.argmax(norm_matrix, axis=0)  # (d_mlp,)
 

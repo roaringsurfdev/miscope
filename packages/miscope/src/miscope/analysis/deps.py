@@ -142,6 +142,15 @@ class DepsAccessor:
             )
         return self._loader.load_cross_epoch(name, fields=_resolve_fields(fields))
 
+    def epochs(self, name: str) -> list[int]:
+        """Sorted epochs available for a declared upstream (metadata, no load).
+
+        Used by analyzers that must pick a reference epoch (e.g. the latest
+        available upstream checkpoint) before loading.
+        """
+        self._require_declared(name)
+        return self._loader.get_epochs(name)
+
     # ----- internals --------------------------------------------------------
 
     def _iter_epochs(

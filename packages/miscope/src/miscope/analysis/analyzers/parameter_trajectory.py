@@ -16,8 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.artifact_loader import ArtifactLoader
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import (
     compute_parameter_velocity,
@@ -51,12 +50,10 @@ class ParameterTrajectory:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute PCA trajectory and velocity for all component groups."""
-        assert inputs.artifacts_dir is not None
+        assert inputs.deps is not None
         assert inputs.epochs is not None
-        artifacts_dir = inputs.artifacts_dir
         epochs = list(inputs.epochs)
-        loader = ArtifactLoader(artifacts_dir)
-        snapshots = [loader.load_epoch("parameter_snapshot", e) for e in epochs]
+        snapshots = [inputs.deps.load_epoch("parameter_snapshot", e, fields=ALL) for e in epochs]
 
         result: dict[str, np.ndarray] = {"epochs": np.array(epochs)}
 
