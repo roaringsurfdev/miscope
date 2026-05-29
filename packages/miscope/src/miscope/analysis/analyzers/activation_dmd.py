@@ -40,7 +40,7 @@ _ENERGY_THRESHOLD = 0.99
 SPEC = AnalyzerSpec(
     name="activation_dmd",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("global_centroid_pca", scope="all_epochs"),),
+    inputs=(ArtifactInput("global_centroid_pca"),),
 )
 
 

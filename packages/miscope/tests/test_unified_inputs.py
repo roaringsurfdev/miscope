@@ -54,12 +54,6 @@ def test_model_input_weights_only():
 def test_artifact_input_defaults():
     ai = ArtifactInput("parameter_snapshot")
     assert ai.analyzer_name == "parameter_snapshot"
-    assert ai.scope == "epoch"
-
-
-def test_artifact_input_all_epochs():
-    ai = ArtifactInput("repr_geometry", scope="all_epochs")
-    assert ai.scope == "all_epochs"
 
 
 def test_input_types_are_frozen():
@@ -144,7 +138,7 @@ def test_unified_cross_epoch_spec_derives_category():
     spec = AnalyzerSpec(
         name="u_ce",
         output_scope="cross_epoch",
-        inputs=(ArtifactInput("upstream", scope="all_epochs"),),
+        inputs=(ArtifactInput("upstream"),),
     )
     assert spec.is_unified is True
     assert spec.effective_category == "cross_epoch"
@@ -285,7 +279,7 @@ def test_pipeline_unified_per_epoch_dispatch(trained_variant, registry_snapshot)
 
 def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapshot):
     """Unified cross-epoch Spec → analyzer receives ResolvedInputs with
-    artifacts_dir + epochs + cross_epoch_artifacts."""
+    epochs set and the declared upstream reachable lazily via deps."""
     from miscope.analysis import AnalysisPipeline
 
     # First, register and run a primary analyzer the cross-epoch depends on.
@@ -297,7 +291,7 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapsho
     ce_spec = AnalyzerSpec(
         name="u_cross_epoch_test",
         output_scope="cross_epoch",
-        inputs=(ArtifactInput("u_primary_for_ce", scope="all_epochs"),),
+        inputs=(ArtifactInput("u_primary_for_ce"),),
     )
 
     received: list[ResolvedInputs] = []
@@ -322,9 +316,11 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapsho
     assert len(received) == 1
     sample = received[0]
     assert sample.epoch is None
-    assert sample.artifacts_dir is not None
     assert sample.epochs is not None
-    assert "u_primary_for_ce" in sample.cross_epoch_artifacts
+    assert sample.deps is not None
+    # The declared upstream is reachable lazily through deps (no eager dict).
+    stacked = sample.deps.load_stack("u_primary_for_ce", fields=["data"])
+    np.testing.assert_array_equal(stacked["data"][0], np.ones((3,), dtype=np.float32))
 
 
 # Phase 2C: the legacy dispatch path was retired in REQ_121, so
@@ -335,11 +331,11 @@ def test_pipeline_unified_cross_epoch_dispatch(trained_variant, registry_snapsho
 def test_materialize_all_epochs_survives_shape_mismatch(
     trained_variant, registry_snapshot, tmp_path
 ):
-    """Regression: pre-materializing ``scope="all_epochs"`` must not crash the
-    pipeline when an upstream's per-epoch artifacts have varying shapes
-    across epochs (e.g., a legacy partial-run state). The cross-epoch
-    analyzer should still execute and reach its body — falling back to
-    its own ArtifactLoader use if it needs the data.
+    """Regression: a cross-epoch analyzer that declares an upstream whose
+    per-epoch artifacts vary in shape across epochs (e.g., a legacy partial-run
+    state) must still run. Post-REQ_128 the pipeline pre-materializes nothing,
+    so a ragged upstream can never crash it during input construction — the
+    analyzer reaches its body and reads (or not) lazily through ``deps``.
     """
     import os
 
@@ -362,7 +358,7 @@ def test_materialize_all_epochs_survives_shape_mismatch(
     ce_spec = AnalyzerSpec(
         name="downstream_test",
         output_scope="cross_epoch",
-        inputs=(ArtifactInput(ragged_name, scope="all_epochs"),),
+        inputs=(ArtifactInput(ragged_name),),
     )
     received: list[ResolvedInputs] = []
 
@@ -378,9 +374,9 @@ def test_materialize_all_epochs_survives_shape_mismatch(
     # Should NOT raise even though the upstream stack would fail.
     AnalysisPipeline(trained_variant).run(plan=plan)
     assert len(received) == 1
-    # Materialization skipped the ragged upstream; analyzer can still
-    # reach its body and would use ArtifactLoader directly if needed.
-    assert ragged_name not in received[0].cross_epoch_artifacts
+    # The analyzer reached its body with a scoped deps accessor; the ragged
+    # upstream was never eagerly stacked, so nothing crashed.
+    assert received[0].deps is not None
 
 
 # ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="neuron_dynamics",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_freq_norm", scope="all_epochs"),),
+    inputs=(ArtifactInput("neuron_freq_norm"),),
 )
 
 

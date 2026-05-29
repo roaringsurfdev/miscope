@@ -19,13 +19,12 @@ in v1.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from miscope.analysis.deps import ALL, DepsAccessor
 
 if TYPE_CHECKING:
-    import numpy as np
     import torch
 
     from miscope.architectures import ActivationCache, HookedModel
@@ -33,7 +32,6 @@ if TYPE_CHECKING:
 __all__ = [
     "ALL",
     "ArtifactInput",
-    "ArtifactScope",
     "DepsAccessor",
     "InputSpec",
     "ModelInput",
@@ -65,27 +63,21 @@ class ModelInput:
     needs_cache: bool = True
 
 
-ArtifactScope = Literal["epoch", "all_epochs", "summary"]
-
-
 @dataclass(frozen=True)
 class ArtifactInput:
-    """Declares need for an upstream analyzer's artifact.
+    """Declares a dependency on an upstream analyzer's artifact.
+
+    A pure *declaration* of what the analyzer may read (used by the Planner
+    for dependency resolution and to scope the analyzer's ``deps`` accessor).
+    *How much* of the artifact is read, and at what shape, is chosen at the
+    call site via the ``deps`` verb (load_epoch / stream / load_stack /
+    load_cross_epoch) — REQ_128.
 
     Attributes:
-        analyzer_name: Name of the upstream analyzer whose artifact is
-            consumed. The Planner uses this for dependency resolution.
-        scope: At what scope to materialize the artifact:
-            - ``"epoch"`` — one epoch's per-epoch artifact dict. The
-              pipeline iterates the upstream's completed epochs and
-              calls the analyzer once per epoch.
-            - ``"all_epochs"`` — the stacked form across all epochs
-              (one materialization, used by cross-epoch analyzers).
-            - ``"summary"`` — the summary.npz form, if available.
+        analyzer_name: Name of the upstream analyzer whose artifact is consumed.
     """
 
     analyzer_name: str
-    scope: ArtifactScope = "epoch"
 
 
 InputSpec = ModelInput | ArtifactInput
@@ -100,27 +92,21 @@ InputSpec = ModelInput | ArtifactInput
 class ResolvedInputs:
     """Materialized inputs for one ``.analyze()`` call.
 
-    The pipeline fills in only those fields whose corresponding inputs
-    were declared on the Spec; the rest stay ``None`` or empty.
+    The pipeline fills in only those fields whose corresponding inputs were
+    declared on the Spec; the rest stay ``None``.
 
-    Per-epoch fields:
+    Model side (eager — from the forward pass the pipeline runs anyway):
         epoch: The current epoch (``None`` for cross-epoch analyzers).
         model, cache, logits, probe: Populated when a ``ModelInput`` is
             declared. ``cache`` and ``logits`` are ``None`` when the
             ``ModelInput`` opted out of the forward pass.
-        artifacts: Per-epoch artifacts at ``scope="epoch"``, keyed by
-            upstream analyzer name.
+        epochs: All available checkpoint epochs (for cross-epoch analyzers).
 
-    Cross-epoch fields:
-        cross_epoch_artifacts: Stacked artifacts at ``scope="all_epochs"``,
-            keyed by upstream name. Each value is the dict from
-            :meth:`ArtifactLoader.load`.
-        summary_artifacts: Summary stats at ``scope="summary"``, keyed
-            by upstream name.
-        artifacts_dir: Variant artifacts directory — provided to
-            cross-epoch analyzers that load checkpoints/artifacts
-            directly (e.g. ``gradient_site``).
-        epochs: All available checkpoint epochs (for cross-epoch).
+    Artifact side (lazy — REQ_128):
+        deps: Scoped accessor over the analyzer's declared ``ArtifactInput``
+            upstreams. Analyzers load what they need, when they need it, via
+            ``deps.load_epoch`` / ``stream`` / ``load_stack`` /
+            ``load_cross_epoch``.
     """
 
     epoch: int | None = None
@@ -128,14 +114,7 @@ class ResolvedInputs:
     cache: ActivationCache | None = None
     logits: torch.Tensor | None = None
     probe: torch.Tensor | None = None
-    artifacts: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
-    cross_epoch_artifacts: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
-    summary_artifacts: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
-    artifacts_dir: str | None = None
     epochs: tuple[int, ...] | None = None
-    # REQ_128: scoped lazy accessor over declared upstream artifacts. Supersedes
-    # the eager ``artifacts`` / ``cross_epoch_artifacts`` / ``summary_artifacts``
-    # dicts and ``artifacts_dir`` above (removed once analyzers migrate).
     deps: DepsAccessor | None = None
 
 

@@ -39,7 +39,7 @@ FINAL_CANONICAL_THRESHOLD: float = 0.10
 SPEC = AnalyzerSpec(
     name="transient_frequency",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_dynamics", scope="all_epochs"),),
+    inputs=(ArtifactInput("neuron_dynamics"),),
 )
 
 

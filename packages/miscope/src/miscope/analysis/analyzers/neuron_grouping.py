@@ -55,7 +55,7 @@ _DEFAULT_N_GROUPS = 8
 SPEC = AnalyzerSpec(
     name="neuron_grouping",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("parameter_snapshot", scope="epoch"),),
+    inputs=(ArtifactInput("parameter_snapshot"),),
 )
 
 

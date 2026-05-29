@@ -35,7 +35,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="centroid_fourier_alignment",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("repr_geometry", scope="epoch"),),
+    inputs=(ArtifactInput("repr_geometry"),),
     produces_summary=True,
 )
 

@@ -37,8 +37,8 @@ SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("neuron_freq_norm", scope="all_epochs"),
-        ArtifactInput("parameter_snapshot", scope="all_epochs"),
+        ArtifactInput("neuron_freq_norm"),
+        ArtifactInput("parameter_snapshot"),
     ),
 )
 
@@ -86,9 +86,7 @@ class FreqGroupWeightGeometryAnalyzer:
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_sizes, group_labels = _build_group_labels(
-            inputs.deps, sorted_epochs[-1]
-        )
+        group_freqs, group_sizes, group_labels = _build_group_labels(inputs.deps, sorted_epochs[-1])
 
         if not group_freqs:
             return _empty_result(sorted_epochs)

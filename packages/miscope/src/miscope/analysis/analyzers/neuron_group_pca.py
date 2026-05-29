@@ -24,8 +24,8 @@ SPEC = AnalyzerSpec(
     name="neuron_group_pca",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("neuron_freq_norm", scope="all_epochs"),
-        ArtifactInput("parameter_snapshot", scope="all_epochs"),
+        ArtifactInput("neuron_freq_norm"),
+        ArtifactInput("parameter_snapshot"),
     ),
 )
 

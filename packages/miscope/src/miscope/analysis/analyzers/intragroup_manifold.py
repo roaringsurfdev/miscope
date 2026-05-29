@@ -26,7 +26,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="intragroup_manifold",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_group_pca", scope="all_epochs"),),
+    inputs=(ArtifactInput("neuron_group_pca"),),
 )
 
 

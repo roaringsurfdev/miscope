@@ -35,7 +35,7 @@ from miscope.core.basis_projection import BasisProjectionSite
 SPEC = AnalyzerSpec(
     name="weight_basis_projection",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("parameter_snapshot", scope="epoch"),),
+    inputs=(ArtifactInput("parameter_snapshot"),),
 )
 
 

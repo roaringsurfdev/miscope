@@ -68,8 +68,8 @@ SPEC = AnalyzerSpec(
     name="parameter_dmd",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("parameter_snapshot", scope="all_epochs"),
-        ArtifactInput("neuron_grouping", scope="all_epochs"),
+        ArtifactInput("parameter_snapshot"),
+        ArtifactInput("neuron_grouping"),
     ),
 )
 

@@ -33,7 +33,7 @@ _GROUPS = {"all": None, **COMPONENT_GROUPS}
 SPEC = AnalyzerSpec(
     name="parameter_trajectory",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("parameter_snapshot", scope="all_epochs"),),
+    inputs=(ArtifactInput("parameter_snapshot"),),
 )
 
 

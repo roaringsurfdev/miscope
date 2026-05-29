@@ -117,15 +117,8 @@ def store_inputs(
 ) -> ResolvedInputs:
     """ResolvedInputs with a REAL (permissive) DepsAccessor over an on-disk store.
 
-    Drop-in for the legacy ``ResolvedInputs(artifacts_dir=..., epochs=...)``: it
-    also keeps ``artifacts_dir`` set, so analyzers not yet migrated onto ``deps``
-    continue to work through the migration.
+    Drop-in for the legacy ``ResolvedInputs(artifacts_dir=..., epochs=...)``:
+    builds a real (permissive) ``deps`` over the on-disk store.
     """
     deps = PermissiveDeps(ArtifactLoader(str(artifacts_dir)), frozenset())
-    return ResolvedInputs(
-        deps=deps,
-        epochs=epochs,
-        epoch=epoch,
-        artifacts_dir=str(artifacts_dir),
-        **kwargs,
-    )
+    return ResolvedInputs(deps=deps, epochs=epochs, epoch=epoch, **kwargs)

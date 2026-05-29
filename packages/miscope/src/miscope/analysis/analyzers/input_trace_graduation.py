@@ -20,7 +20,7 @@ from miscope.analysis.spec import AnalyzerSpec
 SPEC = AnalyzerSpec(
     name="input_trace_graduation",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("input_trace", scope="all_epochs"),),
+    inputs=(ArtifactInput("input_trace"),),
 )
 
 

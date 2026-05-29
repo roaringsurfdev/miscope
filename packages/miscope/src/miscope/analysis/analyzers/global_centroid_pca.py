@@ -49,7 +49,7 @@ def _pca_with_variance_threshold(
 SPEC = AnalyzerSpec(
     name="global_centroid_pca",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("repr_geometry", scope="all_epochs"),),
+    inputs=(ArtifactInput("repr_geometry"),),
 )
 
 
