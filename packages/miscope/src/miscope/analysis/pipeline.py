@@ -433,12 +433,24 @@ class AnalysisPipeline:
     ) -> ResolvedInputs:
         """Build a ResolvedInputs for a per-epoch unified analyzer (REQ_121)."""
         from miscope.analysis.artifact_loader import ArtifactLoader
-        from miscope.analysis.inputs import ArtifactInput, ModelInput, ResolvedInputs
+        from miscope.analysis.deps import DepsAccessor
+        from miscope.analysis.inputs import (
+            ArtifactInput,
+            ModelInput,
+            ResolvedInputs,
+            derive_required_artifacts,
+        )
 
         loader = ArtifactLoader(self.artifacts_dir)
         artifacts: dict[str, dict[str, np.ndarray]] = {}
         cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
         summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
+        allowed = (
+            frozenset(derive_required_artifacts(spec.inputs))
+            if spec is not None
+            else frozenset()
+        )
+        deps = DepsAccessor(loader, allowed)
 
         # When no Spec is registered (e.g. one-off test analyzers), populate
         # conservatively — model + cache + logits + probe — so the analyzer
@@ -450,6 +462,7 @@ class AnalysisPipeline:
                 cache=cache,
                 logits=logits,
                 probe=probe,
+                deps=deps,
             )
 
         # Legacy Specs (no inputs declared) carry capability flags
@@ -477,6 +490,7 @@ class AnalysisPipeline:
             artifacts=artifacts,
             cross_epoch_artifacts=cross_artifacts,
             summary_artifacts=summary_artifacts,
+            deps=deps,
         )
 
     def _save_epoch_artifact(
@@ -817,11 +831,22 @@ class AnalysisPipeline:
     ) -> ResolvedInputs:
         """Build a ResolvedInputs for a cross-epoch unified analyzer (REQ_121)."""
         from miscope.analysis.artifact_loader import ArtifactLoader
-        from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+        from miscope.analysis.deps import DepsAccessor
+        from miscope.analysis.inputs import (
+            ArtifactInput,
+            ResolvedInputs,
+            derive_required_artifacts,
+        )
 
         loader = ArtifactLoader(self.artifacts_dir)
         cross_artifacts: dict[str, dict[str, np.ndarray]] = {}
         summary_artifacts: dict[str, dict[str, np.ndarray]] = {}
+        allowed = (
+            frozenset(derive_required_artifacts(spec.inputs))
+            if spec is not None
+            else frozenset()
+        )
+        deps = DepsAccessor(loader, allowed)
 
         if spec is not None:
             for inp in spec.inputs:
@@ -849,6 +874,7 @@ class AnalysisPipeline:
             summary_artifacts=summary_artifacts,
             artifacts_dir=self.artifacts_dir,
             epochs=tuple(available_epochs),
+            deps=deps,
         )
 
     def _save_cross_epoch_artifact(
