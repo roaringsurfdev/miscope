@@ -32,6 +32,7 @@ from miscope.analysis.analyzers.activation_basis_projection import (
     ActivationBasisProjectionAnalyzer,
 )
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.library import reconstruct_neuron_freq_norm
 
 CANON_VARIANT_DIR = (
     Path(__file__).resolve().parents[3]
@@ -195,56 +196,16 @@ def _load_legacy_npz(name: str) -> dict[str, np.ndarray]:
         return {k: data[k] for k in data.files}
 
 
-def _reconstruct_legacy_neuron_freq_norm(
-    new_result: dict[str, np.ndarray],
-    prime: int,
-    site_prefix: str,
-) -> np.ndarray:
-    """Reproduce the legacy per-frequency variance fraction from new outputs.
-
-    Legacy formula (sum of 8 cells in the (k+1)-th 3x3 cross of the
-    2D Fourier transform, divided by total Fourier-space variance ≡
-    total signal variance by Parseval):
-
-        numerator_k[n] = power_joint[n, k, k]
-                        + p * axis_a_marginal_power[n, k]
-                        + p * axis_b_marginal_power[n, k]
-        legacy_freq_norm[k, n] = numerator_k[n] / total_variance[n]
-
-    Returns array shape (K, n_units) matching legacy norm_matrix.
-    """
-    joint_power = new_result[f"{site_prefix}_power"]  # (n_units, K, K)
-    marginal_a_power = new_result[f"{site_prefix}_axis_a_marginal_power"]  # (n_units, K)
-    marginal_b_power = new_result[f"{site_prefix}_axis_b_marginal_power"]  # (n_units, K)
-
-    K = joint_power.shape[-1]
-    diag_joint = joint_power[..., np.arange(K), np.arange(K)]  # (n_units, K)
-    numerator = diag_joint + prime * (marginal_a_power + marginal_b_power)
-
-    # total_variance per Parseval: joint + p*(marginal_a + marginal_b) + DC²
-    # We don't materialize DC, but the joint sum + marginals reconstruct
-    # the full non-DC Fourier energy. DC contributes the constant offset
-    # (mean²·p²); the legacy zeroed DC before computing total variance
-    # would conflict... wait, the legacy computes total_variance AFTER
-    # zeroing DC. So:
-    #     total_variance_legacy = ||legacy_fourier||² − DC²
-    #                           = total non-DC Fourier energy
-    #                           = joint_total + p*marginal_a_total + p*marginal_b_total
-    total_non_dc = (
-        joint_power.sum(axis=(-1, -2))
-        + prime * marginal_a_power.sum(axis=-1)
-        + prime * marginal_b_power.sum(axis=-1)
-    )
-    total_clipped = np.maximum(total_non_dc, 1e-10)
-    reconstructed = numerator / total_clipped[..., None]  # (n_units, K)
-    return reconstructed.T  # (K, n_units) to match legacy norm_matrix layout
-
-
 @skip_no_canon
 def test_parity_neuron_freq_norm(canon_run, canon_new_result):
-    """Reconstruct ``neuron_freq_norm.norm_matrix`` from new mlp_out site."""
+    """Reconstruct ``neuron_freq_norm.norm_matrix`` from new mlp_out site.
+
+    REQ_131: exercises the promoted library helper that the three migrated
+    consumers (neuron_dynamics, neuron_group_pca, freq_group_weight_geometry)
+    now call to rebuild norm_matrix from activation_basis_projection.
+    """
     legacy = _load_legacy_npz("neuron_freq_norm")["norm_matrix"]  # (K, d_mlp)
-    reconstructed = _reconstruct_legacy_neuron_freq_norm(canon_new_result, PRIME, "mlp_out")
+    reconstructed = reconstruct_neuron_freq_norm(canon_new_result, PRIME, "mlp_out")
     np.testing.assert_allclose(reconstructed, legacy, rtol=PARITY_RTOL, atol=PARITY_ATOL)
 
 
@@ -252,7 +213,7 @@ def test_parity_neuron_freq_norm(canon_run, canon_new_result):
 def test_parity_attention_freq(canon_run, canon_new_result):
     """Reconstruct ``attention_freq.freq_matrix`` from new attn_pattern site."""
     legacy = _load_legacy_npz("attention_freq")["freq_matrix"]  # (K, n_heads)
-    reconstructed = _reconstruct_legacy_neuron_freq_norm(
+    reconstructed = reconstruct_neuron_freq_norm(
         canon_new_result, PRIME, "attn_pattern"
     )  # (K, n_heads)
     np.testing.assert_allclose(reconstructed, legacy, rtol=PARITY_RTOL, atol=PARITY_ATOL)
@@ -285,7 +246,7 @@ def test_req102_coarseness_recoverable_from_activation_basis_projection(
             "coarseness analyzer to record this evidence."
         )
     legacy_coarseness = _load_legacy_npz("coarseness")["coarseness"]  # (d_mlp,)
-    reconstructed_neuron_freq_norm = _reconstruct_legacy_neuron_freq_norm(
+    reconstructed_neuron_freq_norm = reconstruct_neuron_freq_norm(
         canon_new_result, PRIME, "mlp_out"
     )  # (K, d_mlp)
     n_low_freqs = 3

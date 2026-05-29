@@ -21,6 +21,10 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ALL, ArtifactInput, DepsAccessor, ResolvedInputs
+from miscope.analysis.library import (
+    NEURON_FREQ_NORM_FIELDS,
+    reconstruct_neuron_freq_norm,
+)
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -37,7 +41,7 @@ SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("neuron_freq_norm"),
+        ArtifactInput("activation_basis_projection"),
         ArtifactInput("parameter_snapshot"),
     ),
 )
@@ -73,7 +77,7 @@ class FreqGroupWeightGeometryAnalyzer:
     """
 
     name = "freq_group_weight_geometry"
-    requires = ["neuron_freq_norm", "parameter_snapshot"]
+    requires = ["activation_basis_projection", "parameter_snapshot"]
 
     def analyze(
         self,
@@ -83,10 +87,13 @@ class FreqGroupWeightGeometryAnalyzer:
         """Compute frequency group geometry in weight space across all checkpoints."""
         assert inputs.deps is not None
         assert inputs.epochs is not None
+        prime = int(context["params"]["prime"])
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_sizes, group_labels = _build_group_labels(inputs.deps, sorted_epochs[-1])
+        group_freqs, group_sizes, group_labels = _build_group_labels(
+            inputs.deps, sorted_epochs[-1], prime
+        )
 
         if not group_freqs:
             return _empty_result(sorted_epochs)
@@ -192,6 +199,7 @@ class FreqGroupWeightGeometryAnalyzer:
 def _build_group_labels(
     deps: DepsAccessor,
     reference_epoch: int,
+    prime: int,
 ) -> tuple[list[int], list[int], np.ndarray]:
     """Assign neurons to frequency groups from the reference epoch.
 
@@ -203,8 +211,10 @@ def _build_group_labels(
         (d_mlp,) int array mapping each neuron to a contiguous group index
         0..n_groups-1. Neurons in excluded groups are mapped to -1.
     """
-    norm = deps.load_epoch("neuron_freq_norm", reference_epoch, fields=["norm_matrix"])
-    norm_matrix = norm["norm_matrix"]  # (n_freq, d_mlp)
+    projection = deps.load_epoch(
+        "activation_basis_projection", reference_epoch, fields=NEURON_FREQ_NORM_FIELDS
+    )
+    norm_matrix = reconstruct_neuron_freq_norm(projection, prime)  # (n_freq, d_mlp)
     d_mlp = norm_matrix.shape[1]
     dominant_freq = np.argmax(norm_matrix, axis=0)  # (d_mlp,)
 

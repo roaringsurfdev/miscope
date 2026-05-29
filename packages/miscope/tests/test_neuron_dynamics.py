@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import plotly.graph_objects as go
 import pytest
-from _deps_fakes import store_inputs
+from _deps_fakes import abp_artifact_from_norm_matrix, store_inputs
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.neuron_dynamics import (
@@ -45,9 +45,17 @@ def _make_specialized_norm_matrix(
     return matrix
 
 
+PRIME = 23  # marginals are zeroed in the fixture, so the value is immaterial
+
+
 @pytest.fixture
-def artifacts_with_neuron_freq_norm():
-    """Create temp artifacts dir with neuron_freq_norm epoch files."""
+def artifacts_with_activation_basis_projection():
+    """Create temp artifacts dir with activation_basis_projection epoch files.
+
+    REQ_131: neuron_dynamics now reconstructs norm_matrix from the generic
+    activation_basis_projection artifact, so the fixture writes that artifact
+    (norm on the joint-power diagonal, zero marginals).
+    """
     n_freq = 10
     d_mlp = 8
     # Epochs: neurons start random, then specialize, then some switch
@@ -61,14 +69,15 @@ def artifacts_with_neuron_freq_norm():
     epochs = sorted(epoch_assignments.keys())
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        analyzer_dir = os.path.join(tmpdir, "neuron_freq_norm")
+        analyzer_dir = os.path.join(tmpdir, "activation_basis_projection")
         os.makedirs(analyzer_dir)
 
         for epoch in epochs:
             assignments = epoch_assignments[epoch]
             norm_matrix = _make_specialized_norm_matrix(n_freq, d_mlp, assignments)
+            artifact = abp_artifact_from_norm_matrix(norm_matrix)
             path = os.path.join(analyzer_dir, f"epoch_{epoch:05d}.npz")
-            np.savez_compressed(path, norm_matrix=norm_matrix)
+            np.savez_compressed(path, **artifact)
 
         yield tmpdir, epochs, epoch_assignments
 
@@ -142,29 +151,31 @@ class TestNeuronDynamicsAnalyzer:
         assert AnalyzerRegistry.get_spec("neuron_dynamics").effective_category == "cross_epoch"
 
     def test_keys_to_inputs_epochs_not_all_available(
-        self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
+        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
     ):
-        """Regression (REQ_128): output is keyed to the run's analyzed epochs
-        (``inputs.epochs``), not to whatever neuron_freq_norm files exist on
+        """Regression (REQ_128/REQ_131): output is keyed to the run's analyzed
+        epochs (``inputs.epochs``), not to whatever upstream files exist on
         disk. If it keyed to all-available, the epoch axis could diverge from
         other per-checkpoint analyzers and overrun downstream index lookups
         (the variant_analysis_summary IndexError on non-dense re-analysis)."""
-        artifacts_dir, epochs, _ = artifacts_with_neuron_freq_norm
+        artifacts_dir, epochs, _ = artifacts_with_activation_basis_projection
         subset = epochs[:3]  # analyze fewer epochs than exist on disk
         result = NeuronDynamicsAnalyzer().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(subset)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(subset)),
+            context={"params": {"prime": PRIME}},
         )
         np.testing.assert_array_equal(result["epochs"], subset)
         assert result["max_frac"].shape[0] == len(subset)
 
     def test_analyze_across_epochs(
-        self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
+        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
     ):
         """Analyzer produces expected output fields and shapes."""
-        artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
+        artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)),
+            context={"params": {"prime": PRIME}},
         )
 
         assert "epochs" in result
@@ -184,13 +195,14 @@ class TestNeuronDynamicsAnalyzer:
         assert result["commitment_epochs"].shape == (d_mlp,)
 
     def test_switch_counts_correct(
-        self, artifacts_with_neuron_freq_norm: tuple[str, list[int], dict[int, list[int]]]
+        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
     ):
         """Switch counts match known assignments."""
-        artifacts_dir, epochs, assignments = artifacts_with_neuron_freq_norm
+        artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), context={}
+            store_inputs(artifacts_dir, epochs=tuple(epochs)),
+            context={"params": {"prime": PRIME}},
         )
 
         # Neuron 2 switches once (freq 2 → 9 at epoch 300)
