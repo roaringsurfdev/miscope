@@ -1256,13 +1256,15 @@ def _register_all() -> None:
 
     def _load_neuron_group_scatter(variant: Variant, epoch: int | None) -> dict:
         cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
-        norm = variant.artifacts.load_epoch("neuron_freq_norm", epoch)  # type: ignore[arg-type]
+        abp = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # type: ignore[arg-type]
         snap = variant.artifacts.load_epoch("parameter_snapshot", epoch)  # type: ignore[arg-type]
         return {
             "group_bases": cross["group_bases"],
             "group_freqs": cross["group_freqs"],
             "W_in": snap["W_in"],
-            "norm_matrix": norm["norm_matrix"],
+            "norm_matrix": _adapt_activation_freq_legacy(abp, "mlp_out", "norm_matrix")[
+                "norm_matrix"
+            ],
         }
 
     def _render_group_scatter(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
@@ -1273,7 +1275,7 @@ def _register_all() -> None:
     _ngpca_req = [AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH)]
     _ngpca_scatter_req = [
         AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
-        AnalyzerRequirement("neuron_freq_norm", ArtifactKind.EPOCH),
+        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH),
         AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
     ]
 
@@ -1374,7 +1376,8 @@ def _register_all() -> None:
 
     def _load_neuron_group_with_purity(variant: Variant, epoch: int | None) -> dict:
         cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
-        norm = variant.artifacts.load_epoch("neuron_freq_norm", epoch)  # type: ignore[arg-type]
+        abp = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # type: ignore[arg-type]
+        norm = _adapt_activation_freq_legacy(abp, "mlp_out", "norm_matrix")
         return {**cross, "norm_matrix": norm["norm_matrix"]}
 
     def _render_group_scatter_purity(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
@@ -1391,7 +1394,7 @@ def _register_all() -> None:
 
     _ngpca_purity_req = [
         AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
-        AnalyzerRequirement("neuron_freq_norm", ArtifactKind.EPOCH),
+        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH),
     ]
 
     for name, renderer in [
@@ -1403,7 +1406,7 @@ def _register_all() -> None:
                 name=name,
                 load_data=_load_neuron_group_with_purity,
                 renderer=renderer,
-                epoch_source_analyzer="neuron_freq_norm",
+                epoch_source_analyzer="activation_basis_projection",
                 required_analyzers=_ngpca_purity_req,
             )
         )

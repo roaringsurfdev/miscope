@@ -1,8 +1,13 @@
 """REQ_042: Neuron dynamics cross-epoch analyzer.
 
-Consumes neuron_freq_norm per-epoch artifacts and produces
-per-neuron frequency trajectory metrics: dominant frequency over time,
-switch counts, and commitment epochs.
+Consumes activation_basis_projection per-epoch artifacts (the mlp_out site)
+and produces per-neuron frequency trajectory metrics: dominant frequency over
+time, switch counts, and commitment epochs.
+
+REQ_131: re-pointed off the legacy neuron_freq_norm artifact onto the generic
+activation_basis_projection, reconstructing the per-epoch norm_matrix on the
+fly (behavior-preserving — see reconstruct_neuron_freq_norm). Streams one epoch
+at a time so the large per-epoch power cube is never stacked across epochs.
 """
 
 from typing import Any
@@ -10,13 +15,17 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.library import (
+    NEURON_FREQ_NORM_FIELDS,
+    reconstruct_neuron_freq_norm,
+)
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 SPEC = AnalyzerSpec(
     name="neuron_dynamics",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("neuron_freq_norm"),),
+    inputs=(ArtifactInput("activation_basis_projection"),),
 )
 
 
@@ -30,7 +39,7 @@ class NeuronDynamicsAnalyzer:
     """
 
     name = "neuron_dynamics"
-    requires = ["neuron_freq_norm"]
+    requires = ["activation_basis_projection"]
 
     def analyze(
         self,
@@ -40,13 +49,24 @@ class NeuronDynamicsAnalyzer:
         """Compute neuron frequency dynamics across all epochs."""
         assert inputs.deps is not None
         assert inputs.epochs is not None
-        # Key to the run's analyzed epochs (not whatever neuron_freq_norm files
-        # happen to exist on disk) so the output epoch axis stays aligned with
-        # the other per-checkpoint analyzers that downstream summaries index by.
-        epochs = list(inputs.epochs)
-        stacked = inputs.deps.load_stack("neuron_freq_norm", epochs=epochs, fields=["norm_matrix"])
+        prime = int(context["params"]["prime"])
 
-        norm_matrix = stacked["norm_matrix"]  # (n_epochs, n_freq, d_mlp)
+        # Stream the run's analyzed epochs (not whatever artifacts happen to
+        # exist on disk) so the output epoch axis stays aligned with the other
+        # per-checkpoint analyzers that downstream summaries index by. Reconstruct
+        # the small (n_freq, d_mlp) norm_matrix per epoch and keep only that —
+        # the large per-epoch power cube is never stacked across epochs.
+        epochs: list[int] = []
+        norm_matrices: list[np.ndarray] = []
+        for epoch, projection in inputs.deps.stream(
+            "activation_basis_projection",
+            epochs=sorted(inputs.epochs),
+            fields=NEURON_FREQ_NORM_FIELDS,
+        ):
+            epochs.append(int(epoch))
+            norm_matrices.append(reconstruct_neuron_freq_norm(projection, prime))
+
+        norm_matrix = np.stack(norm_matrices, axis=0)  # (n_epochs, n_freq, d_mlp)
         n_epochs, n_freq, d_mlp = norm_matrix.shape
 
         # Uncommitted threshold: 3× uniform baseline

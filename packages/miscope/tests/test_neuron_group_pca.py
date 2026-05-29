@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from _deps_fakes import abp_artifact_from_norm_matrix
 
 from miscope.analysis.analyzers.neuron_group_pca import (
     NeuronGroupPCAAnalyzer,
@@ -15,6 +16,8 @@ from miscope.visualization.renderers.neuron_group_pca import (
     render_neuron_group_scatter,
     render_neuron_group_spread,
 )
+
+PRIME = 23  # marginals are zeroed in the fakes, so the value is immaterial
 
 # --- _group_pca_stats unit tests ---
 
@@ -103,8 +106,8 @@ class _MockArtifactLoader:
         self._W_in = W_in_by_epoch  # dict epoch -> W_in array
 
     def load_epoch(self, name: str, epoch: int, *, fields=None):
-        if name == "neuron_freq_norm":
-            return {"norm_matrix": self._norm}
+        if name == "activation_basis_projection":
+            return abp_artifact_from_norm_matrix(self._norm)
         if name == "parameter_snapshot":
             # Include a dummy W_E so extract_neuron_weight_matrix recognises
             # the transformer convention: W_in shape is (d_model, d_mlp).
@@ -126,7 +129,10 @@ def _make_norm_matrix(n_freq: int, d_mlp: int, assignments: list[int]) -> np.nda
 def _run_analyzer(loader, epochs):
     """Run analyzer using a mock deps that bypasses the filesystem."""
     analyzer = NeuronGroupPCAAnalyzer()
-    return analyzer.analyze(ResolvedInputs(deps=loader, epochs=tuple(epochs)), {})
+    return analyzer.analyze(
+        ResolvedInputs(deps=loader, epochs=tuple(epochs)),
+        {"params": {"prime": PRIME}},
+    )
 
 
 def test_analyzer_output_shapes():

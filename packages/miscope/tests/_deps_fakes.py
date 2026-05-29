@@ -19,6 +19,28 @@ from miscope.analysis.deps import ALL, DepsAccessor, FieldSpec
 from miscope.analysis.inputs import ResolvedInputs
 
 
+def abp_artifact_from_norm_matrix(norm_matrix: np.ndarray) -> dict[str, np.ndarray]:
+    """Build an ``activation_basis_projection`` (mlp_out site) epoch dict.
+
+    REQ_131 consumers reconstruct ``norm_matrix`` from the analyzer's joint power
+    cube + per-axis marginals (see ``reconstruct_neuron_freq_norm``). This helper
+    produces the inverse for tests: it places ``norm_matrix`` on the joint-power
+    diagonal with zero marginals, so the reconstruction returns the
+    column-normalized input (argmax over the frequency axis preserved). Lets
+    norm-matrix-based fixtures drive the migrated analyzers unchanged.
+    """
+    n_freq, d_mlp = norm_matrix.shape
+    power = np.zeros((d_mlp, n_freq, n_freq), dtype=np.float64)
+    idx = np.arange(n_freq)
+    power[:, idx, idx] = norm_matrix.T  # column n's per-freq values onto its diagonal
+    zeros = np.zeros((d_mlp, n_freq), dtype=np.float64)
+    return {
+        "mlp_out_power": power,
+        "mlp_out_axis_a_marginal_power": zeros,
+        "mlp_out_axis_b_marginal_power": zeros.copy(),
+    }
+
+
 def _select(data: dict[str, Any], fields: FieldSpec) -> dict[str, Any]:
     if fields is ALL:
         return dict(data)
