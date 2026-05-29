@@ -28,11 +28,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _deps_fakes import deps_inputs
 
 from miscope.analysis.analyzers.weight_basis_projection import (
     WeightBasisProjectionAnalyzer,
 )
-from miscope.analysis.inputs import ResolvedInputs
 
 CANON_VARIANT_DIR = (
     Path(__file__).resolve().parents[3]
@@ -79,7 +79,7 @@ def _synthetic_context(p: int, sites) -> dict:
 
 def _run_analyzer(snapshot: dict, sites, p: int) -> dict[str, np.ndarray]:
     analyzer = WeightBasisProjectionAnalyzer()
-    inputs = ResolvedInputs(artifacts={"parameter_snapshot": snapshot})
+    inputs = deps_inputs({"parameter_snapshot": snapshot})
     return analyzer.analyze(inputs, _synthetic_context(p, sites))
 
 

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from _deps_fakes import deps_inputs
 
 from miscope.analysis.analyzers.neuron_grouping import (
     NeuronGrouping,
@@ -9,7 +10,6 @@ from miscope.analysis.analyzers.neuron_grouping import (
     unpack_summary,
 )
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.protocols import UnifiedAnalyzer
 from miscope.core.grouping import UNASSIGNED, GroupAssignment
 
@@ -51,16 +51,12 @@ class TestNeuronGroupingProtocol:
 class TestNeuronGroupingUniversalPath:
     def test_returns_dict(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert isinstance(result, dict)
 
     def test_contains_required_keys(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         for key in [
             "assignments",
             "n_groups",
@@ -79,59 +75,47 @@ class TestNeuronGroupingUniversalPath:
 
     def test_assignments_shape_matches_d_mlp(self):
         artifact = _make_parameter_snapshot(d_mlp=32)
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert result["assignments"].shape == (32,)
 
     def test_method_is_kmeans_when_no_override(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert str(result["method"]) == "kmeans"
 
     def test_feature_basis_name_is_weight_signature(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert str(result["feature_basis_name"]) == "weight_signature"
 
     def test_no_confidence_field_for_kmeans(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert "confidence" not in result
 
     def test_had_family_override_false(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert bool(result["had_family_override"]) is False
 
     def test_n_groups_from_context(self):
         artifact = _make_parameter_snapshot()
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_n_groups": 4},
         )
         assert int(result["n_groups"]) == 4
 
     def test_n_groups_default_when_unset(self):
         artifact = _make_parameter_snapshot()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), {}
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), {})
         assert int(result["n_groups"]) == 8  # documented default
 
     def test_centroids_shape_matches_n_groups_x_2dmodel(self):
         d_model, d_mlp = 16, 32
         artifact = _make_parameter_snapshot(d_model=d_model, d_mlp=d_mlp)
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_n_groups": 4},
         )
         # Universal-path features = 2 * d_model wide
@@ -141,7 +125,7 @@ class TestNeuronGroupingUniversalPath:
         artifact = _make_parameter_snapshot()
         with pytest.raises(NotImplementedError, match="feature_source"):
             NeuronGrouping().analyze(
-                ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+                deps_inputs({"parameter_snapshot": artifact}),
                 {"neuron_grouping_feature_source": "activation"},
             )
 
@@ -166,7 +150,7 @@ class TestNeuronGroupingFamilyOverride:
             return assignment, features
 
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_override": _override},
         )
         assert str(result["method"]) == "custom_test"
@@ -189,7 +173,7 @@ class TestNeuronGroupingFamilyOverride:
             return assignment, features
 
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_override": _override},
         )
         assert "confidence" in result
@@ -210,7 +194,7 @@ class TestNeuronGroupingFamilyOverride:
             return assignment, features
 
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_override": _override},
         )
         assert int(result["n_unassigned"]) == 2
@@ -223,7 +207,7 @@ class TestUnpackHelpers:
     def test_unpack_assignment_round_trip(self):
         artifact = _make_parameter_snapshot()
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_n_groups": 4},
         )
         assignment = unpack_assignment(result)
@@ -237,7 +221,7 @@ class TestUnpackHelpers:
     def test_unpack_summary_round_trip(self):
         artifact = _make_parameter_snapshot()
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_n_groups": 4},
         )
         summary = unpack_summary(result)
@@ -263,7 +247,7 @@ class TestUnpackHelpers:
             )
 
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_override": _override},
         )
         assignment = unpack_assignment(result)
@@ -311,9 +295,7 @@ class TestModaddFourierOverride:
 
     def test_override_produces_argmax_by_basis_assignment(self):
         artifact, context, _ = self._setup_modadd_artifact_and_context()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context)
         assert str(result["method"]) == "argmax_by_basis"
         assert str(result["feature_basis_name"]) == "fourier_w_in"
 
@@ -321,30 +303,22 @@ class TestModaddFourierOverride:
         """For prime p, K = (p-1)/2 frequency pairs."""
         prime = 7
         artifact, context, _ = self._setup_modadd_artifact_and_context(prime=prime)
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context)
         assert int(result["n_groups"]) == (prime - 1) // 2
 
     def test_override_assignment_shape_matches_d_mlp(self):
         artifact, context, model = self._setup_modadd_artifact_and_context()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context)
         assert result["assignments"].shape == (model.cfg.d_mlp,)
 
     def test_override_records_family_override_flag(self):
         artifact, context, _ = self._setup_modadd_artifact_and_context()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context)
         assert bool(result["had_family_override"]) is True
 
     def test_override_emits_confidence(self):
         artifact, context, _ = self._setup_modadd_artifact_and_context()
-        result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context
-        )
+        result = NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context)
         assert "confidence" in result
         # Untrained model: most neurons will have low confidence, but the
         # confidence values themselves should be in [0, 1].
@@ -363,7 +337,7 @@ class TestModaddFourierOverride:
             "neuron_grouping_confidence_threshold": 0.99,
         }
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context_strict
+            deps_inputs({"parameter_snapshot": artifact}), context_strict
         )
         n_unassigned = int(result["n_unassigned"])
         n_total = int(result["assignments"].shape[0])
@@ -380,24 +354,20 @@ class TestModaddFourierOverride:
         context_lenient = {**context, "neuron_grouping_confidence_threshold": 0.1}
         n_assigned_strict = int(
             NeuronGrouping()
-            .analyze(ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context_strict)[
-                "assignments"
-            ]
+            .analyze(deps_inputs({"parameter_snapshot": artifact}), context_strict)["assignments"]
             .shape[0]
         ) - int(
-            NeuronGrouping().analyze(
-                ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context_strict
-            )["n_unassigned"]
+            NeuronGrouping().analyze(deps_inputs({"parameter_snapshot": artifact}), context_strict)[
+                "n_unassigned"
+            ]
         )
         n_assigned_lenient = int(
             NeuronGrouping()
-            .analyze(ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context_lenient)[
-                "assignments"
-            ]
+            .analyze(deps_inputs({"parameter_snapshot": artifact}), context_lenient)["assignments"]
             .shape[0]
         ) - int(
             NeuronGrouping().analyze(
-                ResolvedInputs(artifacts={"parameter_snapshot": artifact}), context_lenient
+                deps_inputs({"parameter_snapshot": artifact}), context_lenient
             )["n_unassigned"]
         )
         assert n_assigned_lenient >= n_assigned_strict
@@ -417,7 +387,7 @@ class TestModaddFourierOverride:
             )
 
         result = NeuronGrouping().analyze(
-            ResolvedInputs(artifacts={"parameter_snapshot": artifact}),
+            deps_inputs({"parameter_snapshot": artifact}),
             {"neuron_grouping_override": _override},
         )
         assignment = unpack_assignment(result)

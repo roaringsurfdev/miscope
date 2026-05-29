@@ -32,7 +32,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.grouping import (
     group_neurons,
     group_neurons_summary,
@@ -72,7 +72,9 @@ class NeuronGrouping:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute per-epoch grouping for one checkpoint."""
-        artifact = inputs.artifacts["parameter_snapshot"]
+        assert inputs.deps is not None and inputs.epoch is not None
+        # Family composers/overrides may read any weight matrix → load all.
+        artifact = inputs.deps.load_epoch("parameter_snapshot", inputs.epoch, fields=ALL)
         override: Callable | None = context.get(_CONTEXT_OVERRIDE_KEY)
         if override is not None:
             assignment, features = override(artifact, context)

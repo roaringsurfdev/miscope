@@ -14,11 +14,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from _deps_fakes import deps_inputs
 
 from miscope.analysis.analyzers.centroid_fourier_alignment import (
     CentroidFourierAlignmentAnalyzer,
 )
-from miscope.analysis.inputs import ResolvedInputs
 
 CANON_VARIANT_DIR = (
     Path(__file__).resolve().parents[3]
@@ -88,7 +88,7 @@ def test_parity_centroid_fourier_alignment_on_canon():
     """New analyzer reproduces canon's legacy ``*_fourier_alignment`` per site."""
     legacy = _load_legacy_repr_geometry(PARITY_EPOCH)
     analyzer = CentroidFourierAlignmentAnalyzer()
-    inputs = ResolvedInputs(artifacts={"repr_geometry": legacy}, epoch=PARITY_EPOCH)
+    inputs = deps_inputs({"repr_geometry": legacy}, epoch=PARITY_EPOCH)
     context = {"params": {"prime": PRIME}}
     result = analyzer.analyze(inputs, context)
 
@@ -125,7 +125,7 @@ def test_analyzer_iterates_only_centroid_keys():
         # ``attn_out_centroids`` absent — should not appear in output.
     }
     analyzer = CentroidFourierAlignmentAnalyzer()
-    inputs = ResolvedInputs(artifacts={"repr_geometry": upstream})
+    inputs = deps_inputs({"repr_geometry": upstream})
     result = analyzer.analyze(inputs, {"params": {"prime": p}})
     assert set(result.keys()) == {"mlp_out_fourier_alignment"}
 
@@ -136,7 +136,7 @@ def test_summary_passes_per_site_scalars_through():
     rng = np.random.default_rng(1)
     upstream = {"resid_post_centroids": rng.standard_normal((p, 8))}
     analyzer = CentroidFourierAlignmentAnalyzer()
-    inputs = ResolvedInputs(artifacts={"repr_geometry": upstream})
+    inputs = deps_inputs({"repr_geometry": upstream})
     context = {"params": {"prime": p}}
     result = analyzer.analyze(inputs, context)
     summary = analyzer.compute_summary(result, context)

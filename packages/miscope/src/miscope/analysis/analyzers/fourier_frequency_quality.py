@@ -56,7 +56,10 @@ class FourierFrequencyQualityAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, Any]:
         """Compute frequency quality score for one epoch."""
-        artifact = inputs.artifacts["dominant_frequencies"]
+        assert inputs.deps is not None and inputs.epoch is not None
+        artifact = inputs.deps.load_epoch(
+            "dominant_frequencies", inputs.epoch, fields=["coefficients"]
+        )
         p = context["params"]["prime"]
         fourier_basis = context["fourier_basis"].cpu().numpy()  # (p, p)
         coefficients = artifact["coefficients"]  # (p,)

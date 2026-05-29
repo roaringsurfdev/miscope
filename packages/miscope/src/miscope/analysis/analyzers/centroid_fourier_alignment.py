@@ -26,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_fourier_alignment
 from miscope.analysis.registry import register_analyzer
@@ -54,7 +54,9 @@ class CentroidFourierAlignmentAnalyzer:
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
         """Compute fourier alignment for each site whose centroids are present."""
-        upstream = inputs.artifacts["repr_geometry"]
+        assert inputs.deps is not None and inputs.epoch is not None
+        # Site set is discovered by scanning all keys for the `_centroids` suffix.
+        upstream = inputs.deps.load_epoch("repr_geometry", inputs.epoch, fields=ALL)
         prime = int(context["params"]["prime"])
 
         result: dict[str, np.ndarray] = {}
