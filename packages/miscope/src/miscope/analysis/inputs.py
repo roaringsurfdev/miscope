@@ -22,11 +22,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from miscope.analysis.deps import ALL, DepsAccessor
+
 if TYPE_CHECKING:
     import numpy as np
     import torch
 
     from miscope.architectures import ActivationCache, HookedModel
+
+__all__ = [
+    "ALL",
+    "ArtifactInput",
+    "ArtifactScope",
+    "DepsAccessor",
+    "InputSpec",
+    "ModelInput",
+    "ResolvedInputs",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +133,10 @@ class ResolvedInputs:
     summary_artifacts: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
     artifacts_dir: str | None = None
     epochs: tuple[int, ...] | None = None
+    # REQ_128: scoped lazy accessor over declared upstream artifacts. Supersedes
+    # the eager ``artifacts`` / ``cross_epoch_artifacts`` / ``summary_artifacts``
+    # dicts and ``artifacts_dir`` above (removed once analyzers migrate).
+    deps: DepsAccessor | None = None
 
 
 # ---------------------------------------------------------------------------
