@@ -1,6 +1,6 @@
 # REQ_131: Migrate `neuron_freq_norm` consumers to `activation_basis_projection` (unblock `neuron_freq_clusters` retirement)
 
-**Status:** Implementation complete (2026-05-29) on `feature/req-131-neuron-freq-norm-consumer-migration` — awaiting merge approval to `develop`. Full miscope suite green (1518 passed, 27 skipped); canon-gated parity test re-pointed to the promoted helper. Scope was extended (with user approval) to the 3 View Catalog views REQ_127 missed. **Now unblocked:** REQ_128 merged to `develop` (`022b48e`), so the selective/lazy loading this migration needs is available.
+**Status:** Completed — merged to `develop` 2026-05-29. User confirmed the previously-failing variant re-analyzes cleanly and all dashboard analysis pages load. Full miscope suite green (1518 passed, 27 skipped); canon-gated parity test re-pointed to the promoted helper. Scope was extended (with user approval) to the 3 View Catalog views REQ_127 missed. Unblocks REQ_102's deletion of `neuron_freq_clusters`. (Earlier: REQ_128 merged to `develop` `022b48e`, providing the selective/lazy loading this migration needed.)
 **Priority:** High — unblocks the second REQ_102 deferral *and* removes the root cause of the stale-upstream `IndexError` surfaced at REQ_128 close-out.
 **Branch:** `feature/req-131-neuron-freq-norm-consumer-migration` (off `develop`).
 **Dependencies:**
