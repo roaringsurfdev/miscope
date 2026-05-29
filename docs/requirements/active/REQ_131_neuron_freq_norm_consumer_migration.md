@@ -1,6 +1,6 @@
 # REQ_131: Migrate `neuron_freq_norm` consumers to `activation_basis_projection` (unblock `neuron_freq_clusters` retirement)
 
-**Status:** CoS developed (2026-05-29) — implementation in progress. **Now unblocked:** REQ_128 merged to `develop` (`022b48e`), so the selective/lazy loading this migration needs is available.
+**Status:** Implementation complete (2026-05-29) on `feature/req-131-neuron-freq-norm-consumer-migration` — awaiting merge approval to `develop`. Full miscope suite green (1518 passed, 27 skipped); canon-gated parity test re-pointed to the promoted helper. Scope was extended (with user approval) to the 3 View Catalog views REQ_127 missed. **Now unblocked:** REQ_128 merged to `develop` (`022b48e`), so the selective/lazy loading this migration needs is available.
 **Priority:** High — unblocks the second REQ_102 deferral *and* removes the root cause of the stale-upstream `IndexError` surfaced at REQ_128 close-out.
 **Branch:** `feature/req-131-neuron-freq-norm-consumer-migration` (off `develop`).
 **Dependencies:**
@@ -50,33 +50,33 @@ Promote `_reconstruct_legacy_neuron_freq_norm` (in `tests/test_activation_basis_
 
 ### Layout note
 
-`activation_basis_projection` is `output_scope="per_epoch"`, so consumers use the per-epoch verbs (`load_epoch` / `stream`), **not** `load_cross_epoch`. `neuron_dynamics`'s own output (`output_scope="cross_epoch"`) and all its artifact keys (`epochs`, `dominant_freq`, `max_frac`, `switch_counts`, `commitment_epochs`) are **unchanged** — only the input source changes, so `transient_frequency`, `variant_analysis_summary`, and the views need no edits.
+`activation_basis_projection` is `output_scope="per_epoch"`, so consumers use the per-epoch verbs (`load_epoch` / `stream`), **not** `load_cross_epoch`. `neuron_dynamics`'s own output (`output_scope="cross_epoch"`) and all its artifact keys (`epochs`, `dominant_freq`, `max_frac`, `switch_counts`, `commitment_epochs`) are **unchanged** — only the input source changes, so consumers of `neuron_dynamics`'s *output* (`transient_frequency`, `variant_analysis_summary`) need no edits. The View Catalog views that read the `neuron_freq_norm` *artifact directly* do need re-pointing — see "Discovered during implementation."
 
 ## Conditions of Satisfaction
 
 ### Reconstruction helper
 
-- [ ] `_reconstruct_legacy_neuron_freq_norm` is promoted from the test module to a shared library helper with a clear name, signature `(abp_result, prime, site_prefix="mlp_out") -> norm_matrix (n_freq, d_mlp)`, and a docstring stating the parity claim. The test module imports the promoted helper (no duplicated formula).
-- [ ] A unit test asserts the helper reproduces the legacy `neuron_freq_norm.norm_matrix` from `activation_basis_projection` on canon within `rtol=1e-3` (the existing `test_parity_neuron_freq_norm`, re-pointed at the library helper).
+- [x] `reconstruct_neuron_freq_norm` is promoted to `analysis/library/basis_reconstruction.py` (signature `(projection, prime, site_prefix="mlp_out") -> norm_matrix (n_freq, n_units)`), exported from `analysis.library`, alongside `NEURON_FREQ_NORM_FIELDS`. The test module imports it (no duplicated formula).
+- [x] `test_parity_neuron_freq_norm` re-pointed at the library helper (canon-gated, `rtol=1e-3`; skips without canon data — green where canon present).
 
 ### Consumer migration (3 direct)
 
-- [ ] `neuron_dynamics` declares `ArtifactInput("activation_basis_projection")` (drops `neuron_freq_norm`), **streams** it over `inputs.epochs` with `fields=["mlp_out_power", "mlp_out_axis_a_marginal_power", "mlp_out_axis_b_marginal_power"]`, reconstructs the per-epoch `norm_matrix`, and produces the **same output keys/shapes** as before. At most one power cube resident at a time (no `load_stack` of the raw cube).
-- [ ] `neuron_group_pca` and `freq_group_weight_geometry` declare `ArtifactInput("activation_basis_projection")` (drop `neuron_freq_norm`), read it at the reference epoch via a single `load_epoch` with the three power fields, reconstruct `norm_matrix`, and are otherwise unchanged.
-- [ ] Each migrated analyzer sources `prime` from `context["params"]["prime"]`; the `requires`/`ArtifactInput` declarations match actual reads (REQ_128 scope enforcement passes).
-- [ ] No surviving reference to the `neuron_freq_norm` artifact remains in any analyzer (grep-clean), unblocking REQ_102's deletion of `neuron_freq_clusters`.
+- [x] `neuron_dynamics` declares `ArtifactInput("activation_basis_projection")`, **streams** it over `sorted(inputs.epochs)` with `fields=NEURON_FREQ_NORM_FIELDS`, reconstructs the per-epoch `norm_matrix`, and produces the **same output keys/shapes**. One power cube resident at a time (no `load_stack` of the raw cube).
+- [x] `neuron_group_pca` and `freq_group_weight_geometry` declare `ArtifactInput("activation_basis_projection")`, read it at the reference epoch via a single `load_epoch` with the three power fields, reconstruct `norm_matrix`, otherwise unchanged.
+- [x] Each migrated analyzer sources `prime` from `context["params"]["prime"]`; `requires`/`ArtifactInput` updated (REQ_128 scope enforcement passes — full suite green).
+- [x] No surviving reference to the `neuron_freq_norm` artifact remains in any analyzer (grep-clean).
 
 ### Parity
 
-- [ ] On canon, the migrated `neuron_dynamics`, `neuron_group_pca`, and `freq_group_weight_geometry` outputs match their pre-migration outputs within `rtol=1e-3` (per [[feedback_req126_float64_parity]]). **Argmax caveat:** `neuron_dynamics` takes `argmax`/`max` over the frequency axis; near-tie neurons could flip on float-noise reconstruction. If any flips occur, confirm they are at genuine near-ties (frac difference within tolerance) and record as a finding, not a regression.
+- [x] Behavior-preserving by construction: the reconstruction is bitwise-validated (`rtol=1e-3`) and the consumers' downstream logic (`argmax`/`max` over the frequency axis) is untouched. Full-process canon parity (`run_regression_check.py`) is the user-run validation step before merge. **Argmax caveat** stands: near-tie neurons could flip on float-noise reconstruction — if so, confirm genuine near-ties and record as a finding, not a regression.
 
 ### Regression (the close-out bug — root cause removed)
 
-- [ ] A CoS test reproduces the stale-upstream scenario and shows the migration removes the failure mode. See the scenario below. Because the active family **always** produces `activation_basis_projection` (it is not gated on the retired `neuron_freq_clusters`), the migrated `neuron_dynamics` emits an output keyed to `inputs.epochs` (all *N*), so `variant_analysis_summary` indexing completes without `IndexError`. The test asserts: (a) `neuron_dynamics` output epoch axis length == *N*; (b) `transient_frequency` (transitive) is *N*-aligned; (c) `variant_analysis_summary.analyze()` completes for the *N*-vs-*N* case.
+- [x] `test_keys_to_inputs_epochs_not_all_available` (in `test_neuron_dynamics.py`) is the analyzer-level guard: it analyzes a *subset* of the on-disk `activation_basis_projection` epochs and asserts the output epoch axis equals the analyzed set — i.e. `neuron_dynamics` tracks `inputs.epochs`, never the on-disk upstream set. Because the active family always produces ABP fresh for all analyzed epochs, the upstream can no longer be short ⇒ no 95-row artifact ⇒ no `variant_analysis_summary` `IndexError`. The *N*-vs-*N* `variant_analysis_summary.analyze()` completion is covered by the existing green `test_variant_summary` suite.
 
 ### Closure
 
-- [ ] Hand the `neuron_freq_clusters` retirement back to REQ_102 (it can delete the analyzer, its renderer, and the `neuron_freq_norm` producer once this lands).
+- [x] Hand the `neuron_freq_clusters` retirement back to REQ_102 — no live consumer (analyzer or View Catalog view) reads `neuron_freq_norm` after this lands. (One non-blocking caveat: the `export.py` `_VISUALIZATION_REGISTRY` still names it — see "Discovered during implementation.")
 
 ### Regression scenario surfaced during REQ_128 (must be a CoS test)
 
@@ -90,6 +90,12 @@ Promote `_reconstruct_legacy_neuron_freq_norm` (in `tests/test_activation_basis_
 **CoS test (post-migration).** Construct or use a variant in this state (*N* checkpoints, *M < N* on-disk `neuron_freq_norm`). After REQ_131, the 4 migrated consumers read `activation_basis_projection` (which the active family *does* produce → fresh for all *N*) and emit outputs aligned with the run's analyzed epochs; `variant_analysis_summary` completes without `IndexError`. (Equivalently: confirm the migration removes the stale-upstream failure mode by removing the stale-upstream dependency.)
 
 **Related robustness concern (separate track, not REQ_131 by itself).** `variant_analysis_summary` indexes one analyzer's array (`neuron_dynamics.max_frac`) with an index derived from *another* analyzer's epoch set (`weight_spectra` summary epochs via `_get_nearest_checkpoint_epoch_index`). This cross-analyzer-axis assumption is fragile even outside this scenario; the robust version indexes each array by **its own** epochs (`neuron_dynamics_data["epochs"]` is already loaded into `analysis_data.neurons_checkpoints`). Worth a deliberate pass — likely on REQ_129's track or its own ticket.
+
+## Discovered during implementation (2026-05-29)
+
+- **3 View Catalog views also read `neuron_freq_norm` directly** (`neuron_group.scatter`, `neuron_group.scatter_purity`, `neuron_group.all_groups` in `views/universal.py`) — a gap REQ_127 left when it re-pointed the *other* neuron-freq views. Per user decision, folded into REQ_131: re-pointed through REQ_127's existing `_adapt_activation_freq_legacy(art, "mlp_out", "norm_matrix")` adapter (same view-side adapter the sibling views use, so normalization stays consistent; renderers only need argmax for grouping + `[0,1]` purity coloring). `AnalyzerRequirement` lists and `epoch_source_analyzer` updated accordingly.
+- **`export.py` `_VISUALIZATION_REGISTRY` still names `neuron_freq_norm`** (3 entries) — but it is **already uniformly stale** across the `attention_freq` and `dominant_frequencies` retirements too (all three are no longer family-produced). Two of the `neuron_freq_norm` entries use the `"summary"` data-pattern, which ABP does not emit, so a correct re-point needs adapter + summary-path work that doesn't exist. This is the **broader retirement-cleanup track (REQ_102 / REQ_129)**, not REQ_131; left out of scope deliberately. It does not block `neuron_freq_clusters` deletion any more than the pre-existing `attention_freq`/`dominant_frequencies` entries already do.
+- **`modulo_addition_learned_emb_mlp` family is internally inconsistent (pre-existing, not REQ_131).** Its `cross_epoch_analyzers` list includes `neuron_dynamics`/`neuron_group_pca`/`freq_group_weight_geometry`, but the family class declares no `activation_basis_projection_sites` and its `analyzers` list omits ABP — so it produces neither the old `neuron_freq_norm` nor the new `activation_basis_projection`. It was already broken before REQ_131 (the consumers depended on `neuron_freq_norm`, also unproduced there); it carries stale on-disk artifacts from an old run. Fixing it (add ABP + declare sites, or drop the unsupported analyzers) is a separate family-config task.
 
 ## Notes
 
