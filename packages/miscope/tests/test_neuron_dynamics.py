@@ -77,7 +77,7 @@ def artifacts_with_activation_basis_projection():
             norm_matrix = _make_specialized_norm_matrix(n_freq, d_mlp, assignments)
             artifact = abp_artifact_from_norm_matrix(norm_matrix)
             path = os.path.join(analyzer_dir, f"epoch_{epoch:05d}.npz")
-            np.savez_compressed(path, **artifact)
+            np.savez_compressed(path, **artifact)  # pyright: ignore[reportArgumentType]
 
         yield tmpdir, epochs, epoch_assignments
 
@@ -151,7 +151,8 @@ class TestNeuronDynamicsAnalyzer:
         assert AnalyzerRegistry.get_spec("neuron_dynamics").effective_category == "cross_epoch"
 
     def test_keys_to_inputs_epochs_not_all_available(
-        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
+        self,
+        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Regression (REQ_128/REQ_131): output is keyed to the run's analyzed
         epochs (``inputs.epochs``), not to whatever upstream files exist on
@@ -168,7 +169,8 @@ class TestNeuronDynamicsAnalyzer:
         assert result["max_frac"].shape[0] == len(subset)
 
     def test_analyze_across_epochs(
-        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
+        self,
+        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Analyzer produces expected output fields and shapes."""
         artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection
@@ -195,7 +197,8 @@ class TestNeuronDynamicsAnalyzer:
         assert result["commitment_epochs"].shape == (d_mlp,)
 
     def test_switch_counts_correct(
-        self, artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]]
+        self,
+        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Switch counts match known assignments."""
         artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection

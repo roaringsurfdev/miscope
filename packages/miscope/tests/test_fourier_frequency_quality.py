@@ -48,7 +48,7 @@ def _run(n_per_group: list[int], basis_name: str = "fourier_w_in") -> dict:
 
 def test_registration_depends_on_neuron_grouping():
     spec = AnalyzerRegistry.get_spec("fourier_frequency_quality")
-    declared = {i.analyzer_name for i in spec.inputs if hasattr(i, "analyzer_name")}
+    declared = {i.analyzer_name for i in spec.inputs if hasattr(i, "analyzer_name")}  # pyright: ignore[reportAttributeAccessIssue]
     assert "neuron_grouping" in declared
     assert "dominant_frequencies" not in declared
 

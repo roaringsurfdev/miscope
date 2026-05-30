@@ -127,24 +127,18 @@ class TestParameterDMDProtocol:
 class TestParameterDMDOutput:
     def test_returns_dict(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         assert isinstance(result, dict)
 
     def test_contains_metadata(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for key in ["epochs", "reference_epoch", "n_groups", "populated_groups", "group_n_neurons"]:
             assert key in result, f"missing metadata: {key}"
 
     def test_reference_epoch_defaults_to_last(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         assert int(result["reference_epoch"]) == int(epochs[-1])
 
     def test_reference_epoch_configurable(self, variant_artifacts_dir):
@@ -168,9 +162,7 @@ class TestParameterDMDOutput:
 
     def test_populated_groups_excludes_empty(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_, n_groups = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         # All groups should have ≥1 assigned neuron in our synthetic fixture
         # (rng-driven but we made sure n_groups is small enough that none ends up empty).
         assert len(result["populated_groups"]) <= n_groups
@@ -178,9 +170,7 @@ class TestParameterDMDOutput:
 
     def test_per_group_per_matrix_keys_present(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
                 prefix = f"group_{int(g)}__{matrix}"
@@ -201,9 +191,7 @@ class TestParameterDMDOutput:
 
     def test_pca_n_components_is_positive(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
                 n = int(result[f"group_{int(g)}__{matrix}__n_components"])
@@ -213,9 +201,7 @@ class TestParameterDMDOutput:
         """PCA components are capped at 50 even if variance budget would
         allow more."""
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
                 n = int(result[f"group_{int(g)}__{matrix}__n_components"])
@@ -224,9 +210,7 @@ class TestParameterDMDOutput:
     def test_trajectory_shape(self, variant_artifacts_dir):
         """Per-(group, matrix) trajectory has shape (n_epochs, n_components)."""
         artifacts_dir, epochs, n_epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
                 trajectory = result[f"group_{int(g)}__{matrix}__trajectory"]
@@ -236,9 +220,7 @@ class TestParameterDMDOutput:
     def test_windowed_dmd_n_windows(self, variant_artifacts_dir):
         """Default window_size = 10, stride = 1 -> n_windows = n_epochs - 10 + 1."""
         artifacts_dir, epochs, n_epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         expected_n_windows = n_epochs - 10 + 1
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
@@ -248,9 +230,7 @@ class TestParameterDMDOutput:
     def test_regime_segments_partition_window_space(self, variant_artifacts_dir):
         """Detected regime segments must partition [0, n_windows) exactly."""
         artifacts_dir, epochs, n_epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         n_windows = n_epochs - 10 + 1
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
@@ -263,9 +243,7 @@ class TestParameterDMDOutput:
 
     def test_per_regime_dmd_segments_match_regimes(self, variant_artifacts_dir):
         artifacts_dir, epochs, *_ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         for g in result["populated_groups"]:
             for matrix in ["W_in", "W_out"]:
                 prefix = f"group_{int(g)}__{matrix}"
@@ -290,9 +268,7 @@ class TestParameterDMDFailureModes:
             W_out=rng.normal(size=(32, 16)).astype(np.float32),
         )
         with pytest.raises(FileNotFoundError, match="neuron_grouping"):
-            ParameterDMD().analyze(
-                store_inputs(artifacts_dir, epochs=tuple([0])), {}
-            )
+            ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple([0])), {})
 
 
 # ── UNASSIGNED neuron handling ───────────────────────────────────────
@@ -304,9 +280,7 @@ class TestParameterDMDUnassignedHandling:
         n_per_group, NOT total d_mlp (because UNASSIGNED neurons are
         skipped)."""
         artifacts_dir, epochs, *_, d_mlp, _ = variant_artifacts_dir
-        result = ParameterDMD().analyze(
-            store_inputs(artifacts_dir, epochs=tuple(epochs)), {}
-        )
+        result = ParameterDMD().analyze(store_inputs(artifacts_dir, epochs=tuple(epochs)), {})
         total_per_populated = int(result["group_n_neurons"].sum())
         # The synthetic fixture had 4 unassigned of d_mlp neurons
         assert total_per_populated == d_mlp - 4
