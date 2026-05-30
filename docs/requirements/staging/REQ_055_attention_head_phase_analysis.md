@@ -1,6 +1,6 @@
 # REQ_055: Attention Head Phase Relationship Analysis
 
-**Status:** Active
+**Status:** Completed
 **Priority:** High
 **Related:** REQ_052 (Fourier Quality Scoring), REQ_053 (Per-Class Error Analysis)
 
@@ -14,23 +14,23 @@ Without this, the attention head story is incomplete. We can see that heads lock
 
 ### Fourier Decomposition of Attention Weight Matrices
 
-- [ ] For each checkpoint epoch and each attention head, compute the Fourier decomposition of W_Q and W_K projected onto the model's prime-based Fourier basis
-- [ ] Compute the Fourier spectrum of QK^T per head — which frequency components does the head's similarity computation emphasize?
-- [ ] For W_V, compute its Fourier decomposition per head — what does the head output, and is that output structured in the same frequency subspace as the Q×K computation?
+- [x] For each checkpoint epoch and each attention head, compute the Fourier decomposition of W_Q and W_K projected onto the model's prime-based Fourier basis
+- [x] Compute the Fourier spectrum of QK^T per head — which frequency components does the head's similarity computation emphasize?
+- [x] For W_V, compute its Fourier decomposition per head — what does the head output, and is that output structured in the same frequency subspace as the Q×K computation?
 
 ### Temporal View
 
-- [ ] For each head, track the Fourier spectrum of QK^T across epochs — when does alignment to the dominant frequency emerge, and how does it evolve relative to neuron specialization and grokking onset?
-- [ ] Surface whether different heads lock onto the same frequency simultaneously or sequentially
+- [x] For each head, track the Fourier spectrum of QK^T across epochs — when does alignment to the dominant frequency emerge, and how does it evolve relative to neuron specialization and grokking onset?
+- [x] Surface whether different heads lock onto the same frequency simultaneously or sequentially
 
 ### Cross-Variant Comparison
 
-- [ ] Compare QK^T Fourier alignment between a healthy variant (e.g., p113/999) and an anomalous variant (e.g., p101/999) at matched epochs
-- [ ] For p101/999 specifically: does the QK^T spectrum reflect the same degenerate frequency concentration (high freq, imbalanced cos/sin) seen in the embeddings and neurons?
+- [x] Compare QK^T Fourier alignment between a healthy variant (e.g., p113/999) and an anomalous variant (e.g., p101/999) at matched epochs
+- [x] For p101/999 specifically: does the QK^T spectrum reflect the same degenerate frequency concentration (high freq, imbalanced cos/sin) seen in the embeddings and neurons?
 
 ### Data Access
 
-- [ ] Attention head Fourier data exposed as dataviews following the DataViewCatalog pattern established in REQ_054
+- [x] Attention head Fourier data exposed as dataviews following the DataViewCatalog pattern established in REQ_054 *(see Completion Note — exposed via the View Catalog, which superseded the DataViewCatalog pattern)*
 
 ## Constraints
 
@@ -68,3 +68,41 @@ The family (modulo_addition_1layer) provides the prime-based Fourier basis neede
 - Per-head QK^T Fourier spectrum heatmap (frequency × head, per epoch)
 - Temporal trajectory: dominant frequency alignment per head across epochs
 - Side-by-side comparison of healthy vs. anomalous variant head alignment at matching epochs
+
+## Completion Note (2026-05-29)
+
+Marked **Completed** and moved to staging. All conditions of satisfaction are met
+in substance; two implementation realities diverge from the original sketch and are
+recorded here for archaeology, because the requirement was satisfied and *then* the
+substrate beneath it was refactored.
+
+**1. Analyzer absorbed into the universal `weight_basis_projection` analyzer.**
+The sketch called for a standalone `AttentionFourierAnalyzer`. That analyzer was
+absorbed into the universal `weight_basis_projection` analyzer (REQ_126/127), which
+projects family-declared weight sites onto the family-supplied Fourier basis. The
+family (`modulo_addition_1layer`) declares two sites that reproduce the intended
+computation per head:
+- `attn_qk` — composes `(W_E·W_Q)(W_E·W_K)ᵀ` per head, shape `(n_heads, p, p)`, 2D-projected
+- `attn_v` — composes `(W_E·W_V)` per head, shape `(n_heads, p, d_head)`
+
+This is *more* aligned with architectural constraint #1 (views are universal
+instruments; analyzers are not family-owned) than the original per-family-analyzer
+sketch. The legacy `qk_freq_norms` / `v_freq_norms` view shape is reconstructed from
+the new analyzer's `attn_qk` / `attn_v` outputs via a small adapter in the view
+loaders. Coverage: `packages/miscope/tests/test_weight_basis_projection.py`.
+
+**2. Data access exposed via the View Catalog, not the REQ_054 DataViewCatalog.**
+The Data Access CoS named the DataViewCatalog pattern from REQ_054. That experimental
+pattern was superseded by the View Catalog (`variant.at(epoch).view(name)`, REQ_047),
+which is now the canonical data-access surface. The attention-Fourier data is exposed
+through it as three views:
+- `parameters.attention.qk_fourier_heatmap` (per-epoch, head × frequency)
+- `parameters.attention.v_fourier_heatmap` (per-epoch, head × frequency)
+- `parameters.attention.head_alignment_trajectory` (temporal, dominant-freq + max-fraction per head)
+
+The *intent* of the CoS — catalog-mediated access with no path literals or direct
+storage construction — is fully satisfied; only the named mechanism evolved.
+
+**Dashboard surface:** the QK and V Fourier alignment heatmaps were added to the
+Activations page (commit `00a858c`). Per-variant artifacts exist under
+`data/modulo_addition_1layer/variants/*/artifacts/weight_basis_projection/`.
