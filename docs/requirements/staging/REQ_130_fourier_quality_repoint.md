@@ -1,6 +1,6 @@
 # REQ_130: Re-point `fourier_frequency_quality` off `dominant_frequencies` (unblock retirement)
 
-**Status:** Implementation complete (2026-05-29) on `feature/req-130-fourier-quality-repoint` — awaiting merge approval to `develop`. Full miscope suite green (1528 passed, 27 skipped). Metric redefined with the user as **neuron-weighted task coverage**. Scope included the DataView straggler REQ_127 missed and a planner topological-sort fix (first secondary→secondary dependency).
+**Status:** Completed — merged to `develop` 2026-05-29. User confirmed a clean canon analysis run. Full miscope suite green (1528 passed, 27 skipped). Metric redefined with the user as **neuron-weighted task coverage**. Scope included the DataView straggler REQ_127 missed and a planner topological-sort fix (first secondary→secondary dependency). Unblocks REQ_102's deletion of `dominant_frequencies` — with REQ_131 (merged), REQ_102's two deferrals are both cleared.
 **Priority:** Medium — unblocks a REQ_102 deferral (the only surviving consumer of `dominant_frequencies`).
 **Branch:** `feature/req-130-fourier-quality-repoint` (off `develop`).
 **Dependencies:**
