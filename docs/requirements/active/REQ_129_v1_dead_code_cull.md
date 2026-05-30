@@ -50,25 +50,32 @@ Each parked candidate, resolved against a repo-wide consumer trace:
 ## Conditions of Satisfaction
 
 ### Authoring + registry cull
-- [ ] `AnalyzerSpec` authored fields `category` / `requires` / `requires_model_weights` / `requires_activation_cache` removed; `is_unified` removed.
-- [ ] `effective_*` properties collapsed to plain derived properties and renamed `effective_X` → `X` across `spec.py`, `registry.py`, `planner.py`, `freshness.py`, and tests.
-- [ ] `AnalyzerRegistry.register` / `register_secondary` / `register_cross_epoch` / `_legacy_register` removed. `AnalysisPipeline.register*` untouched.
-- [ ] Pipeline `if not spec.inputs` and `extra_allowed` spec-less branches removed.
-- [ ] `test_spec_registry.py` and `TestSecondaryAnalyzerRegistry` (in `test_secondary_analyzers.py`) rewritten/removed to drop legacy `category=`/`requires=` fixtures.
+- [x] `AnalyzerSpec` authored fields `category` / `requires` / `requires_model_weights` / `requires_activation_cache` removed; `is_unified` removed.
+- [x] `effective_*` properties collapsed to plain derived properties and renamed `effective_X` → `X` across `spec.py`, `registry.py`, `planner.py`, `freshness.py`, and tests.
+- [x] `AnalyzerRegistry.register` / `register_secondary` / `register_cross_epoch` / `_legacy_register` removed. `AnalysisPipeline.register*` untouched.
+- [x] Pipeline `if not spec.inputs` branch in `_materialize_per_epoch_inputs` collapsed (derived flags already OR over all `ModelInput`s — behavior-preserving). *See follow-up §1 re: the remaining `spec is None` / `extra_allowed` spec-less support.*
+- [x] `test_spec_registry.py` and `TestSecondaryAnalyzerRegistry` (in `test_secondary_analyzers.py`) rewritten/removed to drop legacy `category=`/`requires=` fixtures.
 
 ### Protocol-alias cull
-- [ ] `UnifiedAnalyzer` / `SecondaryAnalyzer` / `CrossEpochAnalyzer` aliases removed from `protocols.py` and `analysis/__init__.py`; consumers retyped/isinstance-checked against `Analyzer`.
-- [ ] Stale "Phase 2C" dispatcher docstrings in `spec.py` corrected.
+- [x] `UnifiedAnalyzer` / `SecondaryAnalyzer` / `CrossEpochAnalyzer` aliases removed from `protocols.py` and `analysis/__init__.py`; consumers retyped/isinstance-checked against `Analyzer`.
+- [x] Stale "Phase 2C" dispatcher docstrings in `spec.py` corrected.
 
 ### Env-contract cull
-- [ ] `TDW_*` fallbacks and references removed from `config.py`; `MISCOPE_*` is the sole contract.
+- [x] `TDW_*` fallbacks and references removed from `config.py`; `MISCOPE_*` is the sole contract.
 
 ### Validation
-- [ ] Full `miscope` + `dashboard` test suites pass (the migrated tests are the regression net).
-- [ ] `grep` confirms zero remaining references to each removed symbol (`is_unified`, `effective_category`, `_legacy_register`, `TDW_`, the protocol aliases) outside this REQ doc and CHANGELOG.
-- [ ] No new dead-code introduced (no commented-out shims left behind — delete, don't comment).
+- [x] Full `miscope` (1466 passed, 29 skipped) + `dashboard` (45 passed) test suites pass.
+- [x] `grep` confirms zero remaining references to each removed symbol (`is_unified`, `effective_category`, `_legacy_register`, `TDW_`, the protocol aliases) outside this REQ doc, CHANGELOG, and the `test_config` test that asserts `TDW_*` is *ignored*.
+- [x] No new dead-code introduced (no commented-out shims left behind — delete, don't comment).
+
+## Follow-ups deferred (flagged during implementation)
+
+These are *test-only / dead-in-production* surfaces deliberately left in place to keep this REQ a dead-**code** cull rather than an API-surface decision. Each warrants its own explicit call:
+
+1. **Pipeline spec-less analyzer support.** The `spec is None` conservative branch in `_materialize_per_epoch_inputs` and the `extra_allowed`/`depends_on` widening in `_run_secondary_analyzers` only fire for analyzers with no registered Spec — which never happens in production (all 32 register via `@register_analyzer`), only for ad-hoc test analyzers. Removing it is coupled to retiring the pipeline's separate `_secondary_analyzers` execution phase and the `depends_on` attribute convention — a structural change, not a cull.
+2. **Legacy class-based query API.** `AnalyzerRegistry.get` / `get_secondary` / `get_cross_epoch` / `get_for_family` / `get_secondary_for_family` / `get_cross_epoch_for_family` / `list_all` are now test-only (and three are fully dead). Removing them changes `AnalyzerRegistry`'s public surface (the spec-based vs. legacy split), which deserves an explicit decision rather than a ride-along here. They are retyped to `Analyzer` and still functional.
 
 ## Notes
 
-- **Audit before deleting.** Mirror REQ_102's safeguard: grep for each candidate, confirm no consumer (view, notebook, downstream analyzer, app), confirm family configs and `__init__`/`registry` don't reference it, then remove.
-- **Sequencing.** Best run *after* REQ_102 and REQ_128 so the remaining dead set is well-defined and not a moving target.
+- **Audit before deleting.** Mirror REQ_102's safeguard: grep for each candidate, confirm no consumer (view, notebook, downstream analyzer, app), confirm family configs and `__init__`/`registry` don't reference it, then remove. *(Audit table above, 2026-05-30.)*
+- **Sequencing.** Best run *after* REQ_102 and REQ_128 so the remaining dead set is well-defined and not a moving target. *(Both landed on `develop` 2026-05-29; this REQ executed 2026-05-30.)*
