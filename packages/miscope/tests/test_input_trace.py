@@ -23,7 +23,7 @@ from miscope.analysis.analyzers.input_trace_graduation import (
     _compute_graduation_epochs,
 )
 from miscope.analysis.inputs import ResolvedInputs
-from miscope.analysis.protocols import Analyzer, UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 
 # ── Minimal model fixture ─────────────────────────────────────────────
 
@@ -96,7 +96,7 @@ class TestProtocolConformance:
         assert isinstance(InputTraceAnalyzer(), Analyzer)
 
     def test_graduation_analyzer_conforms(self):
-        assert isinstance(InputTraceGraduationAnalyzer(), UnifiedAnalyzer)
+        assert isinstance(InputTraceGraduationAnalyzer(), Analyzer)
 
     def test_input_trace_has_summary_methods(self):
         analyzer = InputTraceAnalyzer()

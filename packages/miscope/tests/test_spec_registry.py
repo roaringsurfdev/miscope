@@ -1,13 +1,13 @@
 """Tests for REQ_120: AnalyzerSpec + Registry + Planner/Pipeline integration.
 
 CoS coverage:
-- Spec dataclass: shape, defaults, frozen-ness.
-- Registry: @register_analyzer decorator, query API, legacy-API back-compat,
-  Spec/class name mismatch detection.
+- Spec dataclass: shape, defaults, frozen-ness, derived properties.
+- Registry: @register_analyzer decorator, query API, Spec/class name
+  mismatch detection.
 - Planner: accepts Specs, surfaces capability flags, computes
   transitive_prerequisites, Plan.needs_activation_cache aggregate.
 - Pipeline: skips run_with_cache when Plan.needs_activation_cache is False;
-  Spec-only analyzers in a Plan get instantiated from Registry; legacy
+  Spec-only analyzers in a Plan get instantiated from Registry; spec-less
   Analyzer instances still default to cache-on.
 """
 
@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
+from miscope.analysis.inputs import ArtifactInput, ModelInput
 from miscope.analysis.planner import plan_analysis
 from miscope.analysis.registry import AnalyzerRegistry, register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -29,18 +30,25 @@ from miscope.analysis.spec import AnalyzerSpec
 
 
 def test_spec_defaults():
-    spec = AnalyzerSpec(name="foo", category="primary")
+    """A bare Spec declares no inputs, so capability flags derive to False."""
+    spec = AnalyzerSpec(name="foo")
     assert spec.name == "foo"
     assert spec.category == "primary"
-    assert spec.effective_requires == ()
-    assert spec.effective_requires_model_weights is True
-    assert spec.effective_requires_activation_cache is True
+    assert spec.requires == ()
+    assert spec.requires_model_weights is False
+    assert spec.requires_activation_cache is False
     assert spec.required_hooks == ()
     assert spec.produces_summary is False
 
 
+def test_spec_derives_flags_from_model_input():
+    spec = AnalyzerSpec(name="foo", inputs=(ModelInput(needs_weights=True, needs_cache=True),))
+    assert spec.requires_model_weights is True
+    assert spec.requires_activation_cache is True
+
+
 def test_spec_is_frozen():
-    spec = AnalyzerSpec(name="foo", category="primary")
+    spec = AnalyzerSpec(name="foo")
     with pytest.raises(Exception):  # noqa: B017 — FrozenInstanceError
         spec.name = "bar"  # type: ignore[misc]
 
@@ -70,7 +78,7 @@ def fresh_registry():
 
 
 def test_decorator_registers_spec_and_factory(fresh_registry):
-    spec = AnalyzerSpec(name="foo", category="primary")
+    spec = AnalyzerSpec(name="foo", inputs=(ModelInput(),))
 
     @register_analyzer(spec)
     class FooAnalyzer:
@@ -84,7 +92,7 @@ def test_decorator_registers_spec_and_factory(fresh_registry):
 
 
 def test_decorator_rejects_name_mismatch(fresh_registry):
-    spec = AnalyzerSpec(name="foo", category="primary")
+    spec = AnalyzerSpec(name="foo", inputs=(ModelInput(),))
     with pytest.raises(ValueError, match="name mismatch"):
 
         @register_analyzer(spec)
@@ -96,88 +104,25 @@ def test_decorator_rejects_name_mismatch(fresh_registry):
 
 
 def test_list_specs_by_category(fresh_registry):
-    @register_analyzer(AnalyzerSpec(name="p1", category="primary"))
+    @register_analyzer(AnalyzerSpec(name="p1", inputs=(ModelInput(),)))
     class P1:
         name = "p1"
 
         def analyze(self, inputs, context):
             return {}
 
-    @register_analyzer(AnalyzerSpec(name="c1", category="cross_epoch"))
+    @register_analyzer(AnalyzerSpec(name="c1", output_scope="cross_epoch"))
     class C1:
         name = "c1"
         requires = []
 
-        def analyze_across_epochs(self, *args):
+        def analyze(self, inputs, context):
             return {}
 
     primaries = [s.name for s in fresh_registry.list_specs_by_category("primary")]
     cross = [s.name for s in fresh_registry.list_specs_by_category("cross_epoch")]
     assert "p1" in primaries and "c1" not in primaries
     assert "c1" in cross and "p1" not in cross
-
-
-def test_legacy_register_synthesizes_default_spec(fresh_registry):
-    class LegacyAnalyzer:
-        name = "legacy"
-
-        def analyze(self, inputs, context):
-            return {}
-
-    fresh_registry.register(LegacyAnalyzer)
-    spec = fresh_registry.get_spec("legacy")
-    # Default Spec: conservative — assume weights + cache
-    assert spec.category == "primary"
-    assert spec.effective_requires_model_weights is True
-    assert spec.effective_requires_activation_cache is True
-
-
-def test_legacy_register_secondary_infers_requires_from_depends_on(fresh_registry):
-    class LegacySecondary:
-        name = "leg_sec"
-        depends_on = "leg_prim"
-
-        def analyze(self, artifact, ctx):
-            return {}
-
-    fresh_registry.register_secondary(LegacySecondary)
-    spec = fresh_registry.get_spec("leg_sec")
-    assert spec.category == "secondary"
-    assert spec.effective_requires == ("leg_prim",)
-
-
-def test_legacy_register_cross_epoch_infers_requires(fresh_registry):
-    class LegacyCross:
-        name = "leg_cross"
-        requires = ["upstream_a", "upstream_b"]
-
-        def analyze_across_epochs(self, *args):
-            return {}
-
-    fresh_registry.register_cross_epoch(LegacyCross)
-    spec = fresh_registry.get_spec("leg_cross")
-    assert spec.category == "cross_epoch"
-    assert spec.effective_requires == ("upstream_a", "upstream_b")
-
-
-def test_decorator_wins_over_subsequent_legacy_register(fresh_registry):
-    """Decorator-registered Spec is preserved when legacy register() runs after."""
-    explicit = AnalyzerSpec(
-        name="dual",
-        category="primary",
-        requires_activation_cache=False,
-    )
-
-    @register_analyzer(explicit)
-    class Dual:
-        name = "dual"
-
-        def analyze(self, inputs, context):
-            return {}
-
-    fresh_registry.register(Dual)  # legacy call — should be a no-op
-    assert fresh_registry.get_spec("dual") is explicit
-    assert fresh_registry.get_spec("dual").requires_activation_cache is False
 
 
 # ---------------------------------------------------------------------------
@@ -197,9 +142,7 @@ def test_plan_with_spec_carries_capability_flags(tmp_path):
     variant = _make_variant(tmp_path, [0, 100])
     spec = AnalyzerSpec(
         name="weights_only",
-        category="primary",
-        requires_model_weights=True,
-        requires_activation_cache=False,
+        inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     )
 
     plan = plan_analysis(variant, [spec])
@@ -210,7 +153,7 @@ def test_plan_with_spec_carries_capability_flags(tmp_path):
 
 
 def test_plan_with_instance_leaves_capability_flags_none(tmp_path):
-    """Legacy Analyzer instances (no Spec) yield ``None`` flags, which the
+    """Spec-less Analyzer instances yield ``None`` flags, which the
     Pipeline treats conservatively as ``True``."""
 
     class Legacy:
@@ -228,8 +171,8 @@ def test_plan_with_instance_leaves_capability_flags_none(tmp_path):
 
 def test_plan_needs_activation_cache_or_aggregate(tmp_path):
     variant = _make_variant(tmp_path, [0])
-    weights_only = AnalyzerSpec(name="a", category="primary", requires_activation_cache=False)
-    cache_reader = AnalyzerSpec(name="b", category="primary", requires_activation_cache=True)
+    weights_only = AnalyzerSpec(name="a", inputs=(ModelInput(needs_cache=False),))
+    cache_reader = AnalyzerSpec(name="b", inputs=(ModelInput(needs_cache=True),))
 
     plan_a = plan_analysis(variant, [weights_only])
     assert plan_a.needs_activation_cache is False
@@ -258,7 +201,7 @@ def test_plan_transitive_prerequisites_when_registered(tmp_path, fresh_registry)
     """A cross-epoch item blocked by a Registry-known dep gets surfaced."""
     fresh_registry.clear()
 
-    @register_analyzer(AnalyzerSpec(name="prim", category="primary"))
+    @register_analyzer(AnalyzerSpec(name="prim", inputs=(ModelInput(),)))
     class Prim:
         name = "prim"
 
@@ -268,8 +211,8 @@ def test_plan_transitive_prerequisites_when_registered(tmp_path, fresh_registry)
     variant = _make_variant(tmp_path, [0, 100])
     cross_spec = AnalyzerSpec(
         name="cross",
-        category="cross_epoch",
-        requires=("prim",),
+        output_scope="cross_epoch",
+        inputs=(ArtifactInput("prim"),),
     )
     # Don't pass prim — cross gets blocked
     plan = plan_analysis(variant, [cross_spec])
@@ -284,8 +227,8 @@ def test_plan_no_transitive_when_blocker_unregistered(tmp_path, fresh_registry):
     variant = _make_variant(tmp_path, [0])
     cross_spec = AnalyzerSpec(
         name="cross",
-        category="cross_epoch",
-        requires=("ghost",),
+        output_scope="cross_epoch",
+        inputs=(ArtifactInput("ghost"),),
     )
     plan = plan_analysis(variant, [cross_spec])
     assert plan.cross_epoch[0].blocked_by == ("ghost",)
@@ -361,8 +304,7 @@ def test_pipeline_skips_forward_pass_when_plan_says_so(trained_variant):
 
     spec = AnalyzerSpec(
         name="weights_only_test",
-        category="primary",
-        requires_activation_cache=False,
+        inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     )
 
     @register_analyzer(spec)
@@ -397,8 +339,7 @@ def test_pipeline_runs_forward_pass_when_cache_needed(trained_variant):
 
     spec = AnalyzerSpec(
         name="cache_reader_test",
-        category="primary",
-        requires_activation_cache=True,
+        inputs=(ModelInput(needs_cache=True),),
     )
 
     @register_analyzer(spec)
@@ -435,8 +376,7 @@ def test_pipeline_absorbs_spec_only_plan_items(trained_variant):
 
     spec = AnalyzerSpec(
         name="absorb_test",
-        category="primary",
-        requires_activation_cache=False,
+        inputs=(ModelInput(needs_weights=False, needs_cache=False),),
     )
 
     @register_analyzer(spec)
@@ -505,33 +445,19 @@ def test_every_analyzer_module_has_spec():
     assert missing == [], f"Analyzer modules without SPEC: {missing}"
 
 
-def test_spec_category_matches_protocol_class():
-    """REQ_120 CoS audit: each Spec's category corresponds to the analyzer
-    class's actual protocol (isinstance check on a freshly-instantiated analyzer)."""
+def test_every_registered_analyzer_conforms_to_protocol():
+    """Every registered analyzer satisfies the unified ``Analyzer`` protocol."""
     from miscope.analysis.analyzers.registry import register_default_analyzers
-    from miscope.analysis.protocols import (
-        Analyzer,
-        CrossEpochAnalyzer,
-        SecondaryAnalyzer,
-    )
+    from miscope.analysis.protocols import Analyzer
 
     register_default_analyzers()
 
     mismatches = []
     for spec in AnalyzerRegistry.list_specs():
         analyzer = AnalyzerRegistry.create(spec.name)
-
-        if spec.category == "cross_epoch":
-            ok = isinstance(analyzer, CrossEpochAnalyzer)
-        elif spec.category == "secondary":
-            ok = isinstance(analyzer, SecondaryAnalyzer)
-        else:  # primary
-            ok = isinstance(analyzer, Analyzer)
-        if not ok:
-            mismatches.append(
-                f"{spec.name}: declared {spec.category!r}, instance fails protocol check"
-            )
-    assert mismatches == [], "Spec category ↔ protocol mismatches:\n" + "\n".join(mismatches)
+        if not isinstance(analyzer, Analyzer):
+            mismatches.append(f"{spec.name}: instance fails Analyzer protocol check")
+    assert mismatches == [], "Analyzer protocol mismatches:\n" + "\n".join(mismatches)
 
 
 def test_secondary_spec_requires_matches_depends_on():
@@ -544,15 +470,15 @@ def test_secondary_spec_requires_matches_depends_on():
     mismatches = []
     for spec in AnalyzerRegistry.list_specs_by_category("secondary"):
         analyzer = AnalyzerRegistry.create(spec.name)
-        if len(spec.effective_requires) != 1:
+        if len(spec.requires) != 1:
             mismatches.append(
-                f"{spec.name}: secondary Spec.requires has {len(spec.effective_requires)} items "
+                f"{spec.name}: secondary Spec.requires has {len(spec.requires)} items "
                 f"(expected 1)"
             )
             continue
-        if spec.effective_requires[0] != analyzer.depends_on:
+        if spec.requires[0] != analyzer.depends_on:
             mismatches.append(
-                f"{spec.name}: Spec.requires={spec.effective_requires[0]!r} != "
+                f"{spec.name}: Spec.requires={spec.requires[0]!r} != "
                 f"depends_on={analyzer.depends_on!r}"
             )
     assert mismatches == [], "\n".join(mismatches)
@@ -569,8 +495,8 @@ def test_cross_epoch_spec_requires_matches_class_requires():
     for spec in AnalyzerRegistry.list_specs_by_category("cross_epoch"):
         analyzer = AnalyzerRegistry.create(spec.name)
         class_requires = tuple(getattr(analyzer, "requires", ()) or ())
-        if class_requires != spec.effective_requires:
+        if class_requires != spec.requires:
             mismatches.append(
-                f"{spec.name}: class.requires={class_requires} != Spec.requires={spec.effective_requires}"
+                f"{spec.name}: class.requires={class_requires} != Spec.requires={spec.requires}"
             )
     assert mismatches == [], "\n".join(mismatches)

@@ -9,7 +9,7 @@ from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers.parameter_dmd import ParameterDMD
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 
 # ── Synthetic artifact builders ──────────────────────────────────────
 
@@ -100,7 +100,7 @@ def variant_artifacts_dir():
 
 class TestParameterDMDProtocol:
     def test_conforms_to_cross_epoch_protocol(self):
-        assert isinstance(ParameterDMD(), UnifiedAnalyzer)
+        assert isinstance(ParameterDMD(), Analyzer)
 
     def test_name(self):
         assert ParameterDMD().name == "parameter_dmd"
@@ -109,12 +109,12 @@ class TestParameterDMDProtocol:
         assert ParameterDMD().requires == ["parameter_snapshot", "neuron_grouping"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("parameter_dmd").effective_category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_dmd").category == "cross_epoch"
 
     def test_distinct_from_activation_dmd(self):
         """Both DMD analyzers exist independently."""
-        assert AnalyzerRegistry.get_spec("activation_dmd").effective_category == "cross_epoch"
-        assert AnalyzerRegistry.get_spec("parameter_dmd").effective_category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_dmd").category == "cross_epoch"
         assert (
             AnalyzerRegistry.create("activation_dmd").__class__
             is not AnalyzerRegistry.create("parameter_dmd").__class__

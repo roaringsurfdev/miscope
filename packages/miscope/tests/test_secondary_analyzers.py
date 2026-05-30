@@ -10,10 +10,9 @@ import numpy as np
 import pytest
 
 from miscope.analysis import AnalysisPipeline
-from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.inputs import ALL
-from miscope.analysis.protocols import SecondaryAnalyzer as SecondaryAnalyzerProtocol
+from miscope.analysis.protocols import Analyzer
 from miscope.families.discovery import discover_families
 
 # ── Minimal fake analyzers ─────────────────────────────────────────────
@@ -72,7 +71,7 @@ class WrongDependencyAnalyzer:
 
 class TestSecondaryAnalyzerProtocol:
     def test_fake_secondary_conforms(self):
-        assert isinstance(FakeSecondaryAnalyzer(), SecondaryAnalyzerProtocol)
+        assert isinstance(FakeSecondaryAnalyzer(), Analyzer)
 
     def test_has_name(self):
         assert FakeSecondaryAnalyzer().name == "fake_secondary"
@@ -82,47 +81,6 @@ class TestSecondaryAnalyzerProtocol:
 
     def test_has_analyze(self):
         assert callable(FakeSecondaryAnalyzer().analyze)
-
-
-# ── Registry ──────────────────────────────────────────────────────────
-
-
-class TestSecondaryAnalyzerRegistry:
-    def setup_method(self):
-        AnalyzerRegistry.clear()
-
-    def teardown_method(self):
-        # Re-register defaults after each test
-        from miscope.analysis.analyzers.registry import register_default_analyzers
-
-        register_default_analyzers()
-
-    def test_register_secondary(self):
-        AnalyzerRegistry.register_secondary(FakeSecondaryAnalyzer)
-        instance = AnalyzerRegistry.get_secondary("fake_secondary")
-        assert isinstance(instance, FakeSecondaryAnalyzer)
-
-    def test_get_secondary_missing_raises(self):
-        with pytest.raises(KeyError, match="fake_secondary"):
-            AnalyzerRegistry.get_secondary("fake_secondary")
-
-    def test_register_secondary_as_decorator(self):
-        @AnalyzerRegistry.register_secondary
-        class DecoratedSecondary:
-            name = "decorated"
-            depends_on = "something"
-
-            def analyze(self, inputs, context):
-                inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
-                return {}
-
-        assert AnalyzerRegistry.get_secondary("decorated") is not None
-
-    def test_clear_removes_secondary(self):
-        AnalyzerRegistry.register_secondary(FakeSecondaryAnalyzer)
-        AnalyzerRegistry.clear()
-        with pytest.raises(KeyError):
-            AnalyzerRegistry.get_secondary("fake_secondary")
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────

@@ -1,15 +1,11 @@
-"""Tests for REQ_121 Phase 2A: unified input declarations + coexistence.
+"""Tests for unified input declarations (REQ_121).
 
-CoS coverage at scaffolding stage:
+Coverage:
 - Input declaration types: ModelInput, ArtifactInput frozen-ness and defaults.
 - ResolvedInputs container shape.
-- Spec.is_unified discriminator + derived properties.
-- Pipeline dispatch: unified Specs route to .analyze(inputs, context);
-  legacy Specs still route to .analyze(ctx).
-- UnifiedAnalyzer protocol is_instance check.
-
-Per-analyzer parity and migration tests live alongside each migrated analyzer
-in Phase 2B.
+- Spec derived properties (category / requires / capability flags) from inputs.
+- Pipeline dispatch: Specs route to .analyze(inputs, context).
+- Analyzer protocol is_instance check.
 """
 
 from __future__ import annotations
@@ -30,7 +26,7 @@ from miscope.analysis.inputs import (
     derive_required_artifacts,
 )
 from miscope.analysis.planner import plan_analysis
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -100,68 +96,55 @@ def test_derive_category_dispatch():
 
 
 # ---------------------------------------------------------------------------
-# Spec discriminator + derived properties
+# Spec derived properties (all derived from ``inputs`` + ``output_scope``)
 # ---------------------------------------------------------------------------
 
 
-def test_legacy_spec_is_not_unified():
-    spec = AnalyzerSpec(name="legacy", category="primary")
-    assert spec.is_unified is False
-    assert spec.effective_category == "primary"
-
-
-def test_unified_spec_is_unified():
+def test_primary_spec_derives_from_inputs():
     spec = AnalyzerSpec(
         name="u",
         output_scope="per_epoch",
         inputs=(ModelInput(needs_cache=False),),
     )
-    assert spec.is_unified is True
-    assert spec.effective_category == "primary"
-    assert spec.effective_requires == ()
-    assert spec.effective_requires_model_weights is True
-    assert spec.effective_requires_activation_cache is False
+    assert spec.category == "primary"
+    assert spec.requires == ()
+    assert spec.requires_model_weights is True
+    assert spec.requires_activation_cache is False
 
 
-def test_unified_secondary_spec_derives_category_from_inputs():
+def test_secondary_spec_derives_category_from_inputs():
     spec = AnalyzerSpec(
         name="u_sec",
         output_scope="per_epoch",
         inputs=(ArtifactInput("upstream"),),
     )
-    assert spec.is_unified is True
-    assert spec.effective_category == "secondary"
-    assert spec.effective_requires == ("upstream",)
+    assert spec.category == "secondary"
+    assert spec.requires == ("upstream",)
 
 
-def test_unified_cross_epoch_spec_derives_category():
+def test_cross_epoch_spec_derives_category():
     spec = AnalyzerSpec(
         name="u_ce",
         output_scope="cross_epoch",
         inputs=(ArtifactInput("upstream"),),
     )
-    assert spec.is_unified is True
-    assert spec.effective_category == "cross_epoch"
+    assert spec.category == "cross_epoch"
 
 
-def test_legacy_spec_keeps_authored_flags():
-    spec = AnalyzerSpec(
-        name="x",
-        category="primary",
-        requires_model_weights=False,
-        requires_activation_cache=False,
-    )
-    # When ``inputs`` is empty, effective_* returns the authored flag.
-    assert spec.effective_requires_model_weights is False
-    assert spec.effective_requires_activation_cache is False
+def test_inputless_spec_derives_conservatively():
+    spec = AnalyzerSpec(name="x", output_scope="per_epoch")
+    assert spec.category == "primary"
+    assert spec.requires == ()
+    assert spec.requires_model_weights is False
+    assert spec.requires_activation_cache is False
 
 
 # ---------------------------------------------------------------------------
-# UnifiedAnalyzer protocol check
+# Analyzer protocol check
 # ---------------------------------------------------------------------------
 
 
-def test_unified_analyzer_protocol_isinstance():
+def test_analyzer_protocol_isinstance():
     class U:
         name = "u"
 
@@ -172,8 +155,8 @@ def test_unified_analyzer_protocol_isinstance():
         name = "n"
         # missing analyze
 
-    assert isinstance(U(), UnifiedAnalyzer)
-    assert not isinstance(NotU(), UnifiedAnalyzer)
+    assert isinstance(U(), Analyzer)
+    assert not isinstance(NotU(), Analyzer)
 
 
 # ---------------------------------------------------------------------------
