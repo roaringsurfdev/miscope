@@ -208,72 +208,12 @@ def canon_new_result(canon_snapshot):
     return _run_analyzer(canon_snapshot, sites=fam.weight_basis_projection_sites, p=PRIME)
 
 
-@skip_no_canon
-def test_parity_dominant_frequencies(canon_snapshot, canon_new_result):
-    """Sin/cos band norms across d_model on the ``embedding`` site reproduce
-    ``dominant_frequencies.coefficients`` (sin/cos rows; DC is excluded by
-    REQ_109's basis convention)."""
-    legacy = _load_npz("dominant_frequencies")["coefficients"]  # (p+1,) Nanda-basis row norms
-    n_freq = (PRIME - 1) // 2
-
-    new_cos = canon_new_result["embedding_cos_coeffs"]  # (K, d_model)
-    new_sin = canon_new_result["embedding_sin_coeffs"]
-    new_cos_norm = np.linalg.norm(new_cos, axis=-1)
-    new_sin_norm = np.linalg.norm(new_sin, axis=-1)
-
-    # Legacy layout: [DC, sin_1, cos_1, sin_2, cos_2, ...].
-    legacy_sin = legacy[1 : 1 + 2 * n_freq : 2]
-    legacy_cos = legacy[2 : 2 + 2 * n_freq : 2]
-    np.testing.assert_allclose(new_sin_norm, legacy_sin, rtol=PARITY_RTOL, atol=PARITY_ATOL)
-    np.testing.assert_allclose(new_cos_norm, legacy_cos, rtol=PARITY_RTOL, atol=PARITY_ATOL)
-
-
-@skip_no_canon
-def test_parity_neuron_fourier(canon_snapshot, canon_new_result):
-    """``neuron_fourier``'s alpha_mk/beta_mk are the per-(neuron, freq) magnitudes
-    on sites ``mlp_in`` (theta) and ``mlp_out`` (xi)."""
-    legacy = _load_npz("neuron_fourier")
-    alpha_mk = legacy["alpha_mk"]  # (d_mlp, K) — theta magnitudes
-    beta_mk = legacy["beta_mk"]  # (d_mlp, K) — xi magnitudes
-
-    new_theta_mag = canon_new_result["mlp_in_magnitudes"]  # (K, d_mlp)
-    new_xi_mag = canon_new_result["mlp_out_magnitudes"]  # (K, d_mlp)
-
-    np.testing.assert_allclose(new_theta_mag.T, alpha_mk, rtol=PARITY_RTOL, atol=PARITY_ATOL)
-    np.testing.assert_allclose(new_xi_mag.T, beta_mk, rtol=PARITY_RTOL, atol=PARITY_ATOL)
-
-
-@skip_no_canon
-def test_parity_attention_fourier_v(canon_snapshot, canon_new_result):
-    """``attention_fourier.v_freq_norms`` reproduced from ``attn_v`` site.
-
-    Legacy per-(head, freq) band energy = ``sqrt(||cos||² + ||sin||²)`` across
-    ``d_head``, then normalized to sum to 1 over freqs per head.
-    """
-    legacy = _load_npz("attention_fourier")["v_freq_norms"]  # (n_heads, n_freq)
-
-    new_cos = canon_new_result["attn_v_cos_coeffs"]  # (n_heads, K, d_head)
-    new_sin = canon_new_result["attn_v_sin_coeffs"]  # (n_heads, K, d_head)
-    band = np.sqrt((new_cos**2).sum(axis=-1) + (new_sin**2).sum(axis=-1))  # (n_heads, K)
-    band_normalized = band / band.sum(axis=-1, keepdims=True).clip(min=1e-10)
-
-    np.testing.assert_allclose(band_normalized, legacy, rtol=PARITY_RTOL, atol=PARITY_ATOL)
-
-
-@skip_no_canon
-def test_parity_attention_fourier_qk(canon_snapshot, canon_new_result):
-    """``attention_fourier.qk_freq_norms`` reproduced from ``attn_qk`` 2D site.
-
-    Legacy per-(head, freq) diagonal energy = ``sqrt(sum of 4 coeffs² at (k, k))``
-    = diagonal of ``magnitudes`` cube; normalized to sum to 1 over freqs per head.
-    """
-    legacy = _load_npz("attention_fourier")["qk_freq_norms"]  # (n_heads, n_freq)
-    new_mag = canon_new_result["attn_qk_magnitudes"]  # (n_heads, K, K)
-    n_freq = new_mag.shape[1]
-    diagonal = new_mag[:, np.arange(n_freq), np.arange(n_freq)]
-    diagonal_normalized = diagonal / diagonal.sum(axis=-1, keepdims=True).clip(min=1e-10)
-
-    np.testing.assert_allclose(diagonal_normalized, legacy, rtol=PARITY_RTOL, atol=PARITY_ATOL)
+# NOTE (REQ_102): the parity tests for the ``embedding`` (dominant_frequencies),
+# ``mlp_in``/``mlp_out`` (neuron_fourier), and ``attn_v``/``attn_qk``
+# (attention_fourier) sites were removed when those legacy analyzers were retired
+# (REQ_126 recorded their absorption parity before retirement). Their on-disk
+# artifacts no longer exist, so the tests could never run again. The
+# ``fourier_nucleation`` parity test below is retained — that analyzer survives.
 
 
 @skip_no_canon

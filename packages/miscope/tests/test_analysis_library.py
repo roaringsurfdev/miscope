@@ -261,16 +261,16 @@ class TestAnalyzerRegistry:
         """Test that default analyzers are registered on import."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        assert AnalyzerRegistry.is_registered("dominant_frequencies")
+        assert AnalyzerRegistry.is_registered("activation_basis_projection")
         assert AnalyzerRegistry.is_registered("neuron_activations")
-        assert AnalyzerRegistry.is_registered("neuron_freq_norm")
+        assert AnalyzerRegistry.is_registered("weight_basis_projection")
 
     def test_get_analyzer(self):
         """Test getting an analyzer by name."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        analyzer = AnalyzerRegistry.get("dominant_frequencies")
-        assert analyzer.name == "dominant_frequencies"
+        analyzer = AnalyzerRegistry.get("activation_basis_projection")
+        assert analyzer.name == "activation_basis_projection"
 
     def test_get_unknown_analyzer_raises(self):
         """Test error when getting unknown analyzer."""
@@ -284,9 +284,9 @@ class TestAnalyzerRegistry:
         from miscope.analysis.analyzers import AnalyzerRegistry
 
         all_names = AnalyzerRegistry.list_all()
-        assert "dominant_frequencies" in all_names
+        assert "activation_basis_projection" in all_names
         assert "neuron_activations" in all_names
-        assert "neuron_freq_norm" in all_names
+        assert "weight_spectra" in all_names
 
 
 # --- Integration Tests ---
