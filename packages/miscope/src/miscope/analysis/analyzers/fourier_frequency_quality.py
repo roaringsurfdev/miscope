@@ -1,12 +1,25 @@
-"""Fourier Frequency Quality Analyzer (REQ_052).
+"""Fourier Frequency Quality Analyzer (REQ_052, redefined REQ_130).
 
-Secondary analyzer that scores the model's dominant frequency selection
-against the ideal Fourier structure of the mod-p addition task.
+Secondary analyzer that scores how well the frequencies the model's neurons
+actually organize around cover the mod-p addition task.
 
-Quality is the R² of projecting the ideal p×p×p logit tensor onto the
-2D Fourier subspace spanned by the dominant frequency indices. Analytically
-this equals 2m/p for m complete sin/cos frequency pairs, but is computed
-numerically so partial pairs are handled correctly.
+REQ_130 re-points this off the (retired) embedding-side ``dominant_frequencies``
+onto ``neuron_grouping`` and **redefines** the metric. The old metric thresholded
+embedding Fourier energy to a hard frequency set and scored the ideal tensor's R²
+on that subspace; it yielded no real signal (see [[frequency-choice-frame]]).
+
+The redefined metric is **neuron-weighted task coverage**: weight each Fourier
+frequency by the fraction of neurons that compute with it (relative occupancy from
+``neuron_grouping``), then compute the R² of the ideal p×p×p mod-p logit tensor
+onto that *weighted* 2D Fourier subspace. With binary weights it reduces exactly
+to the old hard-subspace R² (the ``coverage_hard`` companion output), so the
+neuron-weighted ``quality_score`` is a smooth generalization that reflects what
+the MLP actually does rather than embedding energy alone.
+
+This metric is mod-p-task-specific and requires a frequency-indexed grouping
+(the family Fourier override, ``feature_basis_name="fourier_w_in"``, where group
+index g maps to frequency g+1). The universal kmeans grouping path produces
+arbitrary clusters with no frequency meaning; the analyzer raises there.
 """
 
 from typing import Any
@@ -17,116 +30,157 @@ from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# The grouping feature basis under which group index == frequency index.
+_FREQUENCY_INDEXED_BASIS = "fourier_w_in"
+
 SPEC = AnalyzerSpec(
     name="fourier_frequency_quality",
     output_scope="per_epoch",
-    inputs=(ArtifactInput("dominant_frequencies"),),
+    inputs=(ArtifactInput("neuron_grouping"),),
     produces_summary=True,
 )
 
 
 @register_analyzer(SPEC)
 class FourierFrequencyQualityAnalyzer:
-    """Scores dominant frequency selection against the mod-p addition ideal.
+    """Scores neuron-weighted frequency coverage of the mod-p addition task.
 
-    A secondary analyzer that reads per-epoch dominant_frequencies artifacts
-    and computes how much of the ideal mod-p addition logit tensor is
-    explained by the model's selected frequency subset.
-
-    Quality score is R²: ||T_F||² / ||T||², where T is the ideal p×p×p
-    logit tensor and T_F is its projection onto the 2D Fourier subspace
-    defined by the dominant frequency indices.
-
-    Dominant frequencies are those with coefficient > threshold_factor × mean,
-    using a relative threshold that adapts to the per-epoch distribution.
-    At initialization all coefficients are roughly equal, so nothing qualifies
-    as "dominant" and quality starts near 0. As the model concentrates energy
-    into a few frequencies, those spike above the mean and quality rises.
+    Reads per-epoch ``neuron_grouping`` artifacts (frequency-indexed via the
+    modadd family override), weights each frequency by neuron occupancy, and
+    computes the R² of the ideal mod-p logit tensor onto the neuron-weighted
+    2D Fourier subspace.
     """
 
     name = "fourier_frequency_quality"
-    depends_on = "dominant_frequencies"
-
-    def __init__(self, threshold_factor: float = 3.0):
-        self.threshold_factor = threshold_factor
+    depends_on = "neuron_grouping"
 
     def analyze(
         self,
         inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, Any]:
-        """Compute frequency quality score for one epoch."""
+        """Compute neuron-weighted frequency quality for one epoch."""
         assert inputs.deps is not None and inputs.epoch is not None
         artifact = inputs.deps.load_epoch(
-            "dominant_frequencies", inputs.epoch, fields=["coefficients"]
+            "neuron_grouping", inputs.epoch, fields=["n_per_group", "feature_basis_name"]
         )
-        p = context["params"]["prime"]
+        _require_frequency_indexed(artifact)
+
+        p = int(context["params"]["prime"])
         fourier_basis = context["fourier_basis"].cpu().numpy()  # (p, p)
-        coefficients = artifact["coefficients"]  # (p,)
+        n_per_group = np.asarray(artifact["n_per_group"], dtype=np.float64)  # (K,)
 
-        threshold = self.threshold_factor * float(np.mean(coefficients))
-        dominant_indices = np.where(coefficients > threshold)[0]
-        k = int(len(dominant_indices))
+        weights = _occupancy_weights(n_per_group)  # (K,) in [0, 1]
+        w_rows = _frequency_weights_to_basis_rows(weights, p)  # (p,)
 
-        quality_score = _compute_quality_score(p, dominant_indices, fourier_basis)
+        quality_score = _weighted_quality_score(p, fourier_basis, w_rows)
+        coverage_hard = _weighted_quality_score(p, fourier_basis, (w_rows > 0).astype(np.float64))
+
+        active_frequencies = (np.where(n_per_group > 0)[0] + 1).astype(np.int32)
 
         return {
             "quality_score": np.float32(quality_score),
-            "dominant_frequencies": dominant_indices.astype(np.int32),
-            "k": np.int32(k),
+            "coverage_hard": np.float32(coverage_hard),
+            "active_frequencies": active_frequencies,
+            "k": np.int32(active_frequencies.size),
             "reconstruction_error": np.float32(1.0 - quality_score),
         }
 
     def get_summary_keys(self) -> list[str]:
-        return ["quality_score", "reconstruction_error", "k"]
+        return ["quality_score", "coverage_hard", "reconstruction_error", "k"]
 
     def compute_summary(self, result: dict[str, Any], context: dict[str, Any]) -> dict[str, float]:
         return {
             "quality_score": float(result["quality_score"]),
+            "coverage_hard": float(result["coverage_hard"]),
             "reconstruction_error": float(result["reconstruction_error"]),
             "k": float(result["k"]),
         }
 
 
-def _compute_quality_score(
+def _require_frequency_indexed(artifact: dict[str, Any]) -> None:
+    """Guard: the metric needs a grouping whose group index is a frequency.
+
+    The modadd family override stores ``feature_basis_name="fourier_w_in"``.
+    The universal kmeans path produces arbitrary clusters with no frequency
+    meaning, so the metric is undefined there.
+    """
+    basis_name = str(artifact["feature_basis_name"])
+    if basis_name != _FREQUENCY_INDEXED_BASIS:
+        raise ValueError(
+            f"fourier_frequency_quality requires a frequency-indexed neuron_grouping "
+            f"(feature_basis_name='{_FREQUENCY_INDEXED_BASIS}'), got '{basis_name}'. "
+            f"This metric is mod-p-task-specific and only applies when neurons are "
+            f"grouped by Fourier frequency."
+        )
+
+
+def _occupancy_weights(n_per_group: np.ndarray) -> np.ndarray:
+    """Relative neuron occupancy per frequency in [0, 1] (top frequency = 1).
+
+    Max-normalization makes the weighted quality reduce to the hard-subspace R²
+    in the clean limit (a frequency used by many neurons → ~1, unused → 0).
+    """
+    peak = float(n_per_group.max()) if n_per_group.size else 0.0
+    if peak <= 0.0:
+        return np.zeros_like(n_per_group)
+    return n_per_group / peak
+
+
+def _frequency_weights_to_basis_rows(weights: np.ndarray, p: int) -> np.ndarray:
+    """Map per-frequency weights (K,) onto Fourier basis-row weights (p,).
+
+    Frequency g+1 occupies basis rows {2g+1, 2g+2} (sin, cos); the constant
+    row 0 carries no frequency and stays 0.
+    """
+    w_rows = np.zeros(p, dtype=np.float64)
+    for g, w in enumerate(weights):
+        sin_row, cos_row = 2 * g + 1, 2 * g + 2
+        if cos_row < p:
+            w_rows[sin_row] = w
+            w_rows[cos_row] = w
+    return w_rows
+
+
+def _weighted_quality_score(
     p: int,
-    dominant_indices: np.ndarray,
     fourier_basis: np.ndarray,
+    w_rows: np.ndarray,
 ) -> float:
-    """Compute R² of projecting the ideal mod-p tensor onto the dominant subspace.
+    """Neuron-weighted R² of the ideal mod-p tensor onto the Fourier subspace.
 
-    Projects T_oh[a, b, c] = 1 iff (a+b)%p==c onto the 2D Fourier subspace
-    spanned by {F[i] ⊗ F[j] : i, j ∈ dominant_indices}, where F is the
-    orthonormal Fourier basis (rows).
+    Generalizes the legacy hard-subspace score: each 2D frequency-pair component
+    of the ideal tensor's projection is weighted by the product of the two
+    frequencies' basis-row weights. With binary ``w_rows`` this recovers the
+    legacy ``||T_F||² / ||T||²`` over the selected frequency set exactly.
 
-    Avoids building the full p×p×p tensor by exploiting the structure:
-        T_Fa[i, b, c] = F[i, (c-b)%p]
+    Exploits the structure ``T_Fa[i, b, c] = F[i, (c-b)%p]`` to avoid building
+    the full p×p×p one-hot tensor, and restricts to active (nonzero-weight) rows.
 
     Args:
         p: Prime modulus.
-        dominant_indices: Array of basis vector indices above threshold.
         fourier_basis: Shape (p, p), rows are orthonormal basis vectors.
+        w_rows: Shape (p,), per-basis-row weights in [0, 1].
 
     Returns:
-        R² quality score in [0, 1].
+        Weighted R² quality score in [0, 1].
     """
-    if len(dominant_indices) == 0:
+    active = np.where(w_rows > 0)[0]
+    if active.size == 0:
         return 0.0
 
-    F_restricted = fourier_basis[dominant_indices, :]  # (m, p)
+    F_r = fourier_basis[active, :]  # (m, p)
+    w_r = w_rows[active]  # (m,)
 
-    # T_Fa[i, b, c] = Σ_a F_restricted[i, a] * T_oh[a, b, c]
-    #              = F_restricted[i, (c-b)%p]   (since only a=(c-b)%p contributes)
     b_grid = np.arange(p)[:, None]  # (p, 1)
     c_grid = np.arange(p)[None, :]  # (1, p)
     a_idx = (c_grid - b_grid) % p  # (p, p): a_idx[b, c] = (c-b)%p
 
-    T_Fa = F_restricted[:, a_idx]  # (m, p, p): T_Fa[i, b, c] = F_restricted[i, a_idx[b,c]]
+    T_Fa = F_r[:, a_idx]  # (m, p, p): T_Fa[i, b, c] = F_r[i, a_idx[b, c]]
+    T_2D = np.einsum("jb,ibc->ijc", F_r, T_Fa)  # (m, m, p)
 
-    # T_2D[i, j, c] = Σ_b F_restricted[j, b] * T_Fa[i, b, c]
-    T_2D = np.einsum("jb,ibc->ijc", F_restricted, T_Fa)  # (m, m, p)
-
-    projected_energy = float(np.sum(T_2D**2))
+    pair_weights = np.outer(w_r, w_r)  # (m, m)
+    weighted_energy = float(np.einsum("ij,ijc->", pair_weights, T_2D**2))
     total_energy = float(p**2)  # ||T_oh||_F^2 = p^2 (one 1 per input pair)
 
-    return projected_energy / total_energy
+    return weighted_energy / total_energy

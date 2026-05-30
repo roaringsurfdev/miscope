@@ -239,6 +239,39 @@ def test_plan_secondary_resumes_only_missing(tmp_path):
     assert list(plan.secondary[0].epochs) == [100, 200]
 
 
+def test_plan_secondary_depends_on_secondary_ordered_and_unblocked(tmp_path):
+    """REQ_130: a secondary depending on another secondary is topologically
+    ordered after it (not left blocked by list order). fourier_frequency_quality
+    → neuron_grouping is the first such intra-secondary dependency."""
+    checkpoints = [0, 100, 200]
+    variant = _make_variant(tmp_path, checkpoints)
+    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
+    # Pass the dependent BEFORE its dependency to exercise the ordering.
+    analyzers = [
+        _SecondaryStub("sec_b", depends_on="sec_a"),
+        _SecondaryStub("sec_a", depends_on="prim"),
+        _PrimaryStub("prim"),
+    ]
+    plan = plan_analysis(variant, analyzers)
+
+    order = [it.analyzer_name for it in plan.secondary]
+    assert order.index("sec_a") < order.index("sec_b")
+    sec_b = next(it for it in plan.secondary if it.analyzer_name == "sec_b")
+    assert sec_b.blocked_by == ()  # not blocked: sec_a is projected complete first
+    assert list(sec_b.epochs) == checkpoints
+
+
+def test_plan_secondary_cyclic_dependency_raises(tmp_path):
+    """A cycle among secondaries is a configuration error, surfaced clearly."""
+    variant = _make_variant(tmp_path, [0])
+    analyzers = [
+        _SecondaryStub("sec_a", depends_on="sec_b"),
+        _SecondaryStub("sec_b", depends_on="sec_a"),
+    ]
+    with pytest.raises(ValueError, match="cyclic secondary dependency"):
+        plan_analysis(variant, analyzers)
+
+
 # ---------------------------------------------------------------------------
 # plan_analysis: cross-epoch analyzers
 # ---------------------------------------------------------------------------
