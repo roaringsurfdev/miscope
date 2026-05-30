@@ -48,7 +48,6 @@ def run_pipeline(variant, force: bool) -> None:
     from miscope.analysis import AnalysisPipeline
     from miscope.analysis.analyzers import (
         AttentionPatternsAnalyzer,
-        DominantFrequenciesAnalyzer,
         FourierFrequencyQualityAnalyzer,
         FreqGroupWeightGeometryAnalyzer,
         GlobalCentroidPCA,
@@ -57,7 +56,6 @@ def run_pipeline(variant, force: bool) -> None:
         IntraGroupManifoldAnalyzer,
         NeuronActivationsAnalyzer,
         NeuronDynamicsAnalyzer,
-        NeuronFreqClustersAnalyzer,
         NeuronGroupPCAAnalyzer,
         ParameterSnapshotAnalyzer,
         ParameterTrajectory,
@@ -67,10 +65,8 @@ def run_pipeline(variant, force: bool) -> None:
 
     pipeline = AnalysisPipeline(variant)
     pipeline.register(AttentionPatternsAnalyzer())
-    pipeline.register(DominantFrequenciesAnalyzer())
     pipeline.register(InputTraceAnalyzer())
     pipeline.register(NeuronActivationsAnalyzer())
-    pipeline.register(NeuronFreqClustersAnalyzer())
     pipeline.register(ParameterSnapshotAnalyzer())
     # LandscapeFlatnessAnalyzer excluded: stochastic by design, not regression-testable
     # FourierNucleationAnalyzer excluded to match develop-side regen scope
@@ -88,8 +84,18 @@ def run_pipeline(variant, force: bool) -> None:
 
 
 # Analyzers excluded from regression: stochastic output, not byte-comparable.
-# Also includes deprecated or long-running analyzers that are not helpful for regression
-EXCLUDED_ANALYZERS = {"landscape_flatness", "coarseness", "gradient_site", "fourier_nucleation"}
+# Also includes deprecated or long-running analyzers that are not helpful for regression.
+# REQ_102 retirements (dominant_frequencies, neuron_freq_norm) are listed here so the
+# EXTRA check ignores any lingering on-disk artifacts; their reference_checksums.json
+# entries are cleared on the next develop-side checksum regen.
+EXCLUDED_ANALYZERS = {
+    "landscape_flatness",
+    "coarseness",
+    "gradient_site",
+    "fourier_nucleation",
+    "dominant_frequencies",
+    "neuron_freq_norm",
+}
 
 
 def compare_variant(

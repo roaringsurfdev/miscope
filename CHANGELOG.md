@@ -31,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `centroid_dmd` → **`activation_dmd`** + **`parameter_dmd`** (REQ_117); the dead `renderers/dmd.py` (no live callers) removed with it. The raw Centroid Trajectory plot is downstream work against the future `representation_trajectory` analyzer
   - `coarseness`, `attention_freq` → **`activation_basis_projection`** (REQ_126)
   - `attention_fourier`, `neuron_fourier` → **`weight_basis_projection`** (REQ_126)
-  - Deferred (retained for now): `dominant_frequencies` (still consumed by `fourier_frequency_quality`) and `neuron_freq_clusters`/`neuron_freq_norm` (analytical backbone) — pending consumer migration
+  - `dominant_frequencies` → **`weight_basis_projection`** (REQ_126); its sole surviving analyzer consumer, `fourier_frequency_quality`, was re-pointed to `neuron_grouping` under REQ_130
+  - `neuron_freq_clusters` (artifact `neuron_freq_norm`) → **`activation_basis_projection`** (REQ_126); its three surviving analyzer consumers (`neuron_dynamics`, `freq_group_weight_geometry`, `neuron_group_pca`) were re-pointed to a basis-reconstruction helper under REQ_131
 
 ## [0.8.3] - 2026-04-05
 

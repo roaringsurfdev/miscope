@@ -1,6 +1,6 @@
 # REQ_102: Analyzer Deprecation (Retire Stale Paths)
 
-**Status:** Draft (rescoped after Analysis Atlas (a)(b)(c) audit pass)
+**Status:** Implementation complete (pending merge to `develop`) — all nine retirement candidates removed (2026-05-29)
 **Priority:** Medium — close-out track for the Atlas-driven phase 1 consolidations. Bounded by prerequisite REQs completing.
 **Branch:** TBD
 **Dependencies:**
@@ -44,7 +44,7 @@ Retirement candidates and their gates:
 | `attention_freq` | `activation_basis_projection` | REQ_126 (absorption parity) |
 | `neuron_freq_clusters` | `activation_basis_projection` | REQ_126 (absorption parity) |
 | `effective_dimensionality` | `weight_spectra` | REQ_111 (parity validation — bit-exact, recorded) |
-| ~~`parameter_trajectory_pca`~~ | `parameter_trajectory` | Already complete via REQ_111 mechanical port — no separate analyzer to retire |
+| `parameter_trajectory_pca` | `parameter_trajectory` | Already complete via REQ_111 mechanical port — no separate analyzer to retire |
 | `centroid_dmd` (wrapper) | `activation_dmd` + `parameter_dmd` | REQ_117 (already shipped — pending consumer migration) |
 
 REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-implements an upstream derivation, mixes data-plane access into measure code, or cannot conform to declared-dependencies discipline is a deprecation candidate if migration would amount to a rewrite. Audit before declaring; some violations are migrations under their owning REQ, not retirements here.
@@ -57,21 +57,21 @@ REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-i
 
 ### REQ_117-gated retirement (already shipped — pending consumer migration)
 
-- [ ] `centroid_dmd` (wrapper class): remaining consumers migrated to `activation_dmd` / `parameter_dmd` artifacts. Wrapper removed from `analysis/analyzers/`, `registry.py`, `__init__.py`. Old artifact directories left in place (read-only legacy); loader continues to read them on request.
+- [x] `centroid_dmd` (wrapper class): remaining consumers migrated to `activation_dmd` / `parameter_dmd` artifacts. Wrapper removed from `analysis/analyzers/`, `registry.py`, `__init__.py`. Old artifact directories left in place (read-only legacy); loader continues to read them on request.
 
 ### REQ_126-gated retirements
 
-- [ ] `coarseness` analyzer: removed after REQ_126 records blob-vs-plaid preservation verification on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598).
-- [ ] `dominant_frequencies` analyzer: removed after REQ_126 records absorption parity for the W_E-site weight basis projection.
-- [ ] `attention_fourier` analyzer: removed after REQ_126 records absorption parity for attention-site weight basis projections.
-- [ ] `neuron_fourier` analyzer: removed after REQ_126 records absorption parity for MLP-input weight basis projections.
-- [ ] `attention_freq` analyzer: removed after REQ_126 records absorption parity for attention-site activation basis projections.
-- [ ] `neuron_freq_clusters` analyzer: removed after REQ_126 records absorption parity for MLP activation basis projections.
+- [x] `coarseness` analyzer: removed after REQ_126 records blob-vs-plaid preservation verification on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598).
+- [x] `dominant_frequencies` analyzer: removed after REQ_126 records absorption parity for the W_E-site weight basis projection. Last analyzer consumer (`fourier_frequency_quality`) re-pointed to `neuron_grouping` under REQ_130 (2026-05-29).
+- [x] `attention_fourier` analyzer: removed after REQ_126 records absorption parity for attention-site weight basis projections.
+- [x] `neuron_fourier` analyzer: removed after REQ_126 records absorption parity for MLP-input weight basis projections.
+- [x] `attention_freq` analyzer: removed after REQ_126 records absorption parity for attention-site activation basis projections.
+- [x] `neuron_freq_clusters` analyzer: removed after REQ_126 records absorption parity for MLP activation basis projections. Three surviving analyzer consumers (`neuron_dynamics`, `freq_group_weight_geometry`, `neuron_group_pca`) re-pointed to `reconstruct_neuron_freq_norm` under REQ_131 (2026-05-29).
 
 ### REQ_111-gated retirements
 
-- [ ] `effective_dimensionality` analyzer: removed after REQ_111 records parity validation outcome (*matches* or *old-has-bug-fixed-in-new*) for `weight_spectra`. REQ_111 recorded **bit-exact parity on the canon reference set (2026-05-27)** — retirement is unblocked; pending consumer migration (dashboard pages, family.json) before removal.
-- [x] ~~`parameter_trajectory_pca`~~ — degenerate retirement, complete via REQ_111 mechanical port (2026-05-27). The registered analyzer name was already `parameter_trajectory`; only the file (`parameter_trajectory_pca.py` → `parameter_trajectory.py`) and class (`ParameterTrajectoryPCA` → `ParameterTrajectory`) carried the old name. No separate analyzer is registered to remove.
+- [x] `effective_dimensionality` analyzer: removed after REQ_111 records parity validation outcome (*matches* or *old-has-bug-fixed-in-new*) for `weight_spectra`. REQ_111 recorded **bit-exact parity on the canon reference set (2026-05-27)**.
+- [x] `parameter_trajectory_pca` — degenerate retirement, complete via REQ_111 mechanical port (2026-05-27). The registered analyzer name was already `parameter_trajectory`; only the file (`parameter_trajectory_pca.py` → `parameter_trajectory.py`) and class (`ParameterTrajectoryPCA` → `ParameterTrajectory`) carried the old name. No separate analyzer is registered to remove.
 
 ### Layering audit (REQ_106 criterion)
 
@@ -266,7 +266,36 @@ than pivot the old reconstruction renderer. Capture this in the
 
 Format: `{analyzer} retired {date}, gated by {REQ}: {outcome pointer}`.
 
-- *(empty until first retirement)*
+Removed in prior REQ_102 commits merged to `develop` (CoS gates satisfied at removal time):
+
+- `effective_dimensionality` retired (REQ_111): bit-exact SV/PR parity vs `weight_spectra` on canon (2026-05-27).
+- `centroid_dmd` retired (REQ_117): modal paths absorbed by `activation_dmd` + `parameter_dmd`; dead `renderers/dmd.py` removed (no live callers).
+- `coarseness`, `attention_freq` retired (REQ_126): absorption parity into `activation_basis_projection`.
+- `attention_fourier`, `neuron_fourier` retired (REQ_126): absorption parity into `weight_basis_projection`.
+
+Removed this session (2026-05-29) — the two formerly-deferred analyzers, unblocked by REQ_130/REQ_131:
+
+- `dominant_frequencies` retired 2026-05-29 (REQ_126): superseded by `weight_basis_projection`. Unblocked by REQ_130 re-pointing `fourier_frequency_quality` to `neuron_grouping`. Removed `analyzers/dominant_frequencies.py`, its `__init__` import/export, `scripts/run_regression_check.py` registration, `tests/test_dominant_frequencies_analyzer.py`; added to `EXCLUDED_ANALYZERS`. The four REQ_126 absorption-parity tests in `test_weight_basis_projection.py` were removed (their legacy on-disk artifacts were cleaned to match `family.json`; parity already recorded by REQ_126).
+- `neuron_freq_clusters` (artifact `neuron_freq_norm`) retired 2026-05-29 (REQ_126): superseded by `activation_basis_projection`. Unblocked by REQ_131 re-pointing `neuron_dynamics` / `freq_group_weight_geometry` / `neuron_group_pca` to `reconstruct_neuron_freq_norm`. Removed `analyzers/neuron_freq_clusters.py`, its `__init__` import/export, `scripts/run_regression_check.py` registration, `tests/test_neuron_freq_specialization.py`; added to `EXCLUDED_ANALYZERS`. Renderer `renderers/neuron_freq_clusters.py` retained (still consumed by surviving views — analyzer-layer-only scope per user).
+
+### Close-out (2026-05-29)
+
+The 2026-05-28 deferral of `dominant_frequencies` and `neuron_freq_clusters` is
+**reversed and resolved.** REQ_130 (fourier-quality re-point) and REQ_131
+(neuron_freq_norm consumer migration) both merged to `develop` and severed the
+analyzer-to-analyzer dependency edges that forced the deferral. With those cut,
+both analyzers were removed under REQ_102's analyzer-layer-only scope (renderers
+and dashboard pages remain a separate visualization track per the existing
+direction above).
+
+Validation: full `packages/miscope` suite green (**1473 passed, 29 skipped**),
+ruff clean on touched files. The user removed stale legacy artifact directories
+to match `family.json` and regenerated `tests/regression/reference_checksums_req102.json`
+as the post-retirement baseline. `family.json` confirmed free of all retired
+analyzer names.
+
+All nine retirement candidates are now removed from the tree. The surviving
+analyzer inventory is 24 modules, matching the Atlas target set.
 
 ### Pairings
 

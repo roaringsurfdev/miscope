@@ -52,7 +52,11 @@ def temp_data_root() -> Path:
                     "default": 598,
                 },
             },
-            "analyzers": ["dominant_frequencies", "neuron_activations", "neuron_freq_norm"],
+            "analyzers": [
+                "neuron_activations",
+                "activation_basis_projection",
+                "weight_spectra",
+            ],
             "visualizations": ["dominant_frequencies_bar"],
             "analysis_dataset": {"type": "modulo_addition_grid"},
             "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
@@ -97,7 +101,7 @@ class TestFamilyDiscovery:
         assert family.display_name == "Modulo Addition (1 Layer)"
         assert family.architecture["n_layers"] == 1
         assert family.architecture["d_mlp"] == 512
-        assert "dominant_frequencies" in family.analyzers
+        assert "neuron_activations" in family.analyzers
 
 
 # --- Model Creation Tests ---
@@ -239,28 +243,9 @@ class TestAnalyzerIntegration:
 
         assert len(analyzers) == 3
         analyzer_names = {a.name for a in analyzers}
-        assert "dominant_frequencies" in analyzer_names
         assert "neuron_activations" in analyzer_names
-        assert "neuron_freq_norm" in analyzer_names
-
-    def test_run_dominant_frequencies_analyzer(self, family):
-        """Test running the dominant frequencies analyzer."""
-        params = {"prime": 7, "seed": 42}
-
-        model = family.create_model(params)
-        dataset = family.generate_analysis_dataset(params)
-        context = family.prepare_analysis_context(params, model.cfg.device)
-
-        with torch.inference_mode():
-            logits, cache = model.run_with_cache(dataset)
-
-        analyzer = AnalyzerRegistry.get("dominant_frequencies")
-        result = analyzer.analyze(
-            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
-        )
-
-        assert "coefficients" in result
-        assert result["coefficients"].shape[0] == context["fourier_basis"].shape[0]
+        assert "activation_basis_projection" in analyzer_names
+        assert "weight_spectra" in analyzer_names
 
     def test_run_neuron_activations_analyzer(self, family):
         """Test running the neuron activations analyzer."""
@@ -282,27 +267,6 @@ class TestAnalyzerIntegration:
         p = params["prime"]
         d_mlp = model.cfg.d_mlp
         assert result["activations"].shape == (d_mlp, p, p)
-
-    def test_run_neuron_freq_norm_analyzer(self, family):
-        """Test running the neuron frequency clusters analyzer."""
-        params = {"prime": 7, "seed": 42}
-
-        model = family.create_model(params)
-        dataset = family.generate_analysis_dataset(params)
-        context = family.prepare_analysis_context(params, model.cfg.device)
-
-        with torch.inference_mode():
-            logits, cache = model.run_with_cache(dataset)
-
-        analyzer = AnalyzerRegistry.get("neuron_freq_norm")
-        result = analyzer.analyze(
-            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
-        )
-
-        assert "norm_matrix" in result
-        p = params["prime"]
-        d_mlp = model.cfg.d_mlp
-        assert result["norm_matrix"].shape == (p // 2, d_mlp)
 
 
 # --- End-to-End Test ---
