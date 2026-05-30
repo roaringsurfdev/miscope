@@ -30,6 +30,14 @@ _VIEW_LIST = {
         "view_name": "activations.attention.frequency_clusters",
         "view_type": "epoch_selector",
     },
+    "attn-qk-fourier": {
+        "view_name": "parameters.attention.qk_fourier_heatmap",
+        "view_type": "default_graph",
+    },
+    "attn-v-fourier": {
+        "view_name": "parameters.attention.v_fourier_heatmap",
+        "view_type": "epoch_selector",
+    },
 }
 
 _graph_manager = AnalysisPageGraphManager(_VIEW_LIST, "act")
@@ -101,6 +109,17 @@ def create_activation_heatmap_page_layout(app: Dash) -> html.Div:
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attention-plot", "400px"))),
                     # --- Attention Specialization (summary, click-to-navigate) ---
                     dbc.Row(dbc.Col(_graph_manager.create_graph("attn-spec-plot", "450px"))),
+                    # --- QK and V Fourier Alignment ---
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                _graph_manager.create_graph("attn-qk-fourier", "450px"), width=6
+                            ),
+                            dbc.Col(
+                                _graph_manager.create_graph("attn-v-fourier", "450px"), width=6
+                            ),
+                        ]
+                    ),
                 ],
             ),
         ]
