@@ -83,16 +83,26 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
 
     def _load_fourier_coefficients(variant: Variant, epoch: int | None) -> DataView:
         assert epoch is not None, "epoch must be resolved before loading per-epoch artifact"
-        epoch_data = variant.artifacts.load_epoch("dominant_frequencies", epoch)
-        return DataView(schema=_fourier_schema, coefficients=epoch_data["coefficients"])
+        # REQ_130: dominant_frequencies is retired. Reconstruct the legacy
+        # coefficients vector from weight_basis_projection's embedding site —
+        # the tabular twin of the REQ_127 figure-view re-point (same adapter).
+        from miscope.views.universal import _adapt_embedding_coefficients_legacy
+
+        art = variant.artifacts.load_epoch("weight_basis_projection", epoch)
+        coefficients = _adapt_embedding_coefficients_legacy(
+            art["embedding_cos_coeffs"], art["embedding_sin_coeffs"]
+        )
+        return DataView(schema=_fourier_schema, coefficients=coefficients)
 
     catalog.register(
         DataViewDefinition(
             name="parameters.embeddings.fourier_coefficients",
             load_data=_load_fourier_coefficients,
             schema=_fourier_schema,
-            epoch_source_analyzer="dominant_frequencies",
-            required_analyzers=[AnalyzerRequirement("dominant_frequencies", ArtifactKind.EPOCH)],
+            epoch_source_analyzer="weight_basis_projection",
+            required_analyzers=[
+                AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)
+            ],
         )
     )
 

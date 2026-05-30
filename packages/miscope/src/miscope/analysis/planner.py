@@ -255,7 +255,7 @@ def plan_analysis(
     # the primary phase's planned outputs as "will be there" — i.e. the
     # Plan describes post-execution state, not pre-execution state.
     primary_descs = [d for d in descriptors if d.category == "primary"]
-    secondary_descs = [d for d in descriptors if d.category == "secondary"]
+    secondary_descs = _order_secondaries([d for d in descriptors if d.category == "secondary"])
     cross_epoch_descs = [d for d in descriptors if d.category == "cross_epoch"]
 
     projected_completed: dict[str, list[int]] = {}
@@ -478,6 +478,39 @@ def _plan_per_epoch_item(
         requires_activation_cache=requires_activation_cache,
         required_hooks=required_hooks,
     )
+
+
+def _order_secondaries(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescriptor]:
+    """Stable topological sort of secondary descriptors by intra-secondary deps.
+
+    A secondary may depend on another secondary (REQ_130: ``fourier_frequency_quality``
+    → ``neuron_grouping``). Such a dependency must be planned and executed first so
+    the planner's ``projected_completed`` (built incrementally) and the resulting
+    ``plan.secondary`` execution order are both correct. Only ``depends_on`` targets
+    that are themselves in this secondary set create edges; dependencies on primaries
+    are already satisfied (primaries are planned before any secondary). Input order is
+    preserved for independent descriptors. Raises on a cyclic dependency.
+    """
+    by_name = {d.name: d for d in descs}
+    ordered: list[_AnalyzerDescriptor] = []
+    visited: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(desc: _AnalyzerDescriptor) -> None:
+        if desc.name in visited:
+            return
+        if desc.name in visiting:
+            raise ValueError(f"cyclic secondary dependency involving '{desc.name}'")
+        visiting.add(desc.name)
+        if desc.depends_on is not None and desc.depends_on in by_name:
+            visit(by_name[desc.depends_on])
+        visiting.discard(desc.name)
+        visited.add(desc.name)
+        ordered.append(desc)
+
+    for desc in descs:
+        visit(desc)
+    return ordered
 
 
 def _plan_secondary_item(

@@ -347,7 +347,8 @@ class TestGlobalDataViewCatalog:
 
     def test_fourier_has_epoch_source(self):
         dv = _dataview_catalog.get("parameters.embeddings.fourier_coefficients")
-        assert dv.epoch_source_analyzer == "dominant_frequencies"
+        # REQ_130: re-pointed off the retired dominant_frequencies.
+        assert dv.epoch_source_analyzer == "weight_basis_projection"
 
     def test_pca_trajectory_has_no_epoch_source(self):
         dv = _dataview_catalog.get("parameters.pca.trajectory")
