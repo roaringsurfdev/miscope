@@ -1,6 +1,6 @@
 # REQ_130: Re-point `fourier_frequency_quality` off `dominant_frequencies` (unblock retirement)
 
-**Status:** CoS developed (2026-05-29) — implementation in progress on `feature/req-130-fourier-quality-repoint`. Metric direction decided with the user: **redefine** (not preserve), as **neuron-weighted task coverage**.
+**Status:** Implementation complete (2026-05-29) on `feature/req-130-fourier-quality-repoint` — awaiting merge approval to `develop`. Full miscope suite green (1528 passed, 27 skipped). Metric redefined with the user as **neuron-weighted task coverage**. Scope included the DataView straggler REQ_127 missed and a planner topological-sort fix (first secondary→secondary dependency).
 **Priority:** Medium — unblocks a REQ_102 deferral (the only surviving consumer of `dominant_frequencies`).
 **Branch:** `feature/req-130-fourier-quality-repoint` (off `develop`).
 **Dependencies:**
@@ -55,25 +55,31 @@ This is a redefinition, so parity with the old `dominant_frequencies`-based outp
 
 ### Re-point & redefine
 
-- [ ] `fourier_frequency_quality` declares `ArtifactInput("neuron_grouping")` (drops `dominant_frequencies`); `depends_on` updated; the planner orders it after `neuron_grouping`.
-- [ ] The metric is redefined per Design: neuron-occupancy-weighted R² of the ideal mod-p tensor; `_compute_quality_score` generalized to accept per-frequency (or per-basis-row) weights, with binary weights recovering the prior behavior.
-- [ ] `prime` and `fourier_basis` are still sourced from context; per-frequency weights are derived from `neuron_grouping`'s `n_per_group` (frequency-indexed via the family override).
-- [ ] A guard handles non-frequency-indexed `neuron_grouping` (universal kmeans path): the metric is undefined there and skips/raises with a clear message (documented).
+- [x] `fourier_frequency_quality` declares `ArtifactInput("neuron_grouping")` (drops `dominant_frequencies`); `depends_on` updated; the planner orders it after `neuron_grouping` (see planner fix under Discovered).
+- [x] Metric redefined per Design: neuron-occupancy-weighted R² of the ideal mod-p tensor; `_weighted_quality_score` accepts per-basis-row weights, binary weights recover the prior behavior (emitted as `coverage_hard`).
+- [x] `prime` and `fourier_basis` sourced from context; per-frequency weights derived from `neuron_grouping`'s `n_per_group` (max-normalized relative occupancy), mapped to basis rows `{2g+1, 2g+2}`.
+- [x] Guard `_require_frequency_indexed` raises a clear error on non-frequency-indexed `neuron_grouping` (universal kmeans path) — the metric is mod-p-task-specific.
 
 ### Output
 
-- [ ] Per-epoch keys: `quality_score`, `active_frequencies`, `k`, `coverage_hard`, `reconstruction_error`; summary keys updated accordingly. The renderer/views (if any read `fourier_frequency_quality`) still load.
+- [x] Per-epoch keys: `quality_score`, `coverage_hard`, `active_frequencies`, `k`, `reconstruction_error`; summary keys `quality_score`/`coverage_hard`/`reconstruction_error`/`k`. All existing output consumers (`renderers/fourier_frequency_quality`, `renderers/input_trace`, View Catalog `quality_score` loader) read only retained keys → still load.
 
 ### Tests
 
-- [ ] Unit: synthetic frequency-pure grouping (each used frequency fully occupied, others empty) → neuron-weighted `quality_score` equals the hard-subspace R² over that set (clean-limit reduction).
-- [ ] Unit: partial occupancy down-weights a frequency's contribution monotonically (more neurons on a frequency ⇒ higher its weight ⇒ ≥ quality).
-- [ ] Unit: the non-frequency-indexed grouping guard fires.
-- [ ] Integration: analyzer runs through the pipeline ordered after `neuron_grouping`; full suite green.
+- [x] Unit: clean-limit reduction (`test_clean_limit_*`) — frequency-pure grouping → `quality_score == coverage_hard` and matches an independent hard-subspace R².
+- [x] Unit: occupancy monotonicity (`test_occupancy_monotonic`).
+- [x] Unit: non-frequency-indexed grouping guard fires (`test_guard_rejects_universal_kmeans_grouping`).
+- [x] Planner: secondary→secondary topological ordering + cycle detection (`test_plan_secondary_depends_on_secondary_ordered_and_unblocked`, `test_plan_secondary_cyclic_dependency_raises`). Full suite green.
 
 ### Closure
 
-- [ ] No surviving consumer reads `dominant_frequencies` → hand its retirement to REQ_102 (→ `weight_basis_projection`, embedding site). (The `export.py` `_VISUALIZATION_REGISTRY` `dominant_frequencies` entry is the same uniformly-stale broader-cleanup case noted in REQ_131 — out of scope here.)
+- [x] No live consumer (analyzer / View Catalog / DataView) reads `dominant_frequencies` → hand its retirement to REQ_102 (→ `weight_basis_projection`, embedding site). (`export.py` `_VISUALIZATION_REGISTRY` + a few docstring/README examples still name it — the broader REQ_102/REQ_129 retirement-doc cleanup, out of scope here, same as REQ_131.)
+
+## Discovered during implementation (2026-05-29)
+
+- **First secondary→secondary dependency in the codebase.** Every prior secondary depended on a *primary* (always complete before the secondary phase). `fourier_frequency_quality → neuron_grouping` is the first secondary-on-secondary edge, and the family lists `fourier_frequency_quality` *before* `neuron_grouping`. The planner built `projected_completed` in list order, so on a fresh run the dependent would plan as **blocked**. Fixed with `_order_secondaries` (stable topological sort over intra-secondary `depends_on` edges) in `planner.py`; raises on cycles. This is a general planner correctness improvement, not modadd-specific.
+- **DataView straggler** (`parameters.embeddings.fourier_coefficients` in `views/dataview_universal.py`) read `dominant_frequencies` directly — the tabular twin of the figure view REQ_127 re-pointed. Folded in (consistent with the REQ_131 "include the views" decision): re-pointed through the existing `_adapt_embedding_coefficients_legacy` adapter over `weight_basis_projection`'s embedding site.
+- **Metric interpretation note.** `quality_score` now answers "how well do the frequencies the MLP's neurons actually organize around cover the task?" — a neuron-side measure, distinct from the old embedding-energy one. `coverage_hard` is the binary-set companion (equals the old metric's score *if* the active set matched the old embedding-threshold set), kept as an interpretive reference. Whether this resurrects usable signal is an empirical question for canon analysis (see [[frequency-choice-frame]]).
 
 ## Notes
 
