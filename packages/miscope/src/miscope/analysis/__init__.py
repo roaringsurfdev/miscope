@@ -11,12 +11,7 @@ from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.freshness import FreshnessReport, check_freshness
 from miscope.analysis.pipeline import AnalysisPipeline
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
-from miscope.analysis.protocols import (
-    AnalysisRunConfig,
-    Analyzer,
-    CrossEpochAnalyzer,
-    SecondaryAnalyzer,
-)
+from miscope.analysis.protocols import AnalysisRunConfig, Analyzer
 
 # Note: ``ArtifactLoader`` is an internal storage primitive and is intentionally
 # not re-exported here (REQ_125). Consumers should reach a configured loader
@@ -29,11 +24,9 @@ __all__ = [
     "AnalyzerRegistry",
     "AnalysisPipeline",
     "AnalysisRunConfig",
-    "CrossEpochAnalyzer",
     "FreshnessReport",
     "Plan",
     "PlanItem",
-    "SecondaryAnalyzer",
     "check_freshness",
     "plan_analysis",
 ]

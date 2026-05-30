@@ -259,9 +259,8 @@ def _names_from_analyzers_with_disk_union(
 
     Primary and secondary analyzers both produce per-epoch artifacts and
     share the per-epoch name list. Cross-epoch analyzers go in their own
-    list. After REQ_121's unification, every analyzer satisfies the same
-    ``Analyzer`` protocol — classification is by the registered Spec's
-    ``effective_category``, not by legacy protocol-method presence.
+    list. Every analyzer satisfies the same ``Analyzer`` protocol —
+    classification is by the registered Spec's derived ``category``.
 
     Disk-discovered names are unioned in so leftover artifacts from
     removed/renamed analyzers remain visible alongside registered-but-
@@ -276,7 +275,7 @@ def _names_from_analyzers_with_disk_union(
     registered_cross_epoch: set[str] = set()
     for analyzer in analyzers:
         if AnalyzerRegistry.has_spec(analyzer.name):
-            category = AnalyzerRegistry.get_spec(analyzer.name).effective_category
+            category = AnalyzerRegistry.get_spec(analyzer.name).category
             if category == "cross_epoch":
                 registered_cross_epoch.add(analyzer.name)
             else:

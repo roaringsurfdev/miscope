@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from miscope.analysis.spec import AnalyzerSpec, Category
 
 if TYPE_CHECKING:
-    from miscope.analysis.protocols import Analyzer, CrossEpochAnalyzer, SecondaryAnalyzer
+    from miscope.analysis.protocols import Analyzer
     from miscope.families.protocols import ModelFamily
 
 T = TypeVar("T", bound=type)
@@ -42,7 +42,7 @@ def register_analyzer(spec: AnalyzerSpec) -> Callable[[T], T]:
 
     Usage:
 
-        SPEC = AnalyzerSpec(name="foo", category="primary", ...)
+        SPEC = AnalyzerSpec(name="foo", inputs=(...), ...)
 
         @register_analyzer(SPEC)
         class FooAnalyzer:
@@ -85,8 +85,8 @@ class AnalyzerRegistry:
         create(name)             — invoke the factory
         list_for_family(family)  — Specs filtered by a family's declarations
 
-    Legacy class-based API (preserved for backwards compatibility):
-        register(cls), register_secondary(cls), register_cross_epoch(cls)
+    Legacy class-based query API (test-only — candidate for removal once
+    tests migrate to the spec-based API, see REQ_129 follow-up note):
         get(name), get_secondary(name), get_cross_epoch(name)
         get_for_family(family), get_secondary_for_family(family),
         get_cross_epoch_for_family(family)
@@ -110,7 +110,7 @@ class AnalyzerRegistry:
 
     @classmethod
     def list_specs_by_category(cls, category: Category) -> list[AnalyzerSpec]:
-        return [s for s in _specs.values() if s.effective_category == category]
+        return [s for s in _specs.values() if s.category == category]
 
     @classmethod
     def get_factory(cls, name: str) -> Callable[[], Any]:
@@ -139,121 +139,53 @@ class AnalyzerRegistry:
         )
         return [_specs[n] for n in declared if n in _specs]
 
-    # ---- Legacy class-based API (back-compat) -----------------------------
-
-    @classmethod
-    def register(cls, analyzer_class: type) -> type:
-        """Register a primary analyzer class without an explicit Spec.
-
-        Legacy entry point — preserved for callers that pre-date REQ_120.
-        When the analyzer already has a Spec registered (via the decorator),
-        this is a no-op. Otherwise a conservative default Spec is created
-        with ``requires_model_weights=True`` and ``requires_activation_cache=True``.
-        """
-        return cls._legacy_register(analyzer_class, category="primary")
-
-    @classmethod
-    def register_secondary(cls, analyzer_class: type) -> type:
-        return cls._legacy_register(analyzer_class, category="secondary")
-
-    @classmethod
-    def register_cross_epoch(cls, analyzer_class: type) -> type:
-        return cls._legacy_register(analyzer_class, category="cross_epoch")
-
-    @classmethod
-    def _legacy_register(cls, analyzer_class: type, category: Category) -> type:
-        name = getattr(analyzer_class, "name", None)
-        if name is None:
-            raise ValueError(f"Analyzer {analyzer_class.__name__} must have a 'name' attribute")
-        if name in _specs:
-            # Decorator-registered Spec wins; treat the legacy call as a no-op.
-            return analyzer_class
-
-        # Synthesize a conservative default Spec. ``requires`` is inferred
-        # from existing class attributes (``depends_on`` for secondary,
-        # ``requires`` for cross-epoch).
-        requires: tuple[str, ...] = ()
-        if category == "secondary":
-            depends_on = getattr(analyzer_class, "depends_on", None)
-            if depends_on:
-                requires = (depends_on,)
-        elif category == "cross_epoch":
-            requires = tuple(getattr(analyzer_class, "requires", ()) or ())
-
-        hooks_attr = getattr(analyzer_class, "required_hooks", None)
-        required_hooks = tuple(hooks_attr) if hooks_attr else ()
-        produces_summary = hasattr(analyzer_class, "get_summary_keys")
-
-        spec = AnalyzerSpec(
-            name=name,
-            category=category,
-            requires=requires,
-            requires_model_weights=(category == "primary"),
-            requires_activation_cache=(category == "primary"),
-            required_hooks=required_hooks,
-            produces_summary=produces_summary,
-        )
-        _specs[name] = spec
-        _factories[name] = lambda: analyzer_class()
-        return analyzer_class
+    # ---- Legacy class-based query API (test-only) -------------------------
 
     @classmethod
     def get(cls, name: str) -> Analyzer:
         spec = _specs.get(name)
-        if spec is None or spec.effective_category != "primary":
-            available = sorted(n for n, s in _specs.items() if s.effective_category == "primary")
+        if spec is None or spec.category != "primary":
+            available = sorted(n for n, s in _specs.items() if s.category == "primary")
             raise KeyError(f"Analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
     @classmethod
-    def get_secondary(cls, name: str) -> SecondaryAnalyzer:
+    def get_secondary(cls, name: str) -> Analyzer:
         spec = _specs.get(name)
-        if spec is None or spec.effective_category != "secondary":
-            available = sorted(n for n, s in _specs.items() if s.effective_category == "secondary")
+        if spec is None or spec.category != "secondary":
+            available = sorted(n for n, s in _specs.items() if s.category == "secondary")
             raise KeyError(f"Secondary analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
     @classmethod
-    def get_cross_epoch(cls, name: str) -> CrossEpochAnalyzer:
+    def get_cross_epoch(cls, name: str) -> Analyzer:
         spec = _specs.get(name)
-        if spec is None or spec.effective_category != "cross_epoch":
-            available = sorted(
-                n for n, s in _specs.items() if s.effective_category == "cross_epoch"
-            )
+        if spec is None or spec.category != "cross_epoch":
+            available = sorted(n for n, s in _specs.items() if s.category == "cross_epoch")
             raise KeyError(f"Cross-epoch analyzer '{name}' not found. Available: {available}")
         return cls.create(name)
 
     @classmethod
     def get_for_family(cls, family: ModelFamily) -> list[Analyzer]:
         names = getattr(family, "analyzers", [])
-        return [
-            cls.create(n)
-            for n in names
-            if n in _specs and _specs[n].effective_category == "primary"
-        ]
+        return [cls.create(n) for n in names if n in _specs and _specs[n].category == "primary"]
 
     @classmethod
-    def get_secondary_for_family(cls, family: ModelFamily) -> list[SecondaryAnalyzer]:
+    def get_secondary_for_family(cls, family: ModelFamily) -> list[Analyzer]:
         names = getattr(family, "secondary_analyzers", [])
-        return [
-            cls.create(n)
-            for n in names
-            if n in _specs and _specs[n].effective_category == "secondary"
-        ]
+        return [cls.create(n) for n in names if n in _specs and _specs[n].category == "secondary"]
 
     @classmethod
-    def get_cross_epoch_for_family(cls, family: ModelFamily) -> list[CrossEpochAnalyzer]:
+    def get_cross_epoch_for_family(cls, family: ModelFamily) -> list[Analyzer]:
         names = getattr(family, "cross_epoch_analyzers", [])
         return [
-            cls.create(n)
-            for n in names
-            if n in _specs and _specs[n].effective_category == "cross_epoch"
+            cls.create(n) for n in names if n in _specs and _specs[n].category == "cross_epoch"
         ]
 
     @classmethod
     def list_all(cls) -> list[str]:
         """Names of primary analyzers (legacy semantics)."""
-        return sorted(n for n, s in _specs.items() if s.effective_category == "primary")
+        return sorted(n for n, s in _specs.items() if s.category == "primary")
 
     @classmethod
     def list_all_names(cls) -> list[str]:
