@@ -40,8 +40,8 @@ def sha256_file(path: Path) -> str:
 
 
 # Analyzers excluded from regression: their output is intentionally non-deterministic.
-# REQ_102 retirements — excluded so stale on-disk artifacts aren't picked up by
-# the disk scan (these analyzers no longer exist; artifacts pending deletion).
+# REQ_102 retirements — excluded so any stale on-disk artifacts from old results
+# trees aren't picked up by the disk scan (these analyzers no longer exist).
 DEPRECATED_ANALYZERS = {
     "effective_dimensionality",
     "centroid_dmd",
@@ -49,6 +49,8 @@ DEPRECATED_ANALYZERS = {
     "attention_freq",
     "attention_fourier",
     "neuron_fourier",
+    "dominant_frequencies",
+    "neuron_freq_norm",
 }
 EXCLUDED_ANALYZERS = DEPRECATED_ANALYZERS | {"landscape_flatness", "fourier_nucleation"}
 
