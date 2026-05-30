@@ -1,0 +1,47 @@
+name: Dependency Audit
+
+# Scans uv.lock against the OSV vulnerability database.
+# - Weekly cron catches CVEs newly disclosed against versions already pinned,
+#   even when no code changes (the case a per-push check misses).
+# - PRs to develop/main catch newly introduced or bumped vulnerable deps.
+#
+# Advisory by default (continue-on-error) to match the project's lint/typecheck
+# stance: surface findings without blocking. Flip `continue-on-error` to false
+# on the audit step to make it gating.
+
+on:
+  schedule:
+    - cron: "0 16 * * 1" # Mondays 16:00 UTC (~09:00 PT)
+  pull_request:
+    branches: [develop, main]
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  osv-scan:
+    name: OSV scan (uv.lock)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned + checksum-verified. Version and hash live in .github/osv-scanner.pin
+      # (single bump point shared with scripts/audit_deps.sh). This step has NO
+      # continue-on-error: a checksum mismatch must fail the run, not warn.
+      - name: Install osv-scanner (pinned, checksum-verified)
+        run: |
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source .github/osv-scanner.pin
+          if [[ "$SHA256_LINUX_AMD64" == PLACEHOLDER* ]]; then
+            echo "::error::osv-scanner checksum not pinned. Fill SHA256_LINUX_AMD64 in .github/osv-scanner.pin from a trusted machine." >&2
+            exit 1
+          fi
+          url="https://github.com/google/osv-scanner/releases/download/v${VERSION}/osv-scanner_linux_amd64"
+          curl -sSfL "$url" -o /tmp/osv-scanner
+          echo "${SHA256_LINUX_AMD64}  /tmp/osv-scanner" | sha256sum -c -
+          install -m 0755 /tmp/osv-scanner /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      - name: Scan uv.lock
+        continue-on-error: true
+        run: osv-scanner scan --lockfile=uv.lock
