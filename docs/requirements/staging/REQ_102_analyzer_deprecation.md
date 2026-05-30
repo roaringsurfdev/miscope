@@ -1,6 +1,6 @@
 # REQ_102: Analyzer Deprecation (Retire Stale Paths)
 
-**Status:** Implementation complete (pending merge to `develop`) — all nine retirement candidates removed (2026-05-29)
+**Status:** Completed — all nine retirement candidates removed; merged to `develop` 2026-05-29
 **Priority:** Medium — close-out track for the Atlas-driven phase 1 consolidations. Bounded by prerequisite REQs completing.
 **Branch:** TBD
 **Dependencies:**
@@ -81,16 +81,16 @@ REQ_106 introduces a layering-audit deprecation criterion: an analyzer that re-i
 
 ### Cleanup (applies to every retirement)
 
-- [ ] Family configurations updated: each `family.json` removes references to retired analyzers from its `analyzers` list.
-- [ ] `analysis/analyzers/__init__.py` no longer imports / exports retired analyzer classes.
-- [ ] `analysis/analyzers/registry.py` no longer registers retired classes.
-- [ ] Renderers / views that referenced retired analyzers either deleted or migrated. Dashboard churn may be hidden behind the visualization layer per user direction (acknowledged as separate cleanup track; not blocking).
-- [ ] CHANGELOG entry on the release describing each retirement and pointing to its replacement.
+- [x] Family configurations updated: each `family.json` removes references to retired analyzers from its `analyzers` list. (Verified clean 2026-05-29 — no retired names in `data/modulo_addition_1layer/family.json`.)
+- [x] `analysis/analyzers/__init__.py` no longer imports / exports retired analyzer classes.
+- [x] `analysis/analyzers/registry.py` no longer registers retired classes. (Registry auto-discovers by module iteration; deleting the analyzer files de-registers them.)
+- [x] Renderers / views that referenced retired analyzers either deleted or migrated. Dashboard churn hidden behind the visualization layer per user direction (separate cleanup track; not blocking). Renderer modules retained where still consumed by surviving views (analyzer-layer-only scope).
+- [x] CHANGELOG entry on the release describing each retirement and pointing to its replacement.
 
 ### Documentation
 
-- [ ] `analysis/README.md` updated to reflect the canonical analyzer set.
-- [ ] Each retired analyzer file (in git history) carries a final commit with deprecation notice + pointer to replacement before deletion.
+- [x] `analysis/README.md` updated to reflect the canonical analyzer set (2026-05-29 — diagram, usage example, file listing, and artifact table re-pointed to `weight_basis_projection` / `activation_basis_projection`; stale `band_concentration.py` docstring fixed).
+- [x] Each retired analyzer file (in git history) carries a final commit with deprecation notice + pointer to replacement before deletion. (Successor mapping recorded in CHANGELOG and the Per-retirement evidence pointers above; full source→target map in the Atlas consolidation map.)
 
 ---
 

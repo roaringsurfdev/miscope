@@ -14,9 +14,9 @@ flowchart TB
 
     subgraph Analysis["Analysis Phase (Expensive)"]
         AP[AnalysisPipeline]
-        AN1[DominantFrequenciesAnalyzer]
+        AN1[WeightBasisProjectionAnalyzer]
         AN2[NeuronActivationsAnalyzer]
-        AN3[NeuronFreqClustersAnalyzer]
+        AN3[ActivationBasisProjectionAnalyzer]
 
         AP -->|register| AN1
         AP -->|register| AN2
@@ -77,18 +77,18 @@ The pipeline tracks completed epochs in `manifest.json`. Re-running analysis ski
 ```python
 from analysis import AnalysisPipeline
 from analysis.analyzers import (
-    DominantFrequenciesAnalyzer,
+    ActivationBasisProjectionAnalyzer,
     NeuronActivationsAnalyzer,
-    NeuronFreqClustersAnalyzer,
+    WeightBasisProjectionAnalyzer,
 )
 
 # Create pipeline
 pipeline = AnalysisPipeline(model_spec)
 
 # Register analyzers
-pipeline.register(DominantFrequenciesAnalyzer())
+pipeline.register(WeightBasisProjectionAnalyzer())
 pipeline.register(NeuronActivationsAnalyzer())
-pipeline.register(NeuronFreqClustersAnalyzer())
+pipeline.register(ActivationBasisProjectionAnalyzer())
 
 # Run analysis (skips existing artifacts)
 pipeline.run()
@@ -116,10 +116,10 @@ variant = family.get_variant(prime=113, seed=999, data_seed=598)
 
 # List available analyzers
 print(variant.artifacts.get_available_analyzers())
-# ['dominant_frequencies', 'neuron_activations', 'neuron_freq_norm', ...]
+# ['activation_basis_projection', 'neuron_activations', 'weight_basis_projection', ...]
 
 # Per-epoch load
-epoch_data = variant.artifacts.load_epoch("dominant_frequencies", epoch=1000)
+epoch_data = variant.artifacts.load_epoch("weight_basis_projection", epoch=1000)
 
 # Summary load
 summary = variant.artifacts.load_summary("repr_geometry")
@@ -138,19 +138,25 @@ analysis/
   artifact_loader.py       # Internal storage primitive (REQ_125)
   analyzers/
     __init__.py
-    dominant_frequencies.py  # Fourier coefficient norms
-    neuron_activations.py    # MLP activation heatmaps
-    neuron_freq_clusters.py  # Neuron-frequency specialization
+    weight_basis_projection.py      # Per-site weight Fourier projections
+    neuron_activations.py           # MLP activation heatmaps
+    activation_basis_projection.py  # Per-site activation Fourier projections
+    ...                             # (24 analyzers total — see registry.py)
 ```
 
 ## Artifacts Produced
 
+Each analyzer writes per-epoch `.npz` files under `artifacts/{analyzer_name}/`.
+A representative sample:
+
 | Artifact | Shape | Description |
 |----------|-------|-------------|
-| `dominant_frequencies.npz` | (n_epochs, n_components) | Fourier coefficient norms for embeddings |
-| `neuron_activations.npz` | (n_epochs, d_mlp, p, p) | MLP activations reshaped to input space |
-| `neuron_freq_norm.npz` | (n_epochs, p//2, d_mlp) | Fraction of variance explained by each frequency |
+| `weight_basis_projection/epoch_*.npz` | per-site cos/sin coeffs | Weight Fourier projections (embedding, mlp_in/out, attn sites) |
+| `neuron_activations/epoch_*.npz` | (d_mlp, p, p) | MLP activations reshaped to input space |
+| `activation_basis_projection/epoch_*.npz` | per-site magnitudes | Activation Fourier projections (incl. legacy `neuron_freq_norm` content) |
 | `manifest.json` | - | Completion tracking and metadata |
+
+See `analyzers/registry.py` for the full set of 24 analyzers.
 
 ## Adding a New Analyzer
 

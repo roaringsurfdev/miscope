@@ -144,7 +144,9 @@ def compute_embedding_band_magnitudes(
         magnitude_k = sqrt(coeff[2k-1]^2 + coeff[2k]^2)
 
     Args:
-        coefficients: Shape (p+1,) — output of DominantFrequenciesAnalyzer.
+        coefficients: Shape (p+1,) — embedding-site Fourier coefficients
+            (legacy ``dominant_frequencies`` layout; now produced by
+            ``weight_basis_projection``).
         n_freq: Number of frequency pairs = prime // 2.
 
     Returns:
