@@ -1,6 +1,6 @@
 # REQ_129: v1.0.0 Dead-Code Cull (Scaffolding Retirement)
 
-**Status:** Active — scope confirmed via audit 2026-05-30 (REQ_102 + REQ_128 both landed on `develop` 2026-05-29; the remaining dead set is now well-defined). CoS below.
+**Status:** Completed — merged to `develop` 2026-05-30 (merge `dbab5b9`, `--no-ff`). Net −270 lines; miscope 1466 passed / 29 skipped, dashboard 45 passed; user smoke-test (re-analysis with new checkpoints + dashboard views) clean. Two API-surface follow-ups deferred to REQ_132.
 **Priority:** Medium — close-out track for v1.0.0. Not blocking; pairs with REQ_103.
 **Branch:** `feature/req-129-v1-dead-code-cull`
 **Dependencies:**
