@@ -192,9 +192,9 @@ class TestModuloAddition2LMLPFamily:
     def test_declares_basis_projection_analyzers(self, family):
         # REQ_127: neuron_fourier retired; neuron-side Fourier analysis is now
         # provided by the universal basis-projection analyzers.
-        assert "neuron_fourier" not in family.secondary_analyzers
+        assert "neuron_fourier" not in family.analyzers
         assert "weight_basis_projection" in family.analyzers
         assert "activation_basis_projection" in family.analyzers
 
     def test_cross_epoch_analyzers_includes_neuron_group_pca(self, family):
-        assert "neuron_group_pca" in family.cross_epoch_analyzers
+        assert "neuron_group_pca" in family.analyzers

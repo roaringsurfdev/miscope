@@ -666,7 +666,7 @@ class TestActivationDMDProtocol:
         assert ActivationDMD().requires == ["global_centroid_pca"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("activation_dmd").output_scope == "cross_epoch"
 
 
 class TestActivationDMDOutput:

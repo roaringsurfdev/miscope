@@ -269,13 +269,15 @@ def _names_from_analyzers_with_disk_union(
     per-epoch list even if a per-epoch directory accidentally exists on
     disk (and vice versa).
     """
+    from miscope.analysis.inputs import derive_category
     from miscope.analysis.registry import AnalyzerRegistry
 
     registered_per_epoch: set[str] = set()
     registered_cross_epoch: set[str] = set()
     for analyzer in analyzers:
         if AnalyzerRegistry.has_spec(analyzer.name):
-            category = AnalyzerRegistry.get_spec(analyzer.name).category
+            spec = AnalyzerRegistry.get_spec(analyzer.name)
+            category = derive_category(spec.inputs, spec.output_scope)
             if category == "cross_epoch":
                 registered_cross_epoch.add(analyzer.name)
             else:

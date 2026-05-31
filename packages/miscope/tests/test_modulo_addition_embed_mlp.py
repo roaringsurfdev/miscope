@@ -247,10 +247,10 @@ class TestModuloAdditionEmbedMLPFamily:
     def test_secondary_analyzers_excludes_neuron_fourier(self, family):
         # neuron_fourier assumes W_in has 2*p columns (one-hot encoding);
         # learned-emb MLP uses d_embed=16 — incompatible, excluded intentionally.
-        assert "neuron_fourier" not in family.secondary_analyzers
+        assert "neuron_fourier" not in family.analyzers
 
     def test_cross_epoch_analyzers_includes_neuron_group_pca(self, family):
-        assert "neuron_group_pca" in family.cross_epoch_analyzers
+        assert "neuron_group_pca" in family.analyzers
 
     def test_get_training_config_keys(self, family):
         cfg = family.get_training_config()

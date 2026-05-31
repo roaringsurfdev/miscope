@@ -18,10 +18,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from miscope.analysis.spec import AnalyzerSpec, Category
+from miscope.analysis.spec import AnalyzerSpec
 
 if TYPE_CHECKING:
-    from miscope.analysis.protocols import Analyzer
     from miscope.families.protocols import ModelFamily
 
 T = TypeVar("T", bound=type)
@@ -77,22 +76,20 @@ def register_analyzer(spec: AnalyzerSpec) -> Callable[[T], T]:
 class AnalyzerRegistry:
     """Registry of analyzer Specs and factories.
 
-    Spec-based API (preferred):
+    Spec-based query API — the single canonical surface (REQ_132):
         get_spec(name)           — single Spec
+        has_spec(name)           — membership test
         list_specs()             — every registered Spec
-        list_specs_by_category() — filtered by primary/secondary/cross_epoch
         get_factory(name)        — instantiation closure
         create(name)             — invoke the factory
-        list_for_family(family)  — Specs filtered by a family's declarations
+        list_for_family(family)  — Specs declared by a family's flat list
+        list_all_names()         — names of every registered analyzer
+        is_registered(name)      — membership test (alias of has_spec)
+        clear()                  — reset (testing)
 
-    Legacy class-based query API (test-only — candidate for removal once
-    tests migrate to the spec-based API; tracked in REQ_132):
-        get(name), get_secondary(name), get_cross_epoch(name)
-        get_for_family(family), get_secondary_for_family(family),
-        get_cross_epoch_for_family(family)
+    The pipeline derives execution phase from each Spec's ``inputs``; the
+    Registry exposes no phase/category vocabulary.
     """
-
-    # ---- Spec-based API ---------------------------------------------------
 
     @classmethod
     def get_spec(cls, name: str) -> AnalyzerSpec:
@@ -109,10 +106,6 @@ class AnalyzerRegistry:
         return list(_specs.values())
 
     @classmethod
-    def list_specs_by_category(cls, category: Category) -> list[AnalyzerSpec]:
-        return [s for s in _specs.values() if s.category == category]
-
-    @classmethod
     def get_factory(cls, name: str) -> Callable[[], Any]:
         if name not in _factories:
             raise KeyError(f"No factory for analyzer '{name}'. Registered: {sorted(_factories)}")
@@ -125,67 +118,15 @@ class AnalyzerRegistry:
 
     @classmethod
     def list_for_family(cls, family: ModelFamily) -> list[AnalyzerSpec]:
-        """Return Specs declared by a family, filtered by analyzer availability.
+        """Return the registered Specs declared by a family.
 
-        Concatenates the family's ``analyzers``, ``secondary_analyzers``, and
-        ``cross_epoch_analyzers`` lists (each may be missing) and returns the
-        registered Specs. Names with no registered Spec are silently dropped
-        (matches today's lenient behavior).
+        Reads the family's single flat ``analyzers`` list (REQ_132) and
+        returns the registered Specs. Names with no registered Spec are
+        silently dropped (matches today's lenient behavior). Execution
+        order is derived downstream from each Spec's ``inputs``.
         """
-        declared = (
-            list(getattr(family, "analyzers", []))
-            + list(getattr(family, "secondary_analyzers", []))
-            + list(getattr(family, "cross_epoch_analyzers", []))
-        )
+        declared = list(getattr(family, "analyzers", []))
         return [_specs[n] for n in declared if n in _specs]
-
-    # ---- Legacy class-based query API (test-only) -------------------------
-
-    @classmethod
-    def get(cls, name: str) -> Analyzer:
-        spec = _specs.get(name)
-        if spec is None or spec.category != "primary":
-            available = sorted(n for n, s in _specs.items() if s.category == "primary")
-            raise KeyError(f"Analyzer '{name}' not found. Available: {available}")
-        return cls.create(name)
-
-    @classmethod
-    def get_secondary(cls, name: str) -> Analyzer:
-        spec = _specs.get(name)
-        if spec is None or spec.category != "secondary":
-            available = sorted(n for n, s in _specs.items() if s.category == "secondary")
-            raise KeyError(f"Secondary analyzer '{name}' not found. Available: {available}")
-        return cls.create(name)
-
-    @classmethod
-    def get_cross_epoch(cls, name: str) -> Analyzer:
-        spec = _specs.get(name)
-        if spec is None or spec.category != "cross_epoch":
-            available = sorted(n for n, s in _specs.items() if s.category == "cross_epoch")
-            raise KeyError(f"Cross-epoch analyzer '{name}' not found. Available: {available}")
-        return cls.create(name)
-
-    @classmethod
-    def get_for_family(cls, family: ModelFamily) -> list[Analyzer]:
-        names = getattr(family, "analyzers", [])
-        return [cls.create(n) for n in names if n in _specs and _specs[n].category == "primary"]
-
-    @classmethod
-    def get_secondary_for_family(cls, family: ModelFamily) -> list[Analyzer]:
-        names = getattr(family, "secondary_analyzers", [])
-        return [cls.create(n) for n in names if n in _specs and _specs[n].category == "secondary"]
-
-    @classmethod
-    def get_cross_epoch_for_family(cls, family: ModelFamily) -> list[Analyzer]:
-        names = getattr(family, "cross_epoch_analyzers", [])
-        return [
-            cls.create(n) for n in names if n in _specs and _specs[n].category == "cross_epoch"
-        ]
-
-    @classmethod
-    def list_all(cls) -> list[str]:
-        """Names of primary analyzers (legacy semantics)."""
-        return sorted(n for n, s in _specs.items() if s.category == "primary")
 
     @classmethod
     def list_all_names(cls) -> list[str]:

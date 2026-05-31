@@ -28,10 +28,7 @@
   "analyzers": [
     "neuron_activations",
     "parameter_snapshot",
-    "repr_geometry"
-  ],
-  "secondary_analyzers": [],
-  "cross_epoch_analyzers": [
+    "repr_geometry",
     "parameter_trajectory",
     "neuron_dynamics",
     "neuron_group_pca",
@@ -40,7 +37,7 @@
   ],
   "analysis_dataset": {
     "type": "modulo_addition_grid_indices",
-    "description": "Full (a, b) input grid as integer index pairs (a, b) — not one-hot encoded"
+    "description": "Full (a, b) input grid as integer index pairs (a, b) \u2014 not one-hot encoded"
   },
   "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}"
 }

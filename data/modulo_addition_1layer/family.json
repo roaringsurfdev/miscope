@@ -40,14 +40,10 @@
     "input_trace",
     "weight_basis_projection",
     "activation_basis_projection",
-    "weight_spectra"
-  ],
-  "secondary_analyzers": [
+    "weight_spectra",
     "fourier_frequency_quality",
     "neuron_grouping",
-    "centroid_fourier_alignment"
-  ],
-  "cross_epoch_analyzers": [
+    "centroid_fourier_alignment",
     "parameter_trajectory",
     "neuron_dynamics",
     "global_centroid_pca",

@@ -109,12 +109,12 @@ class TestParameterDMDProtocol:
         assert ParameterDMD().requires == ["parameter_snapshot", "neuron_grouping"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("parameter_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_dmd").output_scope == "cross_epoch"
 
     def test_distinct_from_activation_dmd(self):
         """Both DMD analyzers exist independently."""
-        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
-        assert AnalyzerRegistry.get_spec("parameter_dmd").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("activation_dmd").output_scope == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_dmd").output_scope == "cross_epoch"
         assert (
             AnalyzerRegistry.create("activation_dmd").__class__
             is not AnalyzerRegistry.create("parameter_dmd").__class__

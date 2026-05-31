@@ -165,7 +165,7 @@ class TestLoadPeakMembers:
 
 class TestTransientFrequencyAnalyzer:
     def test_registration(self):
-        assert AnalyzerRegistry.get_spec("transient_frequency").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("transient_frequency").output_scope == "cross_epoch"
 
     def test_output_keys(self, artifacts_with_transient):
         tmpdir, n_epochs, n_freq, d_mlp, epochs, dom, frac = artifacts_with_transient

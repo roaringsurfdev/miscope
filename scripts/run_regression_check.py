@@ -71,15 +71,17 @@ def run_pipeline(variant, force: bool) -> None:
     # LandscapeFlatnessAnalyzer excluded: stochastic by design, not regression-testable
     # FourierNucleationAnalyzer excluded to match develop-side regen scope
     pipeline.register(RepresentationalGeometryAnalyzer())
-    pipeline.register_secondary(FourierFrequencyQualityAnalyzer())
-    pipeline.register_cross_epoch(InputTraceGraduationAnalyzer())
-    pipeline.register_cross_epoch(NeuronDynamicsAnalyzer())
-    pipeline.register_cross_epoch(NeuronGroupPCAAnalyzer())
-    pipeline.register_cross_epoch(ParameterTrajectory())
-    pipeline.register_cross_epoch(GlobalCentroidPCA())
-    pipeline.register_cross_epoch(TransientFrequencyAnalyzer())
-    pipeline.register_cross_epoch(FreqGroupWeightGeometryAnalyzer())
-    pipeline.register_cross_epoch(IntraGroupManifoldAnalyzer())
+    # REQ_132: a single register verb — the pipeline routes each analyzer to
+    # its execution phase from the Spec. Order of registration is irrelevant.
+    pipeline.register(FourierFrequencyQualityAnalyzer())
+    pipeline.register(InputTraceGraduationAnalyzer())
+    pipeline.register(NeuronDynamicsAnalyzer())
+    pipeline.register(NeuronGroupPCAAnalyzer())
+    pipeline.register(ParameterTrajectory())
+    pipeline.register(GlobalCentroidPCA())
+    pipeline.register(TransientFrequencyAnalyzer())
+    pipeline.register(FreqGroupWeightGeometryAnalyzer())
+    pipeline.register(IntraGroupManifoldAnalyzer())
     pipeline.run(force=force)
 
 

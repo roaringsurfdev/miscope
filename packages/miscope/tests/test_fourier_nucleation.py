@@ -316,8 +316,6 @@ class TestFourierNucleationIntegration:
                 "data_seed": {"type": "int", "description": "Data seed", "default": 598},
             },
             "analyzers": ["fourier_nucleation"],
-            "secondary_analyzers": [],
-            "cross_epoch_analyzers": [],
             "analysis_dataset": {"type": "modulo_addition_grid"},
             "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
         }

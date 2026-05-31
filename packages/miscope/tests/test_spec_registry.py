@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from miscope.analysis.inputs import ArtifactInput, ModelInput
+from miscope.analysis.inputs import ArtifactInput, ModelInput, derive_category
 from miscope.analysis.planner import plan_analysis
 from miscope.analysis.registry import AnalyzerRegistry, register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
@@ -33,7 +33,7 @@ def test_spec_defaults():
     """A bare Spec declares no inputs, so capability flags derive to False."""
     spec = AnalyzerSpec(name="foo")
     assert spec.name == "foo"
-    assert spec.category == "primary"
+    assert derive_category(spec.inputs, spec.output_scope) == "primary"
     assert spec.requires == ()
     assert spec.requires_model_weights is False
     assert spec.requires_activation_cache is False
@@ -103,7 +103,9 @@ def test_decorator_rejects_name_mismatch(fresh_registry):
                 return {}
 
 
-def test_list_specs_by_category(fresh_registry):
+def test_specs_route_by_derived_category(fresh_registry):
+    """Category is derived from inputs + output_scope, not a query surface (REQ_132)."""
+
     @register_analyzer(AnalyzerSpec(name="p1", inputs=(ModelInput(),)))
     class P1:
         name = "p1"
@@ -119,10 +121,12 @@ def test_list_specs_by_category(fresh_registry):
         def analyze(self, inputs, context):
             return {}
 
-    primaries = [s.name for s in fresh_registry.list_specs_by_category("primary")]
-    cross = [s.name for s in fresh_registry.list_specs_by_category("cross_epoch")]
-    assert "p1" in primaries and "c1" not in primaries
-    assert "c1" in cross and "p1" not in cross
+    by_category: dict[str, list[str]] = {}
+    for spec in fresh_registry.list_specs():
+        cat = derive_category(spec.inputs, spec.output_scope)
+        by_category.setdefault(cat, []).append(spec.name)
+    assert "p1" in by_category["primary"] and "c1" not in by_category["primary"]
+    assert "c1" in by_category["cross_epoch"] and "p1" not in by_category["cross_epoch"]
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +407,22 @@ def test_pipeline_absorbs_spec_only_plan_items(trained_variant):
         register_default_analyzers()
 
 
+def test_pipeline_register_requires_spec(trained_variant):
+    """REQ_132: a registered Spec is mandatory — registering a spec-less
+    analyzer raises rather than silently running on the old conservative path."""
+    from miscope.analysis import AnalysisPipeline
+
+    class NoSpec:
+        name = "no_spec_analyzer"
+
+        def analyze(self, inputs, context):
+            return {}
+
+    pipeline = AnalysisPipeline(trained_variant)
+    with pytest.raises(ValueError, match="no registered Spec"):
+        pipeline.register(NoSpec())
+
+
 # ---------------------------------------------------------------------------
 # Spec ↔ class consistency audit (REQ_120 CoS: registry consistency)
 # ---------------------------------------------------------------------------
@@ -468,7 +488,12 @@ def test_secondary_spec_requires_matches_depends_on():
     register_default_analyzers()
 
     mismatches = []
-    for spec in AnalyzerRegistry.list_specs_by_category("secondary"):
+    secondary_specs = [
+        s
+        for s in AnalyzerRegistry.list_specs()
+        if derive_category(s.inputs, s.output_scope) == "secondary"
+    ]
+    for spec in secondary_specs:
         analyzer = AnalyzerRegistry.create(spec.name)
         if len(spec.requires) != 1:
             mismatches.append(
@@ -492,7 +517,12 @@ def test_cross_epoch_spec_requires_matches_class_requires():
     register_default_analyzers()
 
     mismatches = []
-    for spec in AnalyzerRegistry.list_specs_by_category("cross_epoch"):
+    cross_epoch_specs = [
+        s
+        for s in AnalyzerRegistry.list_specs()
+        if derive_category(s.inputs, s.output_scope) == "cross_epoch"
+    ]
+    for spec in cross_epoch_specs:
         analyzer = AnalyzerRegistry.create(spec.name)
         class_requires = tuple(getattr(analyzer, "requires", ()) or ())
         if class_requires != spec.requires:

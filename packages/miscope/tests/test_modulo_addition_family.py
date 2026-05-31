@@ -239,10 +239,10 @@ class TestAnalyzerIntegration:
 
     def test_get_analyzers_for_family(self, family):
         """Test getting analyzers for the family."""
-        analyzers = AnalyzerRegistry.get_for_family(family)
+        specs = AnalyzerRegistry.list_for_family(family)
 
-        assert len(analyzers) == 3
-        analyzer_names = {a.name for a in analyzers}
+        assert len(specs) == 3
+        analyzer_names = {s.name for s in specs}
         assert "neuron_activations" in analyzer_names
         assert "activation_basis_projection" in analyzer_names
         assert "weight_spectra" in analyzer_names
@@ -258,7 +258,7 @@ class TestAnalyzerIntegration:
         with torch.inference_mode():
             logits, cache = model.run_with_cache(dataset)
 
-        analyzer = AnalyzerRegistry.get("neuron_activations")
+        analyzer = AnalyzerRegistry.create("neuron_activations")
         result = analyzer.analyze(
             ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
         )
@@ -300,7 +300,8 @@ class TestEndToEnd:
 
         # 6. Get and run analyzers
         context = family.prepare_analysis_context(params, model.cfg.device)
-        analyzers = AnalyzerRegistry.get_for_family(family)
+        specs = AnalyzerRegistry.list_for_family(family)
+        analyzers = [AnalyzerRegistry.create(s.name) for s in specs]
 
         for analyzer in analyzers:
             result = analyzer.analyze(

@@ -20,7 +20,7 @@ in v1.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from miscope.analysis.deps import ALL, DepsAccessor
 
@@ -142,11 +142,16 @@ def derive_needs_activation_cache(inputs: tuple[InputSpec, ...]) -> bool:
     return any(isinstance(i, ModelInput) and i.needs_cache for i in inputs)
 
 
-def derive_category(inputs: tuple[InputSpec, ...], output_scope: str) -> str:
-    """Derive a legacy category label from inputs + output_scope.
+Category = Literal["primary", "secondary", "cross_epoch"]
+"""Internal execution-phase label. Derived from a Spec's ``inputs`` +
+``output_scope`` (REQ_132) — never authored or exposed on the public API
+surface. Used only by the Planner/Pipeline to order work."""
 
-    Used for back-compat reporting and as a planner-internal grouping
-    key during Phase 2A coexistence:
+
+def derive_category(inputs: tuple[InputSpec, ...], output_scope: str) -> Category:
+    """Derive the internal execution-phase label from inputs + output_scope.
+
+    A planner/pipeline-internal grouping key (REQ_132):
         - ``"cross_epoch"``: output_scope is "cross_epoch".
         - ``"secondary"``: per-epoch output AND every input is artifact-scoped
           (no ModelInput) AND at least one ArtifactInput declared.

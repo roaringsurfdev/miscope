@@ -7,10 +7,13 @@ module-level ``SPEC``) and are registered through the ``@register_analyzer``
 decorator in :mod:`miscope.analysis.registry`.
 
 A Spec declares its input materializations structurally via ``inputs`` and
-its output scope via ``output_scope``. Capability requirements — category,
-upstream artifacts, whether model weights or an activation cache are needed —
-are *derived* from those declarations, not authored separately. The Pipeline
-materializes whatever the Spec asks for and hands the analyzer a uniform
+its output scope via ``output_scope``. Capability requirements — upstream
+artifacts, whether model weights or an activation cache are needed — are
+*derived* from those declarations, not authored separately. The internal
+execution phase (the primary/secondary/cross-epoch grouping) is likewise
+derived by the Planner via ``derive_category``; it is not part of the Spec's
+public surface (REQ_132). The Pipeline materializes whatever the Spec asks
+for and hands the analyzer a uniform
 :class:`miscope.analysis.inputs.ResolvedInputs` value.
 """
 
@@ -21,13 +24,11 @@ from typing import Literal
 
 from miscope.analysis.inputs import (
     InputSpec,
-    derive_category,
     derive_needs_activation_cache,
     derive_needs_model_weights,
     derive_required_artifacts,
 )
 
-Category = Literal["primary", "secondary", "cross_epoch"]
 OutputScope = Literal["per_epoch", "cross_epoch"]
 
 
@@ -61,11 +62,6 @@ class AnalyzerSpec:
     produces_summary: bool = False
 
     # ----- Derived properties ----------------------------------------------
-
-    @property
-    def category(self) -> Category:
-        """Planner/pipeline grouping, derived from ``inputs`` + ``output_scope``."""
-        return derive_category(self.inputs, self.output_scope)  # type: ignore[return-value]
 
     @property
     def requires(self) -> tuple[str, ...]:
