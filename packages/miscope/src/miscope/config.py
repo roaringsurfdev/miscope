@@ -14,12 +14,8 @@ Environment variable overrides:
     MISCOPE_DATA_ROOT      Override data root path
     MISCOPE_PROJECT_ROOT   Override project root (data_root defaults under this)
 
-Legacy aliases (still accepted, lower priority than MISCOPE_DATA_ROOT):
-    TDW_DATA_ROOT, TDW_PROJECT_ROOT
-
 Deprecated (emit DeprecationWarning, removed in a follow-up release):
     MISCOPE_RESULTS_DIR, MISCOPE_MODEL_FAMILIES_DIR
-    TDW_RESULTS_DIR, TDW_MODEL_FAMILIES_DIR
 """
 
 from __future__ import annotations
@@ -32,8 +28,6 @@ from pathlib import Path
 _DEPRECATED_ROOT_VARS = (
     "MISCOPE_RESULTS_DIR",
     "MISCOPE_MODEL_FAMILIES_DIR",
-    "TDW_RESULTS_DIR",
-    "TDW_MODEL_FAMILIES_DIR",
 )
 
 
@@ -49,24 +43,23 @@ def get_config() -> AppConfig:
     """Get application configuration.
 
     Resolves the data root in this order:
-    1. ``MISCOPE_DATA_ROOT`` (or legacy ``TDW_DATA_ROOT``) environment variable.
+    1. ``MISCOPE_DATA_ROOT`` environment variable.
     2. Default: ``{project_root}/data``.
 
     If either of the deprecated ``MISCOPE_RESULTS_DIR`` /
-    ``MISCOPE_MODEL_FAMILIES_DIR`` env vars (or their ``TDW_*`` aliases) is set
-    without the new ``MISCOPE_DATA_ROOT``, a :class:`DeprecationWarning` is
-    emitted; the deprecated vars are otherwise ignored.
+    ``MISCOPE_MODEL_FAMILIES_DIR`` env vars is set without the new
+    ``MISCOPE_DATA_ROOT``, a :class:`DeprecationWarning` is emitted; the
+    deprecated vars are otherwise ignored.
 
-    Project root is resolved from ``MISCOPE_PROJECT_ROOT`` (or
-    ``TDW_PROJECT_ROOT``), or by walking up from this file to find the uv
-    workspace pyproject.toml.
+    Project root is resolved from ``MISCOPE_PROJECT_ROOT``, or by walking up
+    from this file to find the uv workspace pyproject.toml.
 
     Returns:
         AppConfig with resolved paths.
     """
     project_root = _resolve_project_root()
 
-    explicit_root = os.environ.get("MISCOPE_DATA_ROOT") or os.environ.get("TDW_DATA_ROOT")
+    explicit_root = os.environ.get("MISCOPE_DATA_ROOT")
     if explicit_root is None:
         _warn_if_deprecated_vars_set()
         data_root = project_root / "data"
@@ -95,14 +88,13 @@ def _resolve_project_root() -> Path:
 
     Strategy:
     1. MISCOPE_PROJECT_ROOT environment variable (explicit override)
-    2. TDW_PROJECT_ROOT environment variable (legacy alias)
-    3. Walk up from this file looking for the uv workspace root
+    2. Walk up from this file looking for the uv workspace root
        (a pyproject.toml containing [tool.uv.workspace]). The package's own
        pyproject.toml is skipped; we want the repo root, where data/ lives.
-    4. Fall back to the outermost pyproject.toml (non-workspace layouts).
-    5. Fall back to current working directory.
+    3. Fall back to the outermost pyproject.toml (non-workspace layouts).
+    4. Fall back to current working directory.
     """
-    env_root = os.environ.get("MISCOPE_PROJECT_ROOT") or os.environ.get("TDW_PROJECT_ROOT")
+    env_root = os.environ.get("MISCOPE_PROJECT_ROOT")
     if env_root:
         return Path(env_root).resolve()
 

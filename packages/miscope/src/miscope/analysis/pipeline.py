@@ -440,7 +440,7 @@ class AnalysisPipeline:
         """
         from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.analysis.deps import DepsAccessor
-        from miscope.analysis.inputs import ModelInput, ResolvedInputs, derive_required_artifacts
+        from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
         loader = ArtifactLoader(self.artifacts_dir)
         declared = (
@@ -456,14 +456,10 @@ class AnalysisPipeline:
                 epoch=epoch, model=model, cache=cache, logits=logits, probe=probe, deps=deps
             )
 
-        # Legacy Specs (no inputs declared) carry capability flags
-        # directly; default for the unified path is to honor those.
-        wants_model = spec.effective_requires_model_weights if not spec.inputs else False
-        wants_cache = spec.effective_requires_activation_cache if not spec.inputs else False
-        for inp in spec.inputs:
-            if isinstance(inp, ModelInput):
-                wants_model = wants_model or inp.needs_weights
-                wants_cache = wants_cache or inp.needs_cache
+        # Capability needs are derived from the Spec's ``inputs`` declaration
+        # (each property ORs over every declared ModelInput).
+        wants_model = spec.requires_model_weights
+        wants_cache = spec.requires_activation_cache
 
         return ResolvedInputs(
             epoch=epoch,

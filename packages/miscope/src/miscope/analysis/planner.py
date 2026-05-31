@@ -217,11 +217,11 @@ def plan_analysis(
 
     Args:
         variant: The variant to analyze.
-        analyzers: Mixed sequence of ``Analyzer``, ``SecondaryAnalyzer``,
-            ``CrossEpochAnalyzer`` instances, *or* ``AnalyzerSpec`` objects
-            (REQ_120). Specs are classified by their ``category`` field;
-            instances by attribute inspection (``analyze_across_epochs`` →
-            cross-epoch, ``depends_on`` → secondary, else primary).
+        analyzers: Mixed sequence of ``Analyzer`` instances *or*
+            ``AnalyzerSpec`` objects. Specs are classified by their derived
+            ``category``; instances by attribute inspection
+            (``analyze_across_epochs`` → cross-epoch, ``depends_on`` →
+            secondary, else primary).
         force: If True, every applicable epoch is included regardless of
             on-disk state.
         checkpoints: Restrict per-epoch work to these epochs. ``None``
@@ -345,22 +345,17 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     from miscope.analysis.spec import AnalyzerSpec
 
     if isinstance(item, AnalyzerSpec):
-        # Use effective_* properties so unified Specs (category=None,
-        # inputs=...) classify correctly.
-        effective_category = item.effective_category
-        effective_requires = item.effective_requires
-        depends_on = (
-            effective_requires[0]
-            if effective_category == "secondary" and effective_requires
-            else None
-        )
+        # Spec properties classify analyzers — all derived from ``inputs``.
+        category = item.category
+        requires = item.requires
+        depends_on = requires[0] if category == "secondary" and requires else None
         return _AnalyzerDescriptor(
             name=item.name,
-            category=effective_category,
-            requires=effective_requires,
+            category=category,
+            requires=requires,
             depends_on=depends_on,
-            requires_model_weights=item.effective_requires_model_weights,
-            requires_activation_cache=item.effective_requires_activation_cache,
+            requires_model_weights=item.requires_model_weights,
+            requires_activation_cache=item.requires_activation_cache,
             required_hooks=tuple(item.required_hooks),
         )
 

@@ -13,7 +13,7 @@ from miscope.analysis.analyzers.global_centroid_pca import (
     _pca_with_variance_threshold,
 )
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 from miscope.visualization.renderers.repr_geometry import render_centroid_global_pca
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
@@ -159,7 +159,7 @@ class TestComputeGlobalCentroidPca:
 
 class TestGlobalCentroidPCAProtocol:
     def test_conforms_to_cross_epoch_protocol(self):
-        assert isinstance(GlobalCentroidPCA(), UnifiedAnalyzer)
+        assert isinstance(GlobalCentroidPCA(), Analyzer)
 
     def test_name(self):
         assert GlobalCentroidPCA().name == "global_centroid_pca"
@@ -168,7 +168,7 @@ class TestGlobalCentroidPCAProtocol:
         assert GlobalCentroidPCA().requires == ["repr_geometry"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("global_centroid_pca").effective_category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("global_centroid_pca").category == "cross_epoch"
 
     def test_analyze_is_callable(self):
         assert callable(GlobalCentroidPCA().analyze)

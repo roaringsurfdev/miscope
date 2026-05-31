@@ -22,7 +22,7 @@ from miscope.analysis.library.dmd import (
     detect_regime_boundaries,
     track_eigenvalues_across_windows,
 )
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 
 _SITES = ["resid_pre", "attn_out", "mlp_out", "resid_post"]
 
@@ -657,7 +657,7 @@ def artifacts_with_global_pca():
 
 class TestActivationDMDProtocol:
     def test_conforms_to_cross_epoch_protocol(self):
-        assert isinstance(ActivationDMD(), UnifiedAnalyzer)
+        assert isinstance(ActivationDMD(), Analyzer)
 
     def test_name(self):
         assert ActivationDMD().name == "activation_dmd"
@@ -666,7 +666,7 @@ class TestActivationDMDProtocol:
         assert ActivationDMD().requires == ["global_centroid_pca"]
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("activation_dmd").effective_category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("activation_dmd").category == "cross_epoch"
 
 
 class TestActivationDMDOutput:

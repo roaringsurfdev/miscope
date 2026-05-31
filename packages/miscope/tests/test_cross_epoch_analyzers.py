@@ -20,7 +20,7 @@ from miscope.analysis.analyzers.parameter_trajectory import _GROUPS
 from miscope.analysis.artifact_loader import ArtifactLoader
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.trajectory import compute_parameter_velocity, flatten_snapshot
-from miscope.analysis.protocols import UnifiedAnalyzer
+from miscope.analysis.protocols import Analyzer
 from miscope.families.discovery import discover_families
 from miscope.visualization.renderers.parameter_trajectory import (
     get_group_label,
@@ -96,7 +96,7 @@ class TestCrossEpochAnalyzerProtocol:
     def test_parameter_trajectory_conforms(self):
         """ParameterTrajectory satisfies CrossEpochAnalyzer protocol."""
         analyzer = ParameterTrajectory()
-        assert isinstance(analyzer, UnifiedAnalyzer)
+        assert isinstance(analyzer, Analyzer)
 
     def test_has_name(self):
         analyzer = ParameterTrajectory()
@@ -111,7 +111,7 @@ class TestCrossEpochAnalyzerProtocol:
         assert callable(analyzer.analyze)
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("parameter_trajectory").effective_category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_trajectory").category == "cross_epoch"
 
 
 # ── Analyzer output tests ────────────────────────────────────────────

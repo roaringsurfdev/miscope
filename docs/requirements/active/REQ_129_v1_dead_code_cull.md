@@ -1,8 +1,8 @@
 # REQ_129: v1.0.0 Dead-Code Cull (Scaffolding Retirement)
 
-**Status:** Stub — *findings parked, scope and CoS to be developed in a dedicated session.*
+**Status:** Active — scope confirmed via audit 2026-05-30 (REQ_102 + REQ_128 both landed on `develop` 2026-05-29; the remaining dead set is now well-defined). CoS below.
 **Priority:** Medium — close-out track for v1.0.0. Not blocking; pairs with REQ_103.
-**Branch:** TBD
+**Branch:** `feature/req-129-v1-dead-code-cull`
 **Dependencies:**
 - REQ_102 (Analyzer Deprecation — retires superseded *analyzers*; this REQ retires superseded *scaffolding*).
 - REQ_128 (Analyzer Input Provisioning — removes dead code **on the input path**; this REQ catches the rest).
@@ -34,11 +34,48 @@ These are *candidates*, not confirmed scope — each needs a use-check before re
 - **REQ_121 Phase 2C three-protocol dispatcher.** `spec.py` documents a legacy three-protocol dispatch path kept "until Phase 2C retires it." If no legacy-style Specs remain (they don't), the dispatcher is dead.
 - **General v1.0.0 surface review.** A dedicated pass over `packages/miscope/` for re-export shims, deprecated aliases, and `# removed`/back-compat comments left by prior REQs (e.g. the `modadd_intervention.py` deprecated re-export shim noted in project memory; the `TDW_*` legacy env-var aliases).
 
+## Audit results (2026-05-30)
+
+Each parked candidate, resolved against a repo-wide consumer trace:
+
+| Candidate | Verdict | Notes |
+|---|---|---|
+| Legacy `category`-authoring fields + `AnalyzerRegistry.register`/`register_secondary`/`register_cross_epoch`/`_legacy_register` | **Dead — remove.** | No production caller. Only `test_spec_registry.py` + `test_secondary_analyzers.py` exercise them. All 32 analyzers use `@register_analyzer`. **Trap:** `AnalysisPipeline.register*` (pipeline.py:79/91/110) shares the names but is **live** (`scripts/run_regression_check.py`) — out of scope, do not touch. |
+| `is_unified` discriminator + `effective_*` branch collapse | **Collapse + rename.** | With authored `category` gone, `is_unified` is always true, so `effective_category/requires/requires_model_weights/requires_activation_cache` reduce to their `derive_*` bodies (`inputs.py:126/135/140/145`). Rename `effective_X` → `X` (now plain derived properties). Live readers to migrate: `registry.py` (11 sites), `planner.py` (lines ~350–363), `freshness.py` (lines 264/279), + tests. |
+| Pipeline `if not spec.inputs` / `extra_allowed` spec-less branches | **Remove** once legacy registry path is gone. | Existed only for legacy/spec-less analyzers. |
+| Three-protocol dispatcher | **Already collapsed** (REQ_121 Phase 2C). | Residue only: stale "until Phase 2C retires it" docstrings in `spec.py` (lines ~20–21), and the pure `= Analyzer` aliases `UnifiedAnalyzer`/`SecondaryAnalyzer`/`CrossEpochAnalyzer` (`protocols.py:110–112`). Remove the aliases + their `__init__.py` re-exports; retype `registry.py` `get_secondary`/`get_cross_epoch` returns to `Analyzer`; update test isinstance checks to `Analyzer`. Wider test churn — bounded but touches ~8 test files. |
+| `modadd_intervention.py` re-export shim | **Already gone** — file does not exist. | Project memory was stale; dropped from scope. |
+| `TDW_*` env-var aliases (`config.py`) | **Remove (user decision 2026-05-30).** | `MISCOPE_*` becomes the sole env contract. Removes the `or os.environ.get("TDW_*")` fallbacks and the `TDW_*` doc/`__all__` references. |
+
 ## Conditions of Satisfaction
 
-*(Deferred — stub. Develop after REQ_102 and REQ_128 land, since they remove the analyzer- and input-path subsets and clarify what scaffolding actually remains.)*
+### Authoring + registry cull
+- [x] `AnalyzerSpec` authored fields `category` / `requires` / `requires_model_weights` / `requires_activation_cache` removed; `is_unified` removed.
+- [x] `effective_*` properties collapsed to plain derived properties and renamed `effective_X` → `X` across `spec.py`, `registry.py`, `planner.py`, `freshness.py`, and tests.
+- [x] `AnalyzerRegistry.register` / `register_secondary` / `register_cross_epoch` / `_legacy_register` removed. `AnalysisPipeline.register*` untouched.
+- [x] Pipeline `if not spec.inputs` branch in `_materialize_per_epoch_inputs` collapsed (derived flags already OR over all `ModelInput`s — behavior-preserving). *See follow-up §1 re: the remaining `spec is None` / `extra_allowed` spec-less support.*
+- [x] `test_spec_registry.py` and `TestSecondaryAnalyzerRegistry` (in `test_secondary_analyzers.py`) rewritten/removed to drop legacy `category=`/`requires=` fixtures.
+
+### Protocol-alias cull
+- [x] `UnifiedAnalyzer` / `SecondaryAnalyzer` / `CrossEpochAnalyzer` aliases removed from `protocols.py` and `analysis/__init__.py`; consumers retyped/isinstance-checked against `Analyzer`.
+- [x] Stale "Phase 2C" dispatcher docstrings in `spec.py` corrected.
+
+### Env-contract cull
+- [x] `TDW_*` fallbacks and references removed from `config.py`; `MISCOPE_*` is the sole contract.
+
+### Validation
+- [x] Full `miscope` (1466 passed, 29 skipped) + `dashboard` (45 passed) test suites pass.
+- [x] `grep` confirms zero remaining references to each removed symbol (`is_unified`, `effective_category`, `_legacy_register`, `TDW_`, the protocol aliases) outside this REQ doc, CHANGELOG, and the `test_config` test that asserts `TDW_*` is *ignored*.
+- [x] No new dead-code introduced (no commented-out shims left behind — delete, don't comment).
+
+## Follow-ups deferred (flagged during implementation)
+
+These are *test-only / dead-in-production* surfaces deliberately left in place to keep this REQ a dead-**code** cull rather than an API-surface decision. **Tracked in REQ_132** (both share the pre-unification category-phased model as their root):
+
+1. **Pipeline spec-less analyzer support.** The `spec is None` conservative branch in `_materialize_per_epoch_inputs` and the `extra_allowed`/`depends_on` widening in `_run_secondary_analyzers` only fire for analyzers with no registered Spec — which never happens in production (all 32 register via `@register_analyzer`), only for ad-hoc test analyzers. Removing it is coupled to retiring the pipeline's separate `_secondary_analyzers` execution phase and the `depends_on` attribute convention — a structural change, not a cull.
+2. **Legacy class-based query API.** `AnalyzerRegistry.get` / `get_secondary` / `get_cross_epoch` / `get_for_family` / `get_secondary_for_family` / `get_cross_epoch_for_family` / `list_all` are now test-only (and three are fully dead). Removing them changes `AnalyzerRegistry`'s public surface (the spec-based vs. legacy split), which deserves an explicit decision rather than a ride-along here. They are retyped to `Analyzer` and still functional.
 
 ## Notes
 
-- **Audit before deleting.** Mirror REQ_102's safeguard: grep for each candidate, confirm no consumer (view, notebook, downstream analyzer, app), confirm family configs and `__init__`/`registry` don't reference it, then remove.
-- **Sequencing.** Best run *after* REQ_102 and REQ_128 so the remaining dead set is well-defined and not a moving target.
+- **Audit before deleting.** Mirror REQ_102's safeguard: grep for each candidate, confirm no consumer (view, notebook, downstream analyzer, app), confirm family configs and `__init__`/`registry` don't reference it, then remove. *(Audit table above, 2026-05-30.)*
+- **Sequencing.** Best run *after* REQ_102 and REQ_128 so the remaining dead set is well-defined and not a moving target. *(Both landed on `develop` 2026-05-29; this REQ executed 2026-05-30.)*

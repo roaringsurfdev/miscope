@@ -1,10 +1,9 @@
 """Protocol definitions for analysis modules.
 
-After REQ_121's Phase 2C, the single unified ``Analyzer`` protocol
-replaces the three legacy protocols (Analyzer / SecondaryAnalyzer /
-CrossEpochAnalyzer). Each analyzer declares its inputs structurally on
-its ``SPEC`` (see :mod:`miscope.analysis.spec`); the pipeline materializes
-whatever the Spec asks for and hands the analyzer a uniform
+A single unified ``Analyzer`` protocol covers every analyzer. Each analyzer
+declares its inputs structurally on its ``SPEC`` (see
+:mod:`miscope.analysis.spec`); the pipeline materializes whatever the Spec
+asks for and hands the analyzer a uniform
 :class:`miscope.analysis.inputs.ResolvedInputs` value.
 """
 
@@ -101,12 +100,3 @@ class Analyzer(Protocol):
             Dict mapping artifact keys to numpy arrays.
         """
         ...
-
-
-# REQ_121 Phase 2C aliases: after the unification, every analyzer satisfies
-# the single ``Analyzer`` protocol. The legacy names are kept as aliases so
-# call sites that imported them continue to work; new code should use
-# ``Analyzer`` directly.
-UnifiedAnalyzer = Analyzer
-SecondaryAnalyzer = Analyzer
-CrossEpochAnalyzer = Analyzer

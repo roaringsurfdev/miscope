@@ -47,23 +47,17 @@ class TestAppConfig:
         with pytest.raises(AttributeError):
             cfg.data_root = Path("/tmp")  # type: ignore[misc]
 
-    def test_legacy_tdw_data_root_accepted(self):
-        """TDW_DATA_ROOT is accepted as a legacy alias for MISCOPE_DATA_ROOT."""
+    def test_legacy_tdw_data_root_ignored(self):
+        """TDW_DATA_ROOT is no longer honored (REQ_129): MISCOPE_* is the sole contract."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            env = {"TDW_DATA_ROOT": tmpdir}
-            with patch.dict(os.environ, env, clear=False):
-                # Ensure MISCOPE_DATA_ROOT is unset so the legacy alias takes over.
-                os.environ.pop("MISCOPE_DATA_ROOT", None)
+            env = dict(os.environ)
+            env.pop("MISCOPE_DATA_ROOT", None)
+            env["TDW_DATA_ROOT"] = tmpdir
+            with patch.dict(os.environ, env, clear=True):
                 cfg = get_config()
-                assert cfg.data_root == Path(tmpdir)
-
-    def test_miscope_data_root_takes_priority_over_tdw(self):
-        with tempfile.TemporaryDirectory() as tdw_dir:
-            with tempfile.TemporaryDirectory() as miscope_dir:
-                env = {"TDW_DATA_ROOT": tdw_dir, "MISCOPE_DATA_ROOT": miscope_dir}
-                with patch.dict(os.environ, env, clear=False):
-                    cfg = get_config()
-                    assert cfg.data_root == Path(miscope_dir)
+                # Falls back to the default under project_root, ignoring TDW_DATA_ROOT.
+                assert cfg.data_root != Path(tmpdir)
+                assert cfg.data_root == cfg.project_root / "data"
 
     def test_deprecated_results_dir_emits_warning(self):
         """Setting the retired MISCOPE_RESULTS_DIR alone emits a DeprecationWarning."""
