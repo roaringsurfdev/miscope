@@ -1,6 +1,6 @@
 # REQ_132: Legacy Pipeline-Execution & Query-Surface Retirement
 
-**Status:** Implemented on `feature/REQ_132-legacy-pipeline-retirement` (2026-05-30). Full miscope (1465 passed, 29 skipped) + dashboard (45 passed) suites green; audit greps clean. Awaiting merge approval. One CoS item (byte-identical regression artifacts) is code-verified but not executed this session — see note below.
+**Status:** Completed — merged to `develop` 2026-05-30 (`beb76d1`). Full miscope (1465 passed, 29 skipped) + dashboard (45 passed) suites green; audit greps clean; pipeline validated end-to-end via the dashboard analysis-run flow. One CoS item (byte-identical regression artifacts) descoped — pre-existing harness staleness, tracked in REQ_134; see note below.
 **Priority:** Low — close-out track for v1.0.0. Not blocking; pairs with REQ_103.
 **Branch:** `feature/REQ_132-legacy-pipeline-retirement` (TBD at start)
 **Dependencies:**
