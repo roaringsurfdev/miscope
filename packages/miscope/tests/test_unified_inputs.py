@@ -106,7 +106,7 @@ def test_primary_spec_derives_from_inputs():
         output_scope="per_epoch",
         inputs=(ModelInput(needs_cache=False),),
     )
-    assert spec.category == "primary"
+    assert derive_category(spec.inputs, spec.output_scope) == "primary"
     assert spec.requires == ()
     assert spec.requires_model_weights is True
     assert spec.requires_activation_cache is False
@@ -118,7 +118,7 @@ def test_secondary_spec_derives_category_from_inputs():
         output_scope="per_epoch",
         inputs=(ArtifactInput("upstream"),),
     )
-    assert spec.category == "secondary"
+    assert derive_category(spec.inputs, spec.output_scope) == "secondary"
     assert spec.requires == ("upstream",)
 
 
@@ -128,12 +128,12 @@ def test_cross_epoch_spec_derives_category():
         output_scope="cross_epoch",
         inputs=(ArtifactInput("upstream"),),
     )
-    assert spec.category == "cross_epoch"
+    assert derive_category(spec.inputs, spec.output_scope) == "cross_epoch"
 
 
 def test_inputless_spec_derives_conservatively():
     spec = AnalyzerSpec(name="x", output_scope="per_epoch")
-    assert spec.category == "primary"
+    assert derive_category(spec.inputs, spec.output_scope) == "primary"
     assert spec.requires == ()
     assert spec.requires_model_weights is False
     assert spec.requires_activation_cache is False

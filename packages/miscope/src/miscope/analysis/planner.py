@@ -345,8 +345,11 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     from miscope.analysis.spec import AnalyzerSpec
 
     if isinstance(item, AnalyzerSpec):
-        # Spec properties classify analyzers — all derived from ``inputs``.
-        category = item.category
+        # Classification is derived from the Spec's ``inputs`` + ``output_scope``
+        # (REQ_132 — category is internal, no longer a Spec property).
+        from miscope.analysis.inputs import derive_category
+
+        category = derive_category(item.inputs, item.output_scope)
         requires = item.requires
         depends_on = requires[0] if category == "secondary" and requires else None
         return _AnalyzerDescriptor(

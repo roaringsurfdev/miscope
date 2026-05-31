@@ -79,50 +79,38 @@ class AnalysisPipeline:
     def register(self, analyzer: Analyzer) -> AnalysisPipeline:
         """Register an analyzer with the pipeline.
 
-        Args:
-            analyzer: Analyzer instance conforming to Analyzer protocol
+        A single registration verb (REQ_132): the pipeline routes the
+        analyzer to the correct internal execution phase by deriving its
+        category from its registered Spec's ``inputs`` + ``output_scope``.
+        Callers no longer pre-sort analyzers into primary/secondary/
+        cross-epoch buckets.
 
-        Returns:
-            Self for method chaining
-        """
-        self._analyzers.append(analyzer)
-        return self
-
-    def register_secondary(
-        self,
-        analyzer: Analyzer,
-    ) -> AnalysisPipeline:
-        """Register a secondary analyzer with the pipeline.
-
-        Secondary analyzers run after all per-epoch primary analysis completes
-        (Phase 1.5). They consume per-epoch artifacts from a named primary
-        analyzer and produce new per-epoch artifacts — without loading models.
+        Every analyzer must carry a registered Spec (via ``@register_analyzer``)
+        — a Spec is mandatory at execution time. Registering an analyzer with
+        no Spec raises ``ValueError``.
 
         Args:
-            analyzer: SecondaryAnalyzer instance
+            analyzer: Analyzer instance conforming to the Analyzer protocol.
 
         Returns:
-            Self for method chaining
+            Self for method chaining.
         """
-        self._secondary_analyzers.append(analyzer)
-        return self
+        from miscope.analysis.inputs import derive_category
+        from miscope.analysis.registry import AnalyzerRegistry
 
-    def register_cross_epoch(
-        self,
-        analyzer: Analyzer,
-    ) -> AnalysisPipeline:
-        """Register a cross-epoch analyzer with the pipeline.
-
-        Cross-epoch analyzers run after all per-epoch analysis completes.
-        They consume per-epoch artifacts to produce cross-epoch results.
-
-        Args:
-            analyzer: CrossEpochAnalyzer instance
-
-        Returns:
-            Self for method chaining
-        """
-        self._cross_epoch_analyzers.append(analyzer)
+        if not AnalyzerRegistry.has_spec(analyzer.name):
+            raise ValueError(
+                f"Analyzer '{analyzer.name}' has no registered Spec. Every analyzer "
+                "must register via @register_analyzer before use (REQ_132)."
+            )
+        spec = AnalyzerRegistry.get_spec(analyzer.name)
+        category = derive_category(spec.inputs, spec.output_scope)
+        if category == "cross_epoch":
+            self._cross_epoch_analyzers.append(analyzer)
+        elif category == "secondary":
+            self._secondary_analyzers.append(analyzer)
+        else:
+            self._analyzers.append(analyzer)
         return self
 
     def run(
@@ -351,11 +339,10 @@ class AnalysisPipeline:
         If summary_collectors is provided, computes and accumulates summary
         statistics for analyzers that support them.
 
-        Migrated analyzers (those that declare ``required_hooks``) are
-        filtered: an analyzer whose declared canonical hooks are not all
-        published by the current model is skipped with an info-level log
-        entry. Legacy analyzers without ``required_hooks`` continue to
-        run unconditionally and consume the bundle.
+        An analyzer that declares ``required_hooks`` is filtered: if its
+        declared canonical hooks are not all published by the current model
+        it is skipped with an info-level log entry. Analyzers declaring no
+        ``required_hooks`` run unconditionally.
 
         REQ_120: when ``needs_cache=False`` (no analyzer at this epoch
         reads ``ctx.cache`` or ``ctx.logits`` per their Specs), the
@@ -380,13 +367,9 @@ class AnalysisPipeline:
             if epoch not in needed_epochs:
                 continue
 
-            spec = (
-                AnalyzerRegistry.get_spec(analyzer.name)
-                if AnalyzerRegistry.has_spec(analyzer.name)
-                else None
-            )
+            spec = AnalyzerRegistry.get_spec(analyzer.name)
 
-            required = spec.required_hooks if spec is not None else ()
+            required = spec.required_hooks
             if required:
                 missing = [h for h in required if h not in model.hook_names()]
                 if missing:
@@ -429,32 +412,21 @@ class AnalysisPipeline:
         cache: Any,
         logits: Any,
         probe: torch.Tensor,
-        extra_allowed: frozenset[str] = frozenset(),
     ) -> ResolvedInputs:
         """Build a ResolvedInputs for a per-epoch analyzer.
 
         Upstream artifacts are reached lazily through ``inputs.deps``; only the
         model side (from the forward pass the pipeline runs anyway) is eager.
-        ``extra_allowed`` widens the deps scope for spec-less analyzers that
-        declare a dependency via the legacy ``depends_on`` attribute.
+        A registered Spec is mandatory at execution time (REQ_132): the deps
+        scope and capability needs are derived entirely from ``spec.inputs``.
         """
         from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.analysis.deps import DepsAccessor
         from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
         loader = ArtifactLoader(self.artifacts_dir)
-        declared = (
-            frozenset(derive_required_artifacts(spec.inputs)) if spec is not None else frozenset()
-        )
-        deps = DepsAccessor(loader, declared | extra_allowed)
-
-        # When no Spec is registered (e.g. one-off test analyzers), populate
-        # conservatively — model + cache + logits + probe — so the analyzer
-        # can read whatever it wants.
-        if spec is None:
-            return ResolvedInputs(
-                epoch=epoch, model=model, cache=cache, logits=logits, probe=probe, deps=deps
-            )
+        declared = frozenset(derive_required_artifacts(spec.inputs))
+        deps = DepsAccessor(loader, declared)
 
         # Capability needs are derived from the Spec's ``inputs`` declaration
         # (each property ORs over every declared ModelInput).
@@ -643,7 +615,7 @@ class AnalysisPipeline:
                     "Secondary analyzer '%s' depends on '%s' but no epochs have been computed "
                     "for that analyzer. Skipping.",
                     analyzer.name,
-                    analyzer.depends_on,  # type: ignore
+                    item.depends_on,
                 )
                 continue
 
@@ -662,11 +634,7 @@ class AnalysisPipeline:
 
             from miscope.analysis.registry import AnalyzerRegistry
 
-            spec = (
-                AnalyzerRegistry.get_spec(analyzer.name)
-                if AnalyzerRegistry.has_spec(analyzer.name)
-                else None
-            )
+            spec = AnalyzerRegistry.get_spec(analyzer.name)
 
             for i, epoch in enumerate(tqdm(target_epochs, desc=f"Secondary: {analyzer.name}")):
                 if progress_callback:
@@ -675,13 +643,6 @@ class AnalysisPipeline:
                         f"Secondary analysis: {analyzer.name} epoch {epoch}",
                     )
 
-                # Spec-less secondary analyzers declare their upstream via the
-                # legacy ``depends_on`` attribute; widen the deps scope to it.
-                extra_allowed = (
-                    frozenset({analyzer.depends_on})  # type: ignore[attr-defined]
-                    if spec is None and hasattr(analyzer, "depends_on")
-                    else frozenset()
-                )
                 inputs = self._materialize_per_epoch_inputs(
                     spec,
                     epoch,
@@ -689,7 +650,6 @@ class AnalysisPipeline:
                     cache=None,
                     logits=None,
                     probe=None,  # type: ignore[arg-type]
-                    extra_allowed=extra_allowed,
                 )
                 result = analyzer.analyze(inputs, context)
 
@@ -747,11 +707,7 @@ class AnalysisPipeline:
 
             from miscope.analysis.registry import AnalyzerRegistry
 
-            spec = (
-                AnalyzerRegistry.get_spec(analyzer.name)
-                if AnalyzerRegistry.has_spec(analyzer.name)
-                else None
-            )
+            spec = AnalyzerRegistry.get_spec(analyzer.name)
             inputs = self._materialize_cross_epoch_inputs(spec, available_epochs)
             result = analyzer.analyze(inputs, cross_epoch_context)
             self._save_cross_epoch_artifact(analyzer.name, result)
@@ -766,15 +722,14 @@ class AnalysisPipeline:
         Upstreams are reached lazily through ``inputs.deps`` (scoped to the
         analyzer's declared ``ArtifactInput``s). The pipeline pre-materializes
         nothing — that eager whole-stack load was the REQ_128 memory suspect.
+        A registered Spec is mandatory at execution time (REQ_132).
         """
         from miscope.analysis.artifact_loader import ArtifactLoader
         from miscope.analysis.deps import DepsAccessor
         from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
         loader = ArtifactLoader(self.artifacts_dir)
-        allowed = (
-            frozenset(derive_required_artifacts(spec.inputs)) if spec is not None else frozenset()
-        )
+        allowed = frozenset(derive_required_artifacts(spec.inputs))
         deps = DepsAccessor(loader, allowed)
 
         return ResolvedInputs(

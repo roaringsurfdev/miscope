@@ -14,6 +14,45 @@ from miscope.analysis import AnalysisPipeline, AnalysisRunConfig, Analyzer
 from miscope.families.discovery import discover_families
 
 
+@pytest.fixture(autouse=True)
+def _auto_spec_register():
+    """Give the spec-less mock analyzers a permissive primary Spec.
+
+    REQ_132 made a registered Spec mandatory to run an analyzer through the
+    pipeline. These tests exercise pipeline *mechanics* with stand-in mocks, so
+    we intercept ``register`` to register a default ``ModelInput`` Spec for any
+    analyzer that lacks one — reproducing the pre-REQ_132 conservative
+    materialization (model + cache + logits + probe). Specs are registered into
+    the backing dicts directly because the mocks expose ``name`` as a property
+    (the decorator's class-level name check can't see through it). Only
+    test-added registrations are dropped on teardown.
+    """
+    from miscope.analysis import registry as reg_mod
+    from miscope.analysis.inputs import ModelInput
+    from miscope.analysis.registry import AnalyzerRegistry
+    from miscope.analysis.spec import AnalyzerSpec
+
+    before = set(reg_mod._specs)
+    original_register = AnalysisPipeline.register
+
+    def _register(self, analyzer):
+        if not AnalyzerRegistry.has_spec(analyzer.name):
+            reg_mod._specs[analyzer.name] = AnalyzerSpec(
+                name=analyzer.name, inputs=(ModelInput(),)
+            )
+            reg_mod._factories[analyzer.name] = lambda a=analyzer: a
+        return original_register(self, analyzer)
+
+    AnalysisPipeline.register = _register
+    try:
+        yield
+    finally:
+        AnalysisPipeline.register = original_register
+        for name in set(reg_mod._specs) - before:
+            reg_mod._specs.pop(name, None)
+            reg_mod._factories.pop(name, None)
+
+
 class MockAnalyzer:
     """Mock analyzer for testing pipeline mechanics."""
 

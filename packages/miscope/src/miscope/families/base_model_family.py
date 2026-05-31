@@ -115,18 +115,13 @@ class BaseModelFamily:
 
     @property
     def analyzers(self) -> list[str]:
-        """Analyzer identifiers valid for this family."""
+        """Analyzer identifiers valid for this family.
+
+        A single flat list — the pipeline derives execution order from each
+        analyzer's declared ``inputs`` (REQ_132). Families no longer pre-sort
+        analyzers into primary/secondary/cross-epoch buckets.
+        """
         return self._config["analyzers"]
-
-    @property
-    def secondary_analyzers(self) -> list[str]:
-        """Secondary analyzer identifiers valid for this family."""
-        return self._config.get("secondary_analyzers", [])
-
-    @property
-    def cross_epoch_analyzers(self) -> list[str]:
-        """Cross-epoch analyzer identifiers valid for this family."""
-        return self._config.get("cross_epoch_analyzers", [])
 
     @property
     def weight_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:

@@ -266,24 +266,24 @@ class TestAnalyzerRegistry:
         assert AnalyzerRegistry.is_registered("weight_basis_projection")
 
     def test_get_analyzer(self):
-        """Test getting an analyzer by name."""
+        """Test instantiating an analyzer by name."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        analyzer = AnalyzerRegistry.get("activation_basis_projection")
+        analyzer = AnalyzerRegistry.create("activation_basis_projection")
         assert analyzer.name == "activation_basis_projection"
 
     def test_get_unknown_analyzer_raises(self):
-        """Test error when getting unknown analyzer."""
+        """Test error when instantiating an unknown analyzer."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
         with pytest.raises(KeyError):
-            AnalyzerRegistry.get("nonexistent_analyzer")
+            AnalyzerRegistry.create("nonexistent_analyzer")
 
     def test_list_all(self):
         """Test listing all registered analyzers."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        all_names = AnalyzerRegistry.list_all()
+        all_names = AnalyzerRegistry.list_all_names()
         assert "activation_basis_projection" in all_names
         assert "neuron_activations" in all_names
         assert "weight_spectra" in all_names

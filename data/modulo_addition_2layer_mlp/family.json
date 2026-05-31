@@ -31,12 +31,8 @@
     "repr_geometry",
     "weight_basis_projection",
     "activation_basis_projection",
-    "weight_spectra"
-  ],
-  "secondary_analyzers": [
-    "centroid_fourier_alignment"
-  ],
-  "cross_epoch_analyzers": [
+    "weight_spectra",
+    "centroid_fourier_alignment",
     "parameter_trajectory",
     "neuron_dynamics",
     "global_centroid_pca",

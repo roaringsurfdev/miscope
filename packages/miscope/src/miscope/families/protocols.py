@@ -52,25 +52,11 @@ class ModelFamily(Protocol):
 
     @property
     def analyzers(self) -> list[str]:
-        """Analyzer identifiers valid for this family."""
-        ...
+        """Analyzer identifiers valid for this family.
 
-    @property
-    def secondary_analyzers(self) -> list[str]:
-        """Secondary analyzer identifiers valid for this family.
-
-        These analyzers run after all per-epoch primary analysis completes
-        (Phase 1.5) and derive new per-epoch artifacts from existing ones.
-        No model loading occurs during secondary analysis.
-        """
-        ...
-
-    @property
-    def cross_epoch_analyzers(self) -> list[str]:
-        """Cross-epoch analyzer identifiers valid for this family.
-
-        These analyzers run after all per-epoch analysis completes
-        and consume per-epoch artifacts to produce cross-epoch results.
+        A single flat list. The pipeline derives execution order from each
+        analyzer's declared ``inputs`` (REQ_132); the family does not group
+        analyzers by execution phase.
         """
         ...
 

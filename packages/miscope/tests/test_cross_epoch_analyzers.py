@@ -111,7 +111,7 @@ class TestCrossEpochAnalyzerProtocol:
         assert callable(analyzer.analyze)
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("parameter_trajectory").category == "cross_epoch"
+        assert AnalyzerRegistry.get_spec("parameter_trajectory").output_scope == "cross_epoch"
 
 
 # ── Analyzer output tests ────────────────────────────────────────────
@@ -289,7 +289,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_produces_artifact(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectory())
+        pipeline.register(ParameterTrajectory())
         pipeline.run()
 
         cross_epoch_path = os.path.join(
@@ -302,7 +302,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_loadable(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectory())
+        pipeline.register(ParameterTrajectory())
         pipeline.run()
 
         loader = ArtifactLoader(pipeline.artifacts_dir)
@@ -314,7 +314,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_skips_if_exists(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectory())
+        pipeline.register(ParameterTrajectory())
         pipeline.run()
 
         # Modify the cross-epoch file to detect if it gets overwritten
@@ -331,7 +331,7 @@ class TestPipelineCrossEpoch:
         time.sleep(0.05)
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_cross_epoch(ParameterTrajectory())
+        pipeline2.register(ParameterTrajectory())
         pipeline2.run()
 
         mtime_after = os.path.getmtime(cross_epoch_path)
@@ -340,7 +340,7 @@ class TestPipelineCrossEpoch:
     def test_cross_epoch_force_recomputes(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_cross_epoch(ParameterTrajectory())
+        pipeline.register(ParameterTrajectory())
         pipeline.run()
 
         cross_epoch_path = os.path.join(
@@ -355,7 +355,7 @@ class TestPipelineCrossEpoch:
         time.sleep(0.05)
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_cross_epoch(ParameterTrajectory())
+        pipeline2.register(ParameterTrajectory())
         pipeline2.run(force=True)
 
         mtime_after = os.path.getmtime(cross_epoch_path)
@@ -365,7 +365,7 @@ class TestPipelineCrossEpoch:
         """Cross-epoch analyzer fails if required per-epoch analyzer hasn't run."""
         pipeline = AnalysisPipeline(trained_variant)
         # Don't register ParameterSnapshotAnalyzer — only register cross-epoch
-        pipeline.register_cross_epoch(ParameterTrajectory())
+        pipeline.register(ParameterTrajectory())
         with pytest.raises(RuntimeError, match="requires.*parameter_snapshot"):
             pipeline.run()
 

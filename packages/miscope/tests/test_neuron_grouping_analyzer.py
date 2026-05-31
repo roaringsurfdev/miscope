@@ -42,7 +42,10 @@ class TestNeuronGroupingProtocol:
         assert NeuronGrouping().depends_on == "parameter_snapshot"
 
     def test_registered_in_registry(self):
-        assert AnalyzerRegistry.get_spec("neuron_grouping").category == "secondary"
+        from miscope.analysis.inputs import derive_category
+
+        spec = AnalyzerRegistry.get_spec("neuron_grouping")
+        assert derive_category(spec.inputs, spec.output_scope) == "secondary"
 
 
 # ── Universal path (no family override) ──────────────────────────────

@@ -15,6 +15,49 @@ from miscope.analysis.inputs import ALL
 from miscope.analysis.protocols import Analyzer
 from miscope.families.discovery import discover_families
 
+
+@pytest.fixture(autouse=True)
+def _isolate_registry():
+    """Remove any test-only Specs registered during a test (REQ_132).
+
+    A Spec is mandatory to run an analyzer through the pipeline, so the fakes
+    below register one via ``_register_fake_spec``. This teardown drops only
+    the keys added during the test, leaving production registrations intact.
+    """
+    from miscope.analysis import registry as reg_mod
+
+    before = set(reg_mod._specs)
+    yield
+    for name in set(reg_mod._specs) - before:
+        reg_mod._specs.pop(name, None)
+        reg_mod._factories.pop(name, None)
+
+
+def _register_fake_spec(analyzer):
+    """Register a minimal Spec for a test fake and return the instance.
+
+    Inputs are inferred from the fake's legacy attribute: ``requires``
+    (cross-epoch) or ``depends_on`` (secondary). Fakes with neither are
+    treated as primary (a single ``ModelInput``).
+    """
+    from miscope.analysis.inputs import ArtifactInput, ModelInput
+    from miscope.analysis.registry import register_analyzer
+    from miscope.analysis.spec import AnalyzerSpec
+
+    if hasattr(analyzer, "requires"):
+        spec = AnalyzerSpec(
+            name=analyzer.name,
+            output_scope="cross_epoch",
+            inputs=tuple(ArtifactInput(r) for r in analyzer.requires),
+        )
+    elif hasattr(analyzer, "depends_on"):
+        spec = AnalyzerSpec(name=analyzer.name, inputs=(ArtifactInput(analyzer.depends_on),))
+    else:
+        spec = AnalyzerSpec(name=analyzer.name, inputs=(ModelInput(),))
+    register_analyzer(spec)(type(analyzer))
+    return analyzer
+
+
 # ── Minimal fake analyzers ─────────────────────────────────────────────
 
 
@@ -133,8 +176,6 @@ def trained_variant(temp_dirs):
             "seed": {"type": "int", "description": "Random seed", "default": 999},
         },
         "analyzers": ["parameter_snapshot"],
-        "secondary_analyzers": [],
-        "cross_epoch_analyzers": [],
         "visualizations": [],
         "analysis_dataset": {"type": "modulo_addition_grid"},
         "variant_pattern": "p{prime}_seed{seed}",
@@ -159,7 +200,7 @@ class TestPipelineSecondary:
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(FakeSecondaryAnalyzer())
+        pipeline.register(_register_fake_spec(FakeSecondaryAnalyzer()))
         pipeline.run()
 
         # fake_secondary depends on fake_primary, which hasn't run
@@ -174,7 +215,7 @@ class TestPipelineSecondary:
         # First run parameter_snapshot as primary
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(FakeSecondaryAnalyzer())
+        pipeline.register(_register_fake_spec(FakeSecondaryAnalyzer()))
         pipeline.run()
 
         # fake_secondary has no output (depends on fake_primary, not parameter_snapshot)
@@ -199,7 +240,7 @@ class TestPipelineSecondary:
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(DoubleSnapshotNorm())
+        pipeline.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline.run()
 
         # snapshot_norm should have epochs matching parameter_snapshot
@@ -223,7 +264,7 @@ class TestPipelineSecondary:
         # First run
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(DoubleSnapshotNorm())
+        pipeline.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline.run()
 
         # Record mtimes
@@ -239,7 +280,7 @@ class TestPipelineSecondary:
         # Second run without force — should skip
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_secondary(DoubleSnapshotNorm())
+        pipeline2.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline2.run()
 
         mtimes_after = {
@@ -262,7 +303,7 @@ class TestPipelineSecondary:
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(DoubleSnapshotNorm())
+        pipeline.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline.run()
 
         secondary_dir = os.path.join(pipeline.artifacts_dir, "snapshot_norm")
@@ -276,7 +317,7 @@ class TestPipelineSecondary:
 
         pipeline2 = AnalysisPipeline(trained_variant)
         pipeline2.register(ParameterSnapshotAnalyzer())
-        pipeline2.register_secondary(DoubleSnapshotNorm())
+        pipeline2.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline2.run(force=True)
 
         mtime_after = os.path.getmtime(os.path.join(secondary_dir, files[0]))
@@ -285,7 +326,7 @@ class TestPipelineSecondary:
     def test_secondary_warns_when_dependency_missing(self, trained_variant):
         """Secondary warns and skips (does not raise) when dependency has no epochs."""
         pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register_secondary(WrongDependencyAnalyzer())
+        pipeline.register(_register_fake_spec(WrongDependencyAnalyzer()))
 
         with warnings.catch_warnings(record=True):  # as w:
             warnings.simplefilter("always")
@@ -321,8 +362,8 @@ class TestPipelineSecondary:
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(TrackingSecondary())
-        pipeline.register_cross_epoch(TrackingCrossEpoch())
+        pipeline.register(_register_fake_spec(TrackingSecondary()))
+        pipeline.register(_register_fake_spec(TrackingCrossEpoch()))
         pipeline.run()
 
         # All secondaries appear before any cross-epoch
@@ -347,7 +388,7 @@ class TestPipelineSecondary:
 
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(ParameterSnapshotAnalyzer())
-        pipeline.register_secondary(DoubleSnapshotNorm())
+        pipeline.register(_register_fake_spec(DoubleSnapshotNorm()))
         pipeline.run()
 
         loader = ArtifactLoader(pipeline.artifacts_dir)
@@ -358,51 +399,6 @@ class TestPipelineSecondary:
         assert data["norm"].shape == (1,)
 
 
-# ── BaseModelFamily secondary_analyzers property ─────────────────────
-
-
-class TestJsonFamilySecondaryAnalyzers:
-    def test_secondary_analyzers_returns_list(self, temp_dirs):
-        data_root = temp_dirs
-        family_dir = data_root / "test_fam"
-        family_dir.mkdir()
-        family_json = {
-            "name": "test_fam",
-            "display_name": "Test",
-            "description": "Test",
-            "architecture": {},
-            "domain_parameters": {},
-            "analyzers": [],
-            "secondary_analyzers": ["neuron_fourier"],
-            "visualizations": [],
-            "variant_pattern": "test_{seed}",
-        }
-        with open(family_dir / "family.json", "w") as f:
-            json.dump(family_json, f)
-
-        from miscope.families.base_model_family import BaseModelFamily
-
-        fam = BaseModelFamily.from_json(family_dir / "family.json")
-        assert fam.secondary_analyzers == ["neuron_fourier"]
-
-    def test_secondary_analyzers_defaults_to_empty(self, temp_dirs):
-        data_root = temp_dirs
-        family_dir = data_root / "test_fam2"
-        family_dir.mkdir()
-        family_json = {
-            "name": "test_fam2",
-            "display_name": "Test",
-            "description": "Test",
-            "architecture": {},
-            "domain_parameters": {},
-            "analyzers": [],
-            "visualizations": [],
-            "variant_pattern": "test_{seed}",
-        }
-        with open(family_dir / "family.json", "w") as f:
-            json.dump(family_json, f)
-
-        from miscope.families.base_model_family import BaseModelFamily
-
-        fam = BaseModelFamily.from_json(family_dir / "family.json")
-        assert fam.secondary_analyzers == []
+# REQ_132: the per-phase ``secondary_analyzers`` / ``cross_epoch_analyzers``
+# family properties were collapsed into the single flat ``analyzers`` list.
+# Family declaration is covered by the family unit tests (test_modulo_addition_*).
