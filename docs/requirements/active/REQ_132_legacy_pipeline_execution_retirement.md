@@ -76,7 +76,8 @@ Note: `Spec.output_scope` (`per_epoch` / `cross_epoch`) is a **different axis** 
 **Pipeline registration is a single verb.**
 - [x] `AnalysisPipeline.register(analyzer)` is the only registration method; `register_secondary` / `register_cross_epoch` are removed.
 - [x] `register` routes the analyzer into the correct internal phase list via its registered Spec's derived category. Registering an analyzer with no Spec raises `ValueError` — covered by `test_pipeline_register_requires_spec`.
-- [x] `scripts/run_regression_check.py` uses `register(...)` for all analyzers. **Code-verified only:** the register-routing is exercised by unit tests, but the full byte-identical regression harness (needs trained variants + checkpoints) was not run this session — run it before/at merge.
+- [x] `scripts/run_regression_check.py` uses `register(...)` for all analyzers.
+- [~] **Byte-identical regression run — descoped (not a REQ_132 regression).** Running the harness (2026-05-30) surfaced a *pre-existing* staleness: the script hand-curates an analyzer set that omits upstreams newer Specs declare (`activation_basis_projection` for `neuron_dynamics`; `neuron_grouping` for `fourier_frequency_quality`), so the cross-epoch blocked-by check raises. This fails identically on `develop` — the registered set, the plan, and the blocked-by `RuntimeError` are all unchanged by REQ_132. The pipeline collapse is instead validated end-to-end by the dashboard analysis-run smoke test (canonical `list_for_family` + `plan_analysis` path) plus the full unit suite. Fixing the harness is tracked in **REQ_134** (switch it to the canonical pattern so it can't fall behind the dependency graph).
 
 **Legacy query API retired.**
 - [x] `get` / `get_secondary` / `get_cross_epoch` / `get_for_family` / `get_secondary_for_family` / `get_cross_epoch_for_family` / `list_all` / `list_specs_by_category` are removed from `AnalyzerRegistry`.
