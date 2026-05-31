@@ -86,7 +86,7 @@ class AnalyzerRegistry:
         list_for_family(family)  — Specs filtered by a family's declarations
 
     Legacy class-based query API (test-only — candidate for removal once
-    tests migrate to the spec-based API, see REQ_129 follow-up note):
+    tests migrate to the spec-based API; tracked in REQ_132):
         get(name), get_secondary(name), get_cross_epoch(name)
         get_for_family(family), get_secondary_for_family(family),
         get_cross_epoch_for_family(family)

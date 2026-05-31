@@ -70,7 +70,7 @@ Each parked candidate, resolved against a repo-wide consumer trace:
 
 ## Follow-ups deferred (flagged during implementation)
 
-These are *test-only / dead-in-production* surfaces deliberately left in place to keep this REQ a dead-**code** cull rather than an API-surface decision. Each warrants its own explicit call:
+These are *test-only / dead-in-production* surfaces deliberately left in place to keep this REQ a dead-**code** cull rather than an API-surface decision. **Tracked in REQ_132** (both share the pre-unification category-phased model as their root):
 
 1. **Pipeline spec-less analyzer support.** The `spec is None` conservative branch in `_materialize_per_epoch_inputs` and the `extra_allowed`/`depends_on` widening in `_run_secondary_analyzers` only fire for analyzers with no registered Spec — which never happens in production (all 32 register via `@register_analyzer`), only for ad-hoc test analyzers. Removing it is coupled to retiring the pipeline's separate `_secondary_analyzers` execution phase and the `depends_on` attribute convention — a structural change, not a cull.
 2. **Legacy class-based query API.** `AnalyzerRegistry.get` / `get_secondary` / `get_cross_epoch` / `get_for_family` / `get_secondary_for_family` / `get_cross_epoch_for_family` / `list_all` are now test-only (and three are fully dead). Removing them changes `AnalyzerRegistry`'s public surface (the spec-based vs. legacy split), which deserves an explicit decision rather than a ride-along here. They are retyped to `Analyzer` and still functional.
