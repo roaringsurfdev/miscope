@@ -1,6 +1,6 @@
 # REQ_134: Regression Harness → Canonical Analyzer-Set Pattern
 
-**Status:** Scoped — *CoS drafted from a scoping pass (2026-06-01). Ready to pick up in a dedicated session.*
+**Status:** In progress — *CoS 1–6 implemented and verified on `feature/REQ_134_regression_harness_canonical_pattern` (2026-06-01). CoS 7 **held**: the restored net works (20/21 analyzers byte-identical on p113) and immediately surfaced that `repr_geometry`'s reference artifacts are stale vs current code — see "Validation findings" below. Not merged.*
 **Priority:** Low-Medium — the v1.0.0 byte-regression safety net is currently inoperable.
 **Branch:** TBD
 **Sequencing:** Lands **before REQ_134's sibling REQ_133** (decision 2026-06-01). This work binds to
@@ -113,10 +113,43 @@ registers the missing upstreams) **would expose it.** Hence the scope below.
    (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) with no MISSING / MISMATCH /
    EXTRA — restoring the v1.0.0 byte-regression safety net.
 
+## Validation findings (2026-06-01)
+
+Implemented CoS 1–6 behind one shared module
+[scripts/regression_common.py](../../../scripts/regression_common.py); reconciled all three
+scripts + 9 new tests in
+[tests/integration/test_regression_harness_shared.py](../../../tests/integration/test_regression_harness_shared.py).
+Cheap checks all pass: a real p113 plan over the canonical 21-analyzer set produces every
+cross-epoch→cross-epoch item (`activation_dmd` / `intragroup_manifold` / `transient_frequency`)
+with **zero `blocked_by`** (CoS 4), and a fresh checksum regen is byte-identical to the committed
+`reference_checksums.json` (CoS 6).
+
+**CoS 7 smoke test (p113) — net works, one stale reference surfaced.** A full forced recompute of
+p113 reproduced **20 of 21 analyzers byte-identically**. The lone failure was `repr_geometry`
+(all 252 per-epoch + summary = 253 MISMATCH; no MISSING/EXTRA, no exception). Diagnosed:
+
+- `repr_geometry` is **deterministic** — recomputing one epoch twice is byte-identical.
+- Its on-disk reference artifacts are dated **2026-05-06**, *before* `repr_geometry.py` was rewritten
+  on **2026-05-27** (REQ_126 PR 3 `a8480a3`, "repr_geometry defusion"). Other analyzers' artifacts
+  were refreshed after their REQ_126/128 changes (e.g. `activation_basis_projection` is dated 05-27);
+  `repr_geometry`'s were not.
+- The concrete drift is a **key-set change**: the reference still carries `*_fourier_alignment` keys;
+  current code emits those from the separate `centroid_fourier_alignment` analyzer (which matched
+  byte-for-byte). Overlapping keys agree at `rtol=1e-3`.
+
+So the mismatch is **stale reference data**, not nondeterminism or a harness bug — the restored net
+did exactly its job on first run.
+
+**CoS 7 is held** (user decision 2026-06-01: "log finding, hold"). To close it, regenerate
+`repr_geometry`'s reference artifacts with current code for the reference variants (and likely all
+30 — their stored `repr_geometry` is presumably all pre-defusion), then re-run
+`generate_regression_checksums.py` and the checker. This is a canonical-data refresh, deliberately
+deferred from this code change. The p113 recompute output is retained under `results_regression/`.
+
 ## Notes
 
-- Until fixed, the byte-regression safety net for v1.0.0 is unavailable; end-to-end
-  validation currently leans on the dashboard analysis-run flow + the unit suite.
+- Until CoS 7 closes, the byte-regression safety net for v1.0.0 is restored *in mechanism* but not
+  yet *green*; end-to-end validation still leans on the dashboard analysis-run flow + the unit suite.
 - Reference variants and their roles live in
   [generate_regression_checksums.py:23-29](../../../scripts/generate_regression_checksums.py#L23-L29)
   (p59/s485/ds999 is currently commented out).
