@@ -120,8 +120,8 @@ registers the missing upstreams) **would expose it.** Hence the scope below.
 - Reference variants and their roles live in
   [generate_regression_checksums.py:23-29](../../../scripts/generate_regression_checksums.py#L23-L29)
   (p59/s485/ds999 is currently commented out).
-- The `_req112` checksums file (`tests/regression/reference_checksums_req112.json`) is a
-  prior snapshot; confirm whether it is still referenced before touching it.
+- The `_req112` checksums snapshot was retired 2026-06-01 (well past REQ_112; no code
+  referenced it — only historical mentions in staging REQ_113/114/116 docs remain).
 - Folding `run_analysis_regression.py` and the checker onto a shared selection helper is
   the cleanest expression of CoS 1-2, but the two scripts play different roles (regen vs
   check) and need not merge into one file.
