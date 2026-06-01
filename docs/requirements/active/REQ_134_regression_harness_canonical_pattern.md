@@ -3,6 +3,11 @@
 **Status:** Stub — *surfaced while validating REQ_132; scope/CoS to be developed.*
 **Priority:** Low-Medium — the v1.0.0 byte-regression safety net is currently inoperable.
 **Branch:** TBD
+**Sequencing:** Lands **before REQ_134's sibling REQ_133** (decision 2026-06-01). This work binds to
+the stable `plan_analysis` interface REQ_133 preserves and restores the byte-regression net that
+becomes REQ_133's oracle for an ordering-only refactor. **Scope this requirement to incremental /
+existing-artifact regression only** — a clean-from-scratch regression mode trips REQ_133's unordered
+cross-epoch→cross-epoch edges (see REQ_133 Spike finding 2) and therefore depends on REQ_133.
 **Dependencies:**
 - REQ_132 (collapsed the register triad; this harness now calls `register(...)`).
 
