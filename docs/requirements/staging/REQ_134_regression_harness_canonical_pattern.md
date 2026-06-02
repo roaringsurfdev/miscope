@@ -1,6 +1,6 @@
 # REQ_134: Regression Harness → Canonical Analyzer-Set Pattern
 
-**Status:** Implemented — *all CoS met on `feature/REQ_134_regression_harness_canonical_pattern` (2026-06-01). The restored net immediately surfaced four analyzers whose reference artifacts had drifted from current code; all were refreshed and the checker is green across the three pinned variants. See "Validation findings" below. Awaiting merge approval (held per 2026-06-01 decision).*
+**Status:** Completed — *merged to `develop` 2026-06-01. All CoS met. The restored net immediately surfaced four analyzers whose reference artifacts had drifted from current code; all were refreshed and the checker is green across the three pinned variants. See "Validation findings" below.*
 **Priority:** Low-Medium — the v1.0.0 byte-regression safety net is currently inoperable.
 **Branch:** TBD
 **Sequencing:** Lands **before REQ_134's sibling REQ_133** (decision 2026-06-01). This work binds to
