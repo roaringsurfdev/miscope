@@ -132,6 +132,19 @@ def derive_required_artifacts(inputs: tuple[InputSpec, ...]) -> tuple[str, ...]:
     return tuple(seen)
 
 
+def derive_has_model_input(inputs: tuple[InputSpec, ...]) -> bool:
+    """True if the analyzer declares any ModelInput.
+
+    Distinct from :func:`derive_needs_model_weights`: a ``ModelInput`` that
+    opts out of weights (``needs_weights=False``) still makes this ``True``.
+    The Planner uses this to decide a per-epoch analyzer's epoch coverage —
+    a model-driven analyzer recomputes at every checkpoint, whereas a purely
+    artifact-derived per-epoch analyzer follows its upstreams' epoch set
+    (REQ_133, the former "secondary" target strategy).
+    """
+    return any(isinstance(i, ModelInput) for i in inputs)
+
+
 def derive_needs_model_weights(inputs: tuple[InputSpec, ...]) -> bool:
     """True if any declared ModelInput.needs_weights is True."""
     return any(isinstance(i, ModelInput) and i.needs_weights for i in inputs)
@@ -143,15 +156,26 @@ def derive_needs_activation_cache(inputs: tuple[InputSpec, ...]) -> bool:
 
 
 Category = Literal["primary", "secondary", "cross_epoch"]
-"""Internal execution-phase label. Derived from a Spec's ``inputs`` +
+"""Legacy execution-phase label. Derived from a Spec's ``inputs`` +
 ``output_scope`` (REQ_132) — never authored or exposed on the public API
-surface. Used only by the Planner/Pipeline to order work."""
+surface.
+
+REQ_133 dissolved "secondary" as an execution phase: the **only structural
+axis** is now ``output_scope`` (a 2-valued ``"per_epoch"`` / ``"cross_epoch"``
+key), and execution order within each scope is the topological order of the
+``ArtifactInput`` DAG. There are zero cross-epoch→per-epoch edges across the
+family specs (confirmed by the REQ_133 spike), so the topo-sort never crosses
+scopes. ``derive_category`` is retained only for freshness's name-bucketing
+(where "secondary" simply folds into the per-epoch bucket); the Planner no
+longer branches on it — it branches on :func:`derive_has_model_input`."""
 
 
 def derive_category(inputs: tuple[InputSpec, ...], output_scope: str) -> Category:
-    """Derive the internal execution-phase label from inputs + output_scope.
+    """Derive the legacy execution-phase label from inputs + output_scope.
 
-    A planner/pipeline-internal grouping key (REQ_132):
+    A planner/pipeline-internal grouping key (REQ_132). Post-REQ_133 only
+    freshness consults it, and only to split names into per-epoch vs
+    cross-epoch buckets ("secondary" folds into per-epoch):
         - ``"cross_epoch"``: output_scope is "cross_epoch".
         - ``"secondary"``: per-epoch output AND every input is artifact-scoped
           (no ModelInput) AND at least one ArtifactInput declared.

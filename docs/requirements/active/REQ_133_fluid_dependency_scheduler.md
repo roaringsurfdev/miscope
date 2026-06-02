@@ -1,6 +1,6 @@
 # REQ_133: Fluid Dependency Scheduler
 
-**Status:** Spike complete — *CoS drafted from spike findings (2026-06-01). Ready for scoping review.*
+**Status:** Implemented on `feature/REQ_133_fluid_dependency_scheduler` (2026-06-01) — *code complete and byte-neutral; **merge held** pending separate REQ_134 baseline reconciliation of p101 stale references (decision 2026-06-01, see Finding).*
 **Priority:** Low — internal architecture. Not blocking v1.0.0. Sequenced **after REQ_134** (see Dependencies).
 **Branch:** TBD
 **Dependencies:**
@@ -109,6 +109,84 @@ this is an *ordering-only* change — analyzer outputs must remain byte-identica
    REQ_134 regression harness (ordering-only change).
 8. **Consumer surfaces intact.** The dashboard plan preview and `FreshnessReport` consumers continue
    to work after the three-phase `Plan` surface is reworked.
+
+## Resolution (2026-06-01)
+
+Implemented as an ordering-only refactor across the four files the spike identified.
+
+**Files:**
+- [inputs.py](../../../packages/miscope/src/miscope/analysis/inputs.py) — added
+  `derive_has_model_input`; documented `output_scope` as the only structural axis
+  and demoted `derive_category` to freshness-only name-bucketing (CoS 6).
+- [planner.py](../../../packages/miscope/src/miscope/analysis/planner.py) — `plan_analysis`
+  now splits descriptors by `output_scope` into two passes, each ordered by a single
+  scope-agnostic topo-sort (`_topo_order`, generalized from `_order_secondaries` to walk
+  all `ArtifactInput` edges). Per-epoch coverage branches on `has_model_input`
+  (`_per_epoch_target_epochs`): model-driven analyzers cover all checkpoints; purely
+  artifact-derived ones (former secondaries) follow the intersection of their upstreams'
+  epochs — byte-identical to the old secondary logic for single-upstream chains. After
+  planning each cross-epoch item, `projected_completed[name]` is seeded with the full
+  available-epoch set (unless blocked), so a cross→cross dependent isn't falsely blocked
+  in the same pass (CoS 2/3). `Plan.secondary` removed; `format`/`to_dict`/`is_empty`
+  updated (CoS 1, 8).
+- [pipeline.py](../../../packages/miscope/src/miscope/analysis/pipeline.py) — `register`
+  routes by `output_scope` into two buckets; `_secondary_analyzers` and
+  `_run_secondary_from_plan` deleted. Former secondaries execute inside the per-epoch
+  loop in the planner's topo order, so an upstream writes `epoch_N` before its dependent
+  reads it in the same iteration (CoS 5). Blocked per-epoch items are logged and skipped
+  (preserving the old warning-not-raise behavior). The `config.analyzers` asymmetry is
+  preserved via `_filter_per_epoch_by_config`.
+- [freshness.py](../../../packages/miscope/src/miscope/analysis/freshness.py) — dropped the
+  `plan.secondary` merge; former secondaries now arrive in `plan.per_epoch` (CoS 8).
+
+**CoS status:**
+1. ✅ DAG-driven order; "secondary" gone from planner/pipeline/Plan.
+2. ✅ `test_cross_to_cross_satisfiable_in_one_pass` (planner.py) — clean tree, no `blocked_by`.
+3. ✅ Covered by the same test + `test_cross_to_cross_blocked_propagates_when_root_absent`
+   (a blocked upstream is *not* seeded, so its dependents stay blocked).
+4. ✅ `test_transitive_staleness_two_hop_per_epoch` — 2-hop replanning via projected coverage.
+5. ✅ `test_same_epoch_write_before_read_in_one_pass` (test_secondary_analyzers.py) — clean
+   single pass; dependent value matches its own-epoch upstream.
+6. ✅ No cross→per-epoch support added; 2-valued `output_scope` documented in inputs.py.
+7. ✅ Byte-parity established. `--no-recompute` integrity green (9436 artifacts). Full forced
+   recompute: **p113 and p109 pass** (2775 each). **p101/s999/dseed598 reports 4 cross-epoch
+   mismatches** (`global_centroid_pca`, `parameter_trajectory`, `parameter_dmd`, `activation_dmd`)
+   — diagnosed as **pre-existing stale references, not a REQ_133 effect** (see Finding below).
+   REQ_133 itself is byte-neutral: recompute digests for all 4 analyzers are *identical* between
+   the pre-REQ_133 base tree and this branch.
+8. ✅ Dashboard uses only `plan.format()` + `FreshnessReport`; full dashboard + miscope
+   suites green (1469 + 54 passed).
+
+### Finding — p101 cross-epoch stale references (2026-06-01)
+
+A determinism probe (run each analyzer twice over the canonical on-disk artifacts; compare a
+pipeline-identical save to the stored reference sha) established, on **both** the base tree and
+this branch (identical digests):
+
+| analyzer | determinism | recompute vs reference |
+|---|---|---|
+| `global_centroid_pca` | deterministic | **differs** from stored ref |
+| `parameter_trajectory` | deterministic | **differs** from stored ref |
+| `parameter_dmd` | deterministic | **differs** from stored ref |
+| `activation_dmd` | deterministic | matches ref **when fed canonical `global_centroid_pca`** |
+
+- The three roots' `.analyze()` code is untouched by REQ_133; they read per-epoch upstreams whose
+  artifacts *match* the reference, run deterministic `np.linalg.svd`/DMD, and still differ from the
+  stored sha. The difference is therefore **stale-reference drift** — low-order LAPACK FP differences
+  on p101 (largest + most ill-conditioned variant: 352 checkpoints, multi-segment orthogonal drift),
+  from a BLAS/environment change since the references were captured. p113/p109 still match to the bit.
+- `activation_dmd`'s mismatch is the **CoS 2 fix working as designed**: the old masked behaviour fed it
+  the stale on-disk `global_centroid_pca` (matching the reference), whereas REQ_133's topo-order
+  correctly feeds it the freshly-recomputed upstream.
+- Same class as the 4 references REQ_134 refreshed. Resolution requires regenerating the p101 reference
+  checksums for these analyzers (a REQ_134-harness maintenance action) — not a REQ_133 code defect.
+
+**Decision (2026-06-01):** hold REQ_133 merge; reconcile the regression baseline in a separate
+REQ_134 follow-up rather than refreshing references inside this branch. REQ_133 code is committed on
+the feature branch and stays unmerged until that follow-up confirms the p101 references. The follow-up
+should also settle whether the drift is a one-time environment/FP shift (refresh once) or recurring
+nondeterminism (e.g. BLAS-thread-count sensitivity in SVD/DMD on ill-conditioned p101) needing a
+determinism guard before any refresh.
 
 ## Notes
 

@@ -40,9 +40,11 @@ if TYPE_CHECKING:
 class PlanItem:
     """Single unit of planned work.
 
-    Phase is determined by which ``Plan`` list this item lives in. Optional
-    fields carry phase-specific context: ``depends_on`` for secondary,
-    ``requires`` and ``blocked_by`` and ``reason`` for cross-epoch.
+    Scope is determined by which ``Plan`` list this item lives in
+    (``per_epoch`` or ``cross_epoch`` — REQ_133). Optional fields carry
+    context: ``requires``/``depends_on`` name the item's ``ArtifactInput``
+    upstreams, ``blocked_by`` names upstreams with no completed epochs, and
+    ``reason`` tags why a cross-epoch item is in the plan.
 
     REQ_120 capability flags (``requires_model_weights`` /
     ``requires_activation_cache``) default to ``None`` (unknown) for
@@ -85,22 +87,24 @@ class PlanItem:
 class Plan:
     """Description of analysis work to perform on a variant.
 
-    Three-phase structure mirrors the pipeline:
-        - ``per_epoch``: primary analyzers, one item per analyzer with
-          missing epochs.
-        - ``secondary``: secondary analyzers, one item per analyzer with
-          unsatisfied dependency epochs.
-        - ``cross_epoch``: cross-epoch analyzers, one item per analyzer
-          that is missing, stale, or blocked.
+    Two-scope structure (REQ_133): the only structural axis is
+    ``output_scope``. "Secondary" is no longer a distinct phase — a per-epoch
+    analyzer whose inputs are purely artifacts simply appears in ``per_epoch``,
+    topologically ordered after its upstreams.
 
-    An empty list in a phase means no work for that phase.
+        - ``per_epoch``: every per-epoch analyzer (model-driven or purely
+          artifact-derived) with missing epochs, in topological order of the
+          ``ArtifactInput`` DAG.
+        - ``cross_epoch``: cross-epoch analyzers that are missing, stale, or
+          blocked, in topological order of the DAG.
+
+    An empty list in a scope means no work for that scope.
     """
 
     variant_name: str
     available_checkpoints: tuple[int, ...] = ()
     target_epochs: tuple[int, ...] = ()
     per_epoch: list[PlanItem] = field(default_factory=list)
-    secondary: list[PlanItem] = field(default_factory=list)
     cross_epoch: list[PlanItem] = field(default_factory=list)
     transitive_prerequisites: tuple[str, ...] = ()
     """REQ_120: cross-epoch items' missing dependencies that have a known
@@ -109,8 +113,8 @@ class Plan:
 
     @property
     def is_empty(self) -> bool:
-        """True if no work in any phase."""
-        return not (self.per_epoch or self.secondary or self.cross_epoch)
+        """True if no work in any scope."""
+        return not (self.per_epoch or self.cross_epoch)
 
     @property
     def needs_activation_cache(self) -> bool:
@@ -148,16 +152,12 @@ class Plan:
         ]
         if self.per_epoch:
             for item in sorted(self.per_epoch, key=lambda x: x.analyzer_name):
-                lines.append(f"  ✗ {item.analyzer_name:<40} {len(item.epochs)} epoch(s)")
-        else:
-            lines.append("  (nothing to do)")
-
-        lines.append("")
-        lines.append("Secondary analyzers:")
-        if self.secondary:
-            for item in sorted(self.secondary, key=lambda x: x.analyzer_name):
-                dep = f" (depends_on={item.depends_on})" if item.depends_on else ""
-                lines.append(f"  ✗ {item.analyzer_name:<40} {len(item.epochs)} epoch(s){dep}")
+                if item.blocked_by:
+                    label = f"blocked: missing {', '.join(item.blocked_by)}"
+                else:
+                    dep = f" (depends_on={item.depends_on})" if item.depends_on else ""
+                    label = f"{len(item.epochs)} epoch(s){dep}"
+                lines.append(f"  ✗ {item.analyzer_name:<40} {label}")
         else:
             lines.append("  (nothing to do)")
 
@@ -185,7 +185,6 @@ class Plan:
             "available_checkpoints": list(self.available_checkpoints),
             "target_epochs": list(self.target_epochs),
             "per_epoch": [_item_to_dict(item) for item in self.per_epoch],
-            "secondary": [_item_to_dict(item) for item in self.secondary],
             "cross_epoch": [_item_to_dict(item) for item in self.cross_epoch],
             "transitive_prerequisites": list(self.transitive_prerequisites),
             "needs_activation_cache": self.needs_activation_cache,
@@ -243,7 +242,6 @@ def plan_analysis(
         target_epochs = available
 
     per_epoch_items: list[PlanItem] = []
-    secondary_items: list[PlanItem] = []
     cross_epoch_items: list[PlanItem] = []
 
     # Normalize each input into a uniform descriptor regardless of whether
@@ -251,45 +249,23 @@ def plan_analysis(
     # info to plan without further inspection.
     descriptors = [_describe(item) for item in analyzers]
 
-    # Classify by category so secondary and cross-epoch planning can treat
-    # the primary phase's planned outputs as "will be there" — i.e. the
-    # Plan describes post-execution state, not pre-execution state.
-    primary_descs = [d for d in descriptors if d.category == "primary"]
-    secondary_descs = _order_secondaries([d for d in descriptors if d.category == "secondary"])
-    cross_epoch_descs = [d for d in descriptors if d.category == "cross_epoch"]
+    # Split by the single structural axis — ``output_scope`` (REQ_133) — then
+    # topologically order each scope by the ``ArtifactInput`` DAG. Execution
+    # (and this Plan) describes post-execution state: an upstream planned in
+    # the same run is treated as "will be there" via ``projected_completed``.
+    per_epoch_descs = _topo_order([d for d in descriptors if d.output_scope == "per_epoch"])
+    cross_epoch_descs = _topo_order([d for d in descriptors if d.output_scope == "cross_epoch"])
 
     projected_completed: dict[str, list[int]] = {}
-    for desc in primary_descs:
-        item = _plan_per_epoch_item(
-            name=desc.name,
-            artifacts_dir=artifacts_dir,
-            target_epochs=target_epochs,
-            force=force,
-            requires_model_weights=desc.requires_model_weights,
-            requires_activation_cache=desc.requires_activation_cache,
-            required_hooks=desc.required_hooks,
+    for desc in per_epoch_descs:
+        covered, blocked = _per_epoch_target_epochs(
+            desc, target_epochs, projected_completed, artifacts_dir
         )
+        item = _plan_per_epoch_item(desc, artifacts_dir, covered, blocked, force)
         if item is not None:
             per_epoch_items.append(item)
         current = set(scan_epoch_files(artifacts_dir / desc.name))
-        projected_completed[desc.name] = sorted(current | set(target_epochs))
-
-    for desc in secondary_descs:
-        assert desc.depends_on is not None, "secondary descriptor must have depends_on"
-        item = _plan_secondary_item(
-            name=desc.name,
-            depends_on=desc.depends_on,
-            artifacts_dir=artifacts_dir,
-            force=force,
-            projected_completed=projected_completed,
-        )
-        if item is not None:
-            secondary_items.append(item)
-        dep_epochs = projected_completed.get(
-            desc.depends_on, scan_epoch_files(artifacts_dir / desc.depends_on)
-        )
-        current = set(scan_epoch_files(artifacts_dir / desc.name))
-        projected_completed[desc.name] = sorted(current | set(dep_epochs))
+        projected_completed[desc.name] = sorted(current | set(covered))
 
     for desc in cross_epoch_descs:
         item = _plan_cross_epoch_item(
@@ -302,6 +278,17 @@ def plan_analysis(
         )
         if item is not None:
             cross_epoch_items.append(item)
+        # Finding 2 fix: a cross-epoch analyzer, once present or planned,
+        # covers every available epoch — seed that so a downstream cross-epoch
+        # analyzer reading it (cross→cross edge) is not falsely blocked in the
+        # same pass. A *blocked* upstream keeps its real on-disk coverage so
+        # its dependents stay blocked too.
+        if item is not None and item.blocked_by:
+            projected_completed[desc.name] = get_completed_epochs(
+                artifacts_dir, desc.name, available
+            )
+        else:
+            projected_completed[desc.name] = list(available)
 
     transitive = _collect_transitive_prerequisites(cross_epoch_items)
 
@@ -310,7 +297,6 @@ def plan_analysis(
         available_checkpoints=available,
         target_epochs=target_epochs,
         per_epoch=per_epoch_items,
-        secondary=secondary_items,
         cross_epoch=cross_epoch_items,
         transitive_prerequisites=transitive,
     )
@@ -323,10 +309,18 @@ def plan_analysis(
 
 @dataclass(frozen=True)
 class _AnalyzerDescriptor:
-    """Internal planning descriptor — uniform shape for Spec or instance input."""
+    """Internal planning descriptor — uniform shape for Spec or instance input.
+
+    The two fields that drive ordering are ``output_scope`` (the structural
+    axis the planner splits on) and ``requires`` (the ``ArtifactInput`` edges
+    it topologically sorts). ``has_model_input`` selects a per-epoch analyzer's
+    epoch-coverage strategy (REQ_133). ``depends_on`` is retained only for the
+    human-readable plan summary.
+    """
 
     name: str
-    category: str  # "primary" | "secondary" | "cross_epoch"
+    output_scope: str  # "per_epoch" | "cross_epoch"
+    has_model_input: bool = False
     requires: tuple[str, ...] = ()
     depends_on: str | None = None
     requires_model_weights: bool | None = None
@@ -345,16 +339,21 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     from miscope.analysis.spec import AnalyzerSpec
 
     if isinstance(item, AnalyzerSpec):
-        # Classification is derived from the Spec's ``inputs`` + ``output_scope``
-        # (REQ_132 — category is internal, no longer a Spec property).
-        from miscope.analysis.inputs import derive_category
+        from miscope.analysis.inputs import derive_has_model_input
 
-        category = derive_category(item.inputs, item.output_scope)
+        has_model = derive_has_model_input(item.inputs)
         requires = item.requires
-        depends_on = requires[0] if category == "secondary" and requires else None
+        # depends_on is purely cosmetic now: the single upstream of a purely
+        # artifact-derived per-epoch analyzer (the former "secondary" shape).
+        depends_on = (
+            requires[0]
+            if item.output_scope == "per_epoch" and not has_model and requires
+            else None
+        )
         return _AnalyzerDescriptor(
             name=item.name,
-            category=category,
+            output_scope=item.output_scope,
+            has_model_input=has_model,
             requires=requires,
             depends_on=depends_on,
             requires_model_weights=item.requires_model_weights,
@@ -378,20 +377,22 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
     if _is_cross_epoch(item):
         return _AnalyzerDescriptor(
             name=item.name,
-            category="cross_epoch",
+            output_scope="cross_epoch",
             requires=tuple(item.requires),
             required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
         )
     if _is_secondary(item):
         return _AnalyzerDescriptor(
             name=item.name,
-            category="secondary",
+            output_scope="per_epoch",
+            has_model_input=False,
             requires=(item.depends_on,),
             depends_on=item.depends_on,
         )
     return _AnalyzerDescriptor(
         name=item.name,
-        category="primary",
+        output_scope="per_epoch",
+        has_model_input=True,
         required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
     )
 
@@ -452,42 +453,17 @@ def _is_secondary(analyzer: Any) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _plan_per_epoch_item(
-    name: str,
-    artifacts_dir: Path,
-    target_epochs: Sequence[int],
-    force: bool,
-    requires_model_weights: bool | None = None,
-    requires_activation_cache: bool | None = None,
-    required_hooks: tuple[str, ...] = (),
-) -> PlanItem | None:
-    """Decide which target epochs lack a per-epoch artifact for ``name``."""
-    if force:
-        missing = tuple(target_epochs)
-    else:
-        completed = set(scan_epoch_files(artifacts_dir / name))
-        missing = tuple(e for e in target_epochs if e not in completed)
-    if not missing:
-        return None
-    return PlanItem(
-        analyzer_name=name,
-        epochs=missing,
-        requires_model_weights=requires_model_weights,
-        requires_activation_cache=requires_activation_cache,
-        required_hooks=required_hooks,
-    )
+def _topo_order(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescriptor]:
+    """Stable topological sort of descriptors by their ``ArtifactInput`` edges.
 
-
-def _order_secondaries(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescriptor]:
-    """Stable topological sort of secondary descriptors by intra-secondary deps.
-
-    A secondary may depend on another secondary (REQ_130: ``fourier_frequency_quality``
-    → ``neuron_grouping``). Such a dependency must be planned and executed first so
-    the planner's ``projected_completed`` (built incrementally) and the resulting
-    ``plan.secondary`` execution order are both correct. Only ``depends_on`` targets
-    that are themselves in this secondary set create edges; dependencies on primaries
-    are already satisfied (primaries are planned before any secondary). Input order is
-    preserved for independent descriptors. Raises on a cyclic dependency.
+    REQ_133: the single ordering primitive for both scopes. An edge exists from
+    a descriptor to each upstream named in its ``requires`` that is *also in
+    this set* — i.e. a same-scope dependency that must be planned (and executed)
+    first so ``projected_completed`` and the resulting execution order are both
+    correct. ``requires`` naming an out-of-set analyzer (e.g. a cross-epoch
+    analyzer depending on a per-epoch upstream) creates no edge here: that
+    upstream lives in the other scope's earlier pass. Input order is preserved
+    for independent descriptors. Raises on a cyclic dependency.
     """
     by_name = {d.name: d for d in descs}
     ordered: list[_AnalyzerDescriptor] = []
@@ -498,10 +474,11 @@ def _order_secondaries(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescri
         if desc.name in visited:
             return
         if desc.name in visiting:
-            raise ValueError(f"cyclic secondary dependency involving '{desc.name}'")
+            raise ValueError(f"cyclic analyzer dependency involving '{desc.name}'")
         visiting.add(desc.name)
-        if desc.depends_on is not None and desc.depends_on in by_name:
-            visit(by_name[desc.depends_on])
+        for upstream in desc.requires:
+            if upstream in by_name:
+                visit(by_name[upstream])
         visiting.discard(desc.name)
         visited.add(desc.name)
         ordered.append(desc)
@@ -511,46 +488,80 @@ def _order_secondaries(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescri
     return ordered
 
 
-def _plan_secondary_item(
-    name: str,
-    depends_on: str,
+def _per_epoch_target_epochs(
+    desc: _AnalyzerDescriptor,
+    target_epochs: Sequence[int],
+    projected_completed: dict[str, list[int]],
     artifacts_dir: Path,
-    force: bool,
-    projected_completed: dict[str, list[int]] | None = None,
-) -> PlanItem | None:
-    """Decide which epochs need a secondary artifact for ``name``.
+) -> tuple[list[int], tuple[str, ...]]:
+    """Return ``(covered_epochs, blocked_by)`` for a per-epoch analyzer.
 
-    Secondary analyzers target the dependency's completed-epoch set rather
-    than the variant's full checkpoint set. ``projected_completed`` lets
-    the planner treat primary analyzers in the same plan as if they had
-    already run — so the Plan describes post-execution state. If the
-    dependency has no completed epochs (and is not in ``projected_completed``),
-    the item is recorded as blocked.
+    A model-driven analyzer (or one with no inputs) recomputes at every target
+    checkpoint. A purely artifact-derived per-epoch analyzer (the former
+    "secondary" shape) instead follows the intersection of its per-epoch
+    upstreams' completed epochs, and is blocked when any upstream has none.
+    ``projected_completed`` lets an upstream planned in the same run count as
+    "will be there". Per the REQ_133 spike, per-epoch analyzers never depend on
+    a cross-epoch artifact, so every upstream here is itself per-epoch.
     """
-    projected_completed = projected_completed or {}
-    if depends_on in projected_completed:
-        dependency_epochs = list(projected_completed[depends_on])
-    else:
-        dependency_epochs = scan_epoch_files(artifacts_dir / depends_on)
-    if not dependency_epochs:
+    if desc.has_model_input or not desc.requires:
+        return list(target_epochs), ()
+
+    blocked: list[str] = []
+    upstream_sets: list[set[int]] = []
+    for upstream in desc.requires:
+        epochs = projected_completed.get(upstream)
+        if epochs is None:
+            epochs = scan_epoch_files(artifacts_dir / upstream)
+        if not epochs:
+            blocked.append(upstream)
+        else:
+            upstream_sets.append(set(epochs))
+    if blocked:
+        return [], tuple(blocked)
+    covered = sorted(set.intersection(*upstream_sets)) if upstream_sets else []
+    return covered, ()
+
+
+def _plan_per_epoch_item(
+    desc: _AnalyzerDescriptor,
+    artifacts_dir: Path,
+    covered: list[int],
+    blocked: tuple[str, ...],
+    force: bool,
+) -> PlanItem | None:
+    """Build a per-epoch PlanItem from its computed coverage, or ``None``.
+
+    ``covered``/``blocked`` come from :func:`_per_epoch_target_epochs`. A
+    blocked analyzer yields an item with empty ``epochs`` and a non-empty
+    ``blocked_by``. Otherwise the item carries the covered epochs still missing
+    on disk (all of them under ``force``); ``None`` when nothing is missing.
+    """
+    if blocked:
         return PlanItem(
-            analyzer_name=name,
-            depends_on=depends_on,
-            blocked_by=(depends_on,),
+            analyzer_name=desc.name,
+            requires=desc.requires,
+            depends_on=desc.depends_on,
+            blocked_by=blocked,
+            requires_model_weights=desc.requires_model_weights,
+            requires_activation_cache=desc.requires_activation_cache,
+            required_hooks=desc.required_hooks,
         )
-
     if force:
-        target_epochs = tuple(dependency_epochs)
+        missing = tuple(covered)
     else:
-        completed = set(scan_epoch_files(artifacts_dir / name))
-        target_epochs = tuple(e for e in dependency_epochs if e not in completed)
-
-    if not target_epochs:
+        completed = set(scan_epoch_files(artifacts_dir / desc.name))
+        missing = tuple(e for e in covered if e not in completed)
+    if not missing:
         return None
     return PlanItem(
-        analyzer_name=name,
-        epochs=target_epochs,
-        depends_on=depends_on,
+        analyzer_name=desc.name,
+        epochs=missing,
+        requires=desc.requires,
+        depends_on=desc.depends_on,
+        requires_model_weights=desc.requires_model_weights,
+        requires_activation_cache=desc.requires_activation_cache,
+        required_hooks=desc.required_hooks,
     )
 
 

@@ -67,7 +67,6 @@ class AnalysisPipeline:
         self.artifacts_dir = str(variant.artifacts_dir)
 
         self._analyzers: list[Analyzer] = []
-        self._secondary_analyzers: list[Analyzer] = []
         self._cross_epoch_analyzers: list[Analyzer] = []
         self._manifest: dict[str, Any] = {}
 
@@ -80,10 +79,10 @@ class AnalysisPipeline:
         """Register an analyzer with the pipeline.
 
         A single registration verb (REQ_132): the pipeline routes the
-        analyzer to the correct internal execution phase by deriving its
-        category from its registered Spec's ``inputs`` + ``output_scope``.
-        Callers no longer pre-sort analyzers into primary/secondary/
-        cross-epoch buckets.
+        analyzer by the only structural axis, its registered Spec's
+        ``output_scope`` (REQ_133). Per-epoch analyzers — model-driven or
+        purely artifact-derived — share one bucket and one execution pass,
+        topologically ordered by the planner. Callers do not pre-sort.
 
         Every analyzer must carry a registered Spec (via ``@register_analyzer``)
         — a Spec is mandatory at execution time. Registering an analyzer with
@@ -95,7 +94,6 @@ class AnalysisPipeline:
         Returns:
             Self for method chaining.
         """
-        from miscope.analysis.inputs import derive_category
         from miscope.analysis.registry import AnalyzerRegistry
 
         if not AnalyzerRegistry.has_spec(analyzer.name):
@@ -104,11 +102,8 @@ class AnalysisPipeline:
                 "must register via @register_analyzer before use (REQ_132)."
             )
         spec = AnalyzerRegistry.get_spec(analyzer.name)
-        category = derive_category(spec.inputs, spec.output_scope)
-        if category == "cross_epoch":
+        if spec.output_scope == "cross_epoch":
             self._cross_epoch_analyzers.append(analyzer)
-        elif category == "secondary":
-            self._secondary_analyzers.append(analyzer)
         else:
             self._analyzers.append(analyzer)
         return self
@@ -158,11 +153,24 @@ class AnalysisPipeline:
         if not plan.target_epochs:
             return
 
-        primary_by_name = {a.name: a for a in self._analyzers}
+        # One per-epoch pass over all per-epoch analyzers (model-driven and
+        # purely artifact-derived alike), in the planner's topological order so
+        # an artifact-derived analyzer's upstream has written ``epoch_N`` before
+        # it reads it in the same epoch iteration (REQ_133). Blocked items
+        # (empty epochs, non-empty ``blocked_by``) are logged and skipped.
+        per_epoch_by_name = {a.name: a for a in self._analyzers}
+        for item in plan.per_epoch:
+            if item.blocked_by:
+                logger.warning(
+                    "Per-epoch analyzer '%s' depends on %s but no epochs have been "
+                    "computed for that upstream. Skipping.",
+                    item.analyzer_name,
+                    ", ".join(item.blocked_by),
+                )
         work_queue: list[tuple[Analyzer, list[int]]] = [
-            (primary_by_name[item.analyzer_name], list(item.epochs))
+            (per_epoch_by_name[item.analyzer_name], list(item.epochs))
             for item in plan.per_epoch
-            if item.analyzer_name in primary_by_name and item.epochs
+            if item.analyzer_name in per_epoch_by_name and item.epochs
         ]
 
         context = self.variant.family.prepare_analysis_context(
@@ -210,11 +218,9 @@ class AnalysisPipeline:
                 if collector["epochs"]:
                     self._save_summary(analyzer_name, collector)
 
-        # Phase 1.5: Secondary analysis (REQ_048)
-        if self._secondary_analyzers and plan.secondary:
-            self._run_secondary_from_plan(plan.secondary, context, progress_callback)
-
-        # Phase 2: Cross-epoch analysis (REQ_038)
+        # Cross-epoch analysis (REQ_038) — runs after every per-epoch artifact
+        # is on disk, in the planner's topological order so a cross→cross
+        # upstream's ``cross_epoch.npz`` exists before its dependent reads it.
         if self._cross_epoch_analyzers and plan.cross_epoch:
             self._run_cross_epoch_from_plan(plan.cross_epoch, context, progress_callback)
 
@@ -237,21 +243,14 @@ class AnalysisPipeline:
         """
         from miscope.analysis.registry import AnalyzerRegistry
 
-        primary_names = {a.name for a in self._analyzers}
-        secondary_names = {a.name for a in self._secondary_analyzers}
+        per_epoch_names = {a.name for a in self._analyzers}
         cross_epoch_names = {a.name for a in self._cross_epoch_analyzers}
 
         for item in plan.per_epoch:
-            if item.analyzer_name in primary_names:
+            if item.analyzer_name in per_epoch_names:
                 continue
             if AnalyzerRegistry.has_spec(item.analyzer_name):
                 self._analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
-
-        for item in plan.secondary:
-            if item.analyzer_name in secondary_names:
-                continue
-            if AnalyzerRegistry.has_spec(item.analyzer_name):
-                self._secondary_analyzers.append(AnalyzerRegistry.create(item.analyzer_name))
 
         for item in plan.cross_epoch:
             if item.analyzer_name in cross_epoch_names:
@@ -262,27 +261,41 @@ class AnalysisPipeline:
     def _build_plan(self, force: bool) -> Plan:
         """Build a Plan from the pipeline's registered analyzers.
 
-        Applies the ``config.analyzers`` filter to secondary analyzers
-        (preserving the historical asymmetry — primary and cross-epoch
-        phases ignore this filter).
+        Preserves the historical ``config.analyzers`` asymmetry (REQ_119): the
+        filter narrows only the purely artifact-derived per-epoch analyzers (the
+        former "secondary" set); model-driven and cross-epoch analyzers ignore
+        it. The former-secondary set is reconstructed from each analyzer's Spec
+        (per-epoch output, artifact inputs, no ``ModelInput``).
         """
-        if self.config.analyzers:
-            config_names = set(self.config.analyzers)
-            secondaries = [a for a in self._secondary_analyzers if a.name in config_names]
-        else:
-            secondaries = list(self._secondary_analyzers)
-
-        analyzers: list[Any] = [
-            *self._analyzers,
-            *secondaries,
-            *self._cross_epoch_analyzers,
-        ]
+        per_epoch = self._filter_per_epoch_by_config(self._analyzers)
+        analyzers: list[Any] = [*per_epoch, *self._cross_epoch_analyzers]
         return plan_analysis(
             self.variant,
             analyzers,
             force=force,
             checkpoints=self.config.checkpoints,
         )
+
+    def _filter_per_epoch_by_config(self, analyzers: list[Analyzer]) -> list[Analyzer]:
+        """Drop artifact-derived per-epoch analyzers excluded by config.analyzers."""
+        if not self.config.analyzers:
+            return list(analyzers)
+        from miscope.analysis.inputs import derive_has_model_input
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        config_names = set(self.config.analyzers)
+        kept: list[Analyzer] = []
+        for analyzer in analyzers:
+            spec = self._spec_for(analyzer)
+            artifact_only = (
+                spec is not None
+                and not derive_has_model_input(spec.inputs)
+                and bool(spec.requires)
+            )
+            if artifact_only and analyzer.name not in config_names:
+                continue
+            kept.append(analyzer)
+        return kept
 
     def get_completed_epochs(self, analyzer_name: str) -> list[int]:
         """Return list of epochs with completed analysis for given analyzer.
@@ -577,10 +590,6 @@ class AnalysisPipeline:
             return None
         return dict(np.load(summary_path))
 
-    # ------------------------------------------------------------------
-    # Phase 1.5: Secondary analysis (REQ_048)
-    # ------------------------------------------------------------------
-
     def _spec_for(self, analyzer: Analyzer):
         """Look up an analyzer's Spec from the Registry (or None)."""
         from miscope.analysis.registry import AnalyzerRegistry
@@ -591,83 +600,8 @@ class AnalysisPipeline:
             else None
         )
 
-    def _run_secondary_from_plan(
-        self,
-        items: list[PlanItem],
-        context: dict[str, Any],
-        progress_callback: Callable[[float, str], None] | None = None,
-    ) -> None:
-        """Execute secondary analyzers as described by Plan items.
-
-        Each item carries its analyzer name, the dependency name, and the
-        target epochs already filtered by the Planner. A blocked item
-        (empty epochs, non-empty ``blocked_by``) is logged and skipped.
-        """
-        secondary_by_name = {a.name: a for a in self._secondary_analyzers}
-
-        for item in items:
-            analyzer = secondary_by_name.get(item.analyzer_name)
-            if analyzer is None:
-                continue
-
-            if item.blocked_by:
-                logger.warning(
-                    "Secondary analyzer '%s' depends on '%s' but no epochs have been computed "
-                    "for that analyzer. Skipping.",
-                    analyzer.name,
-                    item.depends_on,
-                )
-                continue
-
-            target_epochs = list(item.epochs)
-            if not target_epochs:
-                continue
-
-            summary_collectors: dict[str, dict[str, Any]] = {}
-            if hasattr(analyzer, "get_summary_keys"):
-                keys = analyzer.get_summary_keys()  # type: ignore[attr-defined]
-                if keys:
-                    summary_collectors[analyzer.name] = {
-                        "epochs": [],
-                        "values": {k: [] for k in keys},
-                    }
-
-            from miscope.analysis.registry import AnalyzerRegistry
-
-            spec = AnalyzerRegistry.get_spec(analyzer.name)
-
-            for i, epoch in enumerate(tqdm(target_epochs, desc=f"Secondary: {analyzer.name}")):
-                if progress_callback:
-                    progress_callback(
-                        0.8 + 0.1 * i / len(target_epochs),
-                        f"Secondary analysis: {analyzer.name} epoch {epoch}",
-                    )
-
-                inputs = self._materialize_per_epoch_inputs(
-                    spec,
-                    epoch,
-                    model=None,
-                    cache=None,
-                    logits=None,
-                    probe=None,  # type: ignore[arg-type]
-                )
-                result = analyzer.analyze(inputs, context)
-
-                self._save_epoch_artifact(analyzer.name, epoch, result)
-
-                if analyzer.name in summary_collectors:
-                    summary = analyzer.compute_summary(result, context)  # type: ignore[attr-defined]
-                    collector = summary_collectors[analyzer.name]
-                    collector["epochs"].append(epoch)
-                    for key, value in summary.items():
-                        collector["values"][key].append(value)
-
-            for analyzer_name, collector in summary_collectors.items():
-                if collector["epochs"]:
-                    self._save_summary(analyzer_name, collector)
-
     # ------------------------------------------------------------------
-    # Phase 2: Cross-epoch analysis (REQ_038)
+    # Cross-epoch analysis (REQ_038)
     # ------------------------------------------------------------------
 
     def _run_cross_epoch_from_plan(
