@@ -1,6 +1,6 @@
 # REQ_134: Regression Harness → Canonical Analyzer-Set Pattern
 
-**Status:** Scoped — *CoS drafted from a scoping pass (2026-06-01). Ready to pick up in a dedicated session.*
+**Status:** Completed — *merged to `develop` 2026-06-01. All CoS met. The restored net immediately surfaced four analyzers whose reference artifacts had drifted from current code; all were refreshed and the checker is green across the three pinned variants. See "Validation findings" below.*
 **Priority:** Low-Medium — the v1.0.0 byte-regression safety net is currently inoperable.
 **Branch:** TBD
 **Sequencing:** Lands **before REQ_134's sibling REQ_133** (decision 2026-06-01). This work binds to
@@ -113,10 +113,50 @@ registers the missing upstreams) **would expose it.** Hence the scope below.
    (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) with no MISSING / MISMATCH /
    EXTRA — restoring the v1.0.0 byte-regression safety net.
 
+## Validation findings (2026-06-01)
+
+Implemented CoS 1–6 behind one shared module
+[scripts/regression_common.py](../../../scripts/regression_common.py); reconciled all three
+scripts + 9 new tests in
+[tests/integration/test_regression_harness_shared.py](../../../tests/integration/test_regression_harness_shared.py).
+Cheap checks all pass: a real p113 plan over the canonical 21-analyzer set produces every
+cross-epoch→cross-epoch item (`activation_dmd` / `intragroup_manifold` / `transient_frequency`)
+with **zero `blocked_by`** (CoS 4), and a fresh checksum regen is byte-identical to the committed
+`reference_checksums.json` (CoS 6).
+
+**Net works; four stale references surfaced and refreshed.** A forced recompute reproduced the
+overwhelming majority of analyzers byte-identically and flagged exactly the analyzers whose stored
+artifacts had drifted from current `develop` code — **not** nondeterminism or a harness bug:
+
+- `repr_geometry` and `fourier_frequency_quality` — output changed in their REQs. (REQ_126 PR 3
+  `a8480a3` "defusion" moved the `*_fourier_alignment` keys out of `repr_geometry` into the separate
+  `centroid_fourier_alignment` analyzer, which matches byte-for-byte; overlapping keys agree at
+  `rtol=1e-3`. The stale references predated that rewrite — dated 2026-05-06 vs the 2026-05-27 code.)
+- `neuron_dynamics` and `intragroup_manifold` — also drifted (single-file cross-epoch outputs).
+
+All four were recreated with current code for the three pinned reference variants and the checksums
+regenerated. Verified self-consistent: `run_regression_check.py --no-recompute` is **green across all
+three** (p113 2775 + p109 2775 + p101 3886 = 9436 artifacts; no MISSING/EXTRA/MISMATCH). Cross-checked
+on a sample (`p113 neuron_dynamics`) that `data/` disk == regenerated checksums == a fresh recompute
+all agree, with only the pre-refresh committed baseline as the outlier.
+
+**CoS 7 met via the full-cycle refresh** (user decision 2026-06-01). Two follow-on notes:
+
+- A clean *from-scratch* recompute of all 21 (empty `artifacts/`) is **not** the validated path here —
+  it trips REQ_133's unordered cross→cross edges and is out of scope (see CoS 5). The validated path
+  is the `--no-recompute` integrity check plus the per-analyzer recompute the refresh exercised. A full
+  forced recompute via the canonical overlay remains available (and optional) for a determinism re-proof.
+- `neuron_dynamics` / `intragroup_manifold` are single-file cross-epoch outputs — the classic
+  candidates for float-reduction nondeterminism. If a *recompute* check ever flags either **without** a
+  code change behind it, exclude it like `landscape_flatness` rather than treating it as a harness bug.
+
 ## Notes
 
-- Until fixed, the byte-regression safety net for v1.0.0 is unavailable; end-to-end
-  validation currently leans on the dashboard analysis-run flow + the unit suite.
+- The byte-regression safety net for v1.0.0 is restored and green via `--no-recompute`. The harness is
+  pinned to the three reference variants (`generate_regression_checksums.py` `REFERENCE_VARIANTS`);
+  broader coverage waits on the planned retrain-with-denser-checkpointing + full re-analysis pass.
+- `--no-recompute` compares `data_root` artifacts directly against the checksums (fast integrity
+  check); it cannot catch a code-introduced regression — only a true recompute (the default) does.
 - Reference variants and their roles live in
   [generate_regression_checksums.py:23-29](../../../scripts/generate_regression_checksums.py#L23-L29)
   (p59/s485/ds999 is currently commented out).

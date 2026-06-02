@@ -14,30 +14,20 @@ import time
 parent_dir = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(parent_dir)
 
+# Single source of truth for the regression analyzer set (REQ_134).
+# select_specs() = family Registry minus the shared exclude set.
+from regression_common import select_specs  # noqa: E402
+
 # Importing analyzers package triggers @register_analyzer decorators.
 import miscope.analysis.analyzers  # noqa: E402, F401
 from miscope import load_family  # noqa: E402
 from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
-from miscope.analysis.registry import AnalyzerRegistry  # noqa: E402
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
 FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
 COOLING_NEEDED = False
 COOLING_PERIOD = 1 * 20  # timer to allow machine to cool between runs
-
-# Regression-specific analyzer selection. LandscapeFlatnessAnalyzer and
-# FourierNucleationAnalyzer were excluded from regression in the legacy
-# script (the former is stochastic; the latter is initialization-only).
-DEPRECATED_ANALYZERS = {
-    "effective_dimensionality",
-    "centroid_dmd",
-    "coarseness",
-    "attention_freq",
-    "attention_fourier",
-    "neuron_fourier",
-}
-EXCLUDE_FROM_REGRESSION = DEPRECATED_ANALYZERS | {"landscape_flatness", "fourier_nucleation"}
 
 # %% discover variants
 family = load_family(FAMILY_NAME)
@@ -75,14 +65,10 @@ for i, variant in enumerate(variants):
         print(f"  [{pct:5.1%}] {desc}", end="\r")
 
     try:
-        # REQ_120: enumerate Specs from the Registry, filtered against the
-        # regression-specific exclude list. The pipeline instantiates the
-        # corresponding analyzers from the Registry at execute time.
-        specs = [
-            s
-            for s in AnalyzerRegistry.list_for_family(variant.family)
-            if s.name not in EXCLUDE_FROM_REGRESSION
-        ]
+        # REQ_120/REQ_134: canonical analyzer set from the shared selector.
+        # The pipeline instantiates the corresponding analyzers from the
+        # Registry at execute time.
+        specs = select_specs(variant.family)
         plan = plan_analysis(variant, specs, force=FORCE)
         print(plan.format())
 
