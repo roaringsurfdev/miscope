@@ -23,6 +23,13 @@ Options:
     --output-dir PATH   Secondary results directory (default: results_regression/)
     --checksums PATH    Checksums file (default: tests/regression/reference_checksums.json)
     --variants IDS      Comma-separated variant_ids to check (default: all)
+    --no-recompute      Skip the recompute; compare the canonical on-disk artifacts
+                        (data_root) against the checksums directly. Fast integrity
+                        check — confirms the stored artifacts still match the
+                        recorded checksums (no MISSING/EXTRA/MISMATCH) without
+                        running any analysis. Note: this does not exercise the
+                        analyzers, so it cannot catch a regression introduced by a
+                        code change — only a true recompute (the default) does that.
 """
 
 from __future__ import annotations
@@ -119,6 +126,39 @@ def prepare_output_variant(original_variant_dir: Path, output_variant_dir: Path)
     return output_artifacts_dir
 
 
+def recompute_artifacts(vid: str, cfg, output_dir: Path) -> Path | None:
+    """Recompute one variant into the isolated tree; return its artifacts dir.
+
+    Mirrors family config, seeds the symlink overlay, loads the variant from the
+    output root, and runs the forced recompute. Returns None if the variant
+    cannot be loaded from the output tree.
+    """
+    from miscope.families.discovery import discover_families
+
+    original_variant_dir = cfg.data_root / FAMILY / "variants" / vid
+
+    # Mirror the family-level config so discover_families finds the family
+    # under the regression output root.
+    for cfg_name in ("family.json", "ideal_frequency_sets.json"):
+        src = cfg.data_root / FAMILY / cfg_name
+        dst = output_dir / FAMILY / cfg_name
+        if src.exists() and not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.symlink_to(src.resolve())
+
+    output_variant_dir = output_dir / FAMILY / "variants" / vid
+    output_artifacts_dir = prepare_output_variant(original_variant_dir, output_variant_dir)
+
+    out_family = discover_families(output_dir)[FAMILY]
+    variant = next((v for v in out_family.variants if v.name == vid), None)
+    if variant is None:
+        print("  ERROR — could not load variant from output dir")
+        return None
+
+    run_pipeline(variant)
+    return output_artifacts_dir
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -138,6 +178,11 @@ def main() -> None:
         default=None,
         help="Comma-separated variant_ids to check (default: all)",
     )
+    parser.add_argument(
+        "--no-recompute",
+        action="store_true",
+        help="Compare existing on-disk artifacts (data_root) without recomputing.",
+    )
     args = parser.parse_args()
 
     if not args.checksums.exists():
@@ -156,7 +201,6 @@ def main() -> None:
             sys.exit(1)
 
     from miscope.config import get_config
-    from miscope.families.discovery import discover_families
 
     cfg = get_config()
 
@@ -166,7 +210,6 @@ def main() -> None:
         vid = entry["variant_id"]
         print(f"\n{'=' * 60}")
         print(f"Variant: {vid}")
-        print(f"  Re-running analysis into {args.output_dir}/...")
 
         original_variant_dir = cfg.data_root / FAMILY / "variants" / vid
         if not original_variant_dir.exists():
@@ -174,29 +217,17 @@ def main() -> None:
             all_errors.append(f"  SKIP    {vid} — original not found")
             continue
 
-        # Mirror the family-level config so discover_families finds the family
-        # under the regression output root.
-        for cfg_name in ("family.json", "ideal_frequency_sets.json"):
-            src = cfg.data_root / FAMILY / cfg_name
-            dst = args.output_dir / FAMILY / cfg_name
-            if src.exists() and not dst.exists():
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                dst.symlink_to(src.resolve())
+        if args.no_recompute:
+            print("  Comparing existing on-disk artifacts (no recompute)...")
+            compare_artifacts_dir = original_variant_dir / "artifacts"
+        else:
+            print(f"  Re-running analysis into {args.output_dir}/...")
+            compare_artifacts_dir = recompute_artifacts(vid, cfg, args.output_dir)
+            if compare_artifacts_dir is None:
+                all_errors.append(f"  ERROR   {vid} — variant load failed")
+                continue
 
-        output_variant_dir = args.output_dir / FAMILY / "variants" / vid
-        output_artifacts_dir = prepare_output_variant(original_variant_dir, output_variant_dir)
-
-        out_families = discover_families(args.output_dir)
-        out_family = out_families[FAMILY]
-        variant = next((v for v in out_family.variants if v.name == vid), None)
-        if variant is None:
-            print("  ERROR — could not load variant from output dir")
-            all_errors.append(f"  ERROR   {vid} — variant load failed")
-            continue
-
-        run_pipeline(variant)
-
-        errors = compare_variant(entry, output_artifacts_dir)
+        errors = compare_variant(entry, compare_artifacts_dir)
 
         if errors:
             print(f"  FAILED — {len(errors)} issue(s):")
