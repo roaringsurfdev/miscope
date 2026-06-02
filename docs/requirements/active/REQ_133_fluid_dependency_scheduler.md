@@ -138,6 +138,10 @@ Implemented as an ordering-only refactor across the four files the spike identif
   preserved via `_filter_per_epoch_by_config`.
 - [freshness.py](../../../packages/miscope/src/miscope/analysis/freshness.py) — dropped the
   `plan.secondary` merge; former secondaries now arrive in `plan.per_epoch` (CoS 8).
+- [library/pca.py](../../../packages/miscope/src/miscope/analysis/library/pca.py) — added
+  `_canonicalize_svd_sign`, applied in `pca()` and `compute_svd()`, pinning the SVD sign gauge so
+  PCA/SVD bases are reproducible across BLAS/LAPACK builds. Surfaced by this refactor's regression
+  run (see Finding); implemented here by owner decision with the rationale captured in-code.
 
 **CoS status:**
 1. ✅ DAG-driven order; "secondary" gone from planner/pipeline/Plan.
@@ -170,16 +174,33 @@ this branch (identical digests):
 | `parameter_dmd` | deterministic | **differs** from stored ref |
 | `activation_dmd` | deterministic | matches ref **when fed canonical `global_centroid_pca`** |
 
-- The three roots' `.analyze()` code is untouched by REQ_133; they read per-epoch upstreams whose
-  artifacts *match* the reference, run deterministic `np.linalg.svd`/DMD, and still differ from the
-  stored sha. The difference is therefore **stale-reference drift** — low-order LAPACK FP differences
-  on p101 (largest + most ill-conditioned variant: 352 checkpoints, multi-segment orthogonal drift),
-  from a BLAS/environment change since the references were captured. p113/p109 still match to the bit.
-- `activation_dmd`'s mismatch is the **CoS 2 fix working as designed**: the old masked behaviour fed it
-  the stale on-disk `global_centroid_pca` (matching the reference), whereas REQ_133's topo-order
-  correctly feeds it the freshly-recomputed upstream.
-- Same class as the 4 references REQ_134 refreshed. Resolution requires regenerating the p101 reference
-  checksums for these analyzers (a REQ_134-harness maintenance action) — not a REQ_133 code defect.
+The three roots' `.analyze()` code is untouched by REQ_133 (identical recompute digests on both
+trees), so REQ_133 is byte-neutral. A deeper element-wise diff (stored vs current recompute, both at
+352 checkpoints) then resolved each root to a **distinct, concrete mechanism** — superseding the
+initial "low-order FP drift" guess:
+
+- **`global_centroid_pca` and `parameter_trajectory` — SVD sign-gauge instability.** Shapes and
+  eigenvalues match (~1e-15–1e-5); only `basis`/`projections` differ, at `max_rel == 2.000` — the
+  `v` vs `-v` signature. `np.linalg.svd` is deterministic/seedless but a singular pair is defined only
+  up to a shared sign, and which sign LAPACK returns is not stable across BLAS builds (p101's
+  near-degenerate spectrum tipped it). **Fixed under this REQ** by pinning the gauge in the `pca()` /
+  `compute_svd()` primitive — `_canonicalize_svd_sign` (largest basis loading made positive; flips
+  `u`/`v` together; eigenvalues/center untouched), with the full rationale in a comment at the helper.
+  `weight_spectra` also stores SVD vectors, so `compute_svd` got the same treatment for uniformity.
+- **`activation_dmd` — pure cascade** from `global_centroid_pca`; resolves once the upstream basis is
+  canonical (also the CoS-2 fix correctly feeding it the freshly-recomputed upstream).
+- **`parameter_dmd` — reference-epoch mismatch, NOT a sign issue.** `_resolve_reference_epoch` defaults
+  to the *last* checkpoint; the canonical p101 artifact was generated with `parameter_dmd_reference_epoch`
+  pinned to **20000**, but its last checkpoint is **34999** (extended to 35k epochs), so the unpinned
+  harness recompute partitions at a different epoch → different groups/components/regimes. p113/p109
+  pass only because their pin (24999) equals their last checkpoint. The harness can't reproduce
+  artifacts built with non-default `extra_context`. **Addressed separately** (out of this REQ): planned
+  via simultaneous pinned+default data cuts; near-term the pinned variants are refreshed for parity.
+
+**Consequence:** the sign-gauge fix changes the bytes of *every* PCA/SVD-vector artifact across *all*
+variants (one-time, deliberate), so the pinned-variant reference checksums must be regenerated before
+the byte-regression checker is green again. Owner is reconciling the baseline; "all models will need
+refreshes" (decision 2026-06-01).
 
 **Decision (2026-06-01):** hold REQ_133 merge; reconcile the regression baseline in a separate
 REQ_134 follow-up rather than refreshing references inside this branch. REQ_133 code is committed on

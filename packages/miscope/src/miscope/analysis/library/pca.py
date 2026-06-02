@@ -27,6 +27,47 @@ from miscope.core.pca import PCAResult
 from miscope.core.svd import SVDResult
 
 
+def _canonicalize_svd_sign(
+    U: np.ndarray, Vt: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fix the sign gauge of an SVD so the basis is reproducible everywhere.
+
+    WHY THIS EXISTS (surfaced during REQ_133, implemented here; see also the
+    REQ_134 byte-regression baseline). ``np.linalg.svd`` is deterministic and
+    seedless, but a singular pair ``(u_i, v_i)`` is only defined up to a shared
+    sign — ``(-u_i, -v_i)`` is an equally valid decomposition. Which sign LAPACK
+    returns is NOT stable across BLAS/LAPACK builds, and it flips under tiny
+    floating-point perturbations when singular values are near-degenerate. Left
+    uncanonicalized, the stored ``basis``/``projections`` (and every downstream
+    consumer, plus the byte-regression checksum) carry an environment-dependent
+    sign: the p101 ``global_centroid_pca``/``parameter_trajectory`` artifacts
+    drifted purely by sign across environments (basis ``max_rel == 2.0``, i.e.
+    ``v`` vs ``-v``) while their eigenvalues matched to ~1e-15. The fix belongs
+    at the lens, not at compare-time, so "the PCA/SVD basis of this object" is a
+    single canonical answer for the artifact and all of its readers.
+
+    Convention (matches scikit-learn's ``svd_flip``, v-based): for each
+    component, flip ``(u_i, v_i)`` together so the largest-magnitude entry of the
+    right vector ``v_i`` is positive. Singular values — and therefore
+    eigenvalues/explained_variance/rank/center — are sign-invariant and untouched.
+
+    This resolves sign flips, NOT rotation within a truly degenerate
+    (equal-singular-value) subspace; none has been observed, but a ``basis`` that
+    drifts with ``max_rel != 2.0`` would point at that and need a separate tie-break.
+    """
+    k = min(U.shape[1], Vt.shape[0])  # number of paired components (thin or full SVD)
+    if k == 0:
+        return U, Vt
+    max_loading_idx = np.argmax(np.abs(Vt[:k]), axis=1)
+    signs = np.sign(Vt[np.arange(k), max_loading_idx])
+    signs[signs == 0] = 1.0  # a zero vector has no preferred sign — leave it be
+    U = U.copy()
+    Vt = Vt.copy()
+    U[:, :k] *= signs
+    Vt[:k] *= signs[:, np.newaxis]
+    return U, Vt
+
+
 def pca(X: np.ndarray, n_components: int | None = None) -> PCAResult:
     """Fit PCA on a single sample set via mean-centered SVD.
 
@@ -59,6 +100,9 @@ def pca(X: np.ndarray, n_components: int | None = None) -> PCAResult:
     center = X.mean(axis=0)
     Xc = X - center
     U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+    # Pin the sign gauge so the basis/projections are reproducible across
+    # environments (see _canonicalize_svd_sign for the full rationale).
+    U, Vt = _canonicalize_svd_sign(U, Vt)
 
     # Full spectrum: used for ratio normalization and full-spectrum scalars
     # (participation_ratio, rank, spread). Truncation is a presentation choice;
@@ -208,6 +252,10 @@ def compute_svd(matrix: np.ndarray, full_matrices: bool = False) -> SVDResult:
         raise ValueError(f"compute_svd expects 2D input, got shape {matrix.shape}")
 
     U, S, Vt = np.linalg.svd(matrix, full_matrices=full_matrices)
+    # Same sign-gauge canonicalization as pca(): weight_spectra stores these
+    # singular vectors, so they must be reproducible across environments
+    # (see _canonicalize_svd_sign for the full rationale).
+    U, Vt = _canonicalize_svd_sign(U, Vt)
 
     if S.size > 0 and S[0] > 0:
         m, n = matrix.shape
