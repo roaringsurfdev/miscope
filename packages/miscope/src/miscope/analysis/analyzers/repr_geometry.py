@@ -88,6 +88,25 @@ def _get_summary_keys() -> list[str]:
 
 
 from miscope.analysis.inputs import ModelInput, ResolvedInputs  # noqa: E402
+from miscope.analysis.output_schema import OutputField as F  # noqa: E402
+
+# One-line descriptions for the per-site scalar measures (keys mirror
+# _SCALAR_KEYS + _PCA_VAR_KEYS so the schema cannot drift from them).
+_SCALAR_DESCRIPTIONS: dict[str, str] = {
+    "mean_radius": "Mean radius of class centroids about their center.",
+    "mean_dim": "Mean intrinsic dimensionality of the class manifold.",
+    "center_spread": "Spread of the class centroids' common center.",
+    "snr": "Signal-to-noise ratio of class separation vs. within-class spread.",
+    "circularity": "How close the centroid arrangement is to a circle/ring.",
+    "fisher_mean": "Mean pairwise Fisher discriminant across classes.",
+    "fisher_min": "Minimum pairwise Fisher discriminant (worst-separated class pair).",
+    "fisher_argmin_r": "First class index of the worst-separated pair.",
+    "fisher_argmin_s": "Second class index of the worst-separated pair.",
+    "fisher_argmin_diff": "Operand difference of the worst-separated class pair.",
+    "pca_var_pc1": "Variance fraction on PC1 of the class centroids.",
+    "pca_var_pc2": "Variance fraction on PC2 of the class centroids.",
+    "pca_var_pc3": "Variance fraction on PC3 of the class centroids.",
+}
 
 SPEC = AnalyzerSpec(
     name="repr_geometry",
@@ -95,6 +114,35 @@ SPEC = AnalyzerSpec(
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=tuple(_SITES.values()),
     produces_summary=True,
+    outputs=(
+        F.tensor(
+            "centroids",
+            "float64",
+            ("variant", "epoch", "site"),
+            "Per-class centroid vectors at a site (n_classes, d_model).",
+        ),
+        F.columnar(
+            "radii",
+            "float64",
+            ("variant", "epoch", "site", "row_id"),
+            "Per-class radius about the common center (row_id = class).",
+        ),
+        F.columnar(
+            "dimensionality",
+            "float64",
+            ("variant", "epoch", "site", "row_id"),
+            "Per-class intrinsic dimensionality (row_id = class).",
+        ),
+        *(
+            F.columnar(
+                key,
+                "float64",
+                ("variant", "epoch", "site"),
+                _SCALAR_DESCRIPTIONS[key],
+            )
+            for key in (*_SCALAR_KEYS, *_PCA_VAR_KEYS)
+        ),
+    ),
 )
 
 

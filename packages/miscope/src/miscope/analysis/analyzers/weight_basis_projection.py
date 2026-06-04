@@ -28,14 +28,54 @@ from miscope.analysis.library.fourier_basis import (
     get_fourier_basis,
     project_onto_fourier_basis,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 from miscope.core.basis_projection import BasisProjectionSite
+
+# Dense Fourier-coefficient cubes, one set per weight site (on-disk key is
+# {site}_{field}). 1D sites (embedding, attn_v, mlp_in, mlp_out) emit cos/sin
+# coeffs + phases + dominant_frequency; the 2D site (attn_qk) emits the four
+# cross-coeff cubes + dominant_frequency_pair. The union is declared here as
+# logical fields keyed by `site`; absent fields for a given site are simply not
+# written. All coefficient cubes are tensors; only the frequency-axis labels and
+# per-unit dominant frequency flatten to columns.
+_WBP_TENSOR_FIELDS = (
+    ("cos_coeffs", "Cosine Fourier coefficients (1D sites)."),
+    ("sin_coeffs", "Sine Fourier coefficients (1D sites)."),
+    ("cos_cos_coeffs", "Cos×cos cross-coefficients (2D attn_qk site)."),
+    ("cos_sin_coeffs", "Cos×sin cross-coefficients (2D attn_qk site)."),
+    ("sin_cos_coeffs", "Sin×cos cross-coefficients (2D attn_qk site)."),
+    ("sin_sin_coeffs", "Sin×sin cross-coefficients (2D attn_qk site)."),
+    ("magnitudes", "Per-frequency coefficient magnitudes."),
+    ("phases", "Per-frequency phase angles (1D sites)."),
+    ("power", "Per-frequency power (magnitude squared)."),
+    ("fractional_power", "Power normalized to fraction of total per output unit."),
+    ("dominant_frequency_pair", "Argmax (k_a, k_b) frequency pair per head (2D site)."),
+)
 
 SPEC = AnalyzerSpec(
     name="weight_basis_projection",
     output_scope="per_epoch",
     inputs=(ArtifactInput("parameter_snapshot"),),
+    outputs=(
+        *(
+            F.tensor(name, "float64", ("variant", "epoch", "site"), desc)
+            for name, desc in _WBP_TENSOR_FIELDS
+        ),
+        F.columnar(
+            "dominant_frequency",
+            "int32",
+            ("variant", "epoch", "site", "row_id"),
+            "Argmax frequency index per output unit (1D sites; row_id = output dim).",
+        ),
+        F.columnar(
+            "frequencies",
+            "int32",
+            ("variant", "epoch", "frequency"),
+            "Frequency-index axis labels for the coefficient arrays.",
+        ),
+    ),
 )
 
 

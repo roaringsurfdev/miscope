@@ -16,6 +16,7 @@ import numpy as np
 
 from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library.landscape import compute_landscape_flatness
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -36,6 +37,26 @@ SPEC = AnalyzerSpec(
     inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
     produces_summary=True,
+    outputs=(
+        F.columnar(
+            "baseline_loss",
+            "float32",
+            ("variant", "epoch"),
+            "Unperturbed loss at this epoch (the flatness reference point).",
+        ),
+        F.columnar(
+            "delta_losses",
+            "float32",
+            ("variant", "epoch", "row_id"),
+            "Loss change under each random weight perturbation (row_id = perturbation sample).",
+        ),
+        F.columnar(
+            "epsilon",
+            "float32",
+            ("variant", "epoch"),
+            "Perturbation radius used to probe the loss landscape.",
+        ),
+    ),
 )
 
 

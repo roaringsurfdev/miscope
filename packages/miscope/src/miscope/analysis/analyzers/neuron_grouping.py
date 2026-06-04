@@ -37,6 +37,7 @@ from miscope.analysis.library.grouping import (
     group_neurons,
     group_neurons_summary,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 from miscope.core.grouping import GroupAssignment, GroupSummary
@@ -56,6 +57,86 @@ SPEC = AnalyzerSpec(
     name="neuron_grouping",
     output_scope="per_epoch",
     inputs=(ArtifactInput("parameter_snapshot"),),
+    outputs=(
+        F.columnar(
+            "assignments",
+            "int64",
+            ("variant", "epoch", "neuron"),
+            "Group index assigned to each neuron (-1 = unassigned).",
+        ),
+        F.columnar(
+            "confidence",
+            "float64",
+            ("variant", "epoch", "neuron"),
+            "Per-neuron assignment confidence.",
+        ),
+        F.columnar(
+            "n_groups",
+            "int64",
+            ("variant", "epoch"),
+            "Number of groups formed.",
+        ),
+        F.columnar(
+            "method",
+            "str",
+            ("variant", "epoch"),
+            "Grouping method used (e.g. clustering algorithm name).",
+        ),
+        F.columnar(
+            "feature_basis_name",
+            "str",
+            ("variant", "epoch"),
+            "Feature basis the grouping was computed in (e.g. fourier_w_in).",
+        ),
+        F.tensor(
+            "centroids",
+            "float64",
+            ("variant", "epoch", "group"),
+            "Per-group centroid in feature space (group, feature).",
+        ),
+        F.columnar(
+            "radii",
+            "float64",
+            ("variant", "epoch", "group"),
+            "Per-group spread (RMS distance of members from the centroid).",
+        ),
+        F.columnar(
+            "n_per_group",
+            "int64",
+            ("variant", "epoch", "group"),
+            "Member count per group.",
+        ),
+        F.columnar(
+            "n_unassigned",
+            "int64",
+            ("variant", "epoch"),
+            "Number of neurons left unassigned.",
+        ),
+        F.columnar(
+            "fisher_min",
+            "float64",
+            ("variant", "epoch"),
+            "Minimum pairwise Fisher discriminant across groups (worst separation).",
+        ),
+        F.columnar(
+            "fisher_mean",
+            "float64",
+            ("variant", "epoch"),
+            "Mean pairwise Fisher discriminant across groups.",
+        ),
+        F.columnar(
+            "dispersion",
+            "float64",
+            ("variant", "epoch"),
+            "Overall dispersion of the grouping.",
+        ),
+        F.columnar(
+            "had_family_override",
+            "bool",
+            ("variant", "epoch"),
+            "Whether a family-supplied grouping override was applied.",
+        ),
+    ),
 )
 
 

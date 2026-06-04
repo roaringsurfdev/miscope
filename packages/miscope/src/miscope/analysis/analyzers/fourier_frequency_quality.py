@@ -27,6 +27,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -38,6 +39,38 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ArtifactInput("neuron_grouping"),),
     produces_summary=True,
+    outputs=(
+        F.columnar(
+            "quality_score",
+            "float32",
+            ("variant", "epoch"),
+            "Overall frequency-quality score for the active frequency set at this epoch.",
+        ),
+        F.columnar(
+            "coverage_hard",
+            "float32",
+            ("variant", "epoch"),
+            "Fraction of neurons covered by the hard-thresholded active frequencies.",
+        ),
+        F.columnar(
+            "active_frequencies",
+            "int32",
+            ("variant", "epoch", "frequency"),
+            "Frequency indices judged active at this epoch (one row per frequency).",
+        ),
+        F.columnar(
+            "k",
+            "int32",
+            ("variant", "epoch"),
+            "Count of active frequencies.",
+        ),
+        F.columnar(
+            "reconstruction_error",
+            "float32",
+            ("variant", "epoch"),
+            "Residual error reconstructing the representation from the active frequencies.",
+        ),
+    ),
 )
 
 

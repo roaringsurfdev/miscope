@@ -39,9 +39,30 @@ from miscope.analysis.library.fourier_basis import (
     get_fourier_basis,
     project_onto_fourier_basis,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 from miscope.core.basis_projection import BasisProjectionSite
+
+# 2D Fourier-coefficient cubes per activation site (on-disk key {site}_{field};
+# sites e.g. attn_pattern, mlp_out). All coefficient/marginal cubes are tensors;
+# only the frequency-axis labels flatten to a column.
+_ABP_TENSOR_FIELDS = (
+    ("cos_cos_coeffs", "Cos×cos cross-coefficients over the (a, b) grid."),
+    ("cos_sin_coeffs", "Cos×sin cross-coefficients over the (a, b) grid."),
+    ("sin_cos_coeffs", "Sin×cos cross-coefficients over the (a, b) grid."),
+    ("sin_sin_coeffs", "Sin×sin cross-coefficients over the (a, b) grid."),
+    ("magnitudes", "Per-frequency-pair coefficient magnitudes."),
+    ("power", "Per-frequency-pair power (magnitude squared)."),
+    ("fractional_power", "Power normalized to fraction of total per unit."),
+    ("dominant_frequency_pair", "Argmax (k_a, k_b) frequency pair per unit."),
+    ("axis_a_marginal_cos_coeffs", "Cosine coefficients marginalized over axis a."),
+    ("axis_a_marginal_sin_coeffs", "Sine coefficients marginalized over axis a."),
+    ("axis_a_marginal_power", "Power marginalized over axis a."),
+    ("axis_b_marginal_cos_coeffs", "Cosine coefficients marginalized over axis b."),
+    ("axis_b_marginal_sin_coeffs", "Sine coefficients marginalized over axis b."),
+    ("axis_b_marginal_power", "Power marginalized over axis b."),
+)
 
 # Spec hooks: union across the modadd families' activation sites.
 # Architectures that don't publish a hook simply don't populate the
@@ -56,6 +77,18 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=_KNOWN_HOOKS,
+    outputs=(
+        *(
+            F.tensor(name, "float64", ("variant", "epoch", "site"), desc)
+            for name, desc in _ABP_TENSOR_FIELDS
+        ),
+        F.columnar(
+            "frequencies",
+            "int32",
+            ("variant", "epoch", "frequency"),
+            "Frequency-index axis labels for the coefficient arrays.",
+        ),
+    ),
 )
 
 

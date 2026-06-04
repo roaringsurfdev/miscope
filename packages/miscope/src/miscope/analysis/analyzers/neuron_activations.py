@@ -15,6 +15,7 @@ from miscope.analysis.library import (
     extract_mlp_activations,
     reshape_to_grid,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -23,6 +24,15 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.mlp.hook_out",),
+    outputs=(
+        F.tensor(
+            "activations",
+            "float32",
+            ("variant", "epoch", "neuron"),
+            "MLP neuron activations over the full input grid, per neuron. "
+            "Inner axes are the (a, b) operand grid (d_mlp, p, p).",
+        ),
+    ),
 )
 
 

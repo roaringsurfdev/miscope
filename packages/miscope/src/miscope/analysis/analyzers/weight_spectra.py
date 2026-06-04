@@ -22,15 +22,39 @@ from miscope.analysis.library.weights import (
     compute_participation_ratio,
     compute_weight_spectra,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# Per weight matrix: singular values + SVD factor matrices. The on-disk keys are
+# {component}_{site} (e.g. sv_W_E, u_W_E, vt_W_E); declared here as logical
+# fields keyed by `site` (the weight matrix). 110-A flattens the composition.
 SPEC = AnalyzerSpec(
     name="weight_spectra",
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
     produces_summary=True,
+    outputs=(
+        F.columnar(
+            "sv",
+            "float32",
+            ("variant", "epoch", "site", "row_id"),
+            "Singular values of a weight matrix, descending (row_id = SV index).",
+        ),
+        F.tensor(
+            "u",
+            "float32",
+            ("variant", "epoch", "site"),
+            "Left singular vectors (U) of a weight matrix.",
+        ),
+        F.tensor(
+            "vt",
+            "float32",
+            ("variant", "epoch", "site"),
+            "Right singular vectors (Vᵀ) of a weight matrix.",
+        ),
+    ),
 )
 
 
