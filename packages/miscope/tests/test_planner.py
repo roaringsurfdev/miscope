@@ -73,6 +73,11 @@ def _write_epochs(artifacts_dir: Path, name: str, epochs: list[int]) -> None:
         np.savez(d / f"epoch_{e:05d}.npz", data=np.zeros(1))
 
 
+def _per_epoch(plan: Plan, name: str) -> PlanItem:
+    """Return the per-epoch PlanItem for ``name`` (REQ_133: one merged list)."""
+    return next(it for it in plan.per_epoch if it.analyzer_name == name)
+
+
 def _write_cross_epoch(artifacts_dir: Path, name: str, n_epochs: int | None) -> None:
     d = artifacts_dir / name
     d.mkdir(parents=True, exist_ok=True)
@@ -110,21 +115,26 @@ def test_plan_is_empty_false_with_cross_epoch_blocked():
     assert not plan.is_empty
 
 
-def test_plan_format_three_sections():
+def test_plan_format_two_scopes():
+    """REQ_133: a per-epoch artifact-derived analyzer (former secondary) shows
+    up in the single Per-epoch section; there is no Secondary section."""
     plan = Plan(
         variant_name="v",
         available_checkpoints=(0, 1, 2),
         target_epochs=(0, 1, 2),
-        per_epoch=[PlanItem(analyzer_name="prim", epochs=(2,))],
-        secondary=[PlanItem(analyzer_name="sec", epochs=(2,), depends_on="prim")],
+        per_epoch=[
+            PlanItem(analyzer_name="prim", epochs=(2,)),
+            PlanItem(analyzer_name="sec", epochs=(2,), depends_on="prim", requires=("prim",)),
+        ],
         cross_epoch=[PlanItem(analyzer_name="ce", reason="stale", requires=("prim",))],
     )
     text = plan.format()
     assert "Per-epoch analyzers" in text
-    assert "Secondary analyzers" in text
+    assert "Secondary analyzers" not in text
     assert "Cross-epoch analyzers" in text
     assert "prim" in text
     assert "sec" in text
+    assert "depends_on=prim" in text
     assert "ce" in text
 
 
@@ -212,10 +222,10 @@ def test_plan_secondary_targets_dependency_epochs(tmp_path):
     _write_epochs(Path(variant.artifacts_dir), "prim", [0, 100])
 
     plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
-    assert len(plan.secondary) == 1
-    item = plan.secondary[0]
+    assert len(plan.per_epoch) == 1
+    item = _per_epoch(plan, "sec")
     assert item.depends_on == "prim"
-    # Secondary follows dependency, not checkpoints
+    # Artifact-derived per-epoch follows its upstream's epochs, not checkpoints
     assert list(item.epochs) == [0, 100]
 
 
@@ -223,8 +233,8 @@ def test_plan_secondary_blocked_when_dep_empty(tmp_path):
     variant = _make_variant(tmp_path, [0, 100])
 
     plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
-    assert len(plan.secondary) == 1
-    item = plan.secondary[0]
+    assert len(plan.per_epoch) == 1
+    item = _per_epoch(plan, "sec")
     assert item.blocked_by == ("prim",)
     assert item.epochs == ()
 
@@ -236,13 +246,14 @@ def test_plan_secondary_resumes_only_missing(tmp_path):
     _write_epochs(Path(variant.artifacts_dir), "sec", [0])  # secondary done for epoch 0
 
     plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
-    assert list(plan.secondary[0].epochs) == [100, 200]
+    assert list(_per_epoch(plan, "sec").epochs) == [100, 200]
 
 
-def test_plan_secondary_depends_on_secondary_ordered_and_unblocked(tmp_path):
-    """REQ_130: a secondary depending on another secondary is topologically
-    ordered after it (not left blocked by list order). fourier_frequency_quality
-    → neuron_grouping is the first such intra-secondary dependency."""
+def test_plan_per_epoch_chain_ordered_and_unblocked(tmp_path):
+    """REQ_130/REQ_133: an artifact-derived per-epoch analyzer depending on
+    another is topologically ordered after it within the single per-epoch list
+    (not left blocked by input order). fourier_frequency_quality →
+    neuron_grouping is the first such per-epoch chain."""
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
     _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
@@ -254,21 +265,21 @@ def test_plan_secondary_depends_on_secondary_ordered_and_unblocked(tmp_path):
     ]
     plan = plan_analysis(variant, analyzers)
 
-    order = [it.analyzer_name for it in plan.secondary]
+    order = [it.analyzer_name for it in plan.per_epoch]
     assert order.index("sec_a") < order.index("sec_b")
-    sec_b = next(it for it in plan.secondary if it.analyzer_name == "sec_b")
+    sec_b = _per_epoch(plan, "sec_b")
     assert sec_b.blocked_by == ()  # not blocked: sec_a is projected complete first
     assert list(sec_b.epochs) == checkpoints
 
 
-def test_plan_secondary_cyclic_dependency_raises(tmp_path):
-    """A cycle among secondaries is a configuration error, surfaced clearly."""
+def test_plan_cyclic_dependency_raises(tmp_path):
+    """A dependency cycle is a configuration error, surfaced clearly."""
     variant = _make_variant(tmp_path, [0])
     analyzers = [
         _SecondaryStub("sec_a", depends_on="sec_b"),
         _SecondaryStub("sec_b", depends_on="sec_a"),
     ]
-    with pytest.raises(ValueError, match="cyclic secondary dependency"):
+    with pytest.raises(ValueError, match="cyclic analyzer dependency"):
         plan_analysis(variant, analyzers)
 
 
@@ -378,12 +389,15 @@ def test_plan_classifies_mixed_analyzers_with_forward_projection(tmp_path):
             _CrossEpochStub("ce", requires=("prim",)),
         ],
     )
-    # prim missing all
-    assert len(plan.per_epoch) == 1
+    # prim + sec both per-epoch now (REQ_133); both missing all
+    assert len(plan.per_epoch) == 2
     # sec sees projected post-primary state — planned, not blocked
-    assert len(plan.secondary) == 1
-    assert plan.secondary[0].blocked_by == ()
-    assert list(plan.secondary[0].epochs) == checkpoints
+    sec = _per_epoch(plan, "sec")
+    assert sec.blocked_by == ()
+    assert list(sec.epochs) == checkpoints
+    # prim is ordered before its dependent sec
+    order = [it.analyzer_name for it in plan.per_epoch]
+    assert order.index("prim") < order.index("sec")
     # ce sees projected post-primary state — planned, not blocked
     assert len(plan.cross_epoch) == 1
     assert plan.cross_epoch[0].blocked_by == ()
@@ -394,7 +408,7 @@ def test_plan_secondary_blocked_when_primary_absent_from_plan(tmp_path):
     """Secondary is blocked when its dep is neither on disk nor in the plan."""
     variant = _make_variant(tmp_path, [0, 100])
     plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
-    assert plan.secondary[0].blocked_by == ("prim",)
+    assert _per_epoch(plan, "sec").blocked_by == ("prim",)
 
 
 def test_plan_cross_epoch_blocked_when_required_absent_from_plan(tmp_path):
@@ -402,6 +416,76 @@ def test_plan_cross_epoch_blocked_when_required_absent_from_plan(tmp_path):
     variant = _make_variant(tmp_path, [0, 100])
     plan = plan_analysis(variant, [_CrossEpochStub("ce", requires=("prim",))])
     assert plan.cross_epoch[0].blocked_by == ("prim",)
+
+
+# ---------------------------------------------------------------------------
+# REQ_133: cross-epoch → cross-epoch DAG ordering and transitive staleness
+# ---------------------------------------------------------------------------
+
+
+def test_cross_to_cross_satisfiable_in_one_pass(tmp_path):
+    """CoS 2/3: on a clean variant (no cross_epoch.npz yet), a cross-epoch
+    analyzer depending on another cross-epoch analyzer is planned — not
+    blocked — because the upstream's projected coverage is seeded after it is
+    planned in the same pass. Mirrors neuron_group_pca → intragroup_manifold."""
+    checkpoints = [0, 100, 200]
+    variant = _make_variant(tmp_path, checkpoints)
+    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
+    # Pass the dependent first to prove ordering is by DAG, not input order.
+    analyzers = [
+        _CrossEpochStub("ce_leaf", requires=("ce_root",)),
+        _CrossEpochStub("ce_root", requires=("prim",)),
+        _PrimaryStub("prim"),
+    ]
+    plan = plan_analysis(variant, analyzers)
+
+    names = {it.analyzer_name for it in plan.cross_epoch}
+    assert names == {"ce_root", "ce_leaf"}
+    for item in plan.cross_epoch:
+        assert item.blocked_by == (), f"{item.analyzer_name} should not be blocked"
+        assert item.reason == "missing"
+    order = [it.analyzer_name for it in plan.cross_epoch]
+    assert order.index("ce_root") < order.index("ce_leaf")
+
+
+def test_cross_to_cross_blocked_propagates_when_root_absent(tmp_path):
+    """A genuinely unsatisfiable cross→cross chain stays blocked at every hop:
+    seeding only treats a *planned* (not blocked) upstream as future-complete."""
+    checkpoints = [0, 100]
+    variant = _make_variant(tmp_path, checkpoints)
+    # 'prim' has no artifacts and is not in the plan → ce_root blocked → ce_leaf blocked.
+    analyzers = [
+        _CrossEpochStub("ce_root", requires=("prim",)),
+        _CrossEpochStub("ce_leaf", requires=("ce_root",)),
+    ]
+    plan = plan_analysis(variant, analyzers)
+
+    by_name = {it.analyzer_name: it for it in plan.cross_epoch}
+    assert by_name["ce_root"].blocked_by == ("prim",)
+    assert by_name["ce_leaf"].blocked_by == ("ce_root",)
+
+
+def test_transitive_staleness_two_hop_per_epoch(tmp_path):
+    """CoS 4: a 2-hop per-epoch chain (prim → mid → leaf). When the root has a
+    newer epoch than the mid, both the mid and the leaf are replanned for it —
+    the leaf only because the mid's projected coverage (post-regeneration)
+    transitively includes the new epoch."""
+    checkpoints = [0, 100, 200]
+    variant = _make_variant(tmp_path, checkpoints)
+    artifacts_dir = Path(variant.artifacts_dir)
+    _write_epochs(artifacts_dir, "prim", checkpoints)  # root has all 3
+    _write_epochs(artifacts_dir, "mid", [0, 100])  # missing 200
+    _write_epochs(artifacts_dir, "leaf", [0, 100])  # missing 200
+
+    analyzers = [
+        _PrimaryStub("prim"),
+        _SecondaryStub("mid", depends_on="prim"),
+        _SecondaryStub("leaf", depends_on="mid"),
+    ]
+    plan = plan_analysis(variant, analyzers)
+
+    assert list(_per_epoch(plan, "mid").epochs) == [200]
+    assert list(_per_epoch(plan, "leaf").epochs) == [200]
 
 
 # ---------------------------------------------------------------------------

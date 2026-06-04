@@ -29541,8 +29541,8 @@
         },
         {
           "artifact_path": "activation_dmd/cross_epoch.npz",
-          "sha256": "c77686fecf2a731c6009e4010ce09fdeb9f273157b5c0a922af1aef874208d74",
-          "size_bytes": 19238122
+          "sha256": "f541a260d3913cf1c4c6f1e198f58126997b5c7b69643eec421a6f9f10673b65",
+          "size_bytes": 19239797
         },
         {
           "artifact_path": "attention_patterns/epoch_00000.npz",
@@ -34836,8 +34836,8 @@
         },
         {
           "artifact_path": "global_centroid_pca/cross_epoch.npz",
-          "sha256": "b02376252bb636c148241361e3a269c1c2f4f09f3bc9ada44dce2c99373e556b",
-          "size_bytes": 8887091
+          "sha256": "c2ad1482d604d1024767ac32692b68c47821a75e7565c61d74f48e29cb2351c9",
+          "size_bytes": 8889339
         },
         {
           "artifact_path": "input_trace/epoch_00000.npz",
@@ -40146,8 +40146,8 @@
         },
         {
           "artifact_path": "parameter_dmd/cross_epoch.npz",
-          "sha256": "dff3ffbe1f6cd304d9dc023df135c5d1f2d837d8bd7cf3f28f564e1f2d4973c5",
-          "size_bytes": 777636
+          "sha256": "7958871e67cfcd0e44812d2ab6697e2b86da38d17f8bec4ba0039777d39d6409",
+          "size_bytes": 624643
         },
         {
           "artifact_path": "parameter_snapshot/epoch_00000.npz",
@@ -41911,8 +41911,8 @@
         },
         {
           "artifact_path": "parameter_trajectory/cross_epoch.npz",
-          "sha256": "83167b75384d21ffa7a8672771befe3ea949f3dfcd0c6b4a1facbc98f6f6fc1f",
-          "size_bytes": 64752
+          "sha256": "310fa0d78cd1423a3a5fd24742ac2ad9a4e5222289aa019267d42cdf8c2da551",
+          "size_bytes": 121146
         },
         {
           "artifact_path": "repr_geometry/epoch_00000.npz",

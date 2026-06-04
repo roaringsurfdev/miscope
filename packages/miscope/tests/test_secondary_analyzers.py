@@ -398,6 +398,42 @@ class TestPipelineSecondary:
         assert "norm" in data
         assert data["norm"].shape == (1,)
 
+    def test_same_epoch_write_before_read_in_one_pass(self, trained_variant):
+        """REQ_133 CoS 5: with a clean artifacts dir, an artifact-derived
+        per-epoch analyzer reads its upstream's ``epoch_N`` that was written
+        *earlier in the same epoch iteration* — there is no separate prior
+        pass. The dependent records the exact W_E norm of each epoch's
+        upstream snapshot; a topo-order failure would surface as a
+        FileNotFoundError at run time, not a silent mismatch."""
+
+        class DoubleSnapshotNorm:
+            name = "snapshot_norm"
+            depends_on = "parameter_snapshot"
+
+            def analyze(self, inputs, context):
+                artifact = inputs.deps.load_epoch(self.depends_on, inputs.epoch, fields=ALL)
+                return {"norm": np.array([float(np.linalg.norm(artifact["W_E"]))])}
+
+        from miscope.analysis.analyzers import ParameterSnapshotAnalyzer
+
+        # Single pass over a fresh dir: upstream + dependent computed together.
+        pipeline = AnalysisPipeline(trained_variant)
+        pipeline.register(ParameterSnapshotAnalyzer())
+        pipeline.register(_register_fake_spec(DoubleSnapshotNorm()))
+        pipeline.run()
+
+        loader = ArtifactLoader(pipeline.artifacts_dir)
+        snapshot_epochs = pipeline.get_completed_epochs("parameter_snapshot")
+        norm_epochs = pipeline.get_completed_epochs("snapshot_norm")
+        assert norm_epochs == snapshot_epochs  # dependent covers every upstream epoch
+
+        # Each dependent value matches its OWN-epoch upstream — proving the
+        # read saw the same-iteration write, not a stale or wrong epoch.
+        for epoch in snapshot_epochs:
+            expected = float(np.linalg.norm(loader.load_epoch("parameter_snapshot", epoch)["W_E"]))
+            actual = float(loader.load_epoch("snapshot_norm", epoch)["norm"][0])
+            assert actual == pytest.approx(expected)
+
 
 # REQ_132: the per-phase ``secondary_analyzers`` / ``cross_epoch_analyzers``
 # family properties were collapsed into the single flat ``analyzers`` list.

@@ -216,10 +216,9 @@ def check_freshness(
     sentinels.extend(_PerEpochSentinel(name) for name in per_epoch_resolved)
     sentinels.extend(_CrossEpochSentinel(name) for name in cross_epoch_resolved)
     plan = plan_analysis(variant, sentinels, force=False)
-    # Per-epoch artifacts can be produced by either primary (plan.per_epoch)
-    # or secondary (plan.secondary) phases; both contribute to freshness.
+    # REQ_133: every per-epoch artifact — model-driven or purely artifact-derived
+    # (the former "secondary") — now lives in the single ``plan.per_epoch`` list.
     plan_per_epoch: dict[str, Any] = {item.analyzer_name: item for item in plan.per_epoch}
-    plan_per_epoch.update({item.analyzer_name: item for item in plan.secondary})
     plan_cross_epoch = {item.analyzer_name: item for item in plan.cross_epoch}
 
     per_epoch_results = [
