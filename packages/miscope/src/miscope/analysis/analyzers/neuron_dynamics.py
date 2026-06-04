@@ -19,13 +19,55 @@ from miscope.analysis.library import (
     NEURON_FREQ_NORM_FIELDS,
     reconstruct_neuron_freq_norm,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# The conformed (variant, epoch, neuron) → dominant-frequency relation. REQ_107
+# flags this as the canonical join target the re-derivation Problem Statement
+# cites (consumers should join dominant_freq, not re-argmax neuron_freq_norm).
 SPEC = AnalyzerSpec(
     name="neuron_dynamics",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("activation_basis_projection"),),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the per-epoch trajectories.",
+        ),
+        F.columnar(
+            "dominant_freq",
+            "int64",
+            ("variant", "epoch", "neuron"),
+            "Dominant frequency index (0-based argmax) per neuron per epoch.",
+        ),
+        F.columnar(
+            "max_frac",
+            "float32",
+            ("variant", "epoch", "neuron"),
+            "Fraction of Fourier norm in the dominant frequency per neuron per epoch.",
+        ),
+        F.columnar(
+            "switch_counts",
+            "int32",
+            ("variant", "neuron"),
+            "Number of times a neuron changes its dominant frequency over training.",
+        ),
+        F.columnar(
+            "commitment_epochs",
+            "float64",
+            ("variant", "neuron"),
+            "Epoch at which a neuron locks into its final dominant frequency (NaN if never).",
+        ),
+        F.columnar(
+            "threshold",
+            "float64",
+            ("variant",),
+            "Uncommitted-frequency floor (3/n_freq) used at analysis time.",
+        ),
+    ),
 )
 
 

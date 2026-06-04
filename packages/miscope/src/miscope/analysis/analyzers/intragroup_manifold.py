@@ -20,13 +20,50 @@ import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
 from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
+
+# Quadratic-surface fit diagnostics per frequency group over training. All
+# fields are scalar-per-(epoch, group) → columnar.
+_GROUP_TRAJ_FIELDS = (
+    ("r2_linear", "R² of a linear surface fit to the group manifold."),
+    ("r2_quadratic", "R² of a quadratic surface fit to the group manifold."),
+    ("r2_curvature", "Curvature component of the quadratic fit (R² gain over linear)."),
+    ("a", "Quadratic-fit coefficient a."),
+    ("b", "Quadratic-fit coefficient b."),
+    ("c", "Quadratic-fit coefficient c."),
+    ("shape_int", "Integer shape classification of the group manifold."),
+)
 
 SPEC = AnalyzerSpec(
     name="intragroup_manifold",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("neuron_group_pca"),),
+    outputs=(
+        F.columnar(
+            "group_freqs",
+            "int32",
+            ("variant", "group"),
+            "Frequency each group represents.",
+        ),
+        F.columnar(
+            "group_sizes",
+            "int32",
+            ("variant", "group"),
+            "Neuron count in each group.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for the trajectories.",
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "group"), desc)
+            for name, desc in _GROUP_TRAJ_FIELDS
+        ),
+    ),
 )
 
 

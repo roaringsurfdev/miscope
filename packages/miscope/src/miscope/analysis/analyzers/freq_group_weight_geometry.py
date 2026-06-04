@@ -34,8 +34,28 @@ from miscope.analysis.library.clustering import (
 )
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_circularity
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
+
+# GLUE geometry of frequency groups in W_in / W_out weight space. On-disk key is
+# {site}_{field} with site ∈ {Win, Wout}; epoch and group are internal trajectory
+# axes. Per-group series flatten by `group`; whole-trajectory centroid cubes stay
+# tensors keyed by site.
+_PER_GROUP_FIELDS = (
+    ("radii", "Per-group radius about its centroid over training."),
+    ("dimensionality", "Per-group intrinsic dimensionality over training."),
+    ("pr3", "Per-group participation ratio of the top-3 PCs."),
+    ("f_top3", "Per-group fraction of variance in the top-3 PCs."),
+)
+_PER_SITE_FIELDS = (
+    ("center_spread", "Spread of the group centroids' common center over training."),
+    ("mean_radius", "Mean group radius over training."),
+    ("snr", "Between-group vs. within-group signal-to-noise ratio over training."),
+    ("fisher_mean", "Mean pairwise Fisher discriminant across groups over training."),
+    ("fisher_min", "Minimum pairwise Fisher discriminant across groups over training."),
+    ("circularity", "Circularity of the group-centroid arrangement over training."),
+)
 
 SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
@@ -43,6 +63,40 @@ SPEC = AnalyzerSpec(
     inputs=(
         ArtifactInput("activation_basis_projection"),
         ArtifactInput("parameter_snapshot"),
+    ),
+    outputs=(
+        F.columnar(
+            "group_freqs",
+            "int32",
+            ("variant", "group"),
+            "Frequency each group represents.",
+        ),
+        F.columnar(
+            "group_sizes",
+            "int32",
+            ("variant", "group"),
+            "Neuron count in each group.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for the trajectories.",
+        ),
+        F.tensor(
+            "centroids",
+            "float32",
+            ("variant", "site"),
+            "Per-group centroid trajectories in weight space (n_epochs, group, d_mlp).",
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "site", "group"), desc)
+            for name, desc in _PER_GROUP_FIELDS
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "site"), desc)
+            for name, desc in _PER_SITE_FIELDS
+        ),
     ),
 )
 

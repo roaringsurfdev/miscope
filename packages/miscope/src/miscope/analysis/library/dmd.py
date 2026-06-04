@@ -23,6 +23,8 @@ Key outputs:
 import numpy as np
 from scipy.signal import find_peaks
 
+from miscope.analysis.output_schema import Coord, FieldKind, OutputField
+
 
 def compute_dmd(
     trajectory: np.ndarray,
@@ -593,3 +595,84 @@ def _compute_residual_norms(
     # Residual norms along state dimension
     diff = trajectory[1:].T - X_pred  # (state_dim, n_pairs)
     return np.linalg.norm(diff, axis=0)  # (n_pairs,)
+
+
+# ---------------------------------------------------------------------------
+# REQ_107 output-schema declaration for the nested DMD field family.
+#
+# Both DMD analyzers (activation_dmd, parameter_dmd) emit the same nested field
+# structure under a keying prefix — activation_dmd keys by `site`, parameter_dmd
+# by `(group, site)` (freq group × weight matrix). This builder returns the
+# logical fields (the part after the prefix) so each analyzer declares them once,
+# keyed by its own coords. Complex eigen/mode/amplitude arrays and the full
+# trajectory stay tensors; per-window/per-segment series and scalars are columnar.
+# ---------------------------------------------------------------------------
+
+# (name, kind, dtype, has_row_axis, description). `has_row_axis` adds a row_id
+# coord for the per-window / per-segment axis of a columnar series.
+_DMD_NESTED_FIELDS: tuple[tuple[str, FieldKind, str, bool, str], ...] = (
+    ("trajectory", FieldKind.TENSOR, "float64", False, "Discrete-time state trajectory fed to DMD (n_steps, state_dim)."),
+    ("n_components", FieldKind.COLUMNAR, "int64", False, "State dimensionality of the trajectory."),
+    # windowed DMD
+    ("windowed__window_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each sliding window."),
+    ("windowed__window_ends", FieldKind.COLUMNAR, "int64", True, "End index of each sliding window."),
+    ("windowed__n_modes_per_window", FieldKind.COLUMNAR, "int64", True, "Retained DMD mode count per window."),
+    ("windowed__max_modes", FieldKind.COLUMNAR, "int64", False, "Maximum modes retained across windows."),
+    ("windowed__eigenvalues", FieldKind.TENSOR, "complex128", False, "Per-window DMD eigenvalues (n_windows, n_modes)."),
+    ("windowed__modes", FieldKind.TENSOR, "complex128", False, "Per-window DMD modes (n_windows, state_dim, n_modes)."),
+    ("windowed__amplitudes", FieldKind.TENSOR, "complex128", False, "Per-window DMD mode amplitudes (n_windows, n_modes)."),
+    ("windowed__residual_norms", FieldKind.TENSOR, "float64", False, "Per-step residual norms within each window."),
+    ("windowed__residual_norm_mean", FieldKind.COLUMNAR, "float64", True, "Mean residual norm per window."),
+    ("windowed__residual_norm_max", FieldKind.COLUMNAR, "float64", True, "Max residual norm per window."),
+    # eigenvalue tracking across windows
+    ("tracks__track_ids", FieldKind.TENSOR, "int64", False, "Eigenvalue track assignments across windows."),
+    ("tracks__n_tracks", FieldKind.COLUMNAR, "int64", False, "Number of distinct eigenvalue tracks."),
+    # regime segmentation
+    ("regimes__segment_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each detected regime."),
+    ("regimes__segment_ends", FieldKind.COLUMNAR, "int64", True, "End index of each detected regime."),
+    ("regimes__boundary_indices", FieldKind.COLUMNAR, "int64", True, "Residual-peak indices marking regime boundaries."),
+    ("regimes__threshold_used", FieldKind.COLUMNAR, "float64", False, "Residual threshold used for boundary detection."),
+    ("regimes__min_prominence_used", FieldKind.COLUMNAR, "float64", False, "Minimum peak prominence used for boundary detection."),
+    ("regimes__peak_prominences", FieldKind.COLUMNAR, "float64", True, "Prominence of each detected residual peak."),
+    # per-regime DMD (recursive pass)
+    ("per_regime__segment_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each per-regime segment."),
+    ("per_regime__segment_ends", FieldKind.COLUMNAR, "int64", True, "End index of each per-regime segment."),
+    ("per_regime__n_modes_per_segment", FieldKind.COLUMNAR, "int64", True, "Retained mode count per regime segment."),
+    ("per_regime__max_modes", FieldKind.COLUMNAR, "int64", False, "Maximum modes retained across regime segments."),
+    ("per_regime__eigenvalues", FieldKind.TENSOR, "complex128", False, "Per-regime DMD eigenvalues (n_segments, n_modes)."),
+    ("per_regime__modes", FieldKind.TENSOR, "complex128", False, "Per-regime DMD modes (n_segments, state_dim, n_modes)."),
+    ("per_regime__amplitudes", FieldKind.TENSOR, "complex128", False, "Per-regime DMD mode amplitudes (n_segments, n_modes)."),
+    ("per_regime__residual_norms", FieldKind.TENSOR, "float64", False, "Per-step residual norms within each regime segment."),
+    ("per_regime__residual_norm_mean", FieldKind.COLUMNAR, "float64", True, "Mean residual norm per regime segment."),
+    ("per_regime__residual_norm_max", FieldKind.COLUMNAR, "float64", True, "Max residual norm per regime segment."),
+)
+
+
+def dmd_output_fields(
+    coords: tuple[str | Coord, ...], *, include_n_classes: bool = False
+) -> tuple[OutputField, ...]:
+    """Build the nested DMD output fields keyed by the given coords (REQ_107).
+
+    Args:
+        coords: The blob-addressing coords each DMD unit is keyed by
+            (``("variant", "site")`` for activation_dmd; ``("variant", "group",
+            "site")`` for parameter_dmd). ``row_id`` is appended automatically for
+            per-window / per-segment columnar series.
+        include_n_classes: Whether the analyzer also emits ``n_classes`` (true for
+            activation_dmd's class-centroid trajectories; false for parameter_dmd).
+
+    Returns:
+        The OutputField tuple for one DMD unit's nested fields.
+    """
+    base = tuple(coords)
+    fields: list[OutputField] = []
+    if include_n_classes:
+        fields.append(
+            OutputField.columnar(
+                "n_classes", "int64", base, "Number of classes in the centroid trajectory."
+            )
+        )
+    for name, kind, dtype, has_row_axis, desc in _DMD_NESTED_FIELDS:
+        field_coords = (*base, Coord.ROW_ID) if has_row_axis else base
+        fields.append(OutputField(name, dtype, kind, field_coords, desc))
+    return tuple(fields)

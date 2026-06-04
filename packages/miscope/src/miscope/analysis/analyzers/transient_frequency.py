@@ -28,6 +28,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -36,10 +37,87 @@ TRANSIENT_CANONICAL_THRESHOLD: float = 0.05
 FINAL_CANONICAL_THRESHOLD: float = 0.10
 
 
+# Rows are keyed by `frequency` = the ever-qualified transient frequencies (a
+# subset). The ragged peak-membership arrays are kept as flat tensors + offsets.
 SPEC = AnalyzerSpec(
     name="transient_frequency",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("neuron_dynamics"),),
+    outputs=(
+        F.columnar(
+            "ever_qualified_freqs",
+            "int32",
+            ("variant", "frequency"),
+            "Frequency indices that ever crossed the transient threshold (one row each).",
+        ),
+        F.columnar(
+            "is_final",
+            "bool",
+            ("variant", "frequency"),
+            "Whether a transient frequency is still canonical at the final epoch.",
+        ),
+        F.columnar(
+            "peak_epoch",
+            "int32",
+            ("variant", "frequency"),
+            "Epoch of peak committed-neuron count for each transient frequency.",
+        ),
+        F.columnar(
+            "peak_count",
+            "int32",
+            ("variant", "frequency"),
+            "Committed-neuron count at the peak epoch for each transient frequency.",
+        ),
+        F.columnar(
+            "homeless_count",
+            "int32",
+            ("variant", "frequency"),
+            "Neurons that abandoned a transient frequency without re-homing.",
+        ),
+        F.columnar(
+            "committed_counts",
+            "int32",
+            ("variant", "epoch", "frequency"),
+            "Committed-neuron count per transient frequency per epoch.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for committed_counts.",
+        ),
+        F.tensor(
+            "peak_members_flat",
+            "int32",
+            ("variant",),
+            "Flattened peak-member neuron indices across all transient frequencies "
+            "(ragged; sliced by peak_members_offsets).",
+        ),
+        F.tensor(
+            "peak_members_offsets",
+            "int32",
+            ("variant",),
+            "Offsets into peak_members_flat delimiting each frequency's member list.",
+        ),
+        F.columnar(
+            "_neuron_threshold",
+            "float64",
+            ("variant",),
+            "Per-neuron commitment threshold used (max_frac gate).",
+        ),
+        F.columnar(
+            "_transient_canonical_threshold",
+            "float64",
+            ("variant",),
+            "Fraction-of-d_mlp threshold for transient canonical status.",
+        ),
+        F.columnar(
+            "_final_canonical_threshold",
+            "float64",
+            ("variant",),
+            "Fraction-of-d_mlp threshold for final canonical status.",
+        ),
+    ),
 )
 
 

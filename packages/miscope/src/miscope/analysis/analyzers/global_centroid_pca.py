@@ -12,6 +12,7 @@ import numpy as np
 
 from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -50,6 +51,38 @@ SPEC = AnalyzerSpec(
     name="global_centroid_pca",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("repr_geometry"),),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the projection trajectories.",
+        ),
+        F.tensor(
+            "projections",
+            "float64",
+            ("variant", "site"),
+            "Class-centroid PCA projections over training (n_epochs, n_classes, n_pc).",
+        ),
+        F.tensor(
+            "basis",
+            "float64",
+            ("variant", "site"),
+            "Trajectory PCA basis vectors for a site (d_model, n_pc).",
+        ),
+        F.tensor(
+            "mean",
+            "float64",
+            ("variant", "site"),
+            "Mean vector subtracted before projection (d_model,).",
+        ),
+        F.columnar(
+            "explained_variance_ratio",
+            "float64",
+            ("variant", "site", "row_id"),
+            "Fraction of variance per PC for a site (row_id = PC index).",
+        ),
+    ),
 )
 
 

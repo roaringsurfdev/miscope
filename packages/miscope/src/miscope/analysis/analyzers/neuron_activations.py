@@ -28,9 +28,9 @@ SPEC = AnalyzerSpec(
         F.tensor(
             "activations",
             "float32",
-            ("variant", "epoch", "neuron"),
-            "MLP neuron activations over the full input grid, per neuron. "
-            "Inner axes are the (a, b) operand grid (d_mlp, p, p).",
+            ("variant", "epoch"),
+            "MLP neuron activations over the full input grid. One blob per epoch; "
+            "inner axes are (d_mlp, a, b) — the neuron axis is internal to the array.",
         ),
     ),
 )

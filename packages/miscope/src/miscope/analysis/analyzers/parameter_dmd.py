@@ -40,9 +40,11 @@ from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
     detect_regime_boundaries,
+    dmd_output_fields,
     track_eigenvalues_across_windows,
 )
 from miscope.analysis.library.pca import pca
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -64,12 +66,49 @@ _PCA_MAX_COMPONENTS = 50
 _CONTEXT_REFERENCE_EPOCH_KEY = "parameter_dmd_reference_epoch"
 
 
+# Windowed/regime/per-regime DMD on per-(frequency-group, weight-matrix) weight
+# trajectories. One nested DMD unit per (group, matrix); on-disk key is
+# group_{freq}__{matrix}__{nested}. Group ids are data-dependent, so `group` is a
+# coord, not an enumerable field.
 SPEC = AnalyzerSpec(
     name="parameter_dmd",
     output_scope="cross_epoch",
     inputs=(
         ArtifactInput("parameter_snapshot"),
         ArtifactInput("neuron_grouping"),
+    ),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the weight trajectories.",
+        ),
+        F.columnar(
+            "reference_epoch",
+            "int64",
+            ("variant",),
+            "Epoch whose neuron_grouping defined the frequency groups.",
+        ),
+        F.columnar(
+            "n_groups",
+            "int64",
+            ("variant",),
+            "Number of frequency groups analyzed.",
+        ),
+        F.columnar(
+            "populated_groups",
+            "int64",
+            ("variant", "group"),
+            "Frequency-group ids that had enough neurons to analyze.",
+        ),
+        F.columnar(
+            "group_n_neurons",
+            "int64",
+            ("variant", "group"),
+            "Neuron count per analyzed frequency group.",
+        ),
+        *dmd_output_fields(("variant", "group", "site")),
     ),
 )
 
