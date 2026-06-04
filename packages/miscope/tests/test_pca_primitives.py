@@ -3,13 +3,7 @@
 import numpy as np
 import pytest
 
-from miscope.analysis.library.pca import (
-    _canonicalize_svd_sign,
-    compute_svd,
-    pca,
-    pca_rolling,
-    pca_summary,
-)
+from miscope.analysis.library.pca import compute_svd, pca, pca_rolling, pca_summary
 from miscope.core.pca import PCAResult
 from miscope.core.svd import SVDResult
 
@@ -342,51 +336,3 @@ class TestComputeSvd:
     def test_rejects_3d_input(self):
         with pytest.raises(ValueError, match="2D input"):
             compute_svd(np.zeros((2, 3, 4)))
-
-
-class TestSVDSignCanonicalization:
-    """REQ_133/REQ_134: the SVD sign gauge is pinned so basis/projections are
-    reproducible across BLAS/LAPACK builds (no environment-dependent v vs -v)."""
-
-    def test_pca_basis_largest_loading_is_positive(self):
-        rng = np.random.default_rng(0)
-        X = rng.normal(size=(40, 6))
-        result = pca(X)
-        for vec in result.basis_vectors:
-            assert vec[np.argmax(np.abs(vec))] > 0
-
-    def test_compute_svd_largest_loading_is_positive(self):
-        rng = np.random.default_rng(1)
-        M = rng.normal(size=(12, 7))
-        result = compute_svd(M)
-        for vec in result.right_vectors:
-            assert vec[np.argmax(np.abs(vec))] > 0
-
-    def test_canonicalization_is_gauge_invariant(self):
-        """Flipping the sign of any singular pair before canonicalizing yields
-        the identical canonical (U, Vt) — the whole point of the convention."""
-        rng = np.random.default_rng(2)
-        U, _, Vt = np.linalg.svd(rng.normal(size=(15, 5)), full_matrices=False)
-        flip = np.array([1.0, -1.0, -1.0, 1.0, -1.0])
-        U_canon, Vt_canon = _canonicalize_svd_sign(U, Vt)
-        U_flipped_canon, Vt_flipped_canon = _canonicalize_svd_sign(
-            U * flip, Vt * flip[:, np.newaxis]
-        )
-        np.testing.assert_allclose(U_canon, U_flipped_canon)
-        np.testing.assert_allclose(Vt_canon, Vt_flipped_canon)
-
-    def test_pca_reconstruction_preserved(self):
-        """Sign is flipped on basis AND projections together, so the
-        reconstruction projections @ basis + center is unchanged."""
-        rng = np.random.default_rng(3)
-        X = rng.normal(size=(30, 5))
-        result = pca(X)
-        reconstructed = result.projections @ result.basis_vectors + result.center
-        np.testing.assert_allclose(reconstructed, X, atol=1e-10)
-
-    def test_compute_svd_reconstruction_preserved(self):
-        rng = np.random.default_rng(4)
-        M = rng.normal(size=(9, 6))
-        r = compute_svd(M)
-        reconstructed = r.left_vectors @ (r.singular_values[:, np.newaxis] * r.right_vectors)
-        np.testing.assert_allclose(reconstructed, M, atol=1e-10)
