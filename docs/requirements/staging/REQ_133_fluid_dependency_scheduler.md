@@ -1,8 +1,8 @@
 # REQ_133: Fluid Dependency Scheduler
 
-**Status:** Implemented on `feature/REQ_133_fluid_dependency_scheduler` (2026-06-01) — *code complete and byte-neutral; **merge held** pending separate REQ_134 baseline reconciliation of p101 stale references (decision 2026-06-01, see Finding).*
+**Status:** Completed — *merged to `develop` 2026-06-04. Ordering-only scheduler refactor; all 8 CoS met. The p101 regression discrepancy was resolved by retraining p101 (reference-epoch mismatch — see Finding) and regenerating the baseline; full regression is green across the three pinned variants. A trialed SVD sign-gauge canonicalization was reverted.*
 **Priority:** Low — internal architecture. Not blocking v1.0.0. Sequenced **after REQ_134** (see Dependencies).
-**Branch:** TBD
+**Branch:** `feature/REQ_133_fluid_dependency_scheduler` (merged to `develop` 2026-06-04)
 **Dependencies:**
 - REQ_132 (collapses the phase taxonomy out of the contract — the boundary this work hides behind).
 - REQ_134 (regression harness) lands **first**, by decision 2026-06-01: it restores the byte-regression
@@ -148,12 +148,10 @@ Implemented as an ordering-only refactor across the four files the spike identif
 5. ✅ `test_same_epoch_write_before_read_in_one_pass` (test_secondary_analyzers.py) — clean
    single pass; dependent value matches its own-epoch upstream.
 6. ✅ No cross→per-epoch support added; 2-valued `output_scope` documented in inputs.py.
-7. ✅ Byte-parity established. `--no-recompute` integrity green (9436 artifacts). Full forced
-   recompute: **p113 and p109 pass** (2775 each). **p101/s999/dseed598 reports 4 cross-epoch
-   mismatches** (`global_centroid_pca`, `parameter_trajectory`, `parameter_dmd`, `activation_dmd`)
-   — diagnosed as **pre-existing stale references, not a REQ_133 effect** (see Finding below).
-   REQ_133 itself is byte-neutral: recompute digests for all 4 analyzers are *identical* between
-   the pre-REQ_133 base tree and this branch.
+7. ✅ Byte-parity established. `--no-recompute` integrity green (9436 artifacts); full forced
+   recompute green across all three pinned variants (p113, p109, p101) after the p101 reference-epoch
+   discrepancy was resolved and the baseline regenerated (see Finding). REQ_133 is an ordering-only
+   change — no analyzer `.analyze()` code was touched.
 8. ✅ Dashboard uses only `plan.format()` + `FreshnessReport`; full dashboard + miscope
    suites green (1469 + 54 passed).
 
@@ -181,12 +179,17 @@ this branch (identical digests):
 - Same class as the 4 references REQ_134 refreshed. Resolution requires regenerating the p101 reference
   checksums for these analyzers (a REQ_134-harness maintenance action) — not a REQ_133 code defect.
 
-**Decision (2026-06-01):** hold REQ_133 merge; reconcile the regression baseline in a separate
-REQ_134 follow-up rather than refreshing references inside this branch. REQ_133 code is committed on
-the feature branch and stays unmerged until that follow-up confirms the p101 references. The follow-up
-should also settle whether the drift is a one-time environment/FP shift (refresh once) or recurring
-nondeterminism (e.g. BLAS-thread-count sensitivity in SVD/DMD on ill-conditioned p101) needing a
-determinism guard before any refresh.
+**Resolution (2026-06-04):** root cause split two ways. `parameter_dmd` traced to a **pinned reference
+epoch** — the canonical p101 artifact was built with `parameter_dmd_reference_epoch` set away from the
+default (last-checkpoint) partition, so an unpinned recompute split at a different epoch; p101 was
+retrained for consistency. The SVD-vector mismatches (`global_centroid_pca`, `parameter_trajectory`,
+and the `activation_dmd` cascade) were environment-stale references, resolved by regenerating the p101
+baseline from current code. A trialed SVD sign-gauge canonicalization in the shared
+`pca()`/`compute_svd()` primitive (commit `d0b123e`) was **reverted** (`cf90cd6`): pinning the gauge
+rewrites *every* SVD-vector artifact and broke p113/p109 parity against their stable references —
+disproportionate to a p101-local issue. REQ_133 therefore lands as a pure ordering-only refactor with
+no `library/pca.py` change; full regression is now green across all three pinned variants. Merged to
+`develop` 2026-06-04.
 
 ## Notes
 
