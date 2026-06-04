@@ -16,10 +16,19 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
+from miscope.analysis.output_schema import Coord, FieldKind
 from miscope.views.catalog import AnalyzerRequirement, _check_requirement
 
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
+
+
+# Map the legacy DataViewField.field_type vocabulary onto the REQ_107 FieldKind
+# (columnar|tensor). "dataframe" data is queryable/columnar; "ndarray" is a tensor.
+_FIELD_TYPE_TO_KIND: dict[str, FieldKind] = {
+    "dataframe": FieldKind.COLUMNAR,
+    "ndarray": FieldKind.TENSOR,
+}
 
 
 @dataclass
@@ -32,12 +41,27 @@ class DataViewField:
         description: Short human-readable description of what this field contains.
         shape_or_columns: For ndarrays, a description of shape (e.g., "(n_epochs, n_freqs)").
             For DataFrames, a list of column names.
+        coords: REQ_107 coordinate keys for this field (the join keys). Optional;
+            empty until populated for a given view.
+        kind: REQ_107 storage nature (columnar|tensor). Defaults to the mapping of
+            ``field_type`` so existing views need no change.
     """
 
     name: str
     field_type: str  # "dataframe" or "ndarray"
     description: str
     shape_or_columns: str | list[str] = field(default="")
+    coords: tuple[Coord, ...] = field(default=())
+    kind: FieldKind | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        # Coerce string coords to the canonical enum; derive kind from field_type
+        # when not given explicitly.
+        self.coords = tuple(Coord(c) for c in self.coords)
+        if self.kind is None:
+            self.kind = _FIELD_TYPE_TO_KIND.get(self.field_type)
+        else:
+            self.kind = FieldKind(self.kind)
 
 
 @dataclass
@@ -84,6 +108,26 @@ class DataView:
         return f"DataView(fields={field_names})"
 
 
+@dataclass(frozen=True)
+class DataViewSource:
+    """A DataView's declared dependency on an upstream analyzer's output (REQ_107).
+
+    Distinct from ``required_analyzers`` (artifact-presence for *availability*):
+    this is the *schema-level* dependency the registry's drift detection checks —
+    the specific fields consumed and the minimum producer version compatible with.
+
+    Attributes:
+        analyzer_name: Producing analyzer.
+        fields: The producer output fields this view consumes.
+        min_version: Minimum producer ``AnalyzerSpec.version`` this view is
+            compatible with.
+    """
+
+    analyzer_name: str
+    fields: tuple[str, ...]
+    min_version: int = 1
+
+
 @dataclass
 class DataViewDefinition:
     """Pairs data loading and a static schema for a named dataview.
@@ -98,6 +142,8 @@ class DataViewDefinition:
             metadata-based views where no resolution is needed.
         required_analyzers: Artifact requirements that must be satisfied for
             this dataview to be available. Empty list means always available.
+        sources: REQ_107 schema-level source dependencies (analyzer + consumed
+            fields + min version) consumed by the registry's drift detection.
     """
 
     name: str
@@ -105,6 +151,7 @@ class DataViewDefinition:
     schema: DataViewSchema
     epoch_source_analyzer: str | None = field(default=None)
     required_analyzers: list[AnalyzerRequirement] = field(default_factory=list)
+    sources: tuple[DataViewSource, ...] = field(default=())
 
     def is_available_for(self, variant: Variant) -> bool:
         """Return True if all required artifacts exist for this variant."""

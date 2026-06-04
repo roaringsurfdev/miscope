@@ -25,6 +25,7 @@ Quick start:
 
 from __future__ import annotations
 
+from miscope import registry
 from miscope.config import AppConfig, get_config
 from miscope.families.protocols import ModelFamily
 from miscope.views import BoundView, EpochContext, ViewCatalog, ViewDefinition, catalog
@@ -41,6 +42,8 @@ __all__ = [
     "ViewCatalog",
     "ViewDefinition",
     "catalog",
+    # REQ_107: Discoverability Registry (INFORMATION_SCHEMA for analysis)
+    "registry",
 ]
 
 

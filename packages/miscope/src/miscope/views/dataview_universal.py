@@ -19,6 +19,7 @@ from miscope.views.dataview_catalog import (
     DataViewDefinition,
     DataViewField,
     DataViewSchema,
+    DataViewSource,
     _dataview_catalog,
 )
 
@@ -38,6 +39,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                 field_type="dataframe",
                 description="Training and test loss at each recorded epoch.",
                 shape_or_columns=["epoch", "train_loss", "test_loss"],
+                coords=("variant", "epoch"),
             ),
         ]
     )
@@ -77,6 +79,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Shape: (n_freqs, n_vocab)."
                 ),
                 shape_or_columns="(n_freqs, n_vocab)",
+                coords=("variant", "epoch"),
             ),
         ]
     )
@@ -101,6 +104,9 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             schema=_fourier_schema,
             epoch_source_analyzer="weight_basis_projection",
             required_analyzers=[AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)],
+            sources=(
+                DataViewSource("weight_basis_projection", ("cos_coeffs", "sin_coeffs")),
+            ),
         )
     )
 
@@ -113,6 +119,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                 field_type="ndarray",
                 description="Epoch indices for each row of the PCA projections.",
                 shape_or_columns="(n_epochs,)",
+                coords=("variant", "epoch"),
             ),
             DataViewField(
                 name="projections",
@@ -122,18 +129,21 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Shape: (n_epochs, n_components)."
                 ),
                 shape_or_columns="(n_epochs, n_components)",
+                coords=("variant", "epoch"),
             ),
             DataViewField(
                 name="explained_variance_ratio",
                 field_type="ndarray",
                 description="Fraction of variance explained by each PC (all groups).",
                 shape_or_columns="(n_components,)",
+                coords=("variant", "row_id"),
             ),
             DataViewField(
                 name="explained_variance",
                 field_type="ndarray",
                 description="Absolute variance explained by each PC (all groups).",
                 shape_or_columns="(n_components,)",
+                coords=("variant", "row_id"),
             ),
             DataViewField(
                 name="velocity",
@@ -142,6 +152,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Parameter update velocity per epoch (all groups). Shape: (n_epochs,)."
                 ),
                 shape_or_columns="(n_epochs,)",
+                coords=("variant", "epoch"),
             ),
         ]
     )
@@ -166,6 +177,18 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             required_analyzers=[
                 AnalyzerRequirement("parameter_trajectory", ArtifactKind.CROSS_EPOCH)
             ],
+            sources=(
+                DataViewSource(
+                    "parameter_trajectory",
+                    (
+                        "epochs",
+                        "projections",
+                        "explained_variance_ratio",
+                        "explained_variance",
+                        "velocity",
+                    ),
+                ),
+            ),
         )
     )
 
@@ -180,6 +203,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                 field_type="ndarray",
                 description="Epoch indices for each row of dominant_freq and max_frac.",
                 shape_or_columns="(n_epochs,)",
+                coords=("variant", "epoch"),
             ),
             DataViewField(
                 name="dominant_freq",
@@ -189,6 +213,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Shape: (n_epochs, d_mlp)."
                 ),
                 shape_or_columns="(n_epochs, d_mlp)",
+                coords=("variant", "epoch", "neuron"),
             ),
             DataViewField(
                 name="max_frac",
@@ -198,6 +223,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Shape: (n_epochs, d_mlp). Use this with a threshold to determine commitment."
                 ),
                 shape_or_columns="(n_epochs, d_mlp)",
+                coords=("variant", "epoch", "neuron"),
             ),
             DataViewField(
                 name="stored_threshold",
@@ -207,6 +233,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
                     "Shape: (1,). Reference value — consumers may apply any threshold to max_frac."
                 ),
                 shape_or_columns="(1,)",
+                coords=("variant",),
             ),
         ]
     )
@@ -228,6 +255,11 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             schema=_neuron_dynamics_schema,
             epoch_source_analyzer=None,
             required_analyzers=[AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH)],
+            sources=(
+                DataViewSource(
+                    "neuron_dynamics", ("epochs", "dominant_freq", "max_frac", "threshold")
+                ),
+            ),
         )
     )
 
