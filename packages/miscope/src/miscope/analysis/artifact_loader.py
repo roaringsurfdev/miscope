@@ -175,6 +175,25 @@ class ArtifactLoader:
         """
         return self.load_epochs(analyzer_name)
 
+    def artifact_path(self, analyzer_name: str, epoch: int | None = None) -> str:
+        """Filesystem path to an analyzer's blob container.
+
+        ``epoch`` selects the per-epoch ``epoch_{NNNNN}.npz``; ``None`` selects
+        the cross-epoch ``cross_epoch.npz``. Path composition lives here in the
+        storage primitive (the storage-encapsulation invariant): the tensor
+        catalog (REQ_110B) records this address as a descriptor ``uri`` rather
+        than composing the path itself.
+
+        Args:
+            analyzer_name: Name of the analyzer.
+            epoch: Epoch number for a per-epoch blob, or ``None`` for cross-epoch.
+
+        Returns:
+            Absolute path to the ``.npz`` container (existence not checked).
+        """
+        fname = "cross_epoch.npz" if epoch is None else f"epoch_{epoch:05d}.npz"
+        return os.path.join(self.artifacts_dir, analyzer_name, fname)
+
     def get_available_analyzers(self) -> list[str]:
         """List available analyzers by checking for subdirectories with artifacts.
 

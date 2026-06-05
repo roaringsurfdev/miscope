@@ -54,11 +54,11 @@ class _FieldFrame:
 def materialize_variant_columnar(variant: object) -> MaterializeReport:
     """Materialize all of a variant's columnar analyzer outputs to Parquet."""
     report = MaterializeReport(variant_id=variant.name)  # type: ignore[attr-defined]
-    # Deterministic regeneration: wipe the prior warehouse so a field that moved
-    # tables (generic <-> semantic) leaves no stale Parquet behind. 110-A owns the
-    # whole ``dataviews/`` tree; when 110-B co-emits tensor catalog rows into the
-    # shared ``_catalog`` this must become selective (columnar tables + rows only).
-    shutil.rmtree(paths.warehouse_dir(variant), ignore_errors=True)  # type: ignore[arg-type]
+    # Deterministic regeneration: wipe the prior columnar outputs so a field that
+    # moved tables (generic <-> semantic) leaves no stale Parquet behind. The wipe
+    # is selective — it preserves the 110-B tensor catalog so the two halves of
+    # the shared catalog relation materialize independently (either order).
+    _wipe_columnar_outputs(variant)
     variant_cols = _variant_columns(variant)
     semantic: dict[str, _SemanticAcc] = defaultdict(_SemanticAcc)
 
@@ -324,6 +324,17 @@ def _write_table(
         value_columns,
         variant.name,  # type: ignore[attr-defined]
     )
+
+
+def _wipe_columnar_outputs(variant: object) -> None:
+    """Remove the columnar warehouse children, preserving the tensor catalog (110-B)."""
+    wdir = paths.warehouse_dir(variant)  # type: ignore[arg-type]
+    if not wdir.exists():
+        return
+    for child in wdir.iterdir():
+        if child.name == paths.TENSOR_CATALOG_DIRNAME:
+            continue
+        shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
 
 
 def _variant_columns(variant: object) -> dict[str, object]:

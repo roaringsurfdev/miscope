@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from miscope.views.catalog import BoundView, EpochContext
     from miscope.views.dataview_catalog import BoundDataView
     from miscope.warehouse.reader import WarehouseAccessor
+    from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
 
 
 @dataclass
@@ -236,6 +237,20 @@ class Variant:
         from miscope.warehouse.reader import WarehouseAccessor
 
         return WarehouseAccessor(self)
+
+    @property
+    def tensor_catalog(self) -> TensorCatalogAccessor:
+        """Tensor descriptor catalog surface for this variant (REQ_110B).
+
+        Mirrors :attr:`warehouse` for the non-columnar plane:
+        ``variant.tensor_catalog.materialize()`` indexes the ``.npz`` tensor
+        blobs as coordinate-keyed descriptors; ``.descriptors()`` returns the
+        queryable relation (no payload); ``.resolve(rows)`` materializes the
+        selected blobs, verifying shape/dtype against the bytes.
+        """
+        from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
+
+        return TensorCatalogAccessor(self)
 
     @property
     def metadata(self) -> dict[str, Any]:

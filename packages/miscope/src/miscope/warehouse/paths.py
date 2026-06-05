@@ -10,12 +10,19 @@ Layout (sibling to the ``.npz`` ``artifacts/`` directory, gitignored by the
 
     {variant_dir}/dataviews/
         {table}/{signature}.parquet     # one Parquet per (table, coord-signature)
-        _catalog/{table}.parquet        # co-emitted columnar catalog rows
+        _catalog/{table}.parquet        # co-emitted columnar catalog rows (110-A)
+        _tensor_catalog/{analyzer}.parquet  # tensor descriptor rows (110-B)
 
 ``{table}`` is a semantic table name (``pca_results``, ``frequency_spectrum``, …)
 or, for the generic fallback, the analyzer name. ``{signature}`` encodes the
 coord set of the rows in that file (e.g. ``by__variant_epoch_site_row_id``) so a
 heterogeneous analyzer yields a few signature files, never one-per-epoch.
+
+The tensor catalog (110-B) is a sibling of the columnar catalog under the same
+warehouse root, kept in its own ``_tensor_catalog/`` directory so the two halves
+materialize independently — a columnar re-materialize preserves the tensor rows
+and vice versa. Together the two ``_catalog`` directories are the shared catalog
+relation (110-C unions them ``BY NAME`` over the ``kind`` discriminator).
 """
 
 from __future__ import annotations
@@ -29,6 +36,7 @@ if TYPE_CHECKING:
 
 DATAVIEWS_DIRNAME = "dataviews"
 CATALOG_DIRNAME = "_catalog"
+TENSOR_CATALOG_DIRNAME = "_tensor_catalog"
 SEMANTIC_TOKEN = "long"  # single-file stem for a conformed semantic table
 
 
@@ -70,3 +78,13 @@ def catalog_dir(variant: Variant) -> Path:
 def catalog_parquet_path(variant: Variant, table: str) -> Path:
     """Path to the columnar catalog rows co-emitted for ``table``."""
     return catalog_dir(variant) / f"{table}.parquet"
+
+
+def tensor_catalog_dir(variant: Variant) -> Path:
+    """Directory holding the co-emitted tensor descriptor Parquet relation (110-B)."""
+    return warehouse_dir(variant) / TENSOR_CATALOG_DIRNAME
+
+
+def tensor_catalog_parquet_path(variant: Variant, analyzer: str) -> Path:
+    """Path to the tensor descriptor rows co-emitted for one analyzer's blobs."""
+    return tensor_catalog_dir(variant) / f"{analyzer}.parquet"
