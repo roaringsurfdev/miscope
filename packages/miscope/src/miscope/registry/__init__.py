@@ -120,9 +120,7 @@ def dataviews() -> pd.DataFrame:
     """
     rows = []
     for dv in index().dataviews:
-        src_str = "; ".join(
-            f"{s.analyzer_name}({', '.join(s.fields)})" for s in dv.sources
-        )
+        src_str = "; ".join(f"{s.analyzer_name}({', '.join(s.fields)})" for s in dv.sources)
         for f in dv.schema.fields:
             rows.append(
                 {
@@ -184,7 +182,14 @@ def field(name: str) -> FieldInfo:
 
 
 _ANALYZER_COLUMNS = [
-    "analyzer", "scope", "version", "field", "kind", "coords", "dtype", "description",
+    "analyzer",
+    "scope",
+    "version",
+    "field",
+    "kind",
+    "coords",
+    "dtype",
+    "description",
 ]
 _DATAVIEW_COLUMNS = ["dataview", "field", "kind", "coords", "sources", "description"]
 _SEARCH_COLUMNS = ["surface", "name", "field", "kind", "coords", "description"]

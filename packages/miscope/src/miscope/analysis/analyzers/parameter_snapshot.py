@@ -41,9 +41,7 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
-    outputs=tuple(
-        F.tensor(name, "float32", ("variant", "epoch"), desc) for name, desc in _WEIGHTS
-    ),
+    outputs=tuple(F.tensor(name, "float32", ("variant", "epoch"), desc) for name, desc in _WEIGHTS),
 )
 
 

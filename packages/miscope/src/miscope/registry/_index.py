@@ -67,7 +67,9 @@ class FieldInfo:
         if self.dataview_consumers:
             lines.append(f"  consumed by dataviews: {list(self.dataview_consumers)}")
         if self.analyzer_consumers:
-            lines.append(f"  downstream analyzers (artifact-level): {list(self.analyzer_consumers)}")
+            lines.append(
+                f"  downstream analyzers (artifact-level): {list(self.analyzer_consumers)}"
+            )
         return "\n".join(lines)
 
 
@@ -105,12 +107,8 @@ def build_index() -> RegistryIndex:
     import miscope.analysis.analyzers  # noqa: F401
     import miscope.views.dataview_universal  # noqa: F401
 
-    analyzers = tuple(
-        sorted(AnalyzerRegistry.list_specs(), key=lambda s: s.name)
-    )
-    dataviews = tuple(
-        _dataview_catalog.get(name) for name in _dataview_catalog.names()
-    )
+    analyzers = tuple(sorted(AnalyzerRegistry.list_specs(), key=lambda s: s.name))
+    dataviews = tuple(_dataview_catalog.get(name) for name in _dataview_catalog.names())
     return RegistryIndex(analyzers=analyzers, dataviews=dataviews)
 
 
@@ -159,9 +157,7 @@ def validate(index: RegistryIndex) -> None:
             problems.extend(_check_source(dv, src, specs_by_name))
 
     if problems:
-        raise RegistryError(
-            "registry validation failed:\n  - " + "\n  - ".join(problems)
-        )
+        raise RegistryError("registry validation failed:\n  - " + "\n  - ".join(problems))
 
 
 def _check_source(
@@ -173,8 +169,7 @@ def _check_source(
     producer = specs_by_name.get(src.analyzer_name)
     if producer is None:
         return [
-            f"dataview {dv.name!r} sources analyzer {src.analyzer_name!r} "
-            f"which is not registered"
+            f"dataview {dv.name!r} sources analyzer {src.analyzer_name!r} which is not registered"
         ]
     out: list[str] = []
     if producer.version < src.min_version:
@@ -200,14 +195,9 @@ def _check_source(
 
 def lookup_field(index: RegistryIndex, name: str) -> FieldInfo:
     """Reverse lookup: producers, exposing DataViews, and consumers of a field."""
-    producers = tuple(
-        (s.name, f) for s in index.analyzers for f in s.outputs if f.name == name
-    )
+    producers = tuple((s.name, f) for s in index.analyzers for f in s.outputs if f.name == name)
     dv_fields = tuple(
-        (dv.name, f)
-        for dv in index.dataviews
-        for f in dv.schema.fields
-        if f.name == name
+        (dv.name, f) for dv in index.dataviews for f in dv.schema.fields if f.name == name
     )
     producer_names = {an for an, _ in producers}
     dv_consumers = tuple(

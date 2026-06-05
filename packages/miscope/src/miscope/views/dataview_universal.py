@@ -104,9 +104,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             schema=_fourier_schema,
             epoch_source_analyzer="weight_basis_projection",
             required_analyzers=[AnalyzerRequirement("weight_basis_projection", ArtifactKind.EPOCH)],
-            sources=(
-                DataViewSource("weight_basis_projection", ("cos_coeffs", "sin_coeffs")),
-            ),
+            sources=(DataViewSource("weight_basis_projection", ("cos_coeffs", "sin_coeffs")),),
         )
     )
 
