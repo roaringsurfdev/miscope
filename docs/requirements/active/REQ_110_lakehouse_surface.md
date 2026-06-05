@@ -1,6 +1,6 @@
 # REQ_110: Lakehouse Surface (Tabular Output, Tensor Catalog, DuckDB Query, Publication Bundles)
 
-**Status:** Implementation-complete (110-A…F landed on `feature/REQ_110_lakehouse_surface`) — except the live-publication acceptance bar, deferred to the first real `data-*` Release.
+**Status:** Implementation-complete (110-A…F landed on `feature/REQ_110_lakehouse_surface`) — except the live-publication acceptance bar, which is tracked as **REQ_139** (first door-to-door publication, bundled with the public site launch).
 **Priority:** High — second of the two consolidation streams; the data surface for v1.0 publication.
 **Branch:** `feature/REQ_110_lakehouse_surface`
 **Supersedes:** REQ_101 (DataFrame Support), REQ_108 (Publication Surface).
@@ -197,7 +197,7 @@ Critical path: REQ_107 → (110-A ∥ 110-B) → 110-C → 110-D. Publication br
   - `apps/fieldnotes/src/pages/duckdb-demo.astro`: a committable demonstration — a zero-data engine smoke (`SELECT … FROM range(8)`) that works without any Release, plus the real-data MDX usage pattern. `npm run build` green (6 pages); the inlined hoisted script keeps the CDN import external (verified).
   - **Open (human-gated):** pointing a real article at a live `data-*` Release + a Pages deploy + the cold-cache range-request Network check. Every link is built and verified in isolation; the live assembly is the v1.0 acceptance bar and waits on publishing the first bundle.
 
-With 110-A…F all landed (110-E/110-F this session), **REQ_110 is implementation-complete** except the live-publication acceptance bar, which is intentionally deferred to the first real `data-*` Release.
+With 110-A…F all landed (110-E/110-F this session), **REQ_110 is implementation-complete** except the live-publication acceptance bar, which is carved out as **REQ_139** (first door-to-door publication) — to be executed when the first real bundle ships, likely bundled with the public site launch.
 
 ---
 
