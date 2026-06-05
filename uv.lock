@@ -1244,6 +1244,7 @@ name = "miscope"
 version = "0.1.0"
 source = { editable = "packages/miscope" }
 dependencies = [
+    { name = "duckdb" },
     { name = "ipykernel" },
     { name = "kaleido" },
     { name = "nbformat" },
@@ -1264,6 +1265,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = ">=1.0" },
     { name = "ipykernel", specifier = ">=7.1.0" },
     { name = "kaleido", specifier = ">=0.2.1" },
     { name = "nbformat", specifier = ">=5.10.4" },

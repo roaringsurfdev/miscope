@@ -134,16 +134,16 @@ Defined to a similar level of structure as PCA:
 
 ### Publication: bundles, GitHub Releases, schema stability
 
-- [ ] **Internal warehouse vs. published bundle is a structural distinction**, not nominal.
+- [x] **Internal warehouse vs. published bundle is a structural distinction**, not nominal. *(Source = the churn-free internal warehouse via `miscope.query`; output = a frozen, hashed, manifest-bearing dir. `_dist/` + Release assets are gitignored; the build never mutates the warehouse.)*
   - Internal warehouse: `results/.../dataviews/*.parquet`. Free to evolve, regeneratable, gitignored. Schemas can change with code; mismatch is a re-run.
   - Published bundle: a curated subset of Parquet files, frozen at a point in time, attached to a `data-*` GitHub Release. Once published, immutable.
-- [ ] **Bundles are per-article, not all-of-everything.** A fieldnotes article on ring geometry publishes only the Parquet files that underlie its claims. Avoiding kitchen-sink bundles keeps file size small, schemas tight, and review focused.
-- [ ] **Build script** (`scripts/build_publication_bundle.py` or `miscope.publish.build`) — selects DataView outputs by name, freezes their schemas, writes them to a versioned output directory, computes content hashes, and emits a manifest.
-- [ ] **Bundle manifest** (`manifest.json` inside the bundle) declares: `bundle_version`, `mint_date`, `miscope_version`, list of included Parquet files with their schemas and content hashes, the article(s) referencing the bundle, and a description.
-- [ ] **GitHub Releases as host.** Bundles attach to Releases tagged `data-*` (e.g., `data-v1.0-ring-geometry`). Distinct from package release tags (`v1.0.0` for `miscope`). Per-bundle Parquet files attached as Release assets with stable URLs.
-- [ ] **GitHub Action workflow** (`.github/workflows/data-release.yml`): build bundle → create Release → attach Parquet + manifest → publish.
-- [ ] **Range-request and CORS verified** (not assumed): a DuckDB query against a Release asset URL fetches only the bytes the query needs; CORS headers permit fetches from the GitHub Pages domain.
-- [ ] **Schema stability per bundle version.** A column added or renamed requires a new bundle version with a new tag. Old bundles remain accessible at original tags. The build script reads declared schemas (per REQ_106 / REQ_107) and fails to publish if materialized Parquet doesn't match.
+- [x] **Bundles are per-article, not all-of-everything.** *(`BundleSpec` names the curated table set + referencing article(s); per-table subsetting SQL keeps it tight.)*
+- [x] **Build script** (`scripts/build_publication_bundle.py`, over `miscope.publish.build`) — selects tables by name, freezes their schemas, writes a versioned output directory, computes content hashes, emits a manifest.
+- [x] **Bundle manifest** (`manifest.json`) declares `bundle_version`, `mint_date`, `miscope_version`, per-table file + Arrow schema + content hash + populated-provenance, the referencing article(s), and a description.
+- [x] **GitHub Releases as host** (`miscope.publish.create_release` → `gh release create data-{name}-{version}`). Tag namespace distinct from package `vX.Y.Z`; assets attached at stable URLs.
+- [~] **GitHub Action workflow** (`.github/workflows/data-release.yml`): **gate, not builder.** Data is gitignored / absent in CI, so the runner cannot build; the Release is cut locally (`--release`). The workflow validates committed manifest integrity + reports schema deltas on bundle-spec PRs. *(Decision flagged — see status note.)*
+- [ ] **Range-request and CORS verified** (not assumed). `verify_bundle_url` is the Python-side probe (opens the Release URL via `httpfs`, counts rows) but needs a *live* `data-*` Release to run; deferred until the first real bundle ships (pairs with 110-F's browser/CORS check).
+- [x] **Schema stability per bundle version.** The gate (`miscope.publish.enforce`) classifies a rebuild vs. its committed baseline manifest: additive needs a version bump, breaking is refused (escape via `--no-gate` for a deliberate re-author), identical is fine. Matches the drift test.
 
 ### DuckDB-WASM in fieldnotes (inline queries)
 
@@ -186,7 +186,13 @@ Critical path: REQ_107 → (110-A ∥ 110-B) → 110-C → 110-D. Publication br
   - **Parity (3 baselines p113/p109/p101):** `variant_summary.json` + `variant_registry.json` byte-identical. The only behavioral change is a deliberate correctness fix — `cross_variant.first_mover_frequency` is now 1-indexed (was 0-indexed, inconsistent with the descent-onset portfolio in the same module); shifts that field +1, fixes the band it feeds.
   - **CoS cross-variant queries** verified as one-line SQL over the warehouse (`homeless_neuron_fraction > 0.2`; circularity ranked at an epoch; attn `fourier_alignment` after grokking via `shape_characterizations ⋈ variant_outcomes`).
   - Full `miscope` suite green (1538 passed); dashboard green (45 passed).
-- **110-E / 110-F** — not started.
+- **110-E — Publication bundles + Releases — DONE (2026-06-05).**
+  - New `miscope.publish` module: `BundleSpec` (declarative TOML), `build_bundle`/`build_bundle_for_family` (freeze curated tables over the `miscope.query` surface into flat zstd Parquet + `manifest.json`), `BundleManifest`/`TableManifest` (citable record: version, mint date, `miscope` version, per-table row count + content hash + captured Arrow schema + which reserved provenance cols are populated), the schema-stability gate (`enforce`: breaking refused, additive allowed only under a new version, identical fine), `create_release` (publish assets as a `data-*` Release via `gh`), `verify_bundle_url` (prove the Release URL is range-request queryable — the Python half; browser/CORS is 110-F), and `history` helpers (committed manifest-history is the gate's data-free baseline).
+  - **Build is local, by construction.** The warehouse data is gitignored and never reaches CI, so a runner cannot materialize a bundle. `scripts/build_publication_bundle.py <spec> [--update-history] [--release]` builds + gates + (optionally) cuts the Release where the data lives. Bundle specs (`apps/fieldnotes/bundles/{name}.toml`) and manifest history (`{name}/manifest-{ver}.json`) are committed; Parquet is not (gitignored `_dist/`, plus Release assets). `data-release.yml` (`.github/workflows/`) runs on PRs touching `apps/fieldnotes/bundles/**` and validates manifest integrity + reports schema deltas via `scripts/validate_bundle_history.py` — it does not build.
+  - **Decision (flagged):** a *deliberately* breaking new bundle is minted with `--no-gate` (the explicit "I am re-authoring, not silently re-publishing" acknowledgment); the gate otherwise refuses breaking changes outright per the CoS drift test.
+  - `duckdb>=1.0` added to `miscope` deps (was a 110-C lockfile-only gap; publish formalizes the dependency).
+  - Validated end-to-end on the real `modulo_addition_1layer` warehouse: subset query applied, flat zstd Parquet + hashed manifest written, re-queryable in bundle mode; `--update-history` + baseline discovery + gate (identical) exercised through the CLI. 11 new tests; full `miscope` suite green (1549 passed); dashboard green (45). **Not yet committed.**
+- **110-F** — not started.
 
 ---
 

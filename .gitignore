@@ -228,6 +228,11 @@ __marimo__/
 /apps/fieldnotes/src/content/drafts/*.mdx
 /.claude
 
+# Publication bundles (REQ_110E): built Parquet/manifests are local + Release assets,
+# never committed. Specs and manifest history (apps/fieldnotes/bundles/*.toml and
+# */manifest-*.json) ARE committed; only the build output is ignored.
+/apps/fieldnotes/bundles/_dist/
+
 # Unified data root (REQ_123): ignore everything except the tracked family configs.
 /data/*
 !/data/*/

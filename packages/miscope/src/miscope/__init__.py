@@ -25,7 +25,7 @@ Quick start:
 
 from __future__ import annotations
 
-from miscope import query, registry
+from miscope import publish, query, registry
 from miscope.config import AppConfig, get_config
 from miscope.families.protocols import ModelFamily
 from miscope.views import BoundView, EpochContext, ViewCatalog, ViewDefinition, catalog
@@ -46,6 +46,8 @@ __all__ = [
     "registry",
     # REQ_110C: DuckDB query surface over the warehouse
     "query",
+    # REQ_110E: publication bundles (build, schema gate, Releases)
+    "publish",
 ]
 
 
