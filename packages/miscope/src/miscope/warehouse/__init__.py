@@ -26,7 +26,10 @@ from __future__ import annotations
 
 from miscope.warehouse.reader import WarehouseTable, read_table
 from miscope.warehouse.run_sets import (
+    OrphanRecipe,
     RunSetRecord,
+    live_recipe_signatures,
+    orphaned_recipe_dirs,
     read_run_sets,
     record_run_set,
     run_set_id,
@@ -58,4 +61,7 @@ __all__ = [
     "record_run_set",
     "run_set_id",
     "RunSetRecord",
+    "live_recipe_signatures",
+    "orphaned_recipe_dirs",
+    "OrphanRecipe",
 ]

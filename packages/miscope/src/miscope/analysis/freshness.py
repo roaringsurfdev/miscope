@@ -96,6 +96,96 @@ class CrossEpochFreshness:
 
 
 @dataclass
+class ReferenceFreshness:
+    """Re-resolution status of an inventory-derived reference default (REQ_138).
+
+    A floating ``max/min epoch`` default re-resolves against the *current* checkpoint
+    inventory; when that resolved value moves past what the default-plane artifact
+    recorded, the floating-default artifact is stale. An explicitly *pinned* earlier
+    epoch lives under its own recipe and is never reported here — its value still
+    exists, so it is unaffected by training extension.
+    """
+
+    analyzer_name: str
+    parameter: str
+    stored_value: int | None
+    resolved_value: int | None
+
+    @property
+    def is_stale(self) -> bool:
+        return (
+            self.stored_value is not None
+            and self.resolved_value is not None
+            and self.stored_value != self.resolved_value
+        )
+
+    @property
+    def status_label(self) -> str:
+        if self.stored_value is None:
+            return "no default artifact"
+        if self.is_stale:
+            return f"stale (recorded {self.stored_value} -> re-resolves {self.resolved_value})"
+        return "fresh"
+
+
+def check_reference_freshness(
+    variant: Variant, specs: Sequence[Any] | None = None
+) -> list[ReferenceFreshness]:
+    """Re-resolve each inventory-derived reference default and compare to the artifact.
+
+    Covers analyzers that declare a :class:`~miscope.analysis.parameters.Reducer`
+    reference default *and* record the resolved value as an output field of the same
+    name (the default-plane artifact's provenance). Operates only on the default
+    plane — pinned recipes are unaffected by construction.
+    """
+    from miscope.analysis.artifact_loader import ArtifactLoader
+    from miscope.analysis.parameters import Reducer, ReferenceBinding
+    from miscope.analysis.recipe import RecipeResolver
+
+    if specs is None:
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        specs = AnalyzerRegistry.list_specs()
+
+    loader = ArtifactLoader(str(variant.artifacts_dir))
+    resolver = RecipeResolver(loader)
+    out: list[ReferenceFreshness] = []
+    for spec in specs:
+        for param in getattr(spec, "parameters", ()):
+            default = param.default
+            if not (isinstance(default, ReferenceBinding) and isinstance(default.selector, Reducer)):
+                continue
+            stored = _stored_reference_value(loader, spec.name, param.name)
+            resolved = None
+            if stored is not None:
+                try:
+                    resolved = int(resolver.resolve(default))
+                except Exception:
+                    resolved = None
+            out.append(
+                ReferenceFreshness(
+                    analyzer_name=spec.name,
+                    parameter=param.name,
+                    stored_value=stored,
+                    resolved_value=resolved,
+                )
+            )
+    return out
+
+
+def _stored_reference_value(loader: Any, analyzer: str, field_name: str) -> int | None:
+    """Read the default-plane artifact's recorded value for a reference parameter."""
+    try:
+        data = loader.load_cross_epoch(analyzer, fields=[field_name])
+    except (FileNotFoundError, ValueError):
+        return None
+    try:
+        return int(data[field_name])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+@dataclass
 class FreshnessReport:
     """Full freshness snapshot for a variant."""
 

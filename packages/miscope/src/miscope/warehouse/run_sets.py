@@ -100,6 +100,41 @@ def record_run_set(
         _append_run_sets(variant, rows)
 
 
+def live_recipe_signatures(variant: object) -> set[str]:
+    """Recipe signatures referenced by some run set in the registry (REQ_138 GC).
+
+    A recipe directory on disk whose signature is *not* in this set is orphaned —
+    no run set vouches for it (e.g. an upstream re-ran and a derived value moved).
+    The empty/default plane carries no signature and is never an orphan.
+    """
+    df = read_run_sets(variant)
+    if df.empty:
+        return set()
+    return {s for s in df["recipe_signature"].tolist() if s}
+
+
+@dataclass(frozen=True)
+class OrphanRecipe:
+    """An on-disk recipe directory not referenced by any run set."""
+
+    analyzer: str
+    recipe_signature: str
+    path: str
+
+
+def orphaned_recipe_dirs(variant: object) -> list[OrphanRecipe]:
+    """On-disk recipe directories with no live run set (candidates for pruning)."""
+    from miscope.analysis.artifact_loader import iter_recipe_dirs
+
+    live = live_recipe_signatures(variant)
+    artifacts_dir = str(variant.artifacts_dir)  # type: ignore[attr-defined]
+    return [
+        OrphanRecipe(analyzer=analyzer, recipe_signature=sig, path=path)
+        for analyzer, sig, path in iter_recipe_dirs(artifacts_dir)
+        if sig not in live
+    ]
+
+
 def read_run_sets(variant: object) -> pd.DataFrame:
     """The variant's run-set registry as a DataFrame (empty frame if none)."""
     path = paths.run_sets_parquet_path(variant)  # type: ignore[arg-type]

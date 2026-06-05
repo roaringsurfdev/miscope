@@ -41,6 +41,26 @@ def analyzer_dir(artifacts_dir: str, analyzer: str, recipe_sig: str = "") -> str
     return os.path.join(base, f"{RECIPE_DIR_PREFIX}{recipe_sig}")
 
 
+def iter_recipe_dirs(artifacts_dir: str):
+    """Yield ``(analyzer, recipe_signature, path)`` for every on-disk recipe dir.
+
+    The reverse of :func:`analyzer_dir`: walks each analyzer directory for
+    ``__rs_<sig>`` recipe segments (REQ_138). Lives in the storage primitive so
+    recipe-path *decomposition* is owned in the same place as composition
+    (storage-encapsulation invariant 3) — the recipe-GC tooling reaches it here
+    rather than globbing ``__rs_`` itself.
+    """
+    if not os.path.isdir(artifacts_dir):
+        return
+    for analyzer in sorted(os.listdir(artifacts_dir)):
+        adir = os.path.join(artifacts_dir, analyzer)
+        if not os.path.isdir(adir):
+            continue
+        for child in sorted(os.listdir(adir)):
+            if child.startswith(RECIPE_DIR_PREFIX):
+                yield analyzer, child[len(RECIPE_DIR_PREFIX) :], os.path.join(adir, child)
+
+
 def _validate_fields(
     analyzer_name: str, available: list[str], requested: list[str], where: str
 ) -> None:
