@@ -36,17 +36,16 @@ _CANONICAL_SPECIALIZATION_THRESHOLD: float = 0.10
 
 
 def build_variant_registry(family: ModelFamily) -> Path:
-    """Aggregate all existing variant_summary.json files into variant_registry.json.
+    """Aggregate per-variant outcomes into variant_registry.json via the query surface.
 
-    Scans the family's variants directory for ``variant_summary.json`` files and
-    assembles them into a single registry array, adding a family-owned
-    ``variant_id`` to each entry. The id is the variant's composed directory name
-    (``family.variant_pattern`` applied to its domain parameters — the opaque
-    handle for cross-family joins), and the family's declared
-    ``domain_parameters`` are added as columns for in-family filtering
-    (``WHERE prime > 100``). This replaces the hardcoded
-    ``{prime}_{model_seed}_{data_seed}`` key, which broke for any non-modadd
-    family (REQ_107: variant identity is family-owned, not a hardcoded format).
+    REQ_110D: the hand-rolled ``glob("*/variant_summary.json")`` aggregation is
+    replaced by SQL over the ``variant_outcomes`` warehouse table. Each variant's
+    outcome row is first refreshed from its current ``variant_summary.json`` (cheap
+    — co-emission keeps the table consistent with the JSON), then a single
+    ``SELECT`` over the cross-variant union assembles the registry. The full
+    snapshot round-trips through the ``summary_json`` carrier, so each entry is
+    identical to reading the JSON directly; ``variant_id`` (the family-owned
+    directory name) and the declared ``domain_parameters`` are attached as before.
     The registry is written to ``{family.family_dir}/variant_registry.json``.
 
     Args:
@@ -55,19 +54,29 @@ def build_variant_registry(family: ModelFamily) -> Path:
     Returns:
         Path to the written variant_registry.json file.
     """
-    # Family-owned variant identity: directory name -> parsed domain parameters.
+    import miscope.query
+    from miscope.warehouse.outcomes import materialize_variant_outcomes
+
+    # Refresh each variant's outcome row from its current summary so the SQL
+    # aggregation reflects the latest summaries (variants without a summary are
+    # skipped, matching the old glob over existing summary files).
     params_by_name = {variant.name: variant.params for variant in family.variants}
+    for variant in family.variants:
+        materialize_variant_outcomes(variant)
 
     registry: list[dict[str, Any]] = []
-
-    for summary_path in sorted(family.variants_dir.glob("*/variant_summary.json")):
-        entry = json.loads(summary_path.read_text())
-        variant_name = summary_path.parent.name
-        entry["variant_id"] = variant_name
-        # Add the family's declared parameter columns (does not clobber existing).
-        for key, value in params_by_name.get(variant_name, {}).items():
-            entry.setdefault(key, value)
-        registry.append(entry)
+    with miscope.query.open(family=family) as con:
+        if "variant_outcomes" in con.tables():
+            rows = con.df(
+                "SELECT variant_id, summary_json FROM variant_outcomes ORDER BY variant_id"
+            )
+            for variant_id, summary_json in zip(rows["variant_id"], rows["summary_json"]):
+                entry = json.loads(summary_json)
+                entry["variant_id"] = variant_id
+                # Add the family's declared parameter columns (does not clobber existing).
+                for key, value in params_by_name.get(variant_id, {}).items():
+                    entry.setdefault(key, value)
+                registry.append(entry)
 
     output_path = family.family_dir / "variant_registry.json"
     output_path.write_text(json.dumps(registry, indent=2))
