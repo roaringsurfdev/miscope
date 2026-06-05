@@ -51,15 +51,24 @@ class _FieldFrame:
     frame: pd.DataFrame
 
 
-def materialize_variant_columnar(variant: object) -> MaterializeReport:
-    """Materialize all of a variant's columnar analyzer outputs to Parquet."""
+def materialize_variant_columnar(
+    variant: object, run_set: str = paths.DEFAULT_RUN_SET
+) -> MaterializeReport:
+    """Materialize a variant's columnar analyzer outputs to Parquet (REQ_110A).
+
+    Every long-format row and catalog row carries a ``run_set`` coordinate column
+    (REQ_138) so the query surface gains the parameterization dimension once. The
+    default materializes the unparameterized plane (``run_set='__default__'`` over
+    today's empty-recipe artifacts); the column reconciles by name with any future
+    parameterized plane in the cross-variant union.
+    """
     report = MaterializeReport(variant_id=variant.name)  # type: ignore[attr-defined]
     # Deterministic regeneration: wipe the prior columnar outputs so a field that
     # moved tables (generic <-> semantic) leaves no stale Parquet behind. The wipe
     # is selective — it preserves the 110-B tensor catalog so the two halves of
     # the shared catalog relation materialize independently (either order).
     _wipe_columnar_outputs(variant)
-    variant_cols = _variant_columns(variant)
+    variant_cols = _variant_columns(variant, run_set)
     semantic: dict[str, _SemanticAcc] = defaultdict(_SemanticAcc)
 
     for spec in reg.index().analyzers:
@@ -337,12 +346,18 @@ def _wipe_columnar_outputs(variant: object) -> None:
         shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
 
 
-def _variant_columns(variant: object) -> dict[str, object]:
-    """The expanded ``variant`` coord: ``variant_id`` + family domain params."""
+def _variant_columns(variant: object, run_set: str) -> dict[str, object]:
+    """Leading key columns: ``variant_id`` + family domain params + ``run_set``.
+
+    ``run_set`` (REQ_138) is the parameterization coordinate every row is keyed by;
+    it leads alongside the variant identity so cross-parameterization comparison is
+    ``WHERE run_set = ...`` / ``GROUP BY run_set``.
+    """
     cols = reg.variant_key_columns(variant.family)  # type: ignore[attr-defined]
     values: dict[str, object] = {"variant_id": variant.name}  # type: ignore[attr-defined]
     params = variant.params  # type: ignore[attr-defined]
     for col in cols:
         if col != "variant_id":
             values[col] = params.get(col)
+    values["run_set"] = run_set
     return values

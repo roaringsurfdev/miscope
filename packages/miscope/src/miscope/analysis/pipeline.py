@@ -153,6 +153,7 @@ class AnalysisPipeline:
 
         self._parameterization = parameterization or EMPTY_PARAMETERIZATION
         self._recipe_map = self._build_recipe_map()
+        self._resolved_params: dict[str, dict[str, Any]] = {}
 
         if plan is None:
             plan = self._build_plan(force)
@@ -241,8 +242,26 @@ class AnalysisPipeline:
             self._update_manifest(work_queue)
         self._save_manifest()
 
+        self._record_run_set()
+
         if progress_callback:
             progress_callback(1.0, "Analysis complete")
+
+    def _record_run_set(self) -> None:
+        """Persist this run's run set to the registry (REQ_138; no-op for default)."""
+        if self._parameterization.is_empty or not self._recipe_map:
+            return
+        from miscope.analysis.registry import AnalyzerRegistry
+        from miscope.warehouse import run_sets
+
+        specs = {s.name: s for s in AnalyzerRegistry.list_specs()}
+        run_sets.record_run_set(
+            self.variant,
+            self._parameterization,
+            self._recipe_map,
+            self._resolved_params,
+            specs,
+        )
 
     def _absorb_plan_references(self, plan: Plan) -> None:
         """Instantiate Spec-only analyzers referenced by a Plan (REQ_120).
@@ -507,6 +526,9 @@ class AnalysisPipeline:
         for param in spec.parameters:
             binding = self._parameterization.binding_for(spec.name, param.name) or param.default
             resolved[param.name] = resolver.resolve(binding)
+        # Capture for the run-set registry (REQ_138 provenance).
+        if resolved:
+            self._resolved_params[spec.name] = resolved
         return resolved
 
     def _save_epoch_artifact(

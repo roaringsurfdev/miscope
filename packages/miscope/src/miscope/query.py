@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from miscope.config import AppConfig
 
 CATALOG_VIEW = "catalog"
+RUN_SETS_VIEW = "run_sets"
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,9 @@ def _open_warehouse(family: object, requested: tuple[str, ...] | None) -> QueryC
     if catalog_sql is not None:
         _create_view(con, CATALOG_VIEW, catalog_sql)
         views.append(CATALOG_VIEW)
+    if paths.family_has_run_sets(family):
+        _create_view(con, RUN_SETS_VIEW, _glob_scan(paths.family_run_sets_glob(family)))
+        views.append(RUN_SETS_VIEW)
     return QueryConnection(con=con, views=tuple(views))
 
 

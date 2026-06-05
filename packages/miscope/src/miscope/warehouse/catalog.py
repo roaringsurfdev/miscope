@@ -29,9 +29,10 @@ from miscope.warehouse import paths
 class ColumnarCatalogRow:
     """One columnar field's catalog entry — an address, not a payload."""
 
-    id: str  # stable surrogate: {variant_id}/{table}/{signature}/{field}
+    id: str  # stable surrogate: {variant_id}/{run_set}/{table}/{signature}/{field}
     kind: str  # always "columnar" here
     variant_id: str
+    run_set: str  # parameterization coordinate (REQ_138)
     table: str
     field: str  # the value column within the table Parquet
     coords: str  # comma-joined coord names (the join keys)
@@ -57,11 +58,13 @@ def emit_columnar_rows(
     # Store the payload location relative to the warehouse root so the catalog
     # stays portable if the variant tree moves (the warehouse is regeneratable).
     rel_uri = parquet_path.relative_to(paths.warehouse_dir(variant)).as_posix()  # type: ignore[arg-type]
+    run_set = str(df["run_set"].iloc[0]) if "run_set" in df.columns and len(df) else paths.DEFAULT_RUN_SET
     rows = [
         ColumnarCatalogRow(
-            id=f"{variant_id}/{table}/{sig_token}/{col}",
+            id=f"{variant_id}/{run_set}/{table}/{sig_token}/{col}",
             kind="columnar",
             variant_id=variant_id,
+            run_set=run_set,
             table=table,
             field=col,
             coords=coords_str,

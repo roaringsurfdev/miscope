@@ -25,6 +25,12 @@ Entry points::
 from __future__ import annotations
 
 from miscope.warehouse.reader import WarehouseTable, read_table
+from miscope.warehouse.run_sets import (
+    RunSetRecord,
+    read_run_sets,
+    record_run_set,
+    run_set_id,
+)
 from miscope.warehouse.tensor_catalog import (
     DtypeDrift,
     TensorCatalogReport,
@@ -48,4 +54,8 @@ __all__ = [
     "TensorResolver",
     "TensorCatalogReport",
     "DtypeDrift",
+    "read_run_sets",
+    "record_run_set",
+    "run_set_id",
+    "RunSetRecord",
 ]

@@ -37,7 +37,9 @@ if TYPE_CHECKING:
 DATAVIEWS_DIRNAME = "dataviews"
 CATALOG_DIRNAME = "_catalog"
 TENSOR_CATALOG_DIRNAME = "_tensor_catalog"
+RUN_SETS_DIRNAME = "_run_sets"
 SEMANTIC_TOKEN = "long"  # single-file stem for a conformed semantic table
+DEFAULT_RUN_SET = "__default__"  # the empty/all-defaults parameterization (REQ_138)
 
 
 def warehouse_dir(variant: Variant) -> Path:
@@ -90,6 +92,16 @@ def tensor_catalog_parquet_path(variant: Variant, analyzer: str) -> Path:
     return tensor_catalog_dir(variant) / f"{analyzer}.parquet"
 
 
+def run_sets_dir(variant: Variant) -> Path:
+    """Directory holding the run-set registry relation for a variant (REQ_138)."""
+    return warehouse_dir(variant) / RUN_SETS_DIRNAME
+
+
+def run_sets_parquet_path(variant: Variant) -> Path:
+    """Path to the variant's run-set registry Parquet (one file, append/merge)."""
+    return run_sets_dir(variant) / "run_sets.parquet"
+
+
 # ---------------------------------------------------------------------------
 # Family-level globs — the cross-variant query surface (110-C).
 #
@@ -121,6 +133,19 @@ def family_tensor_catalog_glob(family: object) -> str:
     return str(_variants_glob(family) / DATAVIEWS_DIRNAME / TENSOR_CATALOG_DIRNAME / "*.parquet")
 
 
+def family_run_sets_glob(family: object) -> str:
+    """Glob over every variant's run-set registry Parquet (REQ_138 cross-variant view)."""
+    return str(_variants_glob(family) / DATAVIEWS_DIRNAME / RUN_SETS_DIRNAME / "*.parquet")
+
+
+def family_has_run_sets(family: object) -> bool:
+    """Whether any variant has recorded a run set (so the query layer skips an empty glob)."""
+    vdir: Path = family.variants_dir  # type: ignore[attr-defined]
+    if not vdir.exists():
+        return False
+    return any(vdir.glob(f"*/{DATAVIEWS_DIRNAME}/{RUN_SETS_DIRNAME}/*.parquet"))
+
+
 def list_family_tables(family: object) -> list[str]:
     """Table names materialized under any variant's warehouse (excludes catalog dirs).
 
@@ -137,7 +162,11 @@ def list_family_tables(family: object) -> list[str]:
         if not wdir.is_dir():
             continue
         for child in wdir.iterdir():
-            if child.is_dir() and child.name not in (CATALOG_DIRNAME, TENSOR_CATALOG_DIRNAME):
+            if child.is_dir() and child.name not in (
+                CATALOG_DIRNAME,
+                TENSOR_CATALOG_DIRNAME,
+                RUN_SETS_DIRNAME,
+            ):
                 seen.add(child.name)
     return sorted(seen)
 
