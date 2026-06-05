@@ -1,8 +1,8 @@
 # REQ_110: Lakehouse Surface (Tabular Output, Tensor Catalog, DuckDB Query, Publication Bundles)
 
-**Status:** Draft
+**Status:** Implementation-complete (110-A…F landed on `feature/REQ_110_lakehouse_surface`) — except the live-publication acceptance bar, deferred to the first real `data-*` Release.
 **Priority:** High — second of the two consolidation streams; the data surface for v1.0 publication.
-**Branch:** TBD
+**Branch:** `feature/REQ_110_lakehouse_surface`
 **Supersedes:** REQ_101 (DataFrame Support), REQ_108 (Publication Surface).
 **Dependencies:** REQ_109 (Measurement Primitives — typed measurement results are the upstream shape that flatten into tabular form); REQ_106 (DataView first-class status, layering principle); REQ_107 (registry — supplies the per-field `kind` + coordinate declarations that drive this REQ's write-routing and tensor descriptors, plus the discoverability layer the tables are queryable through; the tensor-catalog seam formerly sketched in `drafts/catalog_design/catalog.py` lands here per the 2026-06-04 scoping decision); REQ_103 (the package + repo + docs surface that hosts the publication tooling).
 **Attribution:** Engineering Claude (under user direction)
@@ -147,16 +147,16 @@ Defined to a similar level of structure as PCA:
 
 ### DuckDB-WASM in fieldnotes (inline queries)
 
-- [ ] **Fieldnotes Astro site loads DuckDB-WASM as a client-side module**, lazy-loaded on demand (the WASM bundle is several MB).
-- [ ] **`<DuckDBQuery>` MDX component** accepts a Parquet URL (a Release asset) and a SQL query string. Renders a result table inline. Reader can edit the query and re-run.
-- [ ] **Articles use the component to back specific claims** with inline-queryable data. Errors surface clearly to the reader; a broken query is recoverable by re-editing in-browser.
+- [x] **Fieldnotes Astro site loads DuckDB-WASM as a client-side module**, lazy-loaded on demand. *(The engine ESM is a runtime `import(<jsDelivr CDN>)` evaluated only on the first Run, so it never enters the Astro build — verified: `dist` is 2.8M with no duckdb chunk; the CDN URL is preserved external in the inlined hoisted script.)*
+- [x] **`<DuckDBQuery>` MDX component** (`apps/fieldnotes/src/components/DuckDBQuery.astro`) accepts a Parquet URL (a Release asset) + SQL (and a `tables` array for joins). Registers each asset as a view (`read_parquet(url)` — DuckDB-WASM range-reads the remote file), renders the result table inline, and the reader edits + re-runs.
+- [x] **Errors surface clearly; a broken query is recoverable in-browser** (the textarea stays editable, the engine error shows inline, Run again). Demonstrated on `src/pages/duckdb-demo.astro` (an engine-only `range()` smoke that needs no remote data + the real-data usage pattern). *Pointing an actual article at a live bundle waits on the first published Release.*
 
 ### Validation
 
-- [ ] **End-to-end pipeline operational:** build a publication bundle from real DataView outputs → attach to a GitHub Release → query a Parquet asset via DuckDB-WASM from a deployed fieldnotes article → reader sees result table inline. This is the v1.0 acceptance bar.
-- [ ] **Schema drift test:** rebuild a bundle after a benign additive column change — bundle build succeeds, version bumps, manifest updates. Rebuild after a breaking rename — bundle build fails with a clear error.
-- [ ] **Cold-cache range-request test:** DuckDB query against a Release asset URL with a fresh browser cache fetches only the bytes the query needs. (Inspect Network tab; verify range requests fire.)
-- [ ] **Internal cross-variant query test:** at least three canonical questions ("variants with attn FA committing after grokking", "variants with homeless_fraction > 0.2", "circularity at epoch 5000 ranked across variants") expressible as one-line SQL against the Parquet warehouse.
+- [~] **End-to-end pipeline operational** (build bundle → Release → DuckDB-WASM query from a deployed article → inline result). The v1.0 acceptance bar. Every link is built and unit/build-verified in isolation; the *live* assembly waits on publishing the first real `data-*` Release + a Pages deploy (a deliberate, human-gated step). Tracked as the trigger to close this.
+- [x] **Schema drift test:** additive change → build succeeds under a bumped version; breaking rename/retype → build fails with a clear error. Covered by `test_publish.py` (`test_gate_additive_requires_version_bump`, `test_gate_breaking_*`).
+- [ ] **Cold-cache range-request test:** needs a live Release URL + browser Network inspection — deferred to the first bundle (the in-browser range-read path is wired; `verify_bundle_url` is the Python-side counterpart).
+- [x] **Internal cross-variant query test:** the three canonical questions expressible as one-line SQL — verified in 110-D (`homeless_neuron_fraction > 0.2`; circularity ranked at an epoch; attn `fourier_alignment` after grokking).
 
 ---
 
@@ -191,8 +191,13 @@ Critical path: REQ_107 → (110-A ∥ 110-B) → 110-C → 110-D. Publication br
   - **Build is local, by construction.** The warehouse data is gitignored and never reaches CI, so a runner cannot materialize a bundle. `scripts/build_publication_bundle.py <spec> [--update-history] [--release]` builds + gates + (optionally) cuts the Release where the data lives. Bundle specs (`apps/fieldnotes/bundles/{name}.toml`) and manifest history (`{name}/manifest-{ver}.json`) are committed; Parquet is not (gitignored `_dist/`, plus Release assets). `data-release.yml` (`.github/workflows/`) runs on PRs touching `apps/fieldnotes/bundles/**` and validates manifest integrity + reports schema deltas via `scripts/validate_bundle_history.py` — it does not build.
   - **Decision (flagged):** a *deliberately* breaking new bundle is minted with `--no-gate` (the explicit "I am re-authoring, not silently re-publishing" acknowledgment); the gate otherwise refuses breaking changes outright per the CoS drift test.
   - `duckdb>=1.0` added to `miscope` deps (was a 110-C lockfile-only gap; publish formalizes the dependency).
-  - Validated end-to-end on the real `modulo_addition_1layer` warehouse: subset query applied, flat zstd Parquet + hashed manifest written, re-queryable in bundle mode; `--update-history` + baseline discovery + gate (identical) exercised through the CLI. 11 new tests; full `miscope` suite green (1549 passed); dashboard green (45). **Not yet committed.**
-- **110-F** — not started.
+  - Validated end-to-end on the real `modulo_addition_1layer` warehouse: subset query applied, flat zstd Parquet + hashed manifest written, re-queryable in bundle mode; `--update-history` + baseline discovery + gate (identical) exercised through the CLI. 11 new tests; full `miscope` suite green (1549 passed); dashboard green (45). Committed `48cd11e`.
+- **110-F — DuckDB-WASM in fieldnotes — DONE (2026-06-05).**
+  - `apps/fieldnotes/src/components/DuckDBQuery.astro`: a vanilla Astro component (no client framework added) with an editable SQL box + Run button + inline result table. The DuckDB-WASM engine ESM is a runtime `import()` of the jsDelivr CDN bundle, evaluated only on the first Run — so the several-MB engine is fully lazy and never enters the Astro build (`dist` stays 2.8M). Each `url`/`tables` asset is registered as a view over `read_parquet(url)`, which DuckDB-WASM range-reads; errors surface inline and the box stays editable (a broken query is recoverable in-browser).
+  - `apps/fieldnotes/src/pages/duckdb-demo.astro`: a committable demonstration — a zero-data engine smoke (`SELECT … FROM range(8)`) that works without any Release, plus the real-data MDX usage pattern. `npm run build` green (6 pages); the inlined hoisted script keeps the CDN import external (verified).
+  - **Open (human-gated):** pointing a real article at a live `data-*` Release + a Pages deploy + the cold-cache range-request Network check. Every link is built and verified in isolation; the live assembly is the v1.0 acceptance bar and waits on publishing the first bundle.
+
+With 110-A…F all landed (110-E/110-F this session), **REQ_110 is implementation-complete** except the live-publication acceptance bar, which is intentionally deferred to the first real `data-*` Release.
 
 ---
 
