@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import plotly.graph_objects as go
 
+from miscope.analysis import neuron_frequency as nf
 from miscope.views.catalog import AnalyzerRequirement, ArtifactKind, ViewDefinition, _catalog
 
 if TYPE_CHECKING:
@@ -491,7 +492,7 @@ def _register_all() -> None:
     # Needs prime from model config alongside the cross-epoch artifact.
 
     def _load_neuron_dynamics(variant: Variant, epoch: int | None) -> dict:
-        cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        cross_epoch = nf.load(variant).as_legacy_arrays()
         prime = int(variant.model_config["prime"])
         seed = variant.model_config.get("seed")
         return {"cross_epoch": cross_epoch, "prime": prime, "seed": seed}
@@ -908,7 +909,7 @@ def _register_all() -> None:
     def _load_band_concentration(variant: Variant, epoch: int | None) -> dict:
         from miscope.analysis.band_concentration import compute_band_concentration_trajectory
 
-        cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        cross_epoch = nf.load(variant).as_legacy_arrays()
         prime = int(variant.model_config["prime"])
         threshold = 0.75
         return compute_band_concentration_trajectory(cross_epoch, threshold, prime)
@@ -929,7 +930,7 @@ def _register_all() -> None:
     def _load_rank_alignment(variant: Variant, epoch: int | None) -> dict:
         from miscope.analysis.band_concentration import compute_rank_alignment_trajectory
 
-        cross_epoch = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        cross_epoch = nf.load(variant).as_legacy_arrays()
         # Selective load: only the embedding cos/sin keys the adapter reads.
         wbp_epochs = variant.artifacts.load_epochs(
             "weight_basis_projection",
@@ -1066,7 +1067,7 @@ def _register_all() -> None:
         attn_legacy = _adapt_attention_fourier_legacy(wbp_stacked)
         attn_legacy["epochs"] = wbp_stacked["epochs"]
         return {
-            "neuron_dynamics": variant.artifacts.load_cross_epoch("neuron_dynamics"),
+            "neuron_dynamics": nf.load(variant).as_legacy_arrays(),
             "attn_fourier_epochs": attn_legacy,
             "embedding_w_e": variant.artifacts.load_epochs("parameter_snapshot", fields=["W_E"]),
             "eff_dim_summary": variant.artifacts.load_summary("weight_spectra"),

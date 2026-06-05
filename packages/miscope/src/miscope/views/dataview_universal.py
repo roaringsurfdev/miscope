@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from miscope.analysis import neuron_frequency as nf
 from miscope.views.catalog import AnalyzerRequirement, ArtifactKind
 from miscope.views.dataview_catalog import (
     DataView,
@@ -237,7 +238,7 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
     )
 
     def _load_neuron_dynamics_raw(variant: Variant, epoch: int | None) -> DataView:
-        data = variant.artifacts.load_cross_epoch("neuron_dynamics")
+        data = nf.load(variant).as_legacy_arrays()
         return DataView(
             schema=_neuron_dynamics_schema,
             epochs=data["epochs"],
