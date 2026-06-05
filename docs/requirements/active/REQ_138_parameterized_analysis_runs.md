@@ -1,6 +1,6 @@
 # REQ_138: Parameterized Analysis Runs (Recipe-Addressed Storage + Run-Set Registry)
 
-**Status:** Draft — stubbed 2026-06-05 from a design/discovery session. Core storage model decided; named edges open (see Open Questions).
+**Status:** Implemented 2026-06-05 on `feature/REQ_110_lakehouse_surface` (6 commits, Phases 1–6; full miscope suite green). Open questions resolved (see Resolution). Stays in `active/` with the other REQ_110 children until the whole REQ_110 line merges to `develop` (per `feedback_req110_children_stay_active`).
 **Priority:** High — **blocks REQ_110-D**. Establishes the parameterization coordinate that consumer migration must land on *once*. Must be addressed before the rest of REQ_110 continues.
 **Branch:** TBD (suggested: continuation of `feature/REQ_110_lakehouse_surface`, since it extends the 110-A/B/C coordinate model).
 **Relationship to REQ_110:** Extends the coordinate model that 110-A (columnar warehouse), 110-B (tensor catalog), and 110-C (DuckDB query surface) established. Inserts **between 110-C and 110-D** so that 110-D re-points renderers/summaries onto an already-parameterized surface rather than migrating twice. Accepts bounded, one-time thrash to 110-C's view layer (one coordinate added to data views + the `catalog` union; one new `run_sets` registry view).
@@ -118,7 +118,45 @@ A default is itself a binding (a literal default, or a reference like `max_epoch
 
 ---
 
-## Open Questions (genuine edges to resolve during design)
+## Resolution (2026-06-05 — implementation)
+
+Built in six phases, one commit each, on `feature/REQ_110_lakehouse_surface`:
+
+1. **Parameter declaration** — `miscope.analysis.parameters` (`ParameterSpec`,
+   `LiteralBinding`/`ReferenceBinding`, `Reducer`/`FieldIndex` selectors,
+   `Parameterization`); `AnalyzerSpec.parameters`; registry load-time gate.
+2. **Recipe** — `miscope.analysis.recipe` (`project_recipe` closure fold,
+   `recipe_signature`, `RecipeResolver`); planner folds reference sources into edges.
+3. **Recipe-addressed storage** — one `analyzer_dir(...)` path primitive adopted by
+   `ArtifactLoader`, pipeline writes/scans, and the planner (`recipe_map`); empty
+   recipe ≡ today's path (no migration). `Pipeline.run(parameterization=...)`
+   replaces `extra_context`; `ResolvedInputs.parameters`; the three `reference_epoch`
+   sites migrated. Regression: pinned recompute byte-identical; coexistence verified.
+4. **Run-set registry** — `_run_sets` relation (`warehouse/run_sets.py`); pipeline
+   records the run set; `run_set` coordinate column on every columnar table + catalog
+   row; `query.open()` registers a `run_sets` view.
+5. **Liveness/GC + freshness** — `live_recipe_signatures` / `orphaned_recipe_dirs`;
+   `prune_deprecated_artifacts.py --recipes`; `freshness.check_reference_freshness`
+   re-resolves inventory-derived defaults.
+6. **Consumer API** — `variant.parameterize(...)` → `ParameterizedVariant` (recipe-
+   scoped loader; universal views read the recipe plane transparently).
+
+**Resolved decisions:** consumer API = `parameterize()` handle (OQ #5); selector
+grammar = minimal `Reducer` + `FieldIndex` (OQ #2); GC = liveness query folded into
+the prune script (OQ #3). Flagged-for-review: signature = canonical-JSON over binding
+*specs*, ints exact / floats quantized 12dp (OQ #1, #4); registry persists named
+bindings (JSON) + opaque `recipe_signature` (OQ #6); recipe path = a `__rs_<sig>`
+subdir, omitted when empty.
+
+**One deferred slice (explicitly out of this REQ, 110-D-adjacent):** materializing
+*parameterized* artifacts into the **columnar** tables. The `run_set` column exists
+on every table/catalog row (the coordinate is present once, which is what 110-D
+needs); coexistence + provenance are fully covered by the recipe-scoped `.npz`
+artifacts and the run-set registry; the columnar writer's wipe-regenerate model
+materializes the default plane today. Folding parameterized rows into the columnar
+tables lands with the 110-D consumer migration.
+
+## Open Questions (resolved — see Resolution above)
 
 1. **Recipe hash canonicalization.** A DMD-derived regime boundary may be a *float*; hashing floats into a stable signature is fragile. Needs a canonical representation (rounding/quantization policy) so the same logical binding addresses stably across runs/environments. *Decision authority: reasonable decision, flag for review.*
 2. **Reference-binding selector grammar.** `activation_dmd.regime_boundaries[0]` implies a small grammar for "field + selector." What is expressible — positional index, named regime, predicate? Keep minimal; grow on demand. *Propose options.*
