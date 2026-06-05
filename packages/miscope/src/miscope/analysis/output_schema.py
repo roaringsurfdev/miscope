@@ -65,6 +65,9 @@ class Coord(str, Enum):
     NEURON = "neuron"
     """MLP neuron index (``d_mlp`` axis)."""
 
+    HEAD = "head"
+    """Attention head index — leading axis of per-head weight/activation arrays."""
+
     ROW_ID = "row_id"
     """Generic sample identifier (e.g. centroid label, PCA sample row)."""
 

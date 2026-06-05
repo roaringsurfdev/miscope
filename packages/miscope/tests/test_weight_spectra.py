@@ -110,8 +110,10 @@ class TestWeightSpectraAnalyzerProtocol:
 
     def test_compute_summary_returns_all_pr_keys(self):
         analyzer = WeightSpectraAnalyzer()
+        # `sv` is uniform-rank (n_heads, n_sv): non-attention sites carry a
+        # singleton head axis (REQ_136), attention sites carry one row per head.
         result = {
-            f"sv_{name}": np.array([3.0, 2.0, 1.0])
+            f"sv_{name}": np.array([[3.0, 2.0, 1.0]])
             for name in WEIGHT_MATRIX_NAMES
             if name not in ATTENTION_MATRICES
         }
@@ -120,6 +122,15 @@ class TestWeightSpectraAnalyzerProtocol:
         summary = analyzer.compute_summary(result, {})
         for name in WEIGHT_MATRIX_NAMES:
             assert f"pr_{name}" in summary
+
+    def test_compute_summary_pr_shape_per_site(self):
+        """Non-attention PR collapses to a scalar; attention PR stays per-head."""
+        analyzer = WeightSpectraAnalyzer()
+        result = {"sv_W_E": np.array([[3.0, 2.0, 1.0]])}  # (1, n_sv)
+        result["sv_W_Q"] = np.array([[3.0, 2.0], [1.0, 1.0], [2.0, 2.0], [1.0, 0.5]])  # (4, n_sv)
+        summary = analyzer.compute_summary(result, {})
+        assert np.isscalar(summary["pr_W_E"]) or np.ndim(summary["pr_W_E"]) == 0
+        assert np.asarray(summary["pr_W_Q"]).shape == (4,)
 
 
 # ── Integration ──────────────────────────────────────────────────────
@@ -197,6 +208,18 @@ class TestWeightSpectraIntegration:
             assert f"sv_{name}" in epoch_data, f"Missing sv_{name}"
             assert f"u_{name}" in epoch_data, f"Missing u_{name}"
             assert f"vt_{name}" in epoch_data, f"Missing vt_{name}"
+
+    def test_sv_emitted_uniform_rank_with_head_axis(self, trained_variant):
+        """`sv` carries a head axis for every site (REQ_136): n_heads=1 off-attention."""
+        pipeline = AnalysisPipeline(trained_variant)
+        pipeline.register(WeightSpectraAnalyzer())
+        pipeline.run()
+        epoch_data = ArtifactLoader(pipeline.artifacts_dir).load_epoch("weight_spectra", 0)
+        for name in ("W_E", "W_in", "W_out", "W_U"):
+            assert epoch_data[f"sv_{name}"].ndim == 2, f"sv_{name} should be 2D"
+            assert epoch_data[f"sv_{name}"].shape[0] == 1, f"sv_{name} head axis should be 1"
+        for name in ATTENTION_MATRICES:
+            assert epoch_data[f"sv_{name}"].shape[0] == 4, f"sv_{name} should have 4 heads"
 
     def test_summary_contains_pr_keys(self, trained_variant):
         pipeline = AnalysisPipeline(trained_variant)

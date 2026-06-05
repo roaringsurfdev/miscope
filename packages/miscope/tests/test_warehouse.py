@@ -77,6 +77,21 @@ def variant(tmp_path: Path) -> _FakeVariant:
     return v
 
 
+def _seed_weight_spectra(variant: _FakeVariant) -> None:
+    """Per-epoch `sv` artifacts with the REQ_136 uniform head axis.
+
+    Non-attention sites carry a singleton head axis ``(1, n_sv)``; attention sites
+    carry one row per head ``(n_heads, n_sv)``.
+    """
+    art = variant.variant_dir / "artifacts"
+    for epoch in (0, 100):
+        _write_npz(
+            art / "weight_spectra" / f"epoch_{epoch:05d}.npz",
+            sv_W_E=np.array([[3.0, 2.0, 1.0]], dtype=np.float32),  # (1, 3)
+            sv_W_Q=np.array([[3.0, 2.0], [1.0, 1.0], [2.0, 1.0], [1.0, 0.5]], dtype=np.float32),
+        )
+
+
 def test_generic_table_one_file_per_signature_with_dtype_fidelity(variant):
     materialize_variant_columnar(variant)
     sigs = set(paths.table_dir(variant, "fourier_frequency_quality").glob("*.parquet"))
@@ -138,6 +153,26 @@ def test_to_wide_pivots(variant):
     scalars = read_table(variant, "fourier_frequency_quality", "by__variant_epoch")
     wide = scalars.to_wide(index="variant_id", columns="epoch", values="quality_score")
     assert list(wide.columns) == [0, 100]
+
+
+def test_weight_spectra_head_is_its_own_column(variant):
+    """REQ_136: `sv` head axis maps to a `head` column; row_id is the SV index alone."""
+    _seed_weight_spectra(variant)
+    materialize_variant_columnar(variant)
+    df = read_table(variant, "weight_spectra", "by__variant_epoch_site_head_row_id").df
+    assert {"site", "head", "row_id", "sv"} <= set(df.columns)
+    # Non-attention site W_E: a single head (0); row_id spans the 3 singular values.
+    # (Bracket access throughout: ``df.head`` is the DataFrame method, not the column.)
+    we = df[df["site"] == "W_E"]
+    assert sorted(we["head"].unique()) == [0]
+    assert sorted(we["row_id"].unique()) == [0, 1, 2]
+    # Attention site W_Q: four heads, each with its own SV index axis.
+    wq = df[df["site"] == "W_Q"]
+    assert sorted(wq["head"].unique()) == [0, 1, 2, 3]
+    assert sorted(wq["row_id"].unique()) == [0, 1]
+    # head/row_id together recover a head's singular value (no conflation).
+    val = wq[(wq["head"] == 2) & (wq["row_id"] == 0) & (wq["epoch"] == 0)]["sv"].iloc[0]
+    assert val == pytest.approx(2.0)
 
 
 def test_cross_variant_concat_is_a_noop(tmp_path):

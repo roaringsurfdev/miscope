@@ -1,8 +1,8 @@
 # REQ_136: Head coordinate for attention weight spectra / basis projection
 
-**Status:** Draft (stub — for review)
+**Status:** Completed (implemented on `feature/REQ_110_lakehouse_surface`)
 **Priority:** Medium — corrects a lossy columnar declaration; recommended before REQ_110B.
-**Branch:** TBD
+**Branch:** feature/REQ_110_lakehouse_surface
 **Attribution:** Engineering Claude (under user direction)
 
 ---
@@ -33,20 +33,24 @@ follow-up, not a reopening of REQ_107.
 
 ## Conditions of Satisfaction
 
-- [ ] **Add a `HEAD` coordinate** to `Coord` (REQ_107 vocabulary,
+- [x] **Add a `HEAD` coordinate** to `Coord` (REQ_107 vocabulary,
   `analysis/output_schema.py`): "attention head index."
-- [ ] **Uniform-rank columnar emission** for the affected fields: attention sites
+- [x] **Uniform-rank columnar emission** for the affected fields: attention sites
   emit `(n_heads, n_sv)`; non-attention sites emit `(1, n_sv)` (a one-line reshape,
   `head = 0`), so the field has uniform rank and declares
-  `(variant, epoch, site, head, row_id)`. (Or, if cleaner in implementation, a
-  dedicated per-head field — decide during design.) Same treatment for
-  `weight_basis_projection.dominant_frequency`.
-- [ ] **Warehouse preserves `head` as its own column** (no flatten change needed
-  once rank is uniform — the existing flattener maps declared axes to columns).
-  Re-materialize the canonical three; `weight_spectra` / `weight_basis_projection`
-  tables gain a `head` column, `row_id` is the singular-value index alone.
-- [ ] **Drop the interim honesty note** from the two analyzer declarations once the
-  head axis is first-class.
+  `(variant, epoch, site, head, row_id)`. Chose the uniform-rank approach over a
+  dedicated per-head field — keeps one declared shape and one flatten path. Same
+  treatment for `weight_basis_projection.dominant_frequency`. `compute_summary`
+  collapses the non-attention singleton head axis so per-matrix PR stays scalar
+  (no `variant_summary` drift); attention PR stays per-head.
+- [x] **Warehouse preserves `head` as its own column** (no flatten behavior change —
+  `head` added to the positional-axis set and the canonical coord order only).
+  Re-materialized the canonical three; both tables now key on
+  `by__variant_epoch_site_head_row_id` — attention sites resolve heads `[0,1,2,3]`,
+  non-attention to `[0]`, and `row_id` is the singular-value / output index alone.
+- [x] **Dropped the interim honesty note** — `_conform_rank`'s head-fold docstring
+  now frames the fold as a defensive fallback, and finding 1 in
+  `req110a_decomposition_map.md` is marked resolved.
 
 ## Constraints
 
@@ -77,3 +81,9 @@ two are otherwise independent.
   comes from the model config, not a hardcode.
 - Worth a parallel sanity check: any *other* analyzer whose attention-site output
   silently carries a head axis (audit alongside, don't expand scope reactively).
+- Audit result: `activation_basis_projection`'s `attn_pattern` site does carry a
+  head axis, but only in its **tensor** fields (coefficient cubes,
+  `dominant_frequency_pair`); its sole columnar field is `frequencies` (no head).
+  Tensors are not flattened (110-B records true per-head shape), so no columnar
+  head loss there — only the two named analyzers were affected. `n_heads` is read
+  from the model config (4 for modadd), not hardcoded.

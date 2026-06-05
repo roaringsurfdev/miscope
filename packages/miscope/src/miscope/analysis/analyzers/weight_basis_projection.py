@@ -39,7 +39,9 @@ from miscope.core.basis_projection import BasisProjectionSite
 # cross-coeff cubes + dominant_frequency_pair. The union is declared here as
 # logical fields keyed by `site`; absent fields for a given site are simply not
 # written. All coefficient cubes are tensors; only the frequency-axis labels and
-# per-unit dominant frequency flatten to columns.
+# per-unit dominant frequency flatten to columns. The per-head attention site
+# (attn_v) gives `dominant_frequency` a `head` coordinate (REQ_136); it is emitted
+# uniform-rank as (n_heads, n_units), n_heads=1 for non-attention 1D sites.
 _WBP_TENSOR_FIELDS = (
     ("cos_coeffs", "Cosine Fourier coefficients (1D sites)."),
     ("sin_coeffs", "Sine Fourier coefficients (1D sites)."),
@@ -66,8 +68,9 @@ SPEC = AnalyzerSpec(
         F.columnar(
             "dominant_frequency",
             "int32",
-            ("variant", "epoch", "site", "row_id"),
-            "Argmax frequency index per output unit (1D sites; row_id = output dim).",
+            ("variant", "epoch", "site", "head", "row_id"),
+            "Argmax frequency index per output unit (1D sites; head = attention "
+            "head, head=0 for non-attention sites; row_id = output dim).",
         ),
         F.columnar(
             "frequencies",
@@ -142,6 +145,12 @@ def _project_1d(
 ) -> dict[str, np.ndarray]:
     """1D projection: returns cos/sin coeffs plus derived metrics."""
     result = project_onto_fourier_basis(matrix, basis, period_axis=period_axis)
+    # Uniform-rank `dominant_frequency` (REQ_136): per-head sites (attn_v) yield a
+    # (n_heads, n_units) argmax; give single-head sites a singleton head axis so the
+    # field's declared `head` coordinate keys one shape. Tensors are left untouched.
+    dominant_frequency = result.dominant_frequency.astype(np.int32)
+    if dominant_frequency.ndim == 1:
+        dominant_frequency = dominant_frequency[np.newaxis, :]
     return {
         "cos_coeffs": result.cos_coeffs.astype(np.float64),
         "sin_coeffs": result.sin_coeffs.astype(np.float64),
@@ -149,7 +158,7 @@ def _project_1d(
         "phases": result.phases.astype(np.float64),
         "power": result.power.astype(np.float64),
         "fractional_power": result.fractional_power.astype(np.float64),
-        "dominant_frequency": result.dominant_frequency.astype(np.int32),
+        "dominant_frequency": dominant_frequency,
         "frequencies": basis.frequencies.astype(np.int32),
     }
 

@@ -22,7 +22,9 @@ from miscope.analysis.output_schema import Coord, OutputField
 
 # Coords whose axis is labelled positionally (0..n-1) unless the writer supplies
 # data-dependent labels.
-_POSITIONAL_DEFAULT = frozenset({Coord.NEURON, Coord.ROW_ID, Coord.FREQUENCY, Coord.GROUP})
+_POSITIONAL_DEFAULT = frozenset(
+    {Coord.NEURON, Coord.ROW_ID, Coord.FREQUENCY, Coord.GROUP, Coord.HEAD}
+)
 
 
 def flatten_field(
@@ -86,12 +88,14 @@ def _axis_coords(
 def _conform_rank(arr: np.ndarray, axis_coords: tuple[Coord, ...]) -> np.ndarray:
     """Reconcile array rank with the declared axis count.
 
-    An array may carry *more* axes than the field declares — attention weight
-    matrices (W_Q/K/V/O) keep a head axis the ``row_id``-only declaration does not
-    name, so ``weight_spectra.sv`` is ``(n_heads, n_sv)`` against one declared
-    axis. Rather than crash, the undeclared leading axes are folded into the last
-    declared axis (lossless in values; the composite index keys the row). Fewer
-    axes than declared is a genuine declaration error and raises.
+    The attention head axis that ``weight_spectra.sv`` and
+    ``weight_basis_projection.dominant_frequency`` carry is now a first-class
+    ``head`` coordinate (REQ_136), emitted uniform-rank, so it maps to its own
+    column rather than being folded. The fold below remains a defensive fallback:
+    if an array still carries *more* axes than its field declares, the undeclared
+    leading axes collapse into the last declared axis (lossless in values; the
+    composite index keys the row). Fewer axes than declared is a genuine
+    declaration error and raises.
     """
     k = len(axis_coords)
     if k == 0:
