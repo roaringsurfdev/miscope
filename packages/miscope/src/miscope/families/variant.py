@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from miscope.families.protocols import ModelFamily
     from miscope.views.catalog import BoundView, EpochContext
     from miscope.views.dataview_catalog import BoundDataView
+    from miscope.warehouse.reader import WarehouseAccessor
 
 
 @dataclass
@@ -223,6 +224,18 @@ class Variant:
         from miscope.analysis.artifact_loader import ArtifactLoader
 
         return ArtifactLoader(str(self.artifacts_dir))
+
+    @property
+    def warehouse(self) -> WarehouseAccessor:
+        """Columnar warehouse surface for this variant (REQ_110A).
+
+        Mirrors :attr:`artifacts`: ``variant.warehouse.materialize()`` writes the
+        long-format Parquet tables from the ``.npz`` artifacts;
+        ``variant.warehouse.table(name).to_wide(...)`` reads them back.
+        """
+        from miscope.warehouse.reader import WarehouseAccessor
+
+        return WarehouseAccessor(self)
 
     @property
     def metadata(self) -> dict[str, Any]:
