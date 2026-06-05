@@ -25,7 +25,7 @@ Quick start:
 
 from __future__ import annotations
 
-from miscope import registry
+from miscope import query, registry
 from miscope.config import AppConfig, get_config
 from miscope.families.protocols import ModelFamily
 from miscope.views import BoundView, EpochContext, ViewCatalog, ViewDefinition, catalog
@@ -44,6 +44,8 @@ __all__ = [
     "catalog",
     # REQ_107: Discoverability Registry (INFORMATION_SCHEMA for analysis)
     "registry",
+    # REQ_110C: DuckDB query surface over the warehouse
+    "query",
 ]
 
 
