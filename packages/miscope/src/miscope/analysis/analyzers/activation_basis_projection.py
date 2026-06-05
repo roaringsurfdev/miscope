@@ -55,7 +55,6 @@ _ABP_TENSOR_FIELDS = (
     ("magnitudes", "Per-frequency-pair coefficient magnitudes."),
     ("power", "Per-frequency-pair power (magnitude squared)."),
     ("fractional_power", "Power normalized to fraction of total per unit."),
-    ("dominant_frequency_pair", "Argmax (k_a, k_b) frequency pair per unit."),
     ("axis_a_marginal_cos_coeffs", "Cosine coefficients marginalized over axis a."),
     ("axis_a_marginal_sin_coeffs", "Sine coefficients marginalized over axis a."),
     ("axis_a_marginal_power", "Power marginalized over axis a."),
@@ -77,10 +76,19 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=_KNOWN_HOOKS,
+    version=2,  # v2: dominant_frequency_pair dtype corrected float64 -> int32 (REQ_137)
     outputs=(
         *(
             F.tensor(name, "float64", ("variant", "epoch", "site"), desc)
             for name, desc in _ABP_TENSOR_FIELDS
+        ),
+        # An argmax (k_a, k_b) index — int32, not a float64 cube; analyze() emits it
+        # via .astype(np.int32). Declared separately from the float64 cube loop.
+        F.tensor(
+            "dominant_frequency_pair",
+            "int32",
+            ("variant", "epoch", "site"),
+            "Argmax (k_a, k_b) frequency pair per unit.",
         ),
         F.columnar(
             "frequencies",

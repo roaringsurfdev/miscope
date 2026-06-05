@@ -53,17 +53,26 @@ _WBP_TENSOR_FIELDS = (
     ("phases", "Per-frequency phase angles (1D sites)."),
     ("power", "Per-frequency power (magnitude squared)."),
     ("fractional_power", "Power normalized to fraction of total per output unit."),
-    ("dominant_frequency_pair", "Argmax (k_a, k_b) frequency pair per head (2D site)."),
 )
 
 SPEC = AnalyzerSpec(
     name="weight_basis_projection",
     output_scope="per_epoch",
     inputs=(ArtifactInput("parameter_snapshot"),),
+    version=2,  # v2: dominant_frequency_pair dtype corrected float64 -> int32 (REQ_137)
     outputs=(
         *(
             F.tensor(name, "float64", ("variant", "epoch", "site"), desc)
             for name, desc in _WBP_TENSOR_FIELDS
+        ),
+        # An argmax (k_a, k_b) index — int32, not a float64 coefficient cube; the
+        # analyze() side emits it via .astype(np.int32). Declared separately so it
+        # is not swept into the float64 cube loop above.
+        F.tensor(
+            "dominant_frequency_pair",
+            "int32",
+            ("variant", "epoch", "site"),
+            "Argmax (k_a, k_b) frequency pair per output unit (2D attn_qk site).",
         ),
         F.columnar(
             "dominant_frequency",
