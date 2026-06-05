@@ -54,7 +54,9 @@ __all__ = [
     "Binding",
     "Parameterization",
     "EMPTY_PARAMETERIZATION",
+    "ParameterSpec",
     "binding_key",
+    "reference_default_sources",
 ]
 
 ParameterScope = Literal["run", "analyzer"]
@@ -172,6 +174,23 @@ class ParameterSpec:
     dtype: str
     scope: ParameterScope
     default: Binding
+
+
+def reference_default_sources(parameters: tuple[ParameterSpec, ...]) -> tuple[str, ...]:
+    """Upstream analyzers an analyzer reads via *reference-binding defaults*.
+
+    A reference default is a real read-dependency (the resolver loads the source's
+    inventory or a field), so it is a DAG edge the planner must order on — even when
+    the source is not already an :class:`~miscope.analysis.inputs.ArtifactInput`. For
+    the in-scope ``reference_epoch`` sites the source (``neuron_grouping``) is already
+    an ArtifactInput, so this adds no new edge there; it keeps the derived-parameter
+    walk (a reference into a *new* source) correct without a later refactor.
+    """
+    seen: dict[str, None] = {}
+    for p in parameters:
+        if isinstance(p.default, ReferenceBinding):
+            seen.setdefault(p.default.source_analyzer, None)
+    return tuple(seen)
 
 
 # ---------------------------------------------------------------------------

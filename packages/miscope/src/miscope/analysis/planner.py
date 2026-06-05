@@ -340,9 +340,16 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
 
     if isinstance(item, AnalyzerSpec):
         from miscope.analysis.inputs import derive_has_model_input
+        from miscope.analysis.parameters import reference_default_sources
 
         has_model = derive_has_model_input(item.inputs)
-        requires = item.requires
+        # A reference-binding default is a read-dependency (REQ_138): fold its source
+        # into the topo-ordering edges. Deduped against ArtifactInput requires, so a
+        # reference into an already-declared upstream (the in-scope reference_epoch
+        # sites) adds no edge.
+        requires = tuple(
+            dict.fromkeys((*item.requires, *reference_default_sources(item.parameters)))
+        )
         # depends_on is purely cosmetic now: the single upstream of a purely
         # artifact-derived per-epoch analyzer (the former "secondary" shape).
         depends_on = (
