@@ -9,6 +9,7 @@ REQ_110D; ``VariantAnalysisSummary`` is the canonical engine and
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -158,10 +159,18 @@ def _make_vas_variant(
     return variant
 
 
-def _make_vas(variant: MagicMock) -> VariantAnalysisSummary:
-    """Construct a VariantAnalysisSummary with an empty summary_data dict."""
+def _make_vas(variant: MagicMock, d_mlp: int = _D_MLP) -> VariantAnalysisSummary:
+    """Construct a VariantAnalysisSummary with an empty summary_data dict.
+
+    Stubs ``analysis_data`` with a pre-loaded conformed-dimension handle so the
+    REQ_110D ``_attribution()`` accessor returns a fake instead of reaching the
+    warehouse — these tests exercise field-population logic, not the loader.
+    """
     vas = VariantAnalysisSummary.__new__(VariantAnalysisSummary)
     vas.variant = variant
+    vas.analysis_data = SimpleNamespace(
+        neurons_loaded=True, attribution=SimpleNamespace(d_mlp=d_mlp)
+    )
     vas.summary_data = {
         "prime": variant.params["prime"],
         "second_descent_onset_epoch": None,

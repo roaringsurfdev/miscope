@@ -39,6 +39,10 @@ class _FakeVariant:
     def artifacts(self) -> ArtifactLoader:
         return ArtifactLoader(str(self.variant_dir / "artifacts"))
 
+    @property
+    def summary_path(self) -> Path:
+        return self.variant_dir / "variant_summary.json"
+
 
 def _write_npz(path: Path, **arrays: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -188,3 +192,45 @@ def test_cross_variant_concat_is_a_noop(tmp_path):
     assert set(combined["variant_id"].unique()) == {"p5_seed1_dseed2", "p7_seed1_dseed2"}
     # long format needs no reconciliation: one schema, variant_id distinguishes rows.
     assert combined.groupby("variant_id").size().nunique() == 1
+
+
+def test_variant_outcomes_table_co_emitted(variant):
+    """The per-variant outcome rollup (REQ_110D) materializes from the summary JSON.
+
+    Promoted scalar fields become queryable columns; the full snapshot is carried
+    in ``summary_json`` for byte-identical registry reconstruction; non-scalar
+    fields (lists, nested windows) live only inside the carrier.
+    """
+    import json
+
+    summary = {
+        "prime": 5,
+        "failure_mode": "healthy",
+        "homeless_neuron_fraction": 0.25,
+        "second_descent_onset_epoch": 4000,
+        "learned_frequencies": [3, 5],  # list -> carrier only, not a column
+        "final_window": {"start_epoch": 100, "end_epoch": 200},  # dict -> carrier only
+    }
+    variant.summary_path.write_text(json.dumps(summary))
+
+    materialize_variant_columnar(variant)
+    table = read_table(variant, "variant_outcomes")
+    df = table.df
+    assert len(df) == 1
+    row = df.iloc[0]
+    # Promoted scalar columns are queryable.
+    assert row["failure_mode"] == "healthy"
+    assert row["homeless_neuron_fraction"] == pytest.approx(0.25)
+    assert row["second_descent_onset_epoch"] == 4000
+    assert row["variant_id"] == "p5_seed1_dseed2"
+    # Non-scalar fields are not promoted to columns.
+    assert "learned_frequencies" not in df.columns
+    assert "final_window" not in df.columns
+    # The carrier round-trips the full snapshot.
+    assert json.loads(row["summary_json"])["learned_frequencies"] == [3, 5]
+
+
+def test_variant_outcomes_skipped_without_summary(variant):
+    """No variant_summary.json -> no variant_outcomes table (no error)."""
+    materialize_variant_columnar(variant)
+    assert not paths.table_dir(variant, "variant_outcomes").exists()

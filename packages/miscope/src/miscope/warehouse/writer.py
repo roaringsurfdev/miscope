@@ -86,7 +86,23 @@ def materialize_variant_columnar(
         _emit_generic(variant, spec.name, generic, variant_cols, report)
 
     _emit_semantic(variant, semantic, variant_cols, report)
+    _emit_outcomes(variant, run_set, report)
     return report
+
+
+def _emit_outcomes(variant: object, run_set: str, report: MaterializeReport) -> None:
+    """Co-emit the per-variant outcome rollup (REQ_110D), if the summary exists.
+
+    A cross-analyzer rollup, not an analyzer output — sourced from
+    ``variant_summary.json`` and written here so it survives ``_wipe_columnar_outputs``
+    (which runs at the top of this pass) and stays atomic with the rest.
+    """
+    from miscope.warehouse.outcomes import OUTCOMES_TABLE, materialize_variant_outcomes
+
+    rows = materialize_variant_outcomes(variant, run_set)
+    if rows:
+        report.tables[OUTCOMES_TABLE] = rows
+        report.files_written.append(str(paths.semantic_parquet_path(variant, OUTCOMES_TABLE)))
 
 
 # ---------------------------------------------------------------------------
