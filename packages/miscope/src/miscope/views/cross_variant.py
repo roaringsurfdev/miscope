@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
+from miscope.analysis import neuron_frequency as nf
 from miscope.analysis.band_concentration import (
     compute_band_concentration_at_epoch,
     compute_critical_mass_snapshot,
@@ -152,10 +153,18 @@ def compute_variant_metrics(
         "critical_mass_hhi": None,
     }
 
-    _load_second_descent_metrics(variant, metrics, test_losses, prime, rules)
-    _load_neuron_dynamics_metrics(variant, metrics, prime)
+    # REQ_110D: the conformed (epoch, neuron) -> dominant-frequency dimension is
+    # loaded once from the warehouse and shared across the neuron-frequency
+    # consumers (no more per-helper neuron_dynamics.npz reads).
+    try:
+        attribution = nf.load(variant)
+    except FileNotFoundError:
+        attribution = None
+
+    _load_second_descent_metrics(metrics, test_losses, prime, rules, attribution)
+    _load_neuron_dynamics_metrics(metrics, prime, attribution)
     _load_repr_geometry_metrics(variant, metrics)
-    _load_band_concentration_metrics(variant, metrics, prime, num_epochs)
+    _load_band_concentration_metrics(metrics, prime, num_epochs, attribution)
 
     failure_mode, reasons = classify_failure_mode(metrics, rules)
     metrics["failure_mode"] = failure_mode
@@ -165,32 +174,34 @@ def compute_variant_metrics(
 
 
 def _load_neuron_dynamics_metrics(
-    variant: Variant,
     metrics: dict[str, Any],
     prime: int,
+    attribution: nf.NeuronFrequencyAttribution | None,
 ) -> None:
-    """Populate neuron_dynamics-derived metrics in place. No-op on missing artifact."""
-    try:
-        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")
-    except FileNotFoundError:
+    """Populate neuron_dynamics-derived metrics in place. No-op on missing artifact.
+
+    Uses the artifact "uncommitted floor" threshold (≈3/(p//2)) to count *active*
+    frequencies at the final epoch, and the artifact's stored commitment epochs for
+    the competition window (distinct from the 0.7-threshold recompute the summary
+    engine uses).
+    """
+    if attribution is None:
         return
 
-    dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp)
-    max_frac = nd["max_frac"]  # (n_epochs, d_mlp)
-    commitment_epochs = nd["commitment_epochs"]  # (d_mlp,)
-    threshold = float(nd["threshold"][0]) if nd["threshold"].size > 0 else 3.0 / (prime // 2)
-
-    committed_final = max_frac[-1] >= threshold
-    active_freqs = set(int(f) for f in dominant_freq[-1][committed_final])
+    threshold = attribution.threshold if attribution.threshold is not None else 3.0 / (prime // 2)
+    final_idx = attribution.n_epochs - 1
+    active_freqs = attribution.specialized_frequencies(final_idx, threshold=threshold)
     metrics["frequency_band_count"] = len(active_freqs)
 
-    committed_epoch_values = commitment_epochs[~np.isnan(commitment_epochs)]
-    if len(committed_epoch_values) > 0:
-        metrics["competition_window_start"] = int(committed_epoch_values.min())
-        metrics["competition_window_end"] = int(committed_epoch_values.max())
-        metrics["competition_window_duration"] = (
-            metrics["competition_window_end"] - metrics["competition_window_start"]
-        )
+    commitment_epochs = attribution.commitment_epochs  # artifact values (low threshold)
+    if commitment_epochs is not None:
+        committed_epoch_values = commitment_epochs[~np.isnan(commitment_epochs)]
+        if len(committed_epoch_values) > 0:
+            metrics["competition_window_start"] = int(committed_epoch_values.min())
+            metrics["competition_window_end"] = int(committed_epoch_values.max())
+            metrics["competition_window_duration"] = (
+                metrics["competition_window_end"] - metrics["competition_window_start"]
+            )
 
 
 def _load_repr_geometry_metrics(variant: Variant, metrics: dict[str, Any]) -> None:
@@ -214,19 +225,24 @@ _DEFAULT_CRITICAL_MASS_N = 100
 
 
 def _load_band_concentration_metrics(
-    variant: Variant,
     metrics: dict[str, Any],
     prime: int,
     # grokking_onset_epoch: int | None,
     num_epochs: int,
+    attribution: nf.NeuronFrequencyAttribution | None,
     threshold: float = _DEFAULT_CONCENTRATION_THRESHOLD,
     neuron_count_threshold: int = _DEFAULT_CRITICAL_MASS_N,
 ) -> None:
-    """Populate band concentration metrics in place. No-op on missing artifact."""
-    try:
-        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")
-    except FileNotFoundError:
+    """Populate band concentration metrics in place. No-op on missing artifact.
+
+    The band-concentration functions consume the legacy ``neuron_dynamics`` array
+    dict (0-indexed ``dominant_freq``); it is reconstructed from the conformed
+    dimension via :meth:`NeuronFrequencyAttribution.as_legacy_arrays`, so those
+    pure functions are unchanged while the source moves to the warehouse.
+    """
+    if attribution is None:
         return
+    nd = attribution.as_legacy_arrays()
 
     epochs = nd["epochs"]
     n_epochs = len(epochs)
@@ -255,29 +271,23 @@ def _load_band_concentration_metrics(
 
 
 def _classify_frequency_band(freq: int, prime: int) -> str:
-    """Classify a frequency into low / mid / high band relative to prime."""
-    if freq <= prime // 4:
-        return "low"
-    if freq > 3 * prime // 8:
-        return "high"
-    return "mid"
+    """Classify a frequency into low / mid / high band (single definition in nf)."""
+    return nf.classify_band(freq, prime)
 
 
 def _load_second_descent_metrics(
-    variant: Variant,
     metrics: dict[str, Any],
     test_losses: list[float],
     prime: int,
     rules: ClassificationRules,
+    attribution: nf.NeuronFrequencyAttribution | None,
 ) -> None:
     """Populate second descent and first-mover metrics in place."""
     _compute_test_loss_trajectory(metrics, test_losses, rules)
-    try:
-        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")
-    except FileNotFoundError:
+    if attribution is None:
         return
-    _compute_first_mover_metrics(metrics, nd, prime, rules)
-    _compute_descent_onset_portfolio(metrics, nd, prime, rules)
+    _compute_first_mover_metrics(metrics, attribution, prime, rules)
+    _compute_descent_onset_portfolio(metrics, attribution, prime, rules)
 
 
 def _compute_test_loss_trajectory(
@@ -323,39 +333,36 @@ def _compute_test_loss_trajectory(
 
 def _compute_first_mover_metrics(
     metrics: dict[str, Any],
-    nd: dict,
+    attribution: nf.NeuronFrequencyAttribution,
     prime: int,
     rules: ClassificationRules,
 ) -> None:
-    """Compute first-mover frequency metrics from neuron_dynamics artifact."""
-    dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp)
-    max_frac = nd["max_frac"]  # (n_epochs, d_mlp)
-    epochs = nd["epochs"]  # (n_epochs,)
-    d_mlp = dominant_freq.shape[1]
-    threshold = rules.first_mover_neuron_threshold * d_mlp
+    """Compute first-mover frequency metrics from the conformed dimension.
 
-    for epoch_idx, epoch in enumerate(epochs):
-        freq_counts: dict[int, int] = {}
-        for neuron_idx in range(d_mlp):
-            if max_frac[epoch_idx, neuron_idx] >= 0.75:  # specialization threshold
-                freq = int(dominant_freq[epoch_idx, neuron_idx])
-                freq_counts[freq] = freq_counts.get(freq, 0) + 1
+    REQ_110D correctness fix: ``first_mover_frequency`` is now 1-indexed, like
+    every other frequency the platform reports (it was previously stored 0-indexed
+    here, inconsistent with the descent-onset portfolio in this same module). The
+    0.75 specialization threshold and the population-count gate are unchanged, so
+    the *selection* (which frequency, which epoch) is identical — only the reported
+    value shifts +1, and the band classification it feeds is now correct.
+    """
+    threshold = rules.first_mover_neuron_threshold * attribution.d_mlp
+    final_freqs = attribution.final_specialized_frequencies(threshold=0.75)
 
+    for epoch_idx in range(attribution.n_epochs):
+        freq_counts = attribution.frequency_counts(epoch_idx, threshold=0.75)
         for freq, count in freq_counts.items():
             if count >= threshold:
                 metrics["first_mover_frequency"] = freq
-                metrics["first_mover_epoch"] = int(epoch)
+                metrics["first_mover_epoch"] = int(attribution.epochs[epoch_idx])
                 metrics["first_mover_band"] = _classify_frequency_band(freq, prime)
-                # Check if this frequency is still active in the final epoch
-                final_committed = max_frac[-1] >= 0.75
-                final_freqs = set(int(f) for f in dominant_freq[-1][final_committed])
                 metrics["first_mover_survived"] = freq in final_freqs
                 return
 
 
 def _compute_descent_onset_portfolio(
     metrics: dict[str, Any],
-    nd: dict,
+    attribution: nf.NeuronFrequencyAttribution,
     prime: int,
     rules: ClassificationRules,
 ) -> None:
@@ -364,15 +371,8 @@ def _compute_descent_onset_portfolio(
     if onset_epoch is None:
         return
 
-    epochs = nd["epochs"]
-    dominant_freq = nd["dominant_freq"]  # (n_epochs, d_mlp)
-    max_frac = nd["max_frac"]  # (n_epochs, d_mlp)
-
-    onset_idx = int(np.searchsorted(epochs, onset_epoch))
-    onset_idx = min(onset_idx, len(epochs) - 1)
-
-    committed_mask = max_frac[onset_idx] >= 0.7
-    active_freqs = set(int(f + 1) for f in dominant_freq[onset_idx][committed_mask])
+    onset_idx = attribution.epoch_index(onset_epoch)
+    active_freqs = attribution.specialized_frequencies(onset_idx, threshold=0.7)
 
     if not active_freqs:
         metrics["second_descent_onset_committed_frequencies"] = []

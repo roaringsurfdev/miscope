@@ -57,6 +57,37 @@ class NeuronFrequencyAttribution:
     switch_counts: np.ndarray | None  # (d_mlp,)
     threshold: float | None  # artifact "uncommitted floor" threshold
 
+    @classmethod
+    def from_legacy_dict(cls, nd: dict) -> NeuronFrequencyAttribution:
+        """Build from a legacy ``neuron_dynamics`` npz-style dict (0-indexed freqs).
+
+        The inverse of :meth:`as_legacy_arrays`. Useful for tests and any caller
+        holding the raw arrays rather than a warehouse handle; the ``+1`` convention
+        is applied here, as everywhere.
+        """
+        dom = np.asarray(nd["dominant_freq"])
+        frac = np.asarray(nd["max_frac"], dtype=float)
+        epochs = np.asarray(nd["epochs"])
+        thr = nd.get("threshold")
+        threshold = (
+            float(np.asarray(thr).ravel()[0])
+            if thr is not None and np.asarray(thr).size
+            else None
+        )
+        return cls(
+            epochs=epochs,
+            neurons=np.arange(dom.shape[1]),
+            dominant_freq=dom.astype(int) + 1,
+            frac_explained=frac,
+            commitment_epochs=(
+                np.asarray(nd["commitment_epochs"], dtype=float)
+                if "commitment_epochs" in nd
+                else None
+            ),
+            switch_counts=(np.asarray(nd["switch_counts"]) if "switch_counts" in nd else None),
+            threshold=threshold,
+        )
+
     @property
     def d_mlp(self) -> int:
         return self.dominant_freq.shape[1]
@@ -98,6 +129,27 @@ class NeuronFrequencyAttribution:
     def final_specialized_frequencies(self, *, threshold: float) -> set[int]:
         """1-indexed frequencies still specialized at the final epoch (survival checks)."""
         return set(self.specialized_frequencies(self.n_epochs - 1, threshold=threshold))
+
+    def as_legacy_arrays(self) -> dict[str, np.ndarray]:
+        """The legacy ``neuron_dynamics`` npz array dict, sourced from the warehouse.
+
+        For consumers written against the ``.npz`` arrays (band concentration, the
+        view loaders) — ``dominant_freq`` is handed back **0-indexed** (the npz
+        convention these consumers expect), so they leave the npz behind without a
+        behavior change. Aux arrays are included when available.
+        """
+        arrays: dict[str, np.ndarray] = {
+            "epochs": self.epochs,
+            "dominant_freq": self.dominant_freq - 1,  # restore 0-indexed for legacy consumers
+            "max_frac": self.frac_explained,
+        }
+        if self.commitment_epochs is not None:
+            arrays["commitment_epochs"] = self.commitment_epochs
+        if self.switch_counts is not None:
+            arrays["switch_counts"] = self.switch_counts
+        if self.threshold is not None:
+            arrays["threshold"] = np.array([self.threshold])
+        return arrays
 
     def recompute_commitment_epochs(self, *, threshold: float) -> np.ndarray:
         """Per-neuron commitment epoch recomputed at ``threshold`` (NaN if uncommitted).
@@ -147,6 +199,11 @@ def load(variant: object) -> NeuronFrequencyAttribution:
         switch_counts=aux.get("switch_counts"),
         threshold=aux.get("threshold"),
     )
+
+
+def from_legacy_dict(nd: dict) -> NeuronFrequencyAttribution:
+    """Module-level alias for :meth:`NeuronFrequencyAttribution.from_legacy_dict`."""
+    return NeuronFrequencyAttribution.from_legacy_dict(nd)
 
 
 def classify_band(freq: int, prime: int) -> str:

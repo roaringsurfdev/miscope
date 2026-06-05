@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from miscope.analysis import neuron_frequency as nf
 from miscope.views.cross_variant import (
     ClassificationRules,
     _compute_first_mover_metrics,
@@ -16,6 +17,19 @@ from miscope.views.cross_variant import (
     compute_variant_metrics,
     load_family_comparison,
 )
+
+
+@pytest.fixture(autouse=True)
+def _attribution_from_mock(monkeypatch):
+    """REQ_110D: cross_variant reads the conformed dim via nf.load. Bridge the
+    mocked neuron_dynamics npz to that path so these unit tests keep their fixtures.
+    """
+
+    def fake_load(variant):
+        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")  # raises if absent
+        return nf.from_legacy_dict(nd)
+
+    monkeypatch.setattr("miscope.views.cross_variant.nf.load", fake_load)
 
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers
@@ -189,8 +203,8 @@ class TestFirstMoverMetrics:
         )
         metrics = self._make_metrics()
         rules = ClassificationRules()
-        _compute_first_mover_metrics(metrics, nd, prime, rules)
-        assert metrics["first_mover_frequency"] == 5
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, rules)
+        assert metrics["first_mover_frequency"] == 6  # REQ_110D: 1-indexed (was 0-indexed 5)
 
     def test_first_mover_epoch_recorded(self):
         """first_mover_epoch is the epoch at which the threshold was first crossed."""
@@ -201,7 +215,7 @@ class TestFirstMoverMetrics:
             n_epochs=3, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100, 200]
         )
         metrics = self._make_metrics()
-        _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, ClassificationRules())
         assert metrics["first_mover_epoch"] == 0
 
     def test_first_mover_band_low(self):
@@ -213,7 +227,7 @@ class TestFirstMoverMetrics:
             n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
         )
         metrics = self._make_metrics()
-        _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, ClassificationRules())
         assert metrics["first_mover_band"] == "low"
 
     def test_first_mover_survived_true(self):
@@ -225,7 +239,7 @@ class TestFirstMoverMetrics:
             n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
         )
         metrics = self._make_metrics()
-        _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, ClassificationRules())
         assert metrics["first_mover_survived"] is True
 
     def test_first_mover_survived_false_when_lost(self):
@@ -250,8 +264,8 @@ class TestFirstMoverMetrics:
             "threshold": np.array([0.75]),
         }
         metrics = self._make_metrics()
-        _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
-        assert metrics["first_mover_frequency"] == 5
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, ClassificationRules())
+        assert metrics["first_mover_frequency"] == 6  # REQ_110D: 1-indexed (was 0-indexed 5)
         assert metrics["first_mover_survived"] is False
 
     def test_no_first_mover_when_below_threshold(self):
@@ -264,7 +278,7 @@ class TestFirstMoverMetrics:
             n_epochs=2, d_mlp=d_mlp, freq_per_neuron=freq_per_neuron, epochs=[0, 100]
         )
         metrics = self._make_metrics()
-        _compute_first_mover_metrics(metrics, nd, prime, ClassificationRules())
+        _compute_first_mover_metrics(metrics, nf.from_legacy_dict(nd), prime, ClassificationRules())
         assert metrics["first_mover_frequency"] is None
 
 
@@ -388,7 +402,7 @@ class TestComputeVariantMetricsREQ065:
         )
         variant = _make_variant(test_losses=losses, prime=prime, nd_data=nd)
         metrics = compute_variant_metrics(variant)
-        assert metrics["first_mover_frequency"] == 5
+        assert metrics["first_mover_frequency"] == 6  # REQ_110D: 1-indexed (was 0-indexed 5)
         assert metrics["first_mover_band"] in ("low", "mid", "high")
 
     @pytest.mark.skip(reason="this test is currently disabled until metrics are stabilized")

@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import pytest
 
+from miscope.analysis import neuron_frequency as nf
 from miscope.views.cross_variant import (
     ClassificationRules,
     classify_failure_mode,
@@ -19,6 +20,19 @@ from miscope.visualization.renderers.cross_variant import (
     render_loss_curve_overlay,
     render_metrics_table,
 )
+
+
+@pytest.fixture(autouse=True)
+def _attribution_from_mock(monkeypatch):
+    """REQ_110D: bridge the mocked neuron_dynamics npz to the warehouse-backed
+    nf.load path that cross_variant now uses for the conformed dimension.
+    """
+
+    def fake_load(variant):
+        nd = variant.artifacts.load_cross_epoch("neuron_dynamics")  # raises if absent
+        return nf.from_legacy_dict(nd)
+
+    monkeypatch.setattr("miscope.views.cross_variant.nf.load", fake_load)
 
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers
