@@ -175,6 +175,19 @@ REQ_110 is deliberately large — it is the full storage engine, and we keep it 
 
 Critical path: REQ_107 → (110-A ∥ 110-B) → 110-C → 110-D. Publication branches in parallel once materialization exists: (110-A ∥ 110-B) → 110-E → 110-F. The internal exploratory surface — the one most wanted day-to-day (110-A→C→D) — does **not** wait on the publication chain.
 
+### Implementation status (on `feature/REQ_110_lakehouse_surface`)
+
+- **110-A / 110-B / 110-C** — implemented (see `miscope.warehouse`, `miscope.query`).
+- **REQ_136** (head coordinate) and **REQ_138** (parameterized analysis / `run_set`) — implemented; ride this branch.
+- **110-D — Consumer migration + re-derivation collapse — DONE (2026-06-05).**
+  - `miscope.analysis.neuron_frequency` is the single source for the conformed `(epoch, neuron) → dominant-frequency` dimension, read once from the warehouse `neuron_frequency_attribution` table with the 0→1-indexed convention applied in one place. The summary engine (`variant_analysis_summary`), `cross_variant`, `band_concentration` (via `as_legacy_arrays`), and the `neuron_dynamics`-backed view loaders (`views/universal`, `views/dataview_universal`) all consume it instead of re-reading `neuron_dynamics.npz`.
+  - New `variant_outcomes` warehouse table (`miscope.warehouse.outcomes`): per-variant outcome rollup co-emitted from `variant_summary.json` (scalar fields promoted to queryable columns + a `summary_json` carrier). `build_variant_registry` now aggregates it via SQL instead of a JSON glob.
+  - Deprecated `analysis/variant_summary.py` deleted (v1.0 no-backcompat).
+  - **Parity (3 baselines p113/p109/p101):** `variant_summary.json` + `variant_registry.json` byte-identical. The only behavioral change is a deliberate correctness fix — `cross_variant.first_mover_frequency` is now 1-indexed (was 0-indexed, inconsistent with the descent-onset portfolio in the same module); shifts that field +1, fixes the band it feeds.
+  - **CoS cross-variant queries** verified as one-line SQL over the warehouse (`homeless_neuron_fraction > 0.2`; circularity ranked at an epoch; attn `fourier_alignment` after grokking via `shape_characterizations ⋈ variant_outcomes`).
+  - Full `miscope` suite green (1538 passed); dashboard green (45 passed).
+- **110-E / 110-F** — not started.
+
 ---
 
 ## Constraints
