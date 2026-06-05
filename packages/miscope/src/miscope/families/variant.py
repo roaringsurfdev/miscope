@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from miscope.analysis.artifact_loader import ArtifactLoader
     from miscope.architectures import ActivationCache, HookedModel
     from miscope.families.intervention_variant import InterventionVariant
+    from miscope.families.parameterized_variant import ParameterizedVariant
     from miscope.families.protocols import ModelFamily
     from miscope.views.catalog import BoundView, EpochContext
     from miscope.views.dataview_catalog import BoundDataView
@@ -400,6 +401,48 @@ class Variant:
         from miscope.views.catalog import EpochContext
 
         return EpochContext(variant=self, epoch=epoch)
+
+    def parameterize(
+        self,
+        *,
+        label: str | None = None,
+        local: dict[str, dict[str, Any]] | None = None,
+        **bindings: Any,
+    ) -> ParameterizedVariant:
+        """Bind a run set and return a recipe-scoped handle (REQ_138).
+
+        Reads through the returned handle resolve to the parameterization's recipe
+        plane; ``variant.at(...)`` (the empty parameterization) stays the default
+        plane. Views do not change shape — the handle only redirects where each
+        view reads its bytes.
+
+        Args:
+            label: Optional human-facing run-set label (recorded in the registry).
+            local: Analyzer-local bindings as ``{analyzer: {param: value}}`` — e.g.
+                ``local={"parameter_dmd": {"reference_epoch": 20000}}`` pins one
+                analyzer without touching others that share the parameter name.
+            **bindings: Run-level bindings (``probe=...``); each propagates to every
+                analyzer that declares a parameter of that name. A value that is a
+                :class:`~miscope.analysis.parameters.Binding` is used as-is;
+                otherwise it is wrapped as a literal.
+
+        Returns:
+            A :class:`ParameterizedVariant` exposing ``.at(...)`` / ``.view(...)``.
+        """
+        from miscope.analysis.parameters import Binding, LiteralBinding, Parameterization
+        from miscope.families.parameterized_variant import ParameterizedVariant
+
+        bound: list[Binding] = []
+        for name, value in bindings.items():
+            bound.append(value if isinstance(value, Binding) else LiteralBinding(name, value))
+        for analyzer, params in (local or {}).items():
+            for name, value in params.items():
+                bound.append(
+                    value
+                    if isinstance(value, Binding)
+                    else LiteralBinding(name, value, analyzer=analyzer)
+                )
+        return ParameterizedVariant(self, Parameterization(bindings=tuple(bound), label=label))
 
     def view(self, name: str, **kwargs: Any) -> BoundView:
         """Convenience shortcut for variant.at(epoch=None).view(name).

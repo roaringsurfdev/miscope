@@ -251,11 +251,13 @@ class ArtifactLoader:
 
         analyzers = []
         for entry in os.listdir(self.artifacts_dir):
-            entry_path = os.path.join(self.artifacts_dir, entry)
-            if os.path.isdir(entry_path):
+            # Recipe-scoped (REQ_138): a parameterized loader checks the analyzer's
+            # recipe dir, so per-epoch availability reflects the active parameterization.
+            scan_dir = self._dir(entry)
+            if os.path.isdir(scan_dir):
                 # Check that it contains at least one epoch file
                 if any(
-                    f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(entry_path)
+                    f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(scan_dir)
                 ):
                     analyzers.append(entry)
 
