@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-temp="mono" data-type="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fieldnotes — Kinomorphic</title>
+<script>(function(){try{var d=document.documentElement;d.setAttribute('data-theme',localStorage.getItem('kino-theme')||'light');d.setAttribute('data-temp',localStorage.getItem('kino-temp')||'mono');d.setAttribute('data-type',localStorage.getItem('kino-type')||'paper');}catch(e){}})();</script>
+<link rel="stylesheet" href="assets/kino.css">
+<link rel="stylesheet" href="assets/kino-ui.css">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="Home.html">
+      <span class="markwrap" data-mark="ring" data-animate data-dots="14"></span>
+      <span><b>Kinomorphic</b><span class="tld">.com</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="Home.html">Home</a>
+      <a href="Fieldnotes.html" class="active">Fieldnotes</a>
+      <a href="Home.html#approach">Approach</a>
+      <a href="Home.html#miscope" class="sub">MIScope</a>
+    </nav>
+    <span class="nav-spacer"></span>
+    <div class="nav-tools popwrap">
+      <button class="icon-btn js-settings" aria-label="Display settings" title="Type, color &amp; theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bg)"/><circle cx="15" cy="16" r="2.4" fill="var(--bg)"/></svg>
+      </button>
+      <button class="icon-btn js-theme" aria-label="Toggle dark mode" title="Light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 4 a8 8 0 0 1 0 16 z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="settings-pop" id="settings-pop">
+        <div class="row"><h6>Type pairing</h6><div class="seg"><button data-set="type" data-val="paper">Paper</button><button data-set="type" data-val="lab">Lab</button><button data-set="type" data-val="journal">Journal</button></div></div>
+        <div class="row"><h6>Color temperature</h6><div class="seg"><button data-set="temp" data-val="warm">Warm</button><button data-set="temp" data-val="cool">Cool</button><button data-set="temp" data-val="mono">Mono</button></div></div>
+        <div class="row"><h6>Appearance</h6><div class="seg"><button data-set="theme" data-val="light">Light</button><button data-set="theme" data-val="dark">Dark</button></div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="wrap idx-head">
+  <span class="kicker">Fieldnotes</span>
+  <h1 style="margin:16px 0 0;max-width:18ch;">Notes from watching learning happen.</h1>
+  <p class="lead" style="margin-top:20px;max-width:60ch;">Short papers on the learning dynamics of neural networks — written to be read closely, figures and all. Filter by the lens you bring, or the method in question.</p>
+</section>
+
+<div class="wrap">
+  <div class="filterbar" data-filterbar>
+    <span class="fl-label">Filter</span>
+    <button class="tag on" data-tag="*">All</button>
+    <button class="tag" data-tag="meta">meta</button>
+    <button class="tag" data-tag="infrastructure">infrastructure</button>
+    <button class="tag" data-tag="methodology">methodology</button>
+    <button class="tag" data-tag="research-goals">research-goals</button>
+    <button class="tag" data-tag="mech-interp">mech-interp</button>
+    <button class="tag" data-tag="comp-neuro">comp-neuro</button>
+    <button class="tag" data-tag="nonlinear-dynamics">nonlinear-dynamics</button>
+    <span class="fl-count" data-count>3 posts</span>
+  </div>
+
+  <div class="idx-list">
+    <a class="idx-item" href="Post.html" data-tags="infrastructure methodology research-goals">
+      <div class="top"><span class="pn">003</span><span>2026 · 03 · 30</span><span>·</span><span>9 min</span></div>
+      <h2>Reproducibility</h2>
+      <p class="ex">A dynamics claim is only as trustworthy as the seed, the data split, and the checkpoint cadence behind it. How the variant registry turns "it grokked" into something another researcher can stand on — and what reproducibility means when the object of study is a path, not a point.</p>
+      <div class="rtags"><span class="tag">infrastructure</span><span class="tag">methodology</span><span class="tag">research-goals</span></div>
+    </a>
+    <a class="idx-item" href="Post.html" data-tags="infrastructure methodology mech-interp">
+      <div class="top"><span class="pn">002</span><span>2026 · 03 · 29</span><span>·</span><span>12 min</span></div>
+      <h2>Variants and Variables</h2>
+      <p class="ex">A model is never one model. Holding prime, model seed, and data seed as first-class variables — rather than incidental settings — lets us ask which parts of a learning story are universal and which are accidents of initialization. A walk through 41 variants of one toy task, and what they agree on.</p>
+      <div class="rtags"><span class="tag">infrastructure</span><span class="tag">methodology</span><span class="tag">mech-interp</span></div>
+    </a>
+    <a class="idx-item" href="Post.html" data-tags="meta">
+      <div class="top"><span class="pn">001</span><span>2026 · 03 · 28</span><span>·</span><span>6 min</span></div>
+      <h2>Starting Here</h2>
+      <p class="ex">What this program is, what it isn't, and why a single grokking model is a good place to learn how to watch learning happen. An orientation for whoever arrives — mech-interp researcher, computational neuroscientist, dynamicist, or someone just starting out.</p>
+      <div class="rtags"><span class="tag">meta</span></div>
+    </a>
+  </div>
+
+  <div style="padding:40px 8px;text-align:center;">
+    <p class="metaline" style="max-width:50ch;margin:0 auto;">More notes are in draft. The published surface is kept small on purpose — each note earns its place.</p>
+  </div>
+</div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <div>
+      <div class="brand" style="font-size:1.05rem;"><span class="markwrap" data-mark="ring" style="width:26px;height:26px;"></span><span><b>Kinomorphic</b></span></div>
+      <p style="max-width:36ch;margin-top:16px;font-size:.92rem;color:var(--muted);">Independent research on the learning dynamics of neural networks — interpretability through a dynamical-systems lens.</p>
+    </div>
+    <div><h5>Site</h5><ul><li><a href="Home.html">Home</a></li><li><a href="Fieldnotes.html">Fieldnotes</a></li><li><a href="Home.html#approach">Approach</a></li><li><a href="Home.html#miscope">MIScope</a></li></ul></div>
+    <div><h5>Elsewhere</h5><ul><li><a href="#">GitHub · Kinomorphic</a></li><li><a href="#">MIScope on PyPI</a></li><li><a href="#">RSS</a></li></ul></div>
+  </div>
+</footer>
+
+<script src="assets/kino.js"></script>
+</body>
+</html>

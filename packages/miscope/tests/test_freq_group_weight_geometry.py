@@ -191,8 +191,12 @@ class _MockLoader:
 
 def _run_analyzer(loader, epochs):
     analyzer = FreqGroupWeightGeometryAnalyzer()
+    # The pipeline resolves the reference_epoch parameter (REQ_138); supply the
+    # default it would compute (max checkpoint) for these analyzer-unit tests.
     return analyzer.analyze(
-        ResolvedInputs(deps=loader, epochs=tuple(epochs)),
+        ResolvedInputs(
+            deps=loader, epochs=tuple(epochs), parameters={"reference_epoch": int(max(epochs))}
+        ),
         {"params": {"prime": PRIME}},
     )
 

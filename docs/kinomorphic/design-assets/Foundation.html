@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-temp="mono" data-type="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Language — Kinomorphic</title>
+<script>(function(){try{var d=document.documentElement;d.setAttribute('data-theme',localStorage.getItem('kino-theme')||'light');d.setAttribute('data-temp',localStorage.getItem('kino-temp')||'mono');d.setAttribute('data-type',localStorage.getItem('kino-type')||'paper');}catch(e){}})();</script>
+<link rel="stylesheet" href="assets/kino.css">
+<link rel="stylesheet" href="assets/kino-ui.css">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="Home.html">
+      <span class="markwrap" data-mark="ring" data-animate data-dots="14"></span>
+      <span><b>Kinomorphic</b><span class="tld">.com</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="Home.html">Home</a>
+      <a href="Fieldnotes.html">Fieldnotes</a>
+      <a href="Home.html#approach">Approach</a>
+      <a href="Home.html#miscope" class="sub">MIScope</a>
+    </nav>
+    <span class="nav-spacer"></span>
+    <div class="nav-tools popwrap">
+      <button class="icon-btn js-settings" aria-label="Display settings" title="Type, color & theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bg)"/><circle cx="15" cy="16" r="2.4" fill="var(--bg)"/></svg>
+      </button>
+      <button class="icon-btn js-theme" aria-label="Toggle dark mode" title="Light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 4 a8 8 0 0 1 0 16 z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="settings-pop" id="settings-pop">
+        <div class="row">
+          <h6>Type pairing</h6>
+          <div class="seg">
+            <button data-set="type" data-val="paper">Paper</button>
+            <button data-set="type" data-val="lab">Lab</button>
+            <button data-set="type" data-val="journal">Journal</button>
+          </div>
+        </div>
+        <div class="row">
+          <h6>Color temperature</h6>
+          <div class="seg">
+            <button data-set="temp" data-val="warm">Warm</button>
+            <button data-set="temp" data-val="cool">Cool</button>
+            <button data-set="temp" data-val="mono">Mono</button>
+          </div>
+        </div>
+        <div class="row">
+          <h6>Appearance</h6>
+          <div class="seg">
+            <button data-set="theme" data-val="light">Light</button>
+            <button data-set="theme" data-val="dark">Dark</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ============ HERO ============ -->
+<section class="wrap fnd-hero">
+  <div class="measure">
+    <span class="kicker">Design language · v1 exploration</span>
+    <h1 style="margin:18px 0 0;">A quiet system for showing how&nbsp;learning&nbsp;moves.</h1>
+    <p class="lead" style="margin-top:24px;">This page is the foundation I'd build Kinomorphic.com on — type, color, the signature mark, and the figure frame. It's the place to agree on the parts before we assemble the pages. Everything here is live: change the <b>type pairing</b>, <b>color temperature</b>, and <b>light/dark</b> from the controls top-right and the whole system updates.</p>
+  </div>
+</section>
+
+<!-- ============ READING THE BRIEF ============ -->
+<section class="wrap fnd-section reveal">
+  <div class="grid-2" style="gap:48px;align-items:start;">
+    <div>
+      <span class="sec-num">00 — How I read the brief</span>
+      <h2 style="margin:14px 0 0;">The work is the brand.</h2>
+      <p style="margin-top:18px;color:var(--ink-soft);">The strongest visual idea isn't something to invent — it's already in your figures. Checkpoints trace a path through training and <em>resolve into structure</em>: residue classes settling onto a ring, parameters sweeping from blue to red, eigenvalues migrating toward one. That motion-into-form <em>is</em> "kinomorphic." So the identity borrows the research's own grammar rather than decorating around it.</p>
+      <p style="color:var(--ink-soft);">Everything else follows from three feelings you named: <b>trust</b> (so: no overclaim, no hype, figures shown plainly), <b>inspiration</b> (so: generous room to read, the work leading), and <b>appreciation for the care</b> (so: precise type, restrained motion, nothing performative).</p>
+    </div>
+    <div>
+      <span class="sec-num">Principles</span>
+      <div style="margin-top:14px;">
+        <div class="principle"><span class="ix">P1</span><div><h4>The work leads, the frame recedes.</h4><p>Calm neutrals and quiet chrome so saturated figures are the loudest thing on any page.</p></div></div>
+        <div class="principle"><span class="ix">P2</span><div><h4>Read like a paper, not a feed.</h4><p>A 68-character measure, serif titles at modest scale, mono for the technical register.</p></div></div>
+        <div class="principle"><span class="ix">P3</span><div><h4>Motion is meaning, used sparingly.</h4><p>Only the mark moves on its own. Everywhere else, movement belongs to the figures.</p></div></div>
+        <div class="principle"><span class="ix">P4</span><div><h4>Honest about scale.</h4><p>Three posts read as a confident beginning — never a sparse page asking to be filled.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE MARK ============ -->
+<section class="wrap fnd-section reveal">
+  <span class="sec-num">01 — Signature mark</span>
+  <h2 style="margin:14px 0 0;">Shape emerging from movement.</h2>
+  <p class="lead" style="margin-top:16px;">Four directions, all built from pure geometry (circles, arcs, paths) so they read at favicon size and animate cleanly. My recommendation is <b>Settling Ring</b>: discrete checkpoints arrive along a path and resolve into a circle — literally the residue-class plot, and literally the name.</p>
+  <div class="grid-4" style="margin-top:30px;">
+    <div class="concept rec">
+      <span class="badge">Recommended</span>
+      <div class="frame"><span class="markwrap" data-mark="ring" data-animate></span></div>
+      <span class="cname">settling-ring</span>
+      <h4>Settling Ring</h4>
+      <p>Checkpoints spiral in and settle onto a ring; one live marker keeps orbiting. Motion → form, in one glyph.</p>
+    </div>
+    <div class="concept">
+      <div class="frame"><span class="markwrap" data-mark="trajectory"></span></div>
+      <span class="cname">trajectory</span>
+      <h4>Trajectory</h4>
+      <p>A learning path with checkpoint dots and a leading marker — the parameter sweep, abstracted.</p>
+    </div>
+    <div class="concept">
+      <div class="frame"><span class="markwrap" data-mark="aperture"></span></div>
+      <span class="cname">aperture</span>
+      <h4>Aperture</h4>
+      <p>Concentric arc segments — a phase transition opening. Quietest at tiny sizes.</p>
+    </div>
+    <div class="concept">
+      <div class="frame"><span class="markwrap" data-mark="lissajous"></span></div>
+      <span class="cname">lissajous</span>
+      <h4>Lissajous</h4>
+      <p>A single parametric curve — a form drawn entirely by motion. The most literal "kinomorph."</p>
+    </div>
+  </div>
+  <p class="metaline" style="margin-top:18px;">Favicon test — the mark at the sizes it must survive:</p>
+  <div style="display:flex;align-items:center;gap:24px;margin-top:10px;">
+    <span class="markwrap" data-mark="ring" style="width:48px;height:48px;"></span>
+    <span class="markwrap" data-mark="ring" style="width:32px;height:32px;"></span>
+    <span class="markwrap" data-mark="ring" style="width:24px;height:24px;"></span>
+    <span class="markwrap" data-mark="ring" style="width:16px;height:16px;"></span>
+    <span class="metaline">48 · 32 · 24 · 16 px</span>
+  </div>
+</section>
+
+<!-- ============ TYPE ============ -->
+<section class="wrap fnd-section reveal">
+  <span class="sec-num">02 — Type</span>
+  <h2 style="margin:14px 0 0;">Serif titles that don't shout, geometric sans for clarity, mono for the register.</h2>
+  <p class="lead" style="margin-top:16px;">Three self-hostable pairings (all open / Google Fonts). Each shows all three roles at once. Apply one site-wide from the controls — the page you're reading uses whichever is active.</p>
+  <div class="grid-3" style="margin-top:30px;">
+    <!-- Paper -->
+    <div class="card specimen">
+      <div class="pairing-name"><span class="dot"></span><span class="mono" style="font-size:.74rem;letter-spacing:.06em;">PAPER · recommended</span></div>
+      <div class="big" style="font-family:'Spectral',serif;">Grokking is a&nbsp;path.</div>
+      <div class="sub">Spectral · Plex Sans · Plex Mono</div>
+      <div class="row"><span class="lab">Title</span><span class="samp" style="font-family:'Spectral',serif;font-size:1.3rem;">The shape of how learning moves</span></div>
+      <div class="row"><span class="lab">Body</span><span class="samp" style="font-family:'IBM Plex Sans',sans-serif;font-size:.92rem;color:var(--ink-soft);">We examine internal representation across a discrete series of checkpoints.</span></div>
+      <div class="row"><span class="lab">Mono</span><span class="samp" style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted);">p=113 · seed=999 · epoch 12,400</span></div>
+    </div>
+    <!-- Lab -->
+    <div class="card specimen">
+      <div class="pairing-name"><span class="dot"></span><span class="mono" style="font-size:.74rem;letter-spacing:.06em;">LAB · technical</span></div>
+      <div class="big" style="font-family:'Source Serif 4',serif;">Grokking is a&nbsp;path.</div>
+      <div class="sub">Source Serif 4 · Space Grotesk · Space Mono</div>
+      <div class="row"><span class="lab">Title</span><span class="samp" style="font-family:'Source Serif 4',serif;font-size:1.3rem;">The shape of how learning moves</span></div>
+      <div class="row"><span class="lab">Body</span><span class="samp" style="font-family:'Space Grotesk',sans-serif;font-size:.92rem;color:var(--ink-soft);">We examine internal representation across a discrete series of checkpoints.</span></div>
+      <div class="row"><span class="lab">Mono</span><span class="samp" style="font-family:'Space Mono',monospace;font-size:.78rem;color:var(--muted);">p=113 · seed=999 · epoch 12,400</span></div>
+    </div>
+    <!-- Journal -->
+    <div class="card specimen">
+      <div class="pairing-name"><span class="dot"></span><span class="mono" style="font-size:.74rem;letter-spacing:.06em;">JOURNAL · literary</span></div>
+      <div class="big" style="font-family:'Newsreader',serif;font-weight:400;">Grokking is a&nbsp;path.</div>
+      <div class="sub">Newsreader · Plex Sans · Plex Mono</div>
+      <div class="row"><span class="lab">Title</span><span class="samp" style="font-family:'Newsreader',serif;font-size:1.35rem;">The shape of how learning moves</span></div>
+      <div class="row"><span class="lab">Body</span><span class="samp" style="font-family:'IBM Plex Sans',sans-serif;font-size:.92rem;color:var(--ink-soft);">We examine internal representation across a discrete series of checkpoints.</span></div>
+      <div class="row"><span class="lab">Mono</span><span class="samp" style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--muted);">p=113 · seed=999 · epoch 12,400</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COLOR ============ -->
+<section class="wrap fnd-section reveal">
+  <span class="sec-num">03 — Color</span>
+  <h2 style="margin:14px 0 0;">Neutrals that recede; two accents drawn from the research.</h2>
+  <p class="lead" style="margin-top:16px;">The palette's job is to disappear behind your figures' locked frequency / residue colorwheels. So: low-chroma neutrals, and only two accents — both lifted from your own plots.</p>
+
+  <div class="grid-2" style="margin-top:30px;align-items:start;gap:40px;">
+    <div>
+      <h4 style="font-family:var(--sans);font-size:.92rem;margin:0 0 14px;">Neutral temperature — pick one</h4>
+      <div class="grid-3" style="gap:14px;">
+        <div class="temp-card" data-set="temp" data-val="warm">
+          <div class="swrow"><span style="background:oklch(98.6% .007 78)"></span><span style="background:oklch(94% .007 78)"></span><span style="background:oklch(50% .012 78)"></span><span style="background:oklch(24% .012 78)"></span></div>
+          <h4>Warm paper</h4><p>Closest to a printed page. Reads as care.</p>
+        </div>
+        <div class="temp-card" data-set="temp" data-val="cool">
+          <div class="swrow"><span style="background:oklch(98.6% .006 248)"></span><span style="background:oklch(94% .006 248)"></span><span style="background:oklch(50% .012 248)"></span><span style="background:oklch(24% .012 248)"></span></div>
+          <h4>Cool slate</h4><p>Ties to the dashboard chrome &amp; figures.</p>
+        </div>
+        <div class="temp-card" data-set="temp" data-val="mono">
+          <div class="swrow"><span style="background:oklch(98.6% 0 0)"></span><span style="background:oklch(94% 0 0)"></span><span style="background:oklch(50% 0 0)"></span><span style="background:oklch(24% 0 0)"></span></div>
+          <h4>Near-mono</h4><p>Most neutral. Lets one accent do all the work.</p>
+        </div>
+      </div>
+      <p class="metaline" style="margin-top:18px;">Active neutrals (reflect your current selection):</p>
+      <div class="swatches" style="margin-top:10px;">
+        <div class="sw"><div class="chip" style="background:var(--bg)"></div><span class="nm">bg</span></div>
+        <div class="sw"><div class="chip" style="background:var(--surface)"></div><span class="nm">surface</span></div>
+        <div class="sw"><div class="chip" style="background:var(--surface-2)"></div><span class="nm">surface-2</span></div>
+        <div class="sw"><div class="chip" style="background:var(--muted)"></div><span class="nm">muted</span></div>
+        <div class="sw"><div class="chip" style="background:var(--ink)"></div><span class="nm">ink</span></div>
+      </div>
+    </div>
+
+    <div>
+      <h4 style="font-family:var(--sans);font-size:.92rem;margin:0 0 14px;">Two grounded accents</h4>
+      <div class="card" style="padding:20px;">
+        <div style="display:flex;gap:16px;align-items:center;">
+          <div class="chip" style="width:54px;height:54px;border-radius:var(--radius);background:var(--blue);flex:none;"></div>
+          <div>
+            <div style="font-family:var(--sans);font-weight:600;">Ink-blue — <em>structure</em></div>
+            <p style="font-size:.88rem;color:var(--muted);margin:4px 0 0;">Links, active states, the mark's quiet body. Echoes Plotly's slate title color, so embeds feel native.</p>
+          </div>
+        </div>
+        <hr class="rule" style="margin:18px 0;">
+        <div style="display:flex;gap:16px;align-items:center;">
+          <div class="chip" style="width:54px;height:54px;border-radius:var(--radius);background:var(--red);flex:none;"></div>
+          <div>
+            <div style="font-family:var(--sans);font-weight:600;">Vermilion — <em>transition</em></div>
+            <p style="font-size:.88rem;color:var(--muted);margin:4px 0 0;">Used <em>rarely</em>: phase-transition markers, the live orbiting checkpoint. It's the red epoch line from your figures, promoted to a signal.</p>
+          </div>
+        </div>
+      </div>
+      <div class="aside-note" style="margin-top:20px;">
+        <span class="lbl">Constraint honored</span>
+        The locked frequency / residue colorwheels are never touched. The site palette is deliberately desaturated so those plots stay the most colorful thing on screen.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FIGURE FRAME ============ -->
+<section class="wrap fnd-section reveal">
+  <span class="sec-num">04 — Figure frame</span>
+  <h2 style="margin:14px 0 0;">One wrapper to make every Plotly embed feel like it belongs.</h2>
+  <p class="lead" style="margin-top:16px;">The figures don't share a visual language yet — but they don't have to be re-rendered to feel cohesive. A consistent <em>frame</em> (numbered label, sans title, mono metadata, captions in our type) does most of the work. The plot inside is untouched.</p>
+  <div class="grid-2" style="margin-top:30px;align-items:start;gap:28px;">
+    <figure style="margin:0;">
+      <div class="figure">
+        <div class="figure-head">
+          <span class="fnum">FIG 1</span>
+          <span class="ftitle">Class-centroid geometry — Resid Post</span>
+          <span class="fmeta">p=113 · epoch 5,000</span>
+        </div>
+        <div class="figure-body"><img src="assets/figures/centroids-ring.png" alt="Class centroids arranged on a ring in PCA space"></div>
+        <div class="figure-cap"><span class="fc-num">Fig 1.</span> Residue classes settle onto a near-perfect circle in the top-2 PCs — the structure the mark is built from. <b>Caption type, numbering, and metadata are ours; the plot is yours.</b></div>
+      </div>
+    </figure>
+    <div>
+      <figure style="margin:0 0 22px;">
+        <div class="figure">
+          <div class="figure-head"><span class="fnum">FIG 2</span><span class="ftitle">Placeholder — drop a figure here</span></div>
+          <div class="figure-body"><div class="fig-ph"><span>plotly figure · 16:9 · static export</span></div></div>
+        </div>
+      </figure>
+      <div class="principle" style="border:0;padding:0;"><span class="ix">→</span><div><h4>What the frame standardizes</h4><p>Numbered <span class="mono" style="font-size:.86em;">FIG n</span> label · sans title · mono run metadata (prime, seed, epoch) · caption measure &amp; color · 8px inset on a true-white bed so dark mode never muddies a plot.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SPACING & MOTION ============ -->
+<section class="wrap fnd-section reveal">
+  <div class="grid-2" style="gap:48px;align-items:start;">
+    <div>
+      <span class="sec-num">05 — Scale &amp; rhythm</span>
+      <h2 style="margin:14px 0 0;font-size:1.6rem;">A modular scale; a paper measure.</h2>
+      <p style="margin-top:16px;color:var(--ink-soft);">Body sits at a 68-character measure for paper-like reading. Spacing follows a simple 4-based step so layout rhythm stays predictable.</p>
+      <div class="spacescale" style="margin-top:22px;height:120px;">
+        <div class="bar" style="height:8px;"><span>4</span></div>
+        <div class="bar" style="height:16px;"><span>8</span></div>
+        <div class="bar" style="height:24px;"><span>12</span></div>
+        <div class="bar" style="height:32px;"><span>16</span></div>
+        <div class="bar" style="height:48px;"><span>24</span></div>
+        <div class="bar" style="height:64px;"><span>32</span></div>
+        <div class="bar" style="height:96px;"><span>48</span></div>
+        <div class="bar" style="height:120px;"><span>64</span></div>
+      </div>
+    </div>
+    <div>
+      <span class="sec-num">06 — Motion</span>
+      <h2 style="margin:14px 0 0;font-size:1.6rem;">Restraint is the point.</h2>
+      <p style="margin-top:16px;color:var(--ink-soft);">The mark animates once on arrival and keeps one slow orbit. Content reveals gently on scroll. Inside posts, the only thing that <em>plays</em> is the figure itself — via the checkpoint scrubber. Nothing autoplays, loops aggressively, or pulses for attention. Everything respects <span class="mono" style="font-size:.86em;">prefers-reduced-motion</span>.</p>
+      <div class="aside-note" style="margin-top:18px;"><span class="lbl">Why so quiet</span>In a hyped field, stillness reads as confidence. The movement that matters is in the data — so that's the only place we spend it.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ NEXT ============ -->
+<section class="wrap fnd-section reveal" style="border-bottom:1px solid var(--border);">
+  <span class="sec-num">Where this goes next</span>
+  <h2 style="margin:14px 0 0;">See it assembled.</h2>
+  <p class="lead" style="margin-top:16px;max-width:58ch;">The same system, built into the three surfaces from the brief.</p>
+  <div class="hero-actions" style="margin-top:24px;">
+    <a class="btn primary" href="Home.html">Home page <span class="arrow">→</span></a>
+    <a class="btn" href="Fieldnotes.html">Fieldnotes index</a>
+    <a class="btn" href="Post.html">A Fieldnotes post</a>
+  </div>
+  <p class="metaline" style="margin-top:24px;">Open question for you — which <b>type pairing</b> and <b>temperature</b> feel right? Try a few via the controls; your choice persists across all the pages.</p>
+</section>
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <div>
+      <div class="brand" style="font-size:1.05rem;"><span class="markwrap" data-mark="ring" style="width:26px;height:26px;"></span><span><b>Kinomorphic</b></span></div>
+      <p style="max-width:36ch;margin-top:16px;font-size:.92rem;color:var(--muted);">Independent research on the learning dynamics of neural networks — interpretability through a dynamical-systems lens.</p>
+    </div>
+    <div><h5>Site</h5><ul><li><a href="Home.html">Home</a></li><li><a href="Fieldnotes.html">Fieldnotes</a></li><li><a href="Home.html#approach">Approach</a></li><li><a href="Home.html#miscope">MIScope</a></li></ul></div>
+    <div><h5>Elsewhere</h5><ul><li><a href="#">GitHub · Kinomorphic</a></li><li><a href="#">MIScope on PyPI</a></li><li><a href="#">RSS</a></li></ul></div>
+  </div>
+</footer>
+
+<script src="assets/kino.js"></script>
+</body>
+</html>

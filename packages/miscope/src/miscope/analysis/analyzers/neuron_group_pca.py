@@ -22,8 +22,21 @@ from miscope.analysis.library import (
     reconstruct_neuron_freq_norm,
 )
 from miscope.analysis.output_schema import OutputField as F
+from miscope.analysis.parameters import ParameterSpec, Reducer, ReferenceBinding
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
+
+# REQ_138: the group-defining reference epoch is a declared parameter, defaulting to
+# a floating ``max_epoch`` reference into activation_basis_projection (the artifact
+# read at the reference epoch) rather than a hardcoded ``sorted_epochs[-1]``.
+_REFERENCE_EPOCH_PARAM = ParameterSpec(
+    name="reference_epoch",
+    dtype="int64",
+    scope="analyzer",
+    default=ReferenceBinding(
+        "reference_epoch", "activation_basis_projection", Reducer("max_epoch")
+    ),
+)
 
 # Keys are flat (no prefix): for columnar fields the group/neuron axes flatten to
 # rows; the dense trajectory cubes stay single per-variant tensors (group/pc/
@@ -115,6 +128,7 @@ SPEC = AnalyzerSpec(
             "Basis of the shared group-centroid PCA space (n_pc, d_model).",
         ),
     ),
+    parameters=(_REFERENCE_EPOCH_PARAM,),
 )
 
 
@@ -154,7 +168,8 @@ class NeuronGroupPCAAnalyzer:
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_members = _assign_groups(inputs.deps, sorted_epochs[-1], prime)
+        reference_epoch = int(inputs.parameters["reference_epoch"])
+        group_freqs, group_members = _assign_groups(inputs.deps, reference_epoch, prime)
 
         if not group_freqs:
             return _empty_result(sorted_epochs)

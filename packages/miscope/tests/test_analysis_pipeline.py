@@ -250,63 +250,102 @@ class TestAnalysisPipelineRun:
         assert manifest["family_name"] == "modulo_addition_1layer"
 
 
-class TestAnalysisPipelineExtraContext:
-    """Tests for the extra_context kwarg on AnalysisPipeline.run() (REQ_117)."""
+class TestAnalysisPipelineParameterization:
+    """REQ_138: generation parameters reach analyzers; storage routes by recipe."""
 
-    def test_extra_context_keys_reach_per_epoch_analyzer(self, trained_variant):
-        """A primary analyzer that reads context.analysis_params should see
-        keys injected via extra_context."""
+    def _register_param_analyzer(self, default_value: int = 7):
+        """Register a per-epoch analyzer declaring one analyzer-local literal param.
+
+        Returns ``(analyzer, seen)`` where ``seen`` collects the per-epoch resolved
+        value of ``inputs.parameters["k"]``. The autouse registration fixture drops
+        the ``param_probe`` name on teardown.
+        """
+        from miscope.analysis import registry as reg_mod
+        from miscope.analysis.inputs import ModelInput
+        from miscope.analysis.output_schema import OutputField as F
+        from miscope.analysis.parameters import LiteralBinding, ParameterSpec
+        from miscope.analysis.spec import AnalyzerSpec
+
         seen: list[Any] = []
 
-        class ContextReadingAnalyzer:
-            name = "ctx_reader"
+        class ParamAnalyzer:
+            name = "param_probe"
 
             def analyze(self, inputs, context) -> dict[str, np.ndarray]:
-                seen.append(context.get("custom_key"))
-                return {"data": np.ones((1,), dtype=np.float32)}
+                seen.append(int(inputs.parameters["k"]))
+                return {"data": np.array([inputs.parameters["k"]], dtype=np.float32)}
 
+        reg_mod._specs["param_probe"] = AnalyzerSpec(
+            name="param_probe",
+            inputs=(ModelInput(needs_cache=False),),
+            outputs=(F.columnar("data", "float32", ("variant", "epoch"), "probe value"),),
+            parameters=(ParameterSpec("k", "int64", "analyzer", LiteralBinding("k", default_value)),),
+        )
+        reg_mod._factories["param_probe"] = lambda: ParamAnalyzer()
+        return ParamAnalyzer(), seen
+
+    def test_declared_default_reaches_analyzer(self, trained_variant):
+        analyzer, seen = self._register_param_analyzer(default_value=7)
         pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(ContextReadingAnalyzer())
-        pipeline.run(extra_context={"custom_key": "injected_value"})
+        pipeline.register(analyzer)
+        pipeline.run()
+        assert seen and all(v == 7 for v in seen)
 
-        assert seen, "analyzer never ran"
-        assert all(v == "injected_value" for v in seen)
+    def test_parameterization_overrides_default(self, trained_variant):
+        from miscope.analysis.parameters import LiteralBinding, Parameterization
 
-    def test_extra_context_overrides_family_supplied_keys(self, trained_variant):
-        """Caller-supplied extra_context overrides family-supplied keys."""
-        seen: list[Any] = []
-
-        class ContextReadingAnalyzer:
-            name = "ctx_reader"
-
-            def analyze(self, inputs, context) -> dict[str, np.ndarray]:
-                # 'fourier_basis' is a key the modadd family always sets.
-                seen.append(context.get("fourier_basis"))
-                return {"data": np.ones((1,), dtype=np.float32)}
-
+        analyzer, seen = self._register_param_analyzer(default_value=7)
         pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(ContextReadingAnalyzer())
-        pipeline.run(extra_context={"fourier_basis": "OVERRIDE"})
+        pipeline.register(analyzer)
+        pipeline.run(parameterization=Parameterization(bindings=(LiteralBinding("k", 99),)))
+        assert seen and all(v == 99 for v in seen)
 
-        assert seen and all(v == "OVERRIDE" for v in seen)
+    def test_nondefault_parameterization_coexists_at_recipe_path(self, trained_variant):
+        """A non-default binding writes under a __rs_ recipe segment; the default
+        run's artifacts at today's path are untouched (coexistence)."""
+        from miscope.analysis.parameters import LiteralBinding, Parameterization
 
-    def test_extra_context_none_uses_family_context_as_is(self, trained_variant):
-        """Default behavior (extra_context=None) leaves family context untouched."""
-        seen: list[Any] = []
+        base = os.path.join(str(trained_variant.artifacts_dir), "param_probe")
 
-        class ContextReadingAnalyzer:
-            name = "ctx_reader"
+        analyzer, _ = self._register_param_analyzer(default_value=7)
+        default_pipe = AnalysisPipeline(trained_variant)
+        default_pipe.register(analyzer)
+        default_pipe.run()  # empty parameterization -> today's path
+        default_epochs = [f for f in os.listdir(base) if f.startswith("epoch_")]
+        assert default_epochs, "default run wrote no top-level artifacts"
 
-            def analyze(self, inputs, context) -> dict[str, np.ndarray]:
-                # 'fourier_basis' should be the modadd-supplied value, not None.
-                seen.append(context.get("fourier_basis"))
-                return {"data": np.ones((1,), dtype=np.float32)}
+        analyzer2, _ = self._register_param_analyzer(default_value=7)
+        param_pipe = AnalysisPipeline(trained_variant)
+        param_pipe.register(analyzer2)
+        param_pipe.run(parameterization=Parameterization(bindings=(LiteralBinding("k", 99),)))
 
-        pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(ContextReadingAnalyzer())
-        pipeline.run()  # no extra_context
+        recipe_dirs = [d for d in os.listdir(base) if d.startswith("__rs_")]
+        assert len(recipe_dirs) == 1, f"expected one recipe segment, found {recipe_dirs}"
+        # Default top-level artifacts still present and unchanged in count.
+        assert [f for f in os.listdir(base) if f.startswith("epoch_")] == default_epochs
 
-        assert seen and all(v is not None for v in seen)
+    def test_pinned_recompute_is_byte_identical(self, trained_variant):
+        """The p101 fix: a pinned parameter recompute reproduces identical bytes —
+        the resolved value comes from a recorded binding, never a silent fallback."""
+        from miscope.analysis.parameters import LiteralBinding, Parameterization
+
+        run_set = Parameterization(bindings=(LiteralBinding("k", 99),))
+        base = os.path.join(str(trained_variant.artifacts_dir), "param_probe")
+
+        analyzer, _ = self._register_param_analyzer(default_value=7)
+        pipe = AnalysisPipeline(trained_variant)
+        pipe.register(analyzer)
+        pipe.run(parameterization=run_set)
+        recipe_dir = os.path.join(base, next(d for d in os.listdir(base) if d.startswith("__rs_")))
+        first = {f: open(os.path.join(recipe_dir, f), "rb").read() for f in os.listdir(recipe_dir)}
+
+        analyzer2, _ = self._register_param_analyzer(default_value=7)
+        repipe = AnalysisPipeline(trained_variant)
+        repipe.register(analyzer2)
+        repipe.run(force=True, parameterization=run_set)
+        second = {f: open(os.path.join(recipe_dir, f), "rb").read() for f in os.listdir(recipe_dir)}
+
+        assert first.keys() == second.keys() and all(first[k] == second[k] for k in first)
 
 
 class TestAnalysisPipelineResumability:

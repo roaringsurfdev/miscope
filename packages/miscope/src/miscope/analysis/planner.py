@@ -211,6 +211,7 @@ def plan_analysis(
     analyzers: Sequence[Any],
     force: bool = False,
     checkpoints: Sequence[int] | None = None,
+    recipe_map: dict[str, str] | None = None,
 ) -> Plan:
     """Build a Plan describing what work the pipeline would perform.
 
@@ -259,12 +260,12 @@ def plan_analysis(
     projected_completed: dict[str, list[int]] = {}
     for desc in per_epoch_descs:
         covered, blocked = _per_epoch_target_epochs(
-            desc, target_epochs, projected_completed, artifacts_dir
+            desc, target_epochs, projected_completed, artifacts_dir, recipe_map
         )
-        item = _plan_per_epoch_item(desc, artifacts_dir, covered, blocked, force)
+        item = _plan_per_epoch_item(desc, artifacts_dir, covered, blocked, force, recipe_map)
         if item is not None:
             per_epoch_items.append(item)
-        current = set(scan_epoch_files(artifacts_dir / desc.name))
+        current = set(scan_epoch_files(_scoped_dir(artifacts_dir, desc.name, recipe_map)))
         projected_completed[desc.name] = sorted(current | set(covered))
 
     for desc in cross_epoch_descs:
@@ -275,6 +276,7 @@ def plan_analysis(
             available_epochs=available,
             force=force,
             projected_completed=projected_completed,
+            recipe_map=recipe_map,
         )
         if item is not None:
             cross_epoch_items.append(item)
@@ -285,7 +287,7 @@ def plan_analysis(
         # its dependents stay blocked too.
         if item is not None and item.blocked_by:
             projected_completed[desc.name] = get_completed_epochs(
-                artifacts_dir, desc.name, available
+                artifacts_dir, desc.name, available, recipe_map
             )
         else:
             projected_completed[desc.name] = list(available)
@@ -495,11 +497,23 @@ def _topo_order(descs: list[_AnalyzerDescriptor]) -> list[_AnalyzerDescriptor]:
     return ordered
 
 
+def _scoped_dir(artifacts_dir: Path, name: str, recipe_map: dict[str, str] | None) -> Path:
+    """Recipe-scoped analyzer dir (REQ_138) via the storage primitive.
+
+    An empty/absent recipe entry resolves to today's path, so the default
+    (unparameterized) plan scans exactly the locations it always did.
+    """
+    from miscope.analysis.artifact_loader import analyzer_dir
+
+    return Path(analyzer_dir(str(artifacts_dir), name, (recipe_map or {}).get(name, "")))
+
+
 def _per_epoch_target_epochs(
     desc: _AnalyzerDescriptor,
     target_epochs: Sequence[int],
     projected_completed: dict[str, list[int]],
     artifacts_dir: Path,
+    recipe_map: dict[str, str] | None = None,
 ) -> tuple[list[int], tuple[str, ...]]:
     """Return ``(covered_epochs, blocked_by)`` for a per-epoch analyzer.
 
@@ -519,7 +533,7 @@ def _per_epoch_target_epochs(
     for upstream in desc.requires:
         epochs = projected_completed.get(upstream)
         if epochs is None:
-            epochs = scan_epoch_files(artifacts_dir / upstream)
+            epochs = scan_epoch_files(_scoped_dir(artifacts_dir, upstream, recipe_map))
         if not epochs:
             blocked.append(upstream)
         else:
@@ -536,6 +550,7 @@ def _plan_per_epoch_item(
     covered: list[int],
     blocked: tuple[str, ...],
     force: bool,
+    recipe_map: dict[str, str] | None = None,
 ) -> PlanItem | None:
     """Build a per-epoch PlanItem from its computed coverage, or ``None``.
 
@@ -557,7 +572,7 @@ def _plan_per_epoch_item(
     if force:
         missing = tuple(covered)
     else:
-        completed = set(scan_epoch_files(artifacts_dir / desc.name))
+        completed = set(scan_epoch_files(_scoped_dir(artifacts_dir, desc.name, recipe_map)))
         missing = tuple(e for e in covered if e not in completed)
     if not missing:
         return None
@@ -579,6 +594,7 @@ def _plan_cross_epoch_item(
     available_epochs: tuple[int, ...],
     force: bool,
     projected_completed: dict[str, list[int]] | None = None,
+    recipe_map: dict[str, str] | None = None,
 ) -> PlanItem | None:
     """Decide whether a cross-epoch analyzer should run.
 
@@ -604,7 +620,7 @@ def _plan_cross_epoch_item(
         if required in projected_completed:
             completed = projected_completed[required]
         else:
-            completed = get_completed_epochs(artifacts_dir, required, available_epochs)
+            completed = get_completed_epochs(artifacts_dir, required, available_epochs, recipe_map)
         if not completed:
             blocked.append(required)
         else:
@@ -617,7 +633,7 @@ def _plan_cross_epoch_item(
             blocked_by=tuple(blocked),
         )
 
-    cross_epoch_path = artifacts_dir / name / "cross_epoch.npz"
+    cross_epoch_path = _scoped_dir(artifacts_dir, name, recipe_map) / "cross_epoch.npz"
 
     if force or not cross_epoch_path.exists():
         reason = "missing" if not cross_epoch_path.exists() else "forced"
@@ -690,6 +706,7 @@ def get_completed_epochs(
     artifacts_dir: Path,
     analyzer_name: str,
     available_epochs: Sequence[int],
+    recipe_map: dict[str, str] | None = None,
 ) -> list[int]:
     """Return completed epochs for an analyzer.
 
@@ -698,15 +715,15 @@ def get_completed_epochs(
     returned so cross-epoch-to-cross-epoch dependencies are satisfied.
     This mirrors ``AnalysisPipeline.get_completed_epochs``.
     """
-    analyzer_dir = artifacts_dir / analyzer_name
-    if not analyzer_dir.is_dir():
+    scoped = _scoped_dir(artifacts_dir, analyzer_name, recipe_map)
+    if not scoped.is_dir():
         return []
 
-    epochs = scan_epoch_files(analyzer_dir)
+    epochs = scan_epoch_files(scoped)
     if epochs:
         return epochs
 
-    if (analyzer_dir / "cross_epoch.npz").exists():
+    if (scoped / "cross_epoch.npz").exists():
         return sorted(available_epochs)
 
     return []
