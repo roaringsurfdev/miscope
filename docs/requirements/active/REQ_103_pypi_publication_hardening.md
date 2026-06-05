@@ -342,3 +342,11 @@ to each other but don't duplicate.
   Astro site. It does not change the deployment topology (still GitHub
   Pages) or the writing workflow (still in this Claude Code context). It
   adds navigation and content, not infrastructure.
+- **REQ_107 hand-off (first-5-minutes example).** REQ_107 specifies a
+  "first 5 minutes" walkthrough (query the registry → find a DataView →
+  load it → write a 5-line pandas query) that belongs in this REQ's
+  `templates/` surface, which does not exist yet. Until `templates/`
+  lands here, the example ships as the *First five minutes* section of the
+  `miscope.registry` module docstring (`reg.analyzers()` / `reg.search(...)`
+  / `reg.field(...)`). When `templates/` is created, fold that docstring
+  example into a runnable template notebook.

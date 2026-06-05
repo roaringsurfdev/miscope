@@ -1,8 +1,8 @@
 # REQ_107: Discoverability Registry (INFORMATION_SCHEMA for Analysis)
 
-**Status:** Draft
+**Status:** Implemented on `feature/REQ_110_lakehouse_surface` — awaiting merge approval. See *Implementation Status* below.
 **Priority:** Medium-high — cultural complement to REQ_106; not strictly blocking, but high value before publication.
-**Branch:** TBD
+**Branch:** `feature/REQ_110_lakehouse_surface` (REQ_107 lands on the REQ_110 branch per the 2026-06-04 scoping decision — it is REQ_110's write-routing keystone).
 **Dependencies:** REQ_106 (defines what gets registered: analyzers, DataViews, their schemas).
 **Feeds:** REQ_110 (Lakehouse Surface) consumes the per-field `kind` + coordinate declarations added here as its write-routing table and join-key source; the tensor-catalog sketch (`drafts/catalog_design/catalog.py`) consumes the same declarations to index tensor blobs by descriptor. This REQ declares *what each field is and how it is keyed*; REQ_110 persists and queries the columnar fields; the catalog/resolver indexes and materializes the tensor fields.
 **Attribution:** Engineering Claude (under user direction)
@@ -115,6 +115,41 @@ A field's storage form, its query-ability, and its discoverability therefore all
 This also closes a loop REQ_110 deliberately left open. REQ_110 keeps raw tensors as opaque `.npz` and holds DuckLake "in reserve" for catalog/registry needs. The coordinate-keyed schema here is the lighter, in-house answer to that reserved need: a `tensor`-kind field carries the *same* coordinate columns as a `columnar` field, so tensors become **joinable by descriptor** without a tensor query engine — you join over descriptors in SQL, then a resolver materializes only the selected blobs for linear algebra (which in turn produce more columnar/tensor fields, closing the cycle).
 
 ---
+
+## Implementation Status (2026-06-04)
+
+**Done:**
+- Schema primitives `miscope.analysis.output_schema` (`FieldKind`, `Coord`,
+  `OutputField`); `AnalyzerSpec` gains `outputs` + `version`.
+- All 24 analyzers declare `outputs` (233 logical fields keyed by coords),
+  validated both directions against the 3 canonical refactored variants (every
+  declared field maps to real on-disk keys; every key is covered).
+- `DataViewField` gains `kind` + `coords`; `DataViewSource` (analyzer + consumed
+  fields + `min_version`) added and populated on the 4 universal views.
+- `miscope.registry`: `analyzers()` / `dataviews()` / `field(name)` / `search()`
+  return browsable DataFrames; `load()` is the eager build + **drift gate**
+  (fails loud on: analyzer with no declared outputs, unknown dtype, DataView
+  consuming an undeclared field, or a producer below the required version).
+- Family-owned variant key: `registry.variant_key_columns(family)` =
+  `("variant_id", *domain_parameters)`; the hardcoded
+  `{prime}_{model_seed}_{data_seed}` in `variant_analysis_summary.py` replaced
+  with the family-composed handle + declared param columns.
+- CI load gate step in `.github/workflows/ci.yml` + `tests/test_registry.py`.
+- CLAUDE.md discoverability-first guidance line.
+
+**Deferred (by design):**
+- **Co-emission of catalog rows with payload** — a *write-time* concern owned by
+  REQ_110 (110-A/110-B). REQ_107 declares `kind`/`coords`; REQ_110 emits the
+  catalog row alongside the Parquet/blob it routes to.
+- **Logical-vs-literal key decomposition** — the composed-key ↔ (field, coord
+  values) mapping the long-format writer needs is REQ_110-A's, per the
+  2026-06-04 seam decision (REQ_107 is the pure contract). A best-effort
+  bytes-verification helper (declared fields vs. a real artifact) is opt-in /
+  warnings-only, never wired into the CI load gate (artifacts are gitignored and
+  being regenerated to a clean baseline).
+- **"First 5 minutes" `templates/` example** — ships now as the *First five
+  minutes* section of the `miscope.registry` module docstring; folds into
+  `templates/` when REQ_103 creates that surface (flagged in REQ_103 Notes).
 
 ## Notes
 

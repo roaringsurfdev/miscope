@@ -14,6 +14,17 @@ See [PROJECT.md](PROJECT.md) for the full mission and architectural principles.
 
 When a requirement conflicts with these constraints, flag it before implementing.
 
+**Discoverability first (REQ_107).** Before authoring a new analyzer or inlining a
+derivation, check `miscope.registry` for an existing field that already computes
+it. `registry.search("frequency")` finds related analyzers/DataViews;
+`registry.field("dominant_freq")` reports the producing analyzer, the coords it is
+keyed by, and its consumers. The registry is the canonical answer to "do we
+already have this?" — re-deriving a field that exists (and is keyed for joining)
+is the failure mode the registry exists to prevent. Every analyzer declares its
+output schema on `AnalyzerSpec.outputs` (field name, dtype, `kind`
+columnar|tensor, keying `coords`); a new analyzer without that declaration fails
+`registry.load()`.
+
 ---
 
 ### Separation of Concerns: The Central Principle

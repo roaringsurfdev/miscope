@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
 
+      - name: Registry load gate (REQ_107 drift detection)
+        run: uv run python -c "import miscope.registry; miscope.registry.load()"
+
       - name: Run tests (CPU only)
         run: uv run pytest -m "not gpu" -v --tb=short
 

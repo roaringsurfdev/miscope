@@ -611,40 +611,214 @@ def _compute_residual_norms(
 # (name, kind, dtype, has_row_axis, description). `has_row_axis` adds a row_id
 # coord for the per-window / per-segment axis of a columnar series.
 _DMD_NESTED_FIELDS: tuple[tuple[str, FieldKind, str, bool, str], ...] = (
-    ("trajectory", FieldKind.TENSOR, "float64", False, "Discrete-time state trajectory fed to DMD (n_steps, state_dim)."),
+    (
+        "trajectory",
+        FieldKind.TENSOR,
+        "float64",
+        False,
+        "Discrete-time state trajectory fed to DMD (n_steps, state_dim).",
+    ),
     ("n_components", FieldKind.COLUMNAR, "int64", False, "State dimensionality of the trajectory."),
     # windowed DMD
-    ("windowed__window_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each sliding window."),
-    ("windowed__window_ends", FieldKind.COLUMNAR, "int64", True, "End index of each sliding window."),
-    ("windowed__n_modes_per_window", FieldKind.COLUMNAR, "int64", True, "Retained DMD mode count per window."),
-    ("windowed__max_modes", FieldKind.COLUMNAR, "int64", False, "Maximum modes retained across windows."),
-    ("windowed__eigenvalues", FieldKind.TENSOR, "complex128", False, "Per-window DMD eigenvalues (n_windows, n_modes)."),
-    ("windowed__modes", FieldKind.TENSOR, "complex128", False, "Per-window DMD modes (n_windows, state_dim, n_modes)."),
-    ("windowed__amplitudes", FieldKind.TENSOR, "complex128", False, "Per-window DMD mode amplitudes (n_windows, n_modes)."),
-    ("windowed__residual_norms", FieldKind.TENSOR, "float64", False, "Per-step residual norms within each window."),
-    ("windowed__residual_norm_mean", FieldKind.COLUMNAR, "float64", True, "Mean residual norm per window."),
-    ("windowed__residual_norm_max", FieldKind.COLUMNAR, "float64", True, "Max residual norm per window."),
+    (
+        "windowed__window_starts",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Start index of each sliding window.",
+    ),
+    (
+        "windowed__window_ends",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "End index of each sliding window.",
+    ),
+    (
+        "windowed__n_modes_per_window",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Retained DMD mode count per window.",
+    ),
+    (
+        "windowed__max_modes",
+        FieldKind.COLUMNAR,
+        "int64",
+        False,
+        "Maximum modes retained across windows.",
+    ),
+    (
+        "windowed__eigenvalues",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-window DMD eigenvalues (n_windows, n_modes).",
+    ),
+    (
+        "windowed__modes",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-window DMD modes (n_windows, state_dim, n_modes).",
+    ),
+    (
+        "windowed__amplitudes",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-window DMD mode amplitudes (n_windows, n_modes).",
+    ),
+    (
+        "windowed__residual_norms",
+        FieldKind.TENSOR,
+        "float64",
+        False,
+        "Per-step residual norms within each window.",
+    ),
+    (
+        "windowed__residual_norm_mean",
+        FieldKind.COLUMNAR,
+        "float64",
+        True,
+        "Mean residual norm per window.",
+    ),
+    (
+        "windowed__residual_norm_max",
+        FieldKind.COLUMNAR,
+        "float64",
+        True,
+        "Max residual norm per window.",
+    ),
     # eigenvalue tracking across windows
-    ("tracks__track_ids", FieldKind.TENSOR, "int64", False, "Eigenvalue track assignments across windows."),
-    ("tracks__n_tracks", FieldKind.COLUMNAR, "int64", False, "Number of distinct eigenvalue tracks."),
+    (
+        "tracks__track_ids",
+        FieldKind.TENSOR,
+        "int64",
+        False,
+        "Eigenvalue track assignments across windows.",
+    ),
+    (
+        "tracks__n_tracks",
+        FieldKind.COLUMNAR,
+        "int64",
+        False,
+        "Number of distinct eigenvalue tracks.",
+    ),
     # regime segmentation
-    ("regimes__segment_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each detected regime."),
-    ("regimes__segment_ends", FieldKind.COLUMNAR, "int64", True, "End index of each detected regime."),
-    ("regimes__boundary_indices", FieldKind.COLUMNAR, "int64", True, "Residual-peak indices marking regime boundaries."),
-    ("regimes__threshold_used", FieldKind.COLUMNAR, "float64", False, "Residual threshold used for boundary detection."),
-    ("regimes__min_prominence_used", FieldKind.COLUMNAR, "float64", False, "Minimum peak prominence used for boundary detection."),
-    ("regimes__peak_prominences", FieldKind.COLUMNAR, "float64", True, "Prominence of each detected residual peak."),
+    (
+        "regimes__segment_starts",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Start index of each detected regime.",
+    ),
+    (
+        "regimes__segment_ends",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "End index of each detected regime.",
+    ),
+    (
+        "regimes__boundary_indices",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Residual-peak indices marking regime boundaries.",
+    ),
+    (
+        "regimes__threshold_used",
+        FieldKind.COLUMNAR,
+        "float64",
+        False,
+        "Residual threshold used for boundary detection.",
+    ),
+    (
+        "regimes__min_prominence_used",
+        FieldKind.COLUMNAR,
+        "float64",
+        False,
+        "Minimum peak prominence used for boundary detection.",
+    ),
+    (
+        "regimes__peak_prominences",
+        FieldKind.COLUMNAR,
+        "float64",
+        True,
+        "Prominence of each detected residual peak.",
+    ),
     # per-regime DMD (recursive pass)
-    ("per_regime__segment_starts", FieldKind.COLUMNAR, "int64", True, "Start index of each per-regime segment."),
-    ("per_regime__segment_ends", FieldKind.COLUMNAR, "int64", True, "End index of each per-regime segment."),
-    ("per_regime__n_modes_per_segment", FieldKind.COLUMNAR, "int64", True, "Retained mode count per regime segment."),
-    ("per_regime__max_modes", FieldKind.COLUMNAR, "int64", False, "Maximum modes retained across regime segments."),
-    ("per_regime__eigenvalues", FieldKind.TENSOR, "complex128", False, "Per-regime DMD eigenvalues (n_segments, n_modes)."),
-    ("per_regime__modes", FieldKind.TENSOR, "complex128", False, "Per-regime DMD modes (n_segments, state_dim, n_modes)."),
-    ("per_regime__amplitudes", FieldKind.TENSOR, "complex128", False, "Per-regime DMD mode amplitudes (n_segments, n_modes)."),
-    ("per_regime__residual_norms", FieldKind.TENSOR, "float64", False, "Per-step residual norms within each regime segment."),
-    ("per_regime__residual_norm_mean", FieldKind.COLUMNAR, "float64", True, "Mean residual norm per regime segment."),
-    ("per_regime__residual_norm_max", FieldKind.COLUMNAR, "float64", True, "Max residual norm per regime segment."),
+    (
+        "per_regime__segment_starts",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Start index of each per-regime segment.",
+    ),
+    (
+        "per_regime__segment_ends",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "End index of each per-regime segment.",
+    ),
+    (
+        "per_regime__n_modes_per_segment",
+        FieldKind.COLUMNAR,
+        "int64",
+        True,
+        "Retained mode count per regime segment.",
+    ),
+    (
+        "per_regime__max_modes",
+        FieldKind.COLUMNAR,
+        "int64",
+        False,
+        "Maximum modes retained across regime segments.",
+    ),
+    (
+        "per_regime__eigenvalues",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-regime DMD eigenvalues (n_segments, n_modes).",
+    ),
+    (
+        "per_regime__modes",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-regime DMD modes (n_segments, state_dim, n_modes).",
+    ),
+    (
+        "per_regime__amplitudes",
+        FieldKind.TENSOR,
+        "complex128",
+        False,
+        "Per-regime DMD mode amplitudes (n_segments, n_modes).",
+    ),
+    (
+        "per_regime__residual_norms",
+        FieldKind.TENSOR,
+        "float64",
+        False,
+        "Per-step residual norms within each regime segment.",
+    ),
+    (
+        "per_regime__residual_norm_mean",
+        FieldKind.COLUMNAR,
+        "float64",
+        True,
+        "Mean residual norm per regime segment.",
+    ),
+    (
+        "per_regime__residual_norm_max",
+        FieldKind.COLUMNAR,
+        "float64",
+        True,
+        "Max residual norm per regime segment.",
+    ),
 )
 
 
@@ -664,7 +838,7 @@ def dmd_output_fields(
     Returns:
         The OutputField tuple for one DMD unit's nested fields.
     """
-    base = tuple(coords)
+    base: tuple[str | Coord, ...] = tuple(coords)
     fields: list[OutputField] = []
     if include_n_classes:
         fields.append(
@@ -673,6 +847,7 @@ def dmd_output_fields(
             )
         )
     for name, kind, dtype, has_row_axis, desc in _DMD_NESTED_FIELDS:
-        field_coords = (*base, Coord.ROW_ID) if has_row_axis else base
-        fields.append(OutputField(name, dtype, kind, field_coords, desc))
+        field_coords: tuple[str | Coord, ...] = (*base, Coord.ROW_ID) if has_row_axis else base
+        ctor = OutputField.columnar if kind is FieldKind.COLUMNAR else OutputField.tensor
+        fields.append(ctor(name, dtype, field_coords, desc))
     return tuple(fields)

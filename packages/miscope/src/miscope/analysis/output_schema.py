@@ -115,8 +115,9 @@ class OutputField:
     description: str
 
     def __post_init__(self) -> None:
-        # Coerce string inputs to the canonical enums so call sites can pass
-        # plain strings; validation is loud on an unknown value.
+        # Defensive normalization: a direct construction may pass enum members or
+        # their string values; coerce both to the canonical enums (loud on a bad
+        # value). The ``columnar`` / ``tensor`` helpers already coerce ``coords``.
         object.__setattr__(self, "kind", FieldKind(self.kind))
         object.__setattr__(self, "coords", tuple(Coord(c) for c in self.coords))
 
@@ -125,16 +126,21 @@ class OutputField:
         cls, name: str, dtype: str, coords: tuple[str | Coord, ...], description: str
     ) -> OutputField:
         """A scalar/series field that flattens to a Parquet row."""
-        return cls(name, dtype, FieldKind.COLUMNAR, coords, description)
+        return cls(name, dtype, FieldKind.COLUMNAR, _as_coords(coords), description)
 
     @classmethod
     def tensor(
         cls, name: str, dtype: str, coords: tuple[str | Coord, ...], description: str
     ) -> OutputField:
         """A dense-array field kept as a blob and referenced by descriptor."""
-        return cls(name, dtype, FieldKind.TENSOR, coords, description)
+        return cls(name, dtype, FieldKind.TENSOR, _as_coords(coords), description)
 
     @property
     def coord_names(self) -> tuple[str, ...]:
         """Coordinate keys as plain strings (for tabular rendering / routing)."""
         return tuple(c.value for c in self.coords)
+
+
+def _as_coords(values: tuple[str | Coord, ...]) -> tuple[Coord, ...]:
+    """Coerce a tuple of coord strings/enums to canonical :class:`Coord` enums."""
+    return tuple(Coord(v) for v in values)

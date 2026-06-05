@@ -362,9 +362,17 @@ def test_build_variant_registry_one_entry_per_variant(tmp_path):
     registry = json.loads(registry_path.read_text())
     assert len(registry) == 2
 
+    # REQ_107: variant_id is the family-owned composed handle (the variant
+    # directory name), not the hardcoded "{prime}_{model_seed}_{data_seed}".
     variant_ids = {e["variant_id"] for e in registry}
-    assert "113_485_598" in variant_ids
-    assert "113_999_598" in variant_ids
+    assert "p113_seed485_dseed598" in variant_ids
+    assert "p113_seed999_dseed598" in variant_ids
+
+    # The family's declared domain_parameters are added as columns for filtering.
+    by_id = {e["variant_id"]: e for e in registry}
+    assert by_id["p113_seed485_dseed598"]["prime"] == 113
+    assert by_id["p113_seed485_dseed598"]["seed"] == 485
+    assert by_id["p113_seed485_dseed598"]["data_seed"] == 598
 
 
 # ---------------------------------------------------------------------------
