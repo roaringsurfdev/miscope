@@ -29,6 +29,7 @@ from miscope.analysis.inputs import (
     derive_required_artifacts,
 )
 from miscope.analysis.output_schema import OutputField
+from miscope.analysis.parameters import ParameterSpec
 
 OutputScope = Literal["per_epoch", "cross_epoch"]
 
@@ -63,6 +64,13 @@ class AnalyzerSpec:
         version: Output-schema version (REQ_107). Bumped when a field is added,
             removed, or its dtype changes; consumers declare the minimum version
             they are compatible with, and drift detection compares the two.
+        parameters: Declared generation parameters (REQ_138). Each
+            :class:`~miscope.analysis.parameters.ParameterSpec` states a parameter's
+            name, dtype, scope, and default *binding*. An analyzer reads its declared
+            parameters from ``inputs.parameters`` (scoped to exactly these names);
+            reading an undeclared parameter raises. These are the bindings that, when
+            non-default, form an artifact's storage recipe — the parameterization
+            coordinate REQ_110 threads through.
     """
 
     name: str
@@ -72,6 +80,7 @@ class AnalyzerSpec:
     produces_summary: bool = False
     outputs: tuple[OutputField, ...] = ()
     version: int = 1
+    parameters: tuple[ParameterSpec, ...] = ()
 
     # ----- Derived properties ----------------------------------------------
 
@@ -102,4 +111,20 @@ class AnalyzerSpec:
         raise KeyError(
             f"Analyzer '{self.name}' declares no output field '{name}'. "
             f"Declared: {list(self.output_names())}"
+        )
+
+    # ----- Parameter helpers (REQ_138) -------------------------------------
+
+    def parameter_names(self) -> tuple[str, ...]:
+        """Names of every declared generation parameter, in declaration order."""
+        return tuple(p.name for p in self.parameters)
+
+    def parameter(self, name: str) -> ParameterSpec:
+        """Look up a declared generation parameter by name."""
+        for p in self.parameters:
+            if p.name == name:
+                return p
+        raise KeyError(
+            f"Analyzer '{self.name}' declares no parameter '{name}'. "
+            f"Declared: {list(self.parameter_names())}"
         )

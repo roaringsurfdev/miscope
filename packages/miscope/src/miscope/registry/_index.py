@@ -22,6 +22,7 @@ import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput
 from miscope.analysis.output_schema import OutputField
+from miscope.analysis.parameters import ParameterSpec, ReferenceBinding
 from miscope.analysis.registry import AnalyzerRegistry
 from miscope.analysis.spec import AnalyzerSpec
 from miscope.views.dataview_catalog import (
@@ -133,7 +134,13 @@ def validate(index: RegistryIndex) -> None:
 
     1. Every analyzer declares at least one output field.
     2. Every declared dtype is a real dtype.
-    3. Drift: every DataView source resolves against its producer's declared
+    3. Every declared generation parameter is well-formed (REQ_138): valid dtype,
+       a known scope, and a default binding whose ``ReferenceBinding.source_analyzer``
+       is a registered analyzer (a reference binding is a DAG edge, so its source
+       must exist). This is the load-time half of the parameter discipline; the
+       runtime half (reading an undeclared parameter raises) lives in the scoped
+       parameters mapping handed to ``analyze()``.
+    4. Drift: every DataView source resolves against its producer's declared
        schema (analyzer registered, version ≥ min_version, every consumed field
        declared).
     """
@@ -151,6 +158,8 @@ def validate(index: RegistryIndex) -> None:
                 problems.append(
                     f"analyzer {spec.name!r} field {f.name!r} has unknown dtype {f.dtype!r}"
                 )
+        for p in spec.parameters:
+            problems.extend(_check_parameter(spec.name, p, specs_by_name))
 
     for dv in index.dataviews:
         for src in dv.sources:
@@ -158,6 +167,32 @@ def validate(index: RegistryIndex) -> None:
 
     if problems:
         raise RegistryError("registry validation failed:\n  - " + "\n  - ".join(problems))
+
+
+def _check_parameter(
+    analyzer_name: str,
+    param: ParameterSpec,
+    specs_by_name: dict[str, AnalyzerSpec],
+) -> list[str]:
+    """Well-formedness checks for one declared generation parameter (REQ_138)."""
+    out: list[str] = []
+    if not _valid_dtype(param.dtype):
+        out.append(
+            f"analyzer {analyzer_name!r} parameter {param.name!r} has unknown "
+            f"dtype {param.dtype!r}"
+        )
+    if param.scope not in ("run", "analyzer"):
+        out.append(
+            f"analyzer {analyzer_name!r} parameter {param.name!r} has unknown "
+            f"scope {param.scope!r} (expected 'run' or 'analyzer')"
+        )
+    default = param.default
+    if isinstance(default, ReferenceBinding) and default.source_analyzer not in specs_by_name:
+        out.append(
+            f"analyzer {analyzer_name!r} parameter {param.name!r} defaults to a "
+            f"reference into {default.source_analyzer!r} which is not registered"
+        )
+    return out
 
 
 def _check_source(
