@@ -148,6 +148,18 @@ the prune script (OQ #3). Flagged-for-review: signature = canonical-JSON over bi
 bindings (JSON) + opaque `recipe_signature` (OQ #6); recipe path = a `__rs_<sig>`
 subdir, omitted when empty.
 
+**Snapshot/lifecycle axis — decided to defer (review 2026-06-05).** The floating
+`max_epoch` default at the **root** path is recomputed *in place* on training
+extension (`check_reference_freshness` surfaces the move; the prior analysis is not
+auto-preserved). Value-addressing the floating default alone would snapshot the
+reference axis but not the **trajectory-length** axis (the cross-epoch artifact spans
+all checkpoints, which is not a parameter), yielding a confusing half-snapshot. The
+clean end-state — making the **checkpoint inventory** part of cross-epoch artifact
+identity so extension yields a uniform immutable snapshot and the bespoke staleness
+check collapses into the planner's native missing-artifact handling — is captured as a
+follow-on (`docs/requirements/drafts/REQ_139_immutable_inventory_keyed_artifacts.md`).
+REQ_138 keeps default-at-root.
+
 **One deferred slice (explicitly out of this REQ, 110-D-adjacent):** materializing
 *parameterized* artifacts into the **columnar** tables. The `run_set` column exists
 on every table/catalog row (the coordinate is present once, which is what 110-D
