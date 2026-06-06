@@ -22,6 +22,7 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ModelInput, ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -138,11 +139,58 @@ def _snapshot(
     return agg_energy, peak_freq, committed_count
 
 
+# The leading axis of the *_energy / neuron_* arrays is the sharpening-iteration
+# axis (not a canonical coord), so those stay dense tensors keyed by (variant, epoch).
 SPEC = AnalyzerSpec(
     name="fourier_nucleation",
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=True, needs_cache=False),),
     required_hooks=(),
+    outputs=(
+        F.tensor(
+            "aggregate_energy",
+            "float32",
+            ("variant", "epoch"),
+            "Aggregate spectral energy per frequency across sharpening iterations "
+            "(iteration, frequency).",
+        ),
+        F.tensor(
+            "neuron_peak_freq",
+            "int32",
+            ("variant", "epoch"),
+            "Per-neuron peak frequency across sharpening iterations (iteration, neuron).",
+        ),
+        F.tensor(
+            "neuron_committed_count",
+            "int32",
+            ("variant", "epoch"),
+            "Committed-neuron count per frequency across iterations (iteration, frequency).",
+        ),
+        F.columnar(
+            "frequencies",
+            "int32",
+            ("variant", "epoch", "frequency"),
+            "Frequency-index axis labels for the energy/committed-count arrays.",
+        ),
+        F.columnar(
+            "prime",
+            "int32",
+            ("variant", "epoch"),
+            "Modulus the analysis was run against.",
+        ),
+        F.columnar(
+            "iterations",
+            "int32",
+            ("variant", "epoch"),
+            "Number of sharpening iterations.",
+        ),
+        F.columnar(
+            "sharpness",
+            "float32",
+            ("variant", "epoch"),
+            "Fraction of frequencies zeroed out per sharpening iteration.",
+        ),
+    ),
 )
 
 

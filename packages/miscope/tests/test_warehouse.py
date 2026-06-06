@@ -1,0 +1,294 @@
+"""Writer + reader integration on a synthetic variant (REQ_110A).
+
+Builds a tiny ``.npz`` artifact tree for two analyzers (one per-epoch generic, one
+cross-epoch with a semantic claim), materializes it, and asserts the contract:
+schema-driven routing, dtype fidelity, one Parquet per coord signature, semantic
+table population, catalog co-emission, ``to_wide``, and cross-variant ``concat``.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.warehouse import paths, read_table
+from miscope.warehouse.reader import WarehouseAccessor
+from miscope.warehouse.writer import materialize_variant_columnar
+
+
+class _FakeFamily:
+    name = "modulo_addition_1layer"
+    domain_parameters = {"prime": None, "seed": None, "data_seed": None}
+    # Declared analyzer scope (REQ_140): the materializer iterates this set, the
+    # same family.json source the run plan uses — not the global registry.
+    analyzers = ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
+
+
+class _FakeVariant:
+    """Duck-typed Variant exposing only what the warehouse writer/reader use."""
+
+    def __init__(self, root: Path, name: str, params: dict[str, int]) -> None:
+        self.variant_dir = root / name
+        self.name = name
+        self.params = params
+        self.family = _FakeFamily()
+        (self.variant_dir / "artifacts").mkdir(parents=True, exist_ok=True)
+
+    @property
+    def artifacts(self) -> ArtifactLoader:
+        return ArtifactLoader(str(self.variant_dir / "artifacts"))
+
+    @property
+    def summary_path(self) -> Path:
+        return self.variant_dir / "variant_summary.json"
+
+
+def _write_npz(path: Path, **arrays: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path.with_suffix(""), **arrays)
+
+
+def _seed_artifacts(variant: _FakeVariant, n_neurons: int = 4) -> None:
+    art = variant.variant_dir / "artifacts"
+    # per-epoch, generic (FLAT): fourier_frequency_quality
+    for epoch in (0, 100):
+        _write_npz(
+            art / "fourier_frequency_quality" / f"epoch_{epoch:05d}.npz",
+            quality_score=np.float32(0.5 + epoch / 1000),
+            coverage_hard=np.float32(0.9),
+            active_frequencies=np.array([1, 5, 9], dtype=np.int32),
+            k=np.int32(3),
+            reconstruction_error=np.float32(0.01),
+        )
+    # cross-epoch with a semantic claim: neuron_dynamics
+    epochs = np.array([0, 100], dtype=np.int64)
+    _write_npz(
+        art / "neuron_dynamics" / "cross_epoch.npz",
+        epochs=epochs,
+        dominant_freq=np.array([[0, 5, 9, 5], [5, 5, 9, 0]], dtype=np.int64),
+        max_frac=np.array([[0.1, 0.4, 0.7, 0.3], [0.5, 0.4, 0.8, 0.2]], dtype=np.float32),
+        switch_counts=np.arange(n_neurons, dtype=np.int32),
+        commitment_epochs=np.full(n_neurons, 100.0, dtype=np.float64),
+        threshold=np.float64(0.05),
+    )
+
+
+@pytest.fixture
+def variant(tmp_path: Path) -> _FakeVariant:
+    v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    _seed_artifacts(v)
+    return v
+
+
+def _seed_weight_spectra(variant: _FakeVariant) -> None:
+    """Per-epoch `sv` artifacts with the REQ_136 uniform head axis.
+
+    Non-attention sites carry a singleton head axis ``(1, n_sv)``; attention sites
+    carry one row per head ``(n_heads, n_sv)``.
+    """
+    art = variant.variant_dir / "artifacts"
+    for epoch in (0, 100):
+        _write_npz(
+            art / "weight_spectra" / f"epoch_{epoch:05d}.npz",
+            sv_W_E=np.array([[3.0, 2.0, 1.0]], dtype=np.float32),  # (1, 3)
+            sv_W_Q=np.array([[3.0, 2.0], [1.0, 1.0], [2.0, 1.0], [1.0, 0.5]], dtype=np.float32),
+        )
+
+
+def test_generic_table_one_file_per_signature_with_dtype_fidelity(variant):
+    materialize_variant_columnar(variant)
+    sigs = set(paths.table_dir(variant, "fourier_frequency_quality").glob("*.parquet"))
+    stems = {p.stem for p in sigs}
+    # scalars share one signature; the frequency-keyed field gets its own file.
+    assert stems == {"by__variant_epoch", "by__variant_epoch_frequency"}
+
+    scalars = read_table(variant, "fourier_frequency_quality", "by__variant_epoch").df
+    assert {"variant_id", "prime", "seed", "data_seed", "epoch"} <= set(scalars.columns)
+    assert str(scalars["quality_score"].dtype) == "float32"
+    assert str(scalars["k"].dtype) == "int32"
+    # epoch is a column, not a file — both epochs present in one table.
+    assert sorted(scalars["epoch"].unique()) == [0, 100]
+
+
+def test_tensor_fields_are_not_emitted(variant):
+    # neuron_dynamics is fully columnar here; assert no stray tensor columns leak by
+    # checking the generic table only carries declared columnar value columns.
+    materialize_variant_columnar(variant)
+    df = read_table(variant, "neuron_dynamics", "by__variant_neuron").df
+    assert {"switch_counts", "commitment_epochs"} <= set(df.columns)
+
+
+def test_semantic_claim_populates_neuron_frequency_attribution(variant):
+    materialize_variant_columnar(variant)
+    nfa = read_table(variant, "neuron_frequency_attribution").df  # single 'long' file
+    assert {"variant_id", "epoch", "neuron", "frequency", "frac_explained", "dominant"} <= set(
+        nfa.columns
+    )
+    assert nfa["dominant"].all()
+    # claimed dominant_freq -> frequency; max_frac -> frac_explained
+    row = nfa[(nfa.epoch == 0) & (nfa.neuron == 2)].iloc[0]
+    assert row["frequency"] == 9
+    assert row["frac_explained"] == pytest.approx(0.7, rel=1e-3)
+
+
+def test_claimed_fields_excluded_from_generic_table(variant):
+    materialize_variant_columnar(variant)
+    cols = set()
+    for tok in WarehouseAccessor(variant).signatures("neuron_dynamics"):
+        cols |= set(read_table(variant, "neuron_dynamics", tok).df.columns)
+    # dominant_freq / max_frac are claimed by neuron_frequency_attribution.
+    assert "dominant_freq" not in cols
+    assert "max_frac" not in cols
+    assert {"switch_counts", "threshold", "epochs"} <= cols
+
+
+def test_catalog_co_emitted(variant):
+    materialize_variant_columnar(variant)
+    cat = pd.read_parquet(paths.catalog_parquet_path(variant, "fourier_frequency_quality"))
+    assert (cat["kind"] == "columnar").all()
+    assert {"quality_score", "active_frequencies"} <= set(cat["field"])
+    # uri is relative to the warehouse root (portable).
+    assert not Path(cat["parquet_uri"].iloc[0]).is_absolute()
+
+
+def test_to_wide_pivots(variant):
+    materialize_variant_columnar(variant)
+    scalars = read_table(variant, "fourier_frequency_quality", "by__variant_epoch")
+    wide = scalars.to_wide(index="variant_id", columns="epoch", values="quality_score")
+    assert list(wide.columns) == [0, 100]
+
+
+def test_weight_spectra_head_is_its_own_column(variant):
+    """REQ_136: `sv` head axis maps to a `head` column; row_id is the SV index alone."""
+    _seed_weight_spectra(variant)
+    materialize_variant_columnar(variant)
+    df = read_table(variant, "weight_spectra", "by__variant_epoch_site_head_row_id").df
+    assert {"site", "head", "row_id", "sv"} <= set(df.columns)
+    # Non-attention site W_E: a single head (0); row_id spans the 3 singular values.
+    # (Bracket access throughout: ``df.head`` is the DataFrame method, not the column.)
+    we = df[df["site"] == "W_E"]
+    assert sorted(we["head"].unique()) == [0]
+    assert sorted(we["row_id"].unique()) == [0, 1, 2]
+    # Attention site W_Q: four heads, each with its own SV index axis.
+    wq = df[df["site"] == "W_Q"]
+    assert sorted(wq["head"].unique()) == [0, 1, 2, 3]
+    assert sorted(wq["row_id"].unique()) == [0, 1]
+    # head/row_id together recover a head's singular value (no conflation).
+    val = wq[(wq["head"] == 2) & (wq["row_id"] == 0) & (wq["epoch"] == 0)]["sv"].iloc[0]
+    assert val == pytest.approx(2.0)
+
+
+def test_cross_variant_concat_is_a_noop(tmp_path):
+    v1 = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    v2 = _FakeVariant(tmp_path, "p7_seed1_dseed2", {"prime": 7, "seed": 1, "data_seed": 2})
+    for v in (v1, v2):
+        _seed_artifacts(v)
+        materialize_variant_columnar(v)
+    combined = pd.concat(
+        [read_table(v, "neuron_frequency_attribution").df for v in (v1, v2)],
+        ignore_index=True,
+    )
+    assert set(combined["variant_id"].unique()) == {"p5_seed1_dseed2", "p7_seed1_dseed2"}
+    # long format needs no reconciliation: one schema, variant_id distinguishes rows.
+    assert combined.groupby("variant_id").size().nunique() == 1
+
+
+def test_variant_outcomes_table_co_emitted(variant):
+    """The per-variant outcome rollup (REQ_110D) materializes from the summary JSON.
+
+    Promoted scalar fields become queryable columns; the full snapshot is carried
+    in ``summary_json`` for byte-identical registry reconstruction; non-scalar
+    fields (lists, nested windows) live only inside the carrier.
+    """
+    import json
+
+    summary = {
+        "prime": 5,
+        "failure_mode": "healthy",
+        "homeless_neuron_fraction": 0.25,
+        "second_descent_onset_epoch": 4000,
+        "learned_frequencies": [3, 5],  # list -> carrier only, not a column
+        "final_window": {"start_epoch": 100, "end_epoch": 200},  # dict -> carrier only
+    }
+    variant.summary_path.write_text(json.dumps(summary))
+
+    materialize_variant_columnar(variant)
+    table = read_table(variant, "variant_outcomes")
+    df = table.df
+    assert len(df) == 1
+    row = df.iloc[0]
+    # Promoted scalar columns are queryable.
+    assert row["failure_mode"] == "healthy"
+    assert row["homeless_neuron_fraction"] == pytest.approx(0.25)
+    assert row["second_descent_onset_epoch"] == 4000
+    assert row["variant_id"] == "p5_seed1_dseed2"
+    # Non-scalar fields are not promoted to columns.
+    assert "learned_frequencies" not in df.columns
+    assert "final_window" not in df.columns
+    # The carrier round-trips the full snapshot.
+    assert json.loads(row["summary_json"])["learned_frequencies"] == [3, 5]
+
+
+def test_variant_outcomes_skipped_without_summary(variant):
+    """No variant_summary.json -> no variant_outcomes table (no error)."""
+    materialize_variant_columnar(variant)
+    assert not paths.table_dir(variant, "variant_outcomes").exists()
+
+
+def _scoped_family(analyzers: tuple[str, ...]) -> _FakeFamily:
+    """A family declaring an explicit analyzer scope (REQ_140)."""
+    fam = _FakeFamily()
+    fam.analyzers = analyzers
+    return fam
+
+
+def test_materializer_scopes_to_declared_analyzers(tmp_path):
+    """REQ_140: a registered-but-undeclared analyzer on disk is not materialized.
+
+    The family declares only ``fourier_frequency_quality``; ``neuron_dynamics`` is
+    registered and has artifacts on disk, but is out of the family's scope. Only
+    the declared subset materializes — the materializer honors family.json, not the
+    global registry.
+    """
+    v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    _seed_artifacts(v)  # seeds BOTH fourier_frequency_quality and neuron_dynamics
+    v.family = _scoped_family(("fourier_frequency_quality",))
+
+    report = materialize_variant_columnar(v)
+
+    assert paths.table_dir(v, "fourier_frequency_quality").exists()
+    # Undeclared analyzer: never reached — no generic table, no semantic claim.
+    assert not paths.table_dir(v, "neuron_dynamics").exists()
+    assert not paths.table_dir(v, "neuron_frequency_attribution").exists()
+    assert "neuron_dynamics" not in report.tables
+    assert "neuron_dynamics" not in report.failed_analyzers
+
+
+def test_one_malformed_artifact_is_contained_not_fatal(tmp_path):
+    """REQ_140: a single analyzer's bad artifact is recorded and skipped.
+
+    ``weight_spectra`` carries a corrupt npz (raises on load); every other declared
+    analyzer still materializes and the bad one lands in ``failed_analyzers``.
+    """
+    v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    _seed_artifacts(v)  # valid fourier_frequency_quality + neuron_dynamics
+    # Corrupt weight_spectra: a file named like an epoch artifact but not a valid npz.
+    bad = v.variant_dir / "artifacts" / "weight_spectra" / "epoch_00000.npz"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"not a real npz")
+    v.family = _scoped_family(
+        ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
+    )
+
+    report = materialize_variant_columnar(v)
+
+    # The healthy analyzers still wrote their tables.
+    assert paths.table_dir(v, "fourier_frequency_quality").exists()
+    assert paths.table_dir(v, "neuron_frequency_attribution").exists()
+    # The bad one is reported, not silent, and did not abort the pass.
+    assert "weight_spectra" in report.failed_analyzers
+    assert report.failed_analyzers["weight_spectra"]  # non-empty error summary

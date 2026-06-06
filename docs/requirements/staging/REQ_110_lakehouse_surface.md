@@ -1,10 +1,10 @@
-# REQ_110: Lakehouse Surface (Tabular Output, DuckDB Query, Publication Bundles)
+# REQ_110: Lakehouse Surface (Tabular Output, Tensor Catalog, DuckDB Query, Publication Bundles)
 
-**Status:** Draft
+**Status:** Completed — merged to `develop` 2026-06-06 (110-A…F). The live-publication acceptance bar remains open, tracked as **REQ_139** (first door-to-door publication, bundled with the public site launch).
 **Priority:** High — second of the two consolidation streams; the data surface for v1.0 publication.
-**Branch:** TBD
+**Branch:** `feature/REQ_110_lakehouse_surface`
 **Supersedes:** REQ_101 (DataFrame Support), REQ_108 (Publication Surface).
-**Dependencies:** REQ_109 (Measurement Primitives — typed measurement results are the upstream shape that flatten into tabular form); REQ_106 (DataView first-class status, layering principle); REQ_107 (registry — adjacent, not merged; supplies the discoverability layer this REQ's tables are queryable through); REQ_103 (the package + repo + docs surface that hosts the publication tooling).
+**Dependencies:** REQ_109 (Measurement Primitives — typed measurement results are the upstream shape that flatten into tabular form); REQ_106 (DataView first-class status, layering principle); REQ_107 (registry — supplies the per-field `kind` + coordinate declarations that drive this REQ's write-routing and tensor descriptors, plus the discoverability layer the tables are queryable through; the tensor-catalog seam formerly sketched in `drafts/catalog_design/catalog.py` lands here per the 2026-06-04 scoping decision); REQ_103 (the package + repo + docs surface that hosts the publication tooling).
 **Attribution:** Engineering Claude (under user direction)
 
 ---
@@ -18,7 +18,7 @@ Today, analyzers emit `.npz` artifacts and JSON summaries. That's the right shap
 
 The opportunity surfaced during the discovery phase: **lean into a small-scale lakehouse pattern.** Analyzers (the ones that genuinely transform) emit Parquet files alongside (or instead of) `.npz`. Parquet is columnar, self-describing, language-agnostic, and HTTP-range-readable. DuckDB queries Parquet over local paths or HTTP, with no daemon and a single Python wheel. DuckDB-WASM does the same in the browser, making published data inline-queryable inside fieldnotes articles.
 
-This REQ defines the tabular output surface end-to-end: the in-memory DataFrame contract, the on-disk Parquet contract, the cross-variant query layer, and the publication workflow that attaches curated bundles to GitHub Releases.
+This REQ defines the storage surface end-to-end across both data natures: the in-memory DataFrame contract, the on-disk Parquet contract for columnar metrics, a **descriptor catalog + resolver** that brings the tensor blobs into the same queryable surface (joinable by coordinate, materialized only when selected), the cross-variant query layer over both, and the publication workflow that attaches curated bundles to GitHub Releases.
 
 ---
 
@@ -98,7 +98,7 @@ Defined to a similar level of structure as PCA:
 - [ ] **Internal Parquet path:** `results/{family}/{variant}/dataviews/{view_name}.parquet` — sibling to existing `.npz` artifact directories. Layout canonicalized in implementation.
 - [ ] **Coexistence with `.npz`.** Parquet does **not** replace `.npz` blanket. The two coexist:
   - Analyzers that perform a transform (PCA, Fourier, geometry, shape characterization) emit Parquet alongside or instead of `.npz`.
-  - Analyzers that are extract-only — `parameter_snapshot` (raw weight matrices) and the activation-capture analyzers — continue to emit `.npz`. They have no transform output to tabulate; their job is to make raw tensors available without re-loading the model checkpoint.
+  - Analyzers that are extract-only — `parameter_snapshot` (raw weight matrices) and the activation-capture analyzers — continue to emit `.npz`. They have no transform output to tabulate; their job is to make raw tensors available without re-loading the model checkpoint. These `.npz` tensors are now indexed in the catalog as `tensor`-kind descriptors (see *Tensor catalog + resolver* below): they remain blobs, but cease to be opaque — they become selectable by coordinate join and materialized on demand.
   - Per-analyzer decision is documented in the analyzer's spec. Default for new analyzers: emit Parquet if there's a transform; emit `.npz` if there's no transform.
 - [ ] **Internal Parquet is gitignored**, alongside `.npz` artifacts. Deterministically regeneratable.
 - [ ] **Parquet writer:** `pyarrow` (already a `miscope` dep per REQ_103). Compression: snappy or zstd — pick one in implementation; zstd preferred for published bundles, snappy or none for internal warehouse (faster writes during pipeline runs).
@@ -120,31 +120,84 @@ Defined to a similar level of structure as PCA:
 - [ ] **Cross-table joins work via DuckDB's native Parquet handling** — no custom join logic in `miscope`. Example: join `frequency_spectrum` against `shape_characterizations` on `(variant_id, epoch)` to correlate frequency content with circularity.
 - [ ] **DuckDB views over the Parquet root** for ergonomic naming. The user runs `SELECT * FROM frequency_spectrum`, not `SELECT * FROM 'results/.../frequency_spectrum.parquet'`.
 
+### Tensor catalog + resolver (the non-columnar half)
+
+`.npz` tensors stay as blobs, but they stop being *opaque*: a `tensor`-kind field (per REQ_107) is indexed in the catalog as a descriptor carrying the same coordinate columns as a columnar row. You query the catalog to *select* tensors by joining/filtering over descriptors, then a resolver materializes only the selected blobs. Design sketch: [`drafts/catalog_design/catalog.py`](../drafts/catalog_design/catalog.py).
+
+- [ ] **Unified catalog relation.** One queryable Parquet relation indexes every field — columnar and tensor — with its coordinate columns (`variant_id` + family params, `epoch`, `site`, `group`/`group_type`, `neuron`/`row_id`, `frequency` as applicable) and a `kind` discriminator. Columnar rows carry their scalar `value` (series live in the sibling fact Parquet keyed by the catalog `id`); tensor rows carry a `TensorRef`.
+- [ ] **`TensorRef` is address-only.** `uri`, `member` (key within the container; `""` for a single `.npy`), `dtype`, `shape`, `codec` (`npz` / `npz_compressed` / `npy`). No payload. Declared shape/dtype come from the analyzer's REQ_107 schema.
+- [ ] **Selection is SQL over descriptors; no array is touched to answer a metadata question.** Joining/filtering the catalog (including against a run-config table) returns a *result set of descriptors* — e.g. `WHERE kind='tensor' AND site='mlp_out' AND epoch BETWEEN 20000 AND 30000` joined to `runs` on `variant_id` where `grokked = TRUE`. Order is pinned so the result set is reproducible.
+- [ ] **`TensorResolver` materializes only the selected tensor rows**, batched per container so each archive opens exactly once (`NpzFile` members read lazily, one at a time; `.npy` memory-mapped). Columnar rows handed to it are ignored — nothing to surface.
+- [ ] **Resolver verifies bytes against the catalog (reproducibility guard).** On load, assert the array's shape/dtype match the descriptor; fail loud on mismatch. The catalog *asserts*, the resolver *checks*. This is what lets the catalog be a trusted index without being the source of truth — the blob bytes stay authoritative.
+- [ ] **Catalog rows co-emitted with payload** (per REQ_107): when the pipeline writes a Parquet row or a tensor blob, it writes the catalog row in the same pass — never a later scan-and-index. The index cannot drift from the bytes by construction.
+- [ ] **Resolved arrays feed back into analyzers.** The resolver returns `{id -> ndarray}` ready for PCA/DMD/Fourier — the tensor plane is upstream of new columnar+tensor fields, closing the cycle.
+
 ### Publication: bundles, GitHub Releases, schema stability
 
-- [ ] **Internal warehouse vs. published bundle is a structural distinction**, not nominal.
+- [x] **Internal warehouse vs. published bundle is a structural distinction**, not nominal. *(Source = the churn-free internal warehouse via `miscope.query`; output = a frozen, hashed, manifest-bearing dir. `_dist/` + Release assets are gitignored; the build never mutates the warehouse.)*
   - Internal warehouse: `results/.../dataviews/*.parquet`. Free to evolve, regeneratable, gitignored. Schemas can change with code; mismatch is a re-run.
   - Published bundle: a curated subset of Parquet files, frozen at a point in time, attached to a `data-*` GitHub Release. Once published, immutable.
-- [ ] **Bundles are per-article, not all-of-everything.** A fieldnotes article on ring geometry publishes only the Parquet files that underlie its claims. Avoiding kitchen-sink bundles keeps file size small, schemas tight, and review focused.
-- [ ] **Build script** (`scripts/build_publication_bundle.py` or `miscope.publish.build`) — selects DataView outputs by name, freezes their schemas, writes them to a versioned output directory, computes content hashes, and emits a manifest.
-- [ ] **Bundle manifest** (`manifest.json` inside the bundle) declares: `bundle_version`, `mint_date`, `miscope_version`, list of included Parquet files with their schemas and content hashes, the article(s) referencing the bundle, and a description.
-- [ ] **GitHub Releases as host.** Bundles attach to Releases tagged `data-*` (e.g., `data-v1.0-ring-geometry`). Distinct from package release tags (`v1.0.0` for `miscope`). Per-bundle Parquet files attached as Release assets with stable URLs.
-- [ ] **GitHub Action workflow** (`.github/workflows/data-release.yml`): build bundle → create Release → attach Parquet + manifest → publish.
-- [ ] **Range-request and CORS verified** (not assumed): a DuckDB query against a Release asset URL fetches only the bytes the query needs; CORS headers permit fetches from the GitHub Pages domain.
-- [ ] **Schema stability per bundle version.** A column added or renamed requires a new bundle version with a new tag. Old bundles remain accessible at original tags. The build script reads declared schemas (per REQ_106 / REQ_107) and fails to publish if materialized Parquet doesn't match.
+- [x] **Bundles are per-article, not all-of-everything.** *(`BundleSpec` names the curated table set + referencing article(s); per-table subsetting SQL keeps it tight.)*
+- [x] **Build script** (`scripts/build_publication_bundle.py`, over `miscope.publish.build`) — selects tables by name, freezes their schemas, writes a versioned output directory, computes content hashes, emits a manifest.
+- [x] **Bundle manifest** (`manifest.json`) declares `bundle_version`, `mint_date`, `miscope_version`, per-table file + Arrow schema + content hash + populated-provenance, the referencing article(s), and a description.
+- [x] **GitHub Releases as host** (`miscope.publish.create_release` → `gh release create data-{name}-{version}`). Tag namespace distinct from package `vX.Y.Z`; assets attached at stable URLs.
+- [~] **GitHub Action workflow** (`.github/workflows/data-release.yml`): **gate, not builder.** Data is gitignored / absent in CI, so the runner cannot build; the Release is cut locally (`--release`). The workflow validates committed manifest integrity + reports schema deltas on bundle-spec PRs. *(Decision flagged — see status note.)*
+- [ ] **Range-request and CORS verified** (not assumed). `verify_bundle_url` is the Python-side probe (opens the Release URL via `httpfs`, counts rows) but needs a *live* `data-*` Release to run; deferred until the first real bundle ships (pairs with 110-F's browser/CORS check).
+- [x] **Schema stability per bundle version.** The gate (`miscope.publish.enforce`) classifies a rebuild vs. its committed baseline manifest: additive needs a version bump, breaking is refused (escape via `--no-gate` for a deliberate re-author), identical is fine. Matches the drift test.
 
 ### DuckDB-WASM in fieldnotes (inline queries)
 
-- [ ] **Fieldnotes Astro site loads DuckDB-WASM as a client-side module**, lazy-loaded on demand (the WASM bundle is several MB).
-- [ ] **`<DuckDBQuery>` MDX component** accepts a Parquet URL (a Release asset) and a SQL query string. Renders a result table inline. Reader can edit the query and re-run.
-- [ ] **Articles use the component to back specific claims** with inline-queryable data. Errors surface clearly to the reader; a broken query is recoverable by re-editing in-browser.
+- [x] **Fieldnotes Astro site loads DuckDB-WASM as a client-side module**, lazy-loaded on demand. *(The engine ESM is a runtime `import(<jsDelivr CDN>)` evaluated only on the first Run, so it never enters the Astro build — verified: `dist` is 2.8M with no duckdb chunk; the CDN URL is preserved external in the inlined hoisted script.)*
+- [x] **`<DuckDBQuery>` MDX component** (`apps/fieldnotes/src/components/DuckDBQuery.astro`) accepts a Parquet URL (a Release asset) + SQL (and a `tables` array for joins). Registers each asset as a view (`read_parquet(url)` — DuckDB-WASM range-reads the remote file), renders the result table inline, and the reader edits + re-runs.
+- [x] **Errors surface clearly; a broken query is recoverable in-browser** (the textarea stays editable, the engine error shows inline, Run again). Demonstrated on `src/pages/duckdb-demo.astro` (an engine-only `range()` smoke that needs no remote data + the real-data usage pattern). *Pointing an actual article at a live bundle waits on the first published Release.*
 
 ### Validation
 
-- [ ] **End-to-end pipeline operational:** build a publication bundle from real DataView outputs → attach to a GitHub Release → query a Parquet asset via DuckDB-WASM from a deployed fieldnotes article → reader sees result table inline. This is the v1.0 acceptance bar.
-- [ ] **Schema drift test:** rebuild a bundle after a benign additive column change — bundle build succeeds, version bumps, manifest updates. Rebuild after a breaking rename — bundle build fails with a clear error.
-- [ ] **Cold-cache range-request test:** DuckDB query against a Release asset URL with a fresh browser cache fetches only the bytes the query needs. (Inspect Network tab; verify range requests fire.)
-- [ ] **Internal cross-variant query test:** at least three canonical questions ("variants with attn FA committing after grokking", "variants with homeless_fraction > 0.2", "circularity at epoch 5000 ranked across variants") expressible as one-line SQL against the Parquet warehouse.
+- [~] **End-to-end pipeline operational** (build bundle → Release → DuckDB-WASM query from a deployed article → inline result). The v1.0 acceptance bar. Every link is built and unit/build-verified in isolation; the *live* assembly waits on publishing the first real `data-*` Release + a Pages deploy (a deliberate, human-gated step). Tracked as the trigger to close this.
+- [x] **Schema drift test:** additive change → build succeeds under a bumped version; breaking rename/retype → build fails with a clear error. Covered by `test_publish.py` (`test_gate_additive_requires_version_bump`, `test_gate_breaking_*`).
+- [ ] **Cold-cache range-request test:** needs a live Release URL + browser Network inspection — deferred to the first bundle (the in-browser range-read path is wired; `verify_bundle_url` is the Python-side counterpart).
+- [x] **Internal cross-variant query test:** the three canonical questions expressible as one-line SQL — verified in 110-D (`homeless_neuron_fraction > 0.2`; circularity ranked at an epoch; attn `fourier_alignment` after grokking).
+
+---
+
+## Child Tasks (decomposition)
+
+REQ_110 is deliberately large — it is the full storage engine, and we keep it whole rather than refactor a half we already know we need. It is *delivered* as sequenced child tasks, each independently shippable, so no chunk refactors another. Every child consumes REQ_107's `kind` + coordinate declarations and REQ_109's stabilized primitives.
+
+| Child | Scope | Owns CoS sections | Depends on |
+|---|---|---|---|
+| **110-A — Columnar write + DataFrame surface** | Schema-driven Parquet emission for `columnar` fields: long-format, discriminator columns, per-`(variant, analyzer)` batched files (not per-epoch), gitignored internal warehouse. Plus the in-memory DataView contract (`to_wide`, cross-variant concat). | Tabular schema design; PCA/Fourier/shape tables; In-memory DataFrame surface; On-disk Parquet surface | REQ_107, REQ_109 |
+| **110-B — Tensor catalog + resolver** | Descriptor catalog for `tensor` fields; `TensorRef`; `TensorResolver` (batched-per-container, shape/dtype verification); co-emission. Brings `.npz` tensors into the queryable surface without changing the blob format. | Tensor catalog + resolver | REQ_107 (parallel with 110-A) |
+| **110-C — DuckDB query surface** | `miscope.query.open(...)`, DuckDB views over catalog + columnar Parquet, local + HTTP read paths, cross-table joins. | Cross-variant query layer | 110-A, 110-B |
+| **110-D — Consumer migration + re-derivation collapse** | Re-point renderers/DataViews/summaries onto the query surface; compute the conformed `(variant, epoch, neuron) → freq/group` dimension once and have current re-derivers join it; replace hand-rolled `variant_registry`/`variant_summary` aggregations with SQL. The one invasive chunk. | (migration; introduces no new schema) | 110-C |
+| **110-E — Publication bundles + Releases** | Build script, bundle manifest, schema-stability gate, `data-*` GitHub Releases, range-request/CORS verification. | Publication: bundles, GitHub Releases, schema stability | 110-A, 110-B |
+| **110-F — DuckDB-WASM in fieldnotes** | Client-side WASM module (lazy), `<DuckDBQuery>` MDX component, inline reader-editable queries. The v1.0 publication acceptance bar. | DuckDB-WASM in fieldnotes; end-to-end Validation | 110-E |
+
+Critical path: REQ_107 → (110-A ∥ 110-B) → 110-C → 110-D. Publication branches in parallel once materialization exists: (110-A ∥ 110-B) → 110-E → 110-F. The internal exploratory surface — the one most wanted day-to-day (110-A→C→D) — does **not** wait on the publication chain.
+
+### Implementation status (on `feature/REQ_110_lakehouse_surface`)
+
+- **110-A / 110-B / 110-C** — implemented (see `miscope.warehouse`, `miscope.query`).
+- **REQ_136** (head coordinate) and **REQ_138** (parameterized analysis / `run_set`) — implemented; ride this branch.
+- **110-D — Consumer migration + re-derivation collapse — DONE (2026-06-05).**
+  - `miscope.analysis.neuron_frequency` is the single source for the conformed `(epoch, neuron) → dominant-frequency` dimension, read once from the warehouse `neuron_frequency_attribution` table with the 0→1-indexed convention applied in one place. The summary engine (`variant_analysis_summary`), `cross_variant`, `band_concentration` (via `as_legacy_arrays`), and the `neuron_dynamics`-backed view loaders (`views/universal`, `views/dataview_universal`) all consume it instead of re-reading `neuron_dynamics.npz`.
+  - New `variant_outcomes` warehouse table (`miscope.warehouse.outcomes`): per-variant outcome rollup co-emitted from `variant_summary.json` (scalar fields promoted to queryable columns + a `summary_json` carrier). `build_variant_registry` now aggregates it via SQL instead of a JSON glob.
+  - Deprecated `analysis/variant_summary.py` deleted (v1.0 no-backcompat).
+  - **Parity (3 baselines p113/p109/p101):** `variant_summary.json` + `variant_registry.json` byte-identical. The only behavioral change is a deliberate correctness fix — `cross_variant.first_mover_frequency` is now 1-indexed (was 0-indexed, inconsistent with the descent-onset portfolio in the same module); shifts that field +1, fixes the band it feeds.
+  - **CoS cross-variant queries** verified as one-line SQL over the warehouse (`homeless_neuron_fraction > 0.2`; circularity ranked at an epoch; attn `fourier_alignment` after grokking via `shape_characterizations ⋈ variant_outcomes`).
+  - Full `miscope` suite green (1538 passed); dashboard green (45 passed).
+- **110-E — Publication bundles + Releases — DONE (2026-06-05).**
+  - New `miscope.publish` module: `BundleSpec` (declarative TOML), `build_bundle`/`build_bundle_for_family` (freeze curated tables over the `miscope.query` surface into flat zstd Parquet + `manifest.json`), `BundleManifest`/`TableManifest` (citable record: version, mint date, `miscope` version, per-table row count + content hash + captured Arrow schema + which reserved provenance cols are populated), the schema-stability gate (`enforce`: breaking refused, additive allowed only under a new version, identical fine), `create_release` (publish assets as a `data-*` Release via `gh`), `verify_bundle_url` (prove the Release URL is range-request queryable — the Python half; browser/CORS is 110-F), and `history` helpers (committed manifest-history is the gate's data-free baseline).
+  - **Build is local, by construction.** The warehouse data is gitignored and never reaches CI, so a runner cannot materialize a bundle. `scripts/build_publication_bundle.py <spec> [--update-history] [--release]` builds + gates + (optionally) cuts the Release where the data lives. Bundle specs (`apps/fieldnotes/bundles/{name}.toml`) and manifest history (`{name}/manifest-{ver}.json`) are committed; Parquet is not (gitignored `_dist/`, plus Release assets). `data-release.yml` (`.github/workflows/`) runs on PRs touching `apps/fieldnotes/bundles/**` and validates manifest integrity + reports schema deltas via `scripts/validate_bundle_history.py` — it does not build.
+  - **Decision (flagged):** a *deliberately* breaking new bundle is minted with `--no-gate` (the explicit "I am re-authoring, not silently re-publishing" acknowledgment); the gate otherwise refuses breaking changes outright per the CoS drift test.
+  - `duckdb>=1.0` added to `miscope` deps (was a 110-C lockfile-only gap; publish formalizes the dependency).
+  - Validated end-to-end on the real `modulo_addition_1layer` warehouse: subset query applied, flat zstd Parquet + hashed manifest written, re-queryable in bundle mode; `--update-history` + baseline discovery + gate (identical) exercised through the CLI. 11 new tests; full `miscope` suite green (1549 passed); dashboard green (45). Committed `48cd11e`.
+- **110-F — DuckDB-WASM in fieldnotes — DONE (2026-06-05).**
+  - `apps/fieldnotes/src/components/DuckDBQuery.astro`: a vanilla Astro component (no client framework added) with an editable SQL box + Run button + inline result table. The DuckDB-WASM engine ESM is a runtime `import()` of the jsDelivr CDN bundle, evaluated only on the first Run — so the several-MB engine is fully lazy and never enters the Astro build (`dist` stays 2.8M). Each `url`/`tables` asset is registered as a view over `read_parquet(url)`, which DuckDB-WASM range-reads; errors surface inline and the box stays editable (a broken query is recoverable in-browser).
+  - `apps/fieldnotes/src/pages/duckdb-demo.astro`: a committable demonstration — a zero-data engine smoke (`SELECT … FROM range(8)`) that works without any Release, plus the real-data MDX usage pattern. `npm run build` green (6 pages); the inlined hoisted script keeps the CDN import external (verified).
+  - **Open (human-gated):** pointing a real article at a live `data-*` Release + a Pages deploy + the cold-cache range-request Network check. Every link is built and verified in isolation; the live assembly is the v1.0 acceptance bar and waits on publishing the first bundle.
+
+With 110-A…F all landed (110-E/110-F this session), **REQ_110 is implementation-complete** except the live-publication acceptance bar, which is carved out as **REQ_139** (first door-to-door publication) — to be executed when the first real bundle ships, likely bundled with the public site launch.
 
 ---
 
@@ -216,17 +269,17 @@ A single rolling dataset (one Parquet bundle that grows over time) was rejected 
 
 Cost: redundancy across bundles when articles share data. Acceptable — Parquet compresses well, Releases storage is generous.
 
-### DuckLake (held in reserve)
+### Tensor catalog: lightweight in-house; DuckLake still in reserve
 
-DuckLake is a DuckDB-native lakehouse format that adds catalog and registry management on top of Parquet. We are not committing to a DuckLake implementation in this REQ. The schema design (long-format with discriminators, manifest-tracked bundles, per-DataView Parquet files) is compatible with DuckLake should we adopt it later.
+This REQ now includes a small in-house catalog (the tensor catalog + resolver above) rather than holding all catalog work in reserve. The decision (2026-06-04): the concrete need — *joining tensors by descriptor alongside columnar metrics* — is small and well-shaped (a descriptor Parquet + a per-container resolver + REQ_107's `kind`/coordinate declarations), so building it in-house is cheaper than taking on a lakehouse-format dependency for it.
 
-The risk to monitor: if `miscope` ends up building substantial registry / catalog infrastructure (REQ_107 territory), check whether DuckLake already does that work. Reinventing a registry product would be a poor use of effort.
+DuckLake (a DuckDB-native lakehouse format adding catalog/registry management on top of Parquet) stays in reserve for the *larger* catalog scope — versioned snapshots, transactional metadata, time-travel. The schema design here (long-format columnar + descriptor-indexed tensors, coordinate-keyed, manifest-tracked bundles) stays compatible with DuckLake should the catalog outgrow the in-house version. Trigger to revisit: the catalog needing transactional/versioned metadata management beyond co-emitted descriptor rows.
 
 ### Composition with REQ_106 and REQ_107
 
 - **REQ_106** establishes that DataViews are first-class peers to artifacts, with declared schemas and version-keyed cache invalidation. This REQ takes that DataView output and persists it as Parquet.
-- **REQ_107** registry enumerates DataViews and their schemas. The publication build script reads from the registry to find DataView outputs by name; the bundle manifest cross-references registry entries.
-- Together: REQ_106 names the contract, REQ_107 makes the contracts discoverable, REQ_110 persists and publishes the contract's outputs.
+- **REQ_107** registry enumerates DataViews and their schemas, and (per its keystone addition) declares each output field's `kind` (columnar|tensor) and coordinate keys. Those declarations are this REQ's **write-routing table**: `kind` decides Parquet-row vs. tensor-blob+descriptor; the coordinates become the catalog/Parquet key columns and the join keys. The publication build script reads the registry to find outputs by name; the bundle manifest cross-references registry entries.
+- Together: REQ_106 names the contract, REQ_107 declares each field's kind + keys and makes the contracts discoverable, REQ_110 persists (columnar Parquet + tensor descriptors), queries (DuckDB over both planes), and publishes the contract's outputs.
 
 ### Composition with REQ_109
 

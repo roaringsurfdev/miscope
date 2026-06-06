@@ -29,14 +29,25 @@ import numpy as np
 from miscope.analysis.inputs import ALL, ArtifactInput, ResolvedInputs
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_fourier_alignment
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# One scalar alignment per activation site; on-disk key is {site}_fourier_alignment.
 SPEC = AnalyzerSpec(
     name="centroid_fourier_alignment",
     output_scope="per_epoch",
     inputs=(ArtifactInput("repr_geometry"),),
     produces_summary=True,
+    outputs=(
+        F.columnar(
+            "fourier_alignment",
+            "float64",
+            ("variant", "epoch", "site"),
+            "How well a site's class centroids align with a pure Fourier basis "
+            "(1 = perfectly circular/Fourier, 0 = none).",
+        ),
+    ),
 )
 
 

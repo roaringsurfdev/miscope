@@ -18,9 +18,12 @@ if TYPE_CHECKING:
     from miscope.analysis.artifact_loader import ArtifactLoader
     from miscope.architectures import ActivationCache, HookedModel
     from miscope.families.intervention_variant import InterventionVariant
+    from miscope.families.parameterized_variant import ParameterizedVariant
     from miscope.families.protocols import ModelFamily
     from miscope.views.catalog import BoundView, EpochContext
     from miscope.views.dataview_catalog import BoundDataView
+    from miscope.warehouse.reader import WarehouseAccessor
+    from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
 
 
 @dataclass
@@ -225,6 +228,32 @@ class Variant:
         return ArtifactLoader(str(self.artifacts_dir))
 
     @property
+    def warehouse(self) -> WarehouseAccessor:
+        """Columnar warehouse surface for this variant (REQ_110A).
+
+        Mirrors :attr:`artifacts`: ``variant.warehouse.materialize()`` writes the
+        long-format Parquet tables from the ``.npz`` artifacts;
+        ``variant.warehouse.table(name).to_wide(...)`` reads them back.
+        """
+        from miscope.warehouse.reader import WarehouseAccessor
+
+        return WarehouseAccessor(self)
+
+    @property
+    def tensor_catalog(self) -> TensorCatalogAccessor:
+        """Tensor descriptor catalog surface for this variant (REQ_110B).
+
+        Mirrors :attr:`warehouse` for the non-columnar plane:
+        ``variant.tensor_catalog.materialize()`` indexes the ``.npz`` tensor
+        blobs as coordinate-keyed descriptors; ``.descriptors()`` returns the
+        queryable relation (no payload); ``.resolve(rows)`` materializes the
+        selected blobs, verifying shape/dtype against the bytes.
+        """
+        from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
+
+        return TensorCatalogAccessor(self)
+
+    @property
     def metadata(self) -> dict[str, Any]:
         """Training metadata (losses, checkpoint epochs, indices).
 
@@ -372,6 +401,48 @@ class Variant:
         from miscope.views.catalog import EpochContext
 
         return EpochContext(variant=self, epoch=epoch)
+
+    def parameterize(
+        self,
+        *,
+        label: str | None = None,
+        local: dict[str, dict[str, Any]] | None = None,
+        **bindings: Any,
+    ) -> ParameterizedVariant:
+        """Bind a run set and return a recipe-scoped handle (REQ_138).
+
+        Reads through the returned handle resolve to the parameterization's recipe
+        plane; ``variant.at(...)`` (the empty parameterization) stays the default
+        plane. Views do not change shape — the handle only redirects where each
+        view reads its bytes.
+
+        Args:
+            label: Optional human-facing run-set label (recorded in the registry).
+            local: Analyzer-local bindings as ``{analyzer: {param: value}}`` — e.g.
+                ``local={"parameter_dmd": {"reference_epoch": 20000}}`` pins one
+                analyzer without touching others that share the parameter name.
+            **bindings: Run-level bindings (``probe=...``); each propagates to every
+                analyzer that declares a parameter of that name. A value that is a
+                :class:`~miscope.analysis.parameters.Binding` is used as-is;
+                otherwise it is wrapped as a literal.
+
+        Returns:
+            A :class:`ParameterizedVariant` exposing ``.at(...)`` / ``.view(...)``.
+        """
+        from miscope.analysis.parameters import Binding, LiteralBinding, Parameterization
+        from miscope.families.parameterized_variant import ParameterizedVariant
+
+        bound: list[Binding] = []
+        for name, value in bindings.items():
+            bound.append(value if isinstance(value, Binding) else LiteralBinding(name, value))
+        for analyzer, params in (local or {}).items():
+            for name, value in params.items():
+                bound.append(
+                    value
+                    if isinstance(value, Binding)
+                    else LiteralBinding(name, value, analyzer=analyzer)
+                )
+        return ParameterizedVariant(self, Parameterization(bindings=tuple(bound), label=label))
 
     def view(self, name: str, **kwargs: Any) -> BoundView:
         """Convenience shortcut for variant.at(epoch=None).view(name).

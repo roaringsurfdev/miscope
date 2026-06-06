@@ -13,7 +13,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from miscope.analysis.artifact_loader import analyzer_dir
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.parameters import EMPTY_PARAMETERIZATION, Parameterization
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
 from miscope.analysis.protocols import (
     AnalysisRunConfig,
@@ -72,8 +74,17 @@ class AnalysisPipeline:
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        # REQ_138: the run set + its per-analyzer recipe signatures. Default is the
+        # empty parameterization (every analyzer at today's path); set in ``run()``.
+        self._parameterization: Parameterization = EMPTY_PARAMETERIZATION
+        self._recipe_map: dict[str, str] = {}
+
         os.makedirs(self.artifacts_dir, exist_ok=True)
         self._manifest = self._load_manifest()
+
+    def _recipe_dir(self, analyzer_name: str) -> str:
+        """Recipe-scoped write/scan directory for an analyzer (REQ_138 storage primitive)."""
+        return analyzer_dir(self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, ""))
 
     def register(self, analyzer: Analyzer) -> AnalysisPipeline:
         """Register an analyzer with the pipeline.
@@ -112,7 +123,7 @@ class AnalysisPipeline:
         self,
         force: bool = False,
         progress_callback: Callable[[float, str], None] | None = None,
-        extra_context: dict[str, Any] | None = None,
+        parameterization: Parameterization | None = None,
         plan: Plan | None = None,
     ) -> None:
         """Execute analysis pipeline across checkpoints.
@@ -126,12 +137,12 @@ class AnalysisPipeline:
                 force state).
             progress_callback: Optional callback(progress, description) for UI updates.
                                Progress is a float from 0.0 to 1.0.
-            extra_context: Optional dict merged into the analysis context after
-                           ``family.prepare_analysis_context()``. Used to inject
-                           per-experiment config (e.g.,
-                           ``{"parameter_dmd_reference_epoch": 20000}``) without
-                           editing family code. Caller-supplied keys override
-                           any matching family-supplied keys.
+            parameterization: Optional run set (REQ_138). Its bindings project to a
+                per-analyzer recipe; an analyzer with a non-default binding in its
+                closure writes/reads under a recipe-scoped path and is planned
+                independently, so parameterizations coexist. The default (``None`` →
+                empty parameterization) resolves every analyzer to today's path and
+                its declared parameter defaults — byte-identical to prior behavior.
             plan: Optional pre-built ``Plan`` describing the work to perform.
                 If ``None``, the pipeline calls ``plan_analysis`` on its
                 registered analyzers. Passing a plan lets callers preview
@@ -139,6 +150,10 @@ class AnalysisPipeline:
         """
         if plan is None and not self._analyzers and not self._cross_epoch_analyzers:
             return
+
+        self._parameterization = parameterization or EMPTY_PARAMETERIZATION
+        self._recipe_map = self._build_recipe_map()
+        self._resolved_params: dict[str, dict[str, Any]] = {}
 
         if plan is None:
             plan = self._build_plan(force)
@@ -177,8 +192,6 @@ class AnalysisPipeline:
             self.variant.params,
             self._device,
         )
-        if extra_context:
-            context = {**context, **extra_context}
 
         if work_queue:
             all_epochs_needed = sorted(set(e for _, needed in work_queue for e in needed))
@@ -229,8 +242,26 @@ class AnalysisPipeline:
             self._update_manifest(work_queue)
         self._save_manifest()
 
+        self._record_run_set()
+
         if progress_callback:
             progress_callback(1.0, "Analysis complete")
+
+    def _record_run_set(self) -> None:
+        """Persist this run's run set to the registry (REQ_138; no-op for default)."""
+        if self._parameterization.is_empty or not self._recipe_map:
+            return
+        from miscope.analysis.registry import AnalyzerRegistry
+        from miscope.warehouse import run_sets
+
+        specs = {s.name: s for s in AnalyzerRegistry.list_specs()}
+        run_sets.record_run_set(
+            self.variant,
+            self._parameterization,
+            self._recipe_map,
+            self._resolved_params,
+            specs,
+        )
 
     def _absorb_plan_references(self, plan: Plan) -> None:
         """Instantiate Spec-only analyzers referenced by a Plan (REQ_120).
@@ -274,7 +305,29 @@ class AnalysisPipeline:
             analyzers,
             force=force,
             checkpoints=self.config.checkpoints,
+            recipe_map=self._recipe_map,
         )
+
+    def _build_recipe_map(self) -> dict[str, str]:
+        """Per-analyzer recipe signatures for this run set (REQ_138).
+
+        Empty for the default parameterization (every analyzer at today's path).
+        Otherwise maps only the analyzers whose recipe is non-empty (a non-default
+        binding in their closure) to their signature; everything else stays shared.
+        """
+        if self._parameterization.is_empty:
+            return {}
+        from miscope.analysis.recipe import project_recipe
+        from miscope.analysis.registry import AnalyzerRegistry
+
+        specs = {s.name: s for s in AnalyzerRegistry.list_specs()}
+        names = [a.name for a in (*self._analyzers, *self._cross_epoch_analyzers)]
+        out: dict[str, str] = {}
+        for name in names:
+            sig = project_recipe(name, self._parameterization, specs).signature()
+            if sig:
+                out[name] = sig
+        return out
 
     def _filter_per_epoch_by_config(self, analyzers: list[Analyzer]) -> list[Analyzer]:
         """Drop artifact-derived per-epoch analyzers excluded by config.analyzers."""
@@ -312,12 +365,12 @@ class AnalysisPipeline:
         Returns:
             Sorted list of completed epoch numbers
         """
-        analyzer_dir = os.path.join(self.artifacts_dir, analyzer_name)
-        if not os.path.isdir(analyzer_dir):
+        scan_dir = self._recipe_dir(analyzer_name)
+        if not os.path.isdir(scan_dir):
             return []
 
         epochs = []
-        for filename in os.listdir(analyzer_dir):
+        for filename in os.listdir(scan_dir):
             if filename.startswith("epoch_") and filename.endswith(".npz"):
                 epoch_str = filename[len("epoch_") : -len(".npz")]
                 try:
@@ -331,7 +384,7 @@ class AnalysisPipeline:
         # No per-epoch files — check for a cross-epoch artifact.  If present,
         # report the available checkpoint epochs so cross-epoch-to-cross-epoch
         # dependencies are satisfied.
-        cross_epoch_path = os.path.join(analyzer_dir, "cross_epoch.npz")
+        cross_epoch_path = os.path.join(scan_dir, "cross_epoch.npz")
         if os.path.exists(cross_epoch_path):
             return sorted(self.variant.get_available_checkpoints())
 
@@ -437,7 +490,7 @@ class AnalysisPipeline:
         from miscope.analysis.deps import DepsAccessor
         from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
-        loader = ArtifactLoader(self.artifacts_dir)
+        loader = ArtifactLoader(self.artifacts_dir, recipe_map=self._recipe_map)
         declared = frozenset(derive_required_artifacts(spec.inputs))
         deps = DepsAccessor(loader, declared)
 
@@ -453,7 +506,30 @@ class AnalysisPipeline:
             logits=logits if wants_cache else None,
             probe=probe,
             deps=deps,
+            parameters=self._resolve_parameters(spec, loader),
         )
+
+    def _resolve_parameters(self, spec: Any, loader: Any) -> dict[str, Any]:
+        """Resolve an analyzer's declared parameters under the run set (REQ_138).
+
+        Each declared parameter resolves its binding — a run-set override if the
+        parameterization supplies one, otherwise the declared default. A default is
+        a binding, resolved the same way (no code fallback), which is what makes the
+        p101 silent-default divergence impossible.
+        """
+        if not spec.parameters:
+            return {}
+        from miscope.analysis.recipe import RecipeResolver
+
+        resolver = RecipeResolver(loader)
+        resolved: dict[str, Any] = {}
+        for param in spec.parameters:
+            binding = self._parameterization.binding_for(spec.name, param.name) or param.default
+            resolved[param.name] = resolver.resolve(binding)
+        # Capture for the run-set registry (REQ_138 provenance).
+        if resolved:
+            self._resolved_params[spec.name] = resolved
+        return resolved
 
     def _save_epoch_artifact(
         self, analyzer_name: str, epoch: int, result: dict[str, np.ndarray]
@@ -467,11 +543,11 @@ class AnalysisPipeline:
             epoch: Epoch number
             result: Dict of numpy arrays from the analyzer
         """
-        analyzer_dir = os.path.join(self.artifacts_dir, analyzer_name)
-        os.makedirs(analyzer_dir, exist_ok=True)
+        out_dir = self._recipe_dir(analyzer_name)
+        os.makedirs(out_dir, exist_ok=True)
 
-        artifact_path = os.path.join(analyzer_dir, f"epoch_{epoch:05d}.npz")
-        temp_base = os.path.join(analyzer_dir, f".epoch_{epoch:05d}_tmp")
+        artifact_path = os.path.join(out_dir, f"epoch_{epoch:05d}.npz")
+        temp_base = os.path.join(out_dir, f".epoch_{epoch:05d}_tmp")
         np.savez_compressed(temp_base, **result)  # type: ignore[arg-type]
         temp_path = temp_base + ".npz"
         os.replace(temp_path, artifact_path)
@@ -488,7 +564,7 @@ class AnalysisPipeline:
 
             # Load one epoch to get shapes and dtypes
             sample_path = os.path.join(
-                self.artifacts_dir, analyzer.name, f"epoch_{completed[0]:05d}.npz"
+                self._recipe_dir(analyzer.name), f"epoch_{completed[0]:05d}.npz"
             )
             sample = dict(np.load(sample_path))
             shapes = {k: list(v.shape) for k, v in sample.items()}
@@ -577,15 +653,16 @@ class AnalysisPipeline:
             new_epochs = merged_epochs[sort_idx]
             new_values = {k: v[sort_idx] for k, v in merged_values.items()}
 
-        analyzer_dir = os.path.join(self.artifacts_dir, analyzer_name)
-        summary_path = os.path.join(analyzer_dir, "summary.npz")
-        temp_base = os.path.join(analyzer_dir, ".summary_tmp")
+        out_dir = self._recipe_dir(analyzer_name)
+        os.makedirs(out_dir, exist_ok=True)
+        summary_path = os.path.join(out_dir, "summary.npz")
+        temp_base = os.path.join(out_dir, ".summary_tmp")
         np.savez_compressed(temp_base, epochs=new_epochs, **new_values)  # type: ignore[arg-type]
         os.replace(temp_base + ".npz", summary_path)
 
     def _load_existing_summary(self, analyzer_name: str) -> dict[str, np.ndarray] | None:
         """Load existing summary.npz if present, or return None."""
-        summary_path = os.path.join(self.artifacts_dir, analyzer_name, "summary.npz")
+        summary_path = os.path.join(self._recipe_dir(analyzer_name), "summary.npz")
         if not os.path.exists(summary_path):
             return None
         return dict(np.load(summary_path))
@@ -662,7 +739,7 @@ class AnalysisPipeline:
         from miscope.analysis.deps import DepsAccessor
         from miscope.analysis.inputs import ResolvedInputs, derive_required_artifacts
 
-        loader = ArtifactLoader(self.artifacts_dir)
+        loader = ArtifactLoader(self.artifacts_dir, recipe_map=self._recipe_map)
         allowed = frozenset(derive_required_artifacts(spec.inputs))
         deps = DepsAccessor(loader, allowed)
 
@@ -670,6 +747,7 @@ class AnalysisPipeline:
             epoch=None,
             epochs=tuple(available_epochs),
             deps=deps,
+            parameters=self._resolve_parameters(spec, loader),
         )
 
     def _save_cross_epoch_artifact(
@@ -681,10 +759,10 @@ class AnalysisPipeline:
 
         Writes to: artifacts/{analyzer_name}/cross_epoch.npz
         """
-        analyzer_dir = os.path.join(self.artifacts_dir, analyzer_name)
-        os.makedirs(analyzer_dir, exist_ok=True)
+        out_dir = self._recipe_dir(analyzer_name)
+        os.makedirs(out_dir, exist_ok=True)
 
-        cross_epoch_path = os.path.join(analyzer_dir, "cross_epoch.npz")
-        temp_base = os.path.join(analyzer_dir, ".cross_epoch_tmp")
+        cross_epoch_path = os.path.join(out_dir, "cross_epoch.npz")
+        temp_base = os.path.join(out_dir, ".cross_epoch_tmp")
         np.savez_compressed(temp_base, **result)  # type: ignore[arg-type]
         os.replace(temp_base + ".npz", cross_epoch_path)

@@ -23,6 +23,7 @@ from miscope.analysis.library.trajectory import (
     flatten_snapshot,
 )
 from miscope.analysis.library.weights import COMPONENT_GROUPS
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -30,10 +31,44 @@ from miscope.analysis.spec import AnalyzerSpec
 _GROUPS = {"all": None, **COMPONENT_GROUPS}
 
 
+# Trajectory PCA per weight component (group ∈ {all, embedding, attention, mlp};
+# on-disk key is {group}__{field}). `group` is therefore a coord.
 SPEC = AnalyzerSpec(
     name="parameter_trajectory",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("parameter_snapshot"),),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the projection/velocity trajectories.",
+        ),
+        F.tensor(
+            "projections",
+            "float64",
+            ("variant", "group"),
+            "Per-component PCA projection trajectory (n_epochs, n_components).",
+        ),
+        F.columnar(
+            "explained_variance_ratio",
+            "float64",
+            ("variant", "group", "row_id"),
+            "Fraction of variance per PC for a component (row_id = PC index).",
+        ),
+        F.columnar(
+            "explained_variance",
+            "float64",
+            ("variant", "group", "row_id"),
+            "Absolute variance per PC for a component (row_id = PC index).",
+        ),
+        F.columnar(
+            "velocity",
+            "float64",
+            ("variant", "epoch", "group"),
+            "Per-epoch parameter-update velocity for a component.",
+        ),
+    ),
 )
 
 

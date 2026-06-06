@@ -19,8 +19,8 @@ in v1.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Literal
 
 from miscope.analysis.deps import ALL, DepsAccessor
 
@@ -107,6 +107,14 @@ class ResolvedInputs:
             upstreams. Analyzers load what they need, when they need it, via
             ``deps.load_epoch`` / ``stream`` / ``load_stack`` /
             ``load_cross_epoch``.
+
+    Generation parameters (REQ_138):
+        parameters: Resolved values for the analyzer's declared generation
+            parameters, keyed by name. The pipeline resolves each declared
+            parameter's binding (run-set override or its declared default) before
+            ``analyze()``; reading a name the analyzer did not declare raises
+            ``KeyError`` (the runtime half of the parameter discipline). Empty for
+            an analyzer that declares no parameters.
     """
 
     epoch: int | None = None
@@ -116,6 +124,7 @@ class ResolvedInputs:
     probe: torch.Tensor | None = None
     epochs: tuple[int, ...] | None = None
     deps: DepsAccessor | None = None
+    parameters: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,46 @@ from typing import Any
 
 import numpy as np
 
+RECIPE_DIR_PREFIX = "__rs_"
+
+
+def analyzer_dir(artifacts_dir: str, analyzer: str, recipe_sig: str = "") -> str:
+    """The directory holding one analyzer's blobs, recipe-scoped (REQ_138).
+
+    The single place the recipe path segment is composed (storage-encapsulation
+    invariant 3): every reader, writer, and scanner reaches an analyzer's blob
+    container through this helper rather than joining ``artifacts_dir`` itself.
+
+    An **empty** ``recipe_sig`` (the default/all-defaults parameterization) returns
+    today's path ``{artifacts_dir}/{analyzer}`` exactly, so the existing artifacts
+    never relocate. A non-empty signature nests a ``__rs_{sig}`` segment so
+    coexisting parameterizations of one analyzer never overwrite each other.
+    """
+    base = os.path.join(artifacts_dir, analyzer)
+    if not recipe_sig:
+        return base
+    return os.path.join(base, f"{RECIPE_DIR_PREFIX}{recipe_sig}")
+
+
+def iter_recipe_dirs(artifacts_dir: str):
+    """Yield ``(analyzer, recipe_signature, path)`` for every on-disk recipe dir.
+
+    The reverse of :func:`analyzer_dir`: walks each analyzer directory for
+    ``__rs_<sig>`` recipe segments (REQ_138). Lives in the storage primitive so
+    recipe-path *decomposition* is owned in the same place as composition
+    (storage-encapsulation invariant 3) — the recipe-GC tooling reaches it here
+    rather than globbing ``__rs_`` itself.
+    """
+    if not os.path.isdir(artifacts_dir):
+        return
+    for analyzer in sorted(os.listdir(artifacts_dir)):
+        adir = os.path.join(artifacts_dir, analyzer)
+        if not os.path.isdir(adir):
+            continue
+        for child in sorted(os.listdir(adir)):
+            if child.startswith(RECIPE_DIR_PREFIX):
+                yield analyzer, child[len(RECIPE_DIR_PREFIX) :], os.path.join(adir, child)
+
 
 def _validate_fields(
     analyzer_name: str, available: list[str], requested: list[str], where: str
@@ -45,14 +85,24 @@ class ArtifactLoader:
     and multi-epoch loading (for cross-epoch views and notebooks).
     """
 
-    def __init__(self, artifacts_dir: str):
+    def __init__(self, artifacts_dir: str, recipe_map: dict[str, str] | None = None):
         """Initialize the artifact loader.
 
         Args:
             artifacts_dir: Path to the artifacts directory
+            recipe_map: Optional ``analyzer_name -> recipe signature`` map (REQ_138).
+                Every path the loader composes for an analyzer is recipe-scoped via
+                this map; an absent/empty entry resolves to today's path. The default
+                (``None``) is an empty map — every analyzer reads/writes its
+                unparameterized location, so existing behavior is byte-identical.
         """
         self.artifacts_dir = artifacts_dir
+        self._recipe_map = recipe_map or {}
         self._manifest: dict[str, Any] | None = None
+
+    def _dir(self, analyzer_name: str) -> str:
+        """Recipe-scoped blob directory for an analyzer (storage primitive)."""
+        return analyzer_dir(self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, ""))
 
     @property
     def manifest(self) -> dict[str, Any]:
@@ -81,7 +131,7 @@ class ArtifactLoader:
             FileNotFoundError: If artifact for this epoch doesn't exist
             ValueError: If a requested field is absent from the artifact
         """
-        artifact_path = os.path.join(self.artifacts_dir, analyzer_name, f"epoch_{epoch:05d}.npz")
+        artifact_path = os.path.join(self._dir(analyzer_name), f"epoch_{epoch:05d}.npz")
 
         if not os.path.exists(artifact_path):
             raise FileNotFoundError(
@@ -133,16 +183,12 @@ class ArtifactLoader:
             # Selective loading: open each npz lazily and only extract requested fields.
             # Avoids loading large arrays (e.g., W_in, W_out) when only W_E is needed.
             # Validate against the first epoch's keys for a clear early error.
-            first_path = os.path.join(
-                self.artifacts_dir, analyzer_name, f"epoch_{epochs[0]:05d}.npz"
-            )
+            first_path = os.path.join(self._dir(analyzer_name), f"epoch_{epochs[0]:05d}.npz")
             with np.load(first_path) as npz0:
                 _validate_fields(analyzer_name, npz0.files, fields, f"epoch {epochs[0]}")
             result: dict[str, list[np.ndarray]] = {k: [] for k in fields}
             for epoch in epochs:
-                artifact_path = os.path.join(
-                    self.artifacts_dir, analyzer_name, f"epoch_{epoch:05d}.npz"
-                )
+                artifact_path = os.path.join(self._dir(analyzer_name), f"epoch_{epoch:05d}.npz")
                 with np.load(artifact_path) as npz:
                     for k in fields:
                         result[k].append(npz[k])
@@ -175,6 +221,25 @@ class ArtifactLoader:
         """
         return self.load_epochs(analyzer_name)
 
+    def artifact_path(self, analyzer_name: str, epoch: int | None = None) -> str:
+        """Filesystem path to an analyzer's blob container.
+
+        ``epoch`` selects the per-epoch ``epoch_{NNNNN}.npz``; ``None`` selects
+        the cross-epoch ``cross_epoch.npz``. Path composition lives here in the
+        storage primitive (the storage-encapsulation invariant): the tensor
+        catalog (REQ_110B) records this address as a descriptor ``uri`` rather
+        than composing the path itself.
+
+        Args:
+            analyzer_name: Name of the analyzer.
+            epoch: Epoch number for a per-epoch blob, or ``None`` for cross-epoch.
+
+        Returns:
+            Absolute path to the ``.npz`` container (existence not checked).
+        """
+        fname = "cross_epoch.npz" if epoch is None else f"epoch_{epoch:05d}.npz"
+        return os.path.join(self._dir(analyzer_name), fname)
+
     def get_available_analyzers(self) -> list[str]:
         """List available analyzers by checking for subdirectories with artifacts.
 
@@ -186,11 +251,13 @@ class ArtifactLoader:
 
         analyzers = []
         for entry in os.listdir(self.artifacts_dir):
-            entry_path = os.path.join(self.artifacts_dir, entry)
-            if os.path.isdir(entry_path):
+            # Recipe-scoped (REQ_138): a parameterized loader checks the analyzer's
+            # recipe dir, so per-epoch availability reflects the active parameterization.
+            scan_dir = self._dir(entry)
+            if os.path.isdir(scan_dir):
                 # Check that it contains at least one epoch file
                 if any(
-                    f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(entry_path)
+                    f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(scan_dir)
                 ):
                     analyzers.append(entry)
 
@@ -205,12 +272,12 @@ class ArtifactLoader:
         Returns:
             Sorted list of epoch numbers
         """
-        analyzer_dir = os.path.join(self.artifacts_dir, analyzer_name)
-        if not os.path.isdir(analyzer_dir):
+        scan_dir = self._dir(analyzer_name)
+        if not os.path.isdir(scan_dir):
             return []
 
         epochs = []
-        for filename in os.listdir(analyzer_dir):
+        for filename in os.listdir(scan_dir):
             if filename.startswith("epoch_") and filename.endswith(".npz"):
                 epoch_str = filename[len("epoch_") : -len(".npz")]
                 try:
@@ -259,7 +326,7 @@ class ArtifactLoader:
         Raises:
             FileNotFoundError: If no summary exists for this analyzer
         """
-        summary_path = os.path.join(self.artifacts_dir, analyzer_name, "summary.npz")
+        summary_path = os.path.join(self._dir(analyzer_name), "summary.npz")
 
         if not os.path.exists(summary_path):
             raise FileNotFoundError(f"No summary for '{analyzer_name}'. Expected: {summary_path}")
@@ -275,7 +342,7 @@ class ArtifactLoader:
         Returns:
             True if summary.npz exists for this analyzer
         """
-        summary_path = os.path.join(self.artifacts_dir, analyzer_name, "summary.npz")
+        summary_path = os.path.join(self._dir(analyzer_name), "summary.npz")
         return os.path.exists(summary_path)
 
     def load_cross_epoch(
@@ -298,7 +365,7 @@ class ArtifactLoader:
             FileNotFoundError: If no cross-epoch results exist
             ValueError: If a requested field is absent from the artifact
         """
-        cross_epoch_path = os.path.join(self.artifacts_dir, analyzer_name, "cross_epoch.npz")
+        cross_epoch_path = os.path.join(self._dir(analyzer_name), "cross_epoch.npz")
 
         if not os.path.exists(cross_epoch_path):
             raise FileNotFoundError(
@@ -321,7 +388,7 @@ class ArtifactLoader:
         Returns:
             True if cross_epoch.npz exists for this analyzer
         """
-        cross_epoch_path = os.path.join(self.artifacts_dir, analyzer_name, "cross_epoch.npz")
+        cross_epoch_path = os.path.join(self._dir(analyzer_name), "cross_epoch.npz")
         return os.path.exists(cross_epoch_path)
 
     def get_model_config(self) -> dict[str, Any]:

@@ -7,6 +7,7 @@ dependencies = [
     "miscope",
     "dashboard",
     "pytest>=9.0.2",
+    "duckdb>=1.5.3",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +48,7 @@ target-version = "py311"
 extend-exclude = [
     "*.ipynb",
     "apps/research/sketches/*",
+    "docs/*",
 ]
 
 [tool.ruff.lint]
@@ -62,4 +64,5 @@ typeCheckingMode = "basic"
 ignore = [
     "*.ipynb",
     "apps/research/sketches",
+    "docs",
 ]

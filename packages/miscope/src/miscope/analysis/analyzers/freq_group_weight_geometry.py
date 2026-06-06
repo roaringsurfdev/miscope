@@ -34,8 +34,40 @@ from miscope.analysis.library.clustering import (
 )
 from miscope.analysis.library.pca import pca
 from miscope.analysis.library.shape import characterize_circularity
+from miscope.analysis.output_schema import OutputField as F
+from miscope.analysis.parameters import ParameterSpec, Reducer, ReferenceBinding
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
+
+# REQ_138: the group-defining reference epoch is a declared parameter (floating
+# ``max_epoch`` over activation_basis_projection), not a hardcoded ``sorted_epochs[-1]``.
+_REFERENCE_EPOCH_PARAM = ParameterSpec(
+    name="reference_epoch",
+    dtype="int64",
+    scope="analyzer",
+    default=ReferenceBinding(
+        "reference_epoch", "activation_basis_projection", Reducer("max_epoch")
+    ),
+)
+
+# GLUE geometry of frequency groups in W_in / W_out weight space. On-disk key is
+# {site}_{field} with site ∈ {Win, Wout}; epoch and group are internal trajectory
+# axes. Per-group series flatten by `group`; whole-trajectory centroid cubes stay
+# tensors keyed by site.
+_PER_GROUP_FIELDS = (
+    ("radii", "Per-group radius about its centroid over training."),
+    ("dimensionality", "Per-group intrinsic dimensionality over training."),
+    ("pr3", "Per-group participation ratio of the top-3 PCs."),
+    ("f_top3", "Per-group fraction of variance in the top-3 PCs."),
+)
+_PER_SITE_FIELDS = (
+    ("center_spread", "Spread of the group centroids' common center over training."),
+    ("mean_radius", "Mean group radius over training."),
+    ("snr", "Between-group vs. within-group signal-to-noise ratio over training."),
+    ("fisher_mean", "Mean pairwise Fisher discriminant across groups over training."),
+    ("fisher_min", "Minimum pairwise Fisher discriminant across groups over training."),
+    ("circularity", "Circularity of the group-centroid arrangement over training."),
+)
 
 SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
@@ -44,6 +76,41 @@ SPEC = AnalyzerSpec(
         ArtifactInput("activation_basis_projection"),
         ArtifactInput("parameter_snapshot"),
     ),
+    outputs=(
+        F.columnar(
+            "group_freqs",
+            "int32",
+            ("variant", "group"),
+            "Frequency each group represents.",
+        ),
+        F.columnar(
+            "group_sizes",
+            "int32",
+            ("variant", "group"),
+            "Neuron count in each group.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for the trajectories.",
+        ),
+        F.tensor(
+            "centroids",
+            "float32",
+            ("variant", "site"),
+            "Per-group centroid trajectories in weight space (n_epochs, group, d_mlp).",
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "site", "group"), desc)
+            for name, desc in _PER_GROUP_FIELDS
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "site"), desc)
+            for name, desc in _PER_SITE_FIELDS
+        ),
+    ),
+    parameters=(_REFERENCE_EPOCH_PARAM,),
 )
 
 
@@ -91,8 +158,9 @@ class FreqGroupWeightGeometryAnalyzer:
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
+        reference_epoch = int(inputs.parameters["reference_epoch"])
         group_freqs, group_sizes, group_labels = _build_group_labels(
-            inputs.deps, sorted_epochs[-1], prime
+            inputs.deps, reference_epoch, prime
         )
 
         if not group_freqs:

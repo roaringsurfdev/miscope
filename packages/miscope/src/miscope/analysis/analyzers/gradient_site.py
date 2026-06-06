@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from miscope.analysis.inputs import ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -30,10 +31,59 @@ _WINDOW_NAMES = [
 _SITES = ("embedding", "attention", "mlp")
 
 
+# Gradient energy/magnitude per component site (embedding/attention/mlp) and
+# pairwise gradient-direction similarities, sampled over a training window.
+# On-disk keys are {field}_{site} / {field}_{pair}; declared as logical fields
+# keyed by `site` (component) or `group` (the component pair).
 SPEC = AnalyzerSpec(
     name="gradient_site",
     output_scope="cross_epoch",
     inputs=(),  # loads checkpoints directly via context["variant"]
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Sampled epoch axis labels for the gradient trajectories.",
+        ),
+        F.columnar(
+            "energy",
+            "float64",
+            ("variant", "epoch", "site", "frequency"),
+            "Per-frequency gradient energy at a component site over the window.",
+        ),
+        F.columnar(
+            "magnitude",
+            "float64",
+            ("variant", "epoch", "site"),
+            "Gradient magnitude at a component site over the window.",
+        ),
+        F.columnar(
+            "similarity",
+            "float64",
+            ("variant", "epoch", "group"),
+            "Cosine similarity of gradient directions between a component pair "
+            "(group ∈ {emb_attn, emb_mlp, attn_mlp}).",
+        ),
+        F.columnar(
+            "key_frequencies",
+            "int64",
+            ("variant", "frequency"),
+            "Frequencies flagged as key during the analysis window.",
+        ),
+        F.columnar(
+            "window_epochs",
+            "int64",
+            ("variant", "row_id"),
+            "Boundary epochs delimiting the analysis window.",
+        ),
+        F.columnar(
+            "prime",
+            "int64",
+            ("variant",),
+            "Modulus the analysis was run against.",
+        ),
+    ),
 )
 
 

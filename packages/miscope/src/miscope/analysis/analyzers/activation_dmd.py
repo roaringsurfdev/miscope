@@ -24,8 +24,10 @@ from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
     detect_regime_boundaries,
+    dmd_output_fields,
     track_eigenvalues_across_windows,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -37,10 +39,21 @@ _WINDOW_STRIDE = 1
 _ENERGY_THRESHOLD = 0.99
 
 
+# Windowed/regime/per-regime DMD on class-centroid PCA trajectories, one nested
+# DMD unit per activation site (on-disk key {site}__{nested}).
 SPEC = AnalyzerSpec(
     name="activation_dmd",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("global_centroid_pca"),),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the centroid trajectories.",
+        ),
+        *dmd_output_fields(("variant", "site"), include_n_classes=True),
+    ),
 )
 
 

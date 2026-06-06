@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-temp="mono" data-type="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kinomorphic — the learning dynamics of neural networks</title>
+<script>(function(){try{var d=document.documentElement;d.setAttribute('data-theme',localStorage.getItem('kino-theme')||'light');d.setAttribute('data-temp',localStorage.getItem('kino-temp')||'mono');d.setAttribute('data-type',localStorage.getItem('kino-type')||'paper');}catch(e){}})();</script>
+<link rel="stylesheet" href="assets/kino.css">
+<link rel="stylesheet" href="assets/kino-ui.css">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="Home.html">
+      <span class="markwrap" data-mark="ring" data-animate data-dots="14"></span>
+      <span><b>Kinomorphic</b><span class="tld">.com</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="Home.html" class="active">Home</a>
+      <a href="Fieldnotes.html">Fieldnotes</a>
+      <a href="#approach">Approach</a>
+      <a href="#miscope" class="sub">MIScope</a>
+    </nav>
+    <span class="nav-spacer"></span>
+    <div class="nav-tools popwrap">
+      <button class="icon-btn js-settings" aria-label="Display settings" title="Type, color &amp; theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bg)"/><circle cx="15" cy="16" r="2.4" fill="var(--bg)"/></svg>
+      </button>
+      <button class="icon-btn js-theme" aria-label="Toggle dark mode" title="Light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 4 a8 8 0 0 1 0 16 z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="settings-pop" id="settings-pop">
+        <div class="row"><h6>Type pairing</h6><div class="seg"><button data-set="type" data-val="paper">Paper</button><button data-set="type" data-val="lab">Lab</button><button data-set="type" data-val="journal">Journal</button></div></div>
+        <div class="row"><h6>Color temperature</h6><div class="seg"><button data-set="temp" data-val="warm">Warm</button><button data-set="temp" data-val="cool">Cool</button><button data-set="temp" data-val="mono">Mono</button></div></div>
+        <div class="row"><h6>Appearance</h6><div class="seg"><button data-set="theme" data-val="light">Light</button><button data-set="theme" data-val="dark">Dark</button></div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ============ HERO ============ -->
+<section class="wrap hero">
+  <div class="hero-grid">
+    <div>
+      <span class="kicker">Independent research</span>
+      <h1>The shape of how<br>learning moves.</h1>
+      <div class="name-etym">
+        <span><b>kino—</b> motion</span>
+        <span><b>—morphic</b> form</span>
+      </div>
+      <p class="lead">A research program on the <em>learning dynamics</em> of neural networks — mechanistic interpretability examined through a complex- and nonlinear-dynamical-systems lens. The question isn't <em>did the model learn the task</em>. It's <em>how did learning happen</em>.</p>
+      <div class="hero-actions">
+        <a class="btn primary" href="Fieldnotes.html">Read Fieldnotes <span class="arrow">→</span></a>
+        <a class="btn" href="#approach">The approach</a>
+      </div>
+    </div>
+    <div class="hero-mark">
+      <span class="markwrap" data-mark="ring" data-animate data-dots="24"></span>
+    </div>
+  </div>
+  <div class="statline">
+    <div class="s"><span class="v">Checkpoints</span><span class="k">not final models</span></div>
+    <div class="s"><span class="v">Over training</span><span class="k">not a static snapshot</span></div>
+    <div class="s"><span class="v">Open</span><span class="k">one monorepo · MIScope</span></div>
+  </div>
+</section>
+
+<!-- ============ WHAT THIS IS ============ -->
+<section class="wrap section">
+  <div class="measure" style="max-width:72ch;">
+    <p style="font-family:var(--serif);font-size:1.52rem;line-height:1.5;font-weight:300;color:var(--ink);">
+      Most interpretability looks at a trained model and asks what it knows. Here we watch the model <em>become</em> — reading internal representation across a discrete series of checkpoints, and treating training itself as a trajectory with a shape.
+    </p>
+    <p style="margin-top:22px;color:var(--ink-soft);">
+      The current focus is well-studied toy models — extended from isolated, final-state analysis to analysis <em>over time</em>. Toy models let us calibrate useful lenses while stress-testing the infrastructure that makes dynamics research on high-dimensional systems tractable. That infrastructure is <a href="#miscope">MIScope</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ============ LATEST FIELDNOTES ============ -->
+<section class="wrap section" id="fieldnotes">
+  <div class="section-head">
+    <div><span class="kicker">Fieldnotes</span><h2>Latest from the program</h2></div>
+    <a class="btn ghost" href="Fieldnotes.html">All notes <span class="arrow">→</span></a>
+  </div>
+  <div class="postlist">
+    <a class="post-row" href="Post.html">
+      <span class="date">2026·03·30</span>
+      <div>
+        <span class="pn">003</span>
+        <h3>Reproducibility</h3>
+        <p class="pt">Why a dynamics claim is only as good as the seed, the data split, and the checkpoint cadence behind it — and how the registry keeps them honest.</p>
+        <div class="rtags"><span class="tag">infrastructure</span><span class="tag">methodology</span><span class="tag">research-goals</span></div>
+      </div>
+      <span class="metaline">↗</span>
+    </a>
+    <a class="post-row" href="Post.html">
+      <span class="date">2026·03·29</span>
+      <div>
+        <span class="pn">002</span>
+        <h3>Variants and Variables</h3>
+        <p class="pt">A model is never one model. Holding prime, seeds, and data splits as first-class variables lets us ask which parts of a learning story are universal and which are accidents of initialization.</p>
+        <div class="rtags"><span class="tag">infrastructure</span><span class="tag">methodology</span></div>
+      </div>
+      <span class="metaline">↗</span>
+    </a>
+    <a class="post-row" href="Post.html">
+      <span class="date">2026·03·28</span>
+      <div>
+        <span class="pn">001</span>
+        <h3>Starting Here</h3>
+        <p class="pt">What this program is, what it isn't, and why a single grokking model is a good place to learn how to watch learning happen.</p>
+        <div class="rtags"><span class="tag">meta</span></div>
+      </div>
+      <span class="metaline">↗</span>
+    </a>
+  </div>
+  <p class="metaline" style="margin-top:18px;">Three published notes. More in draft — the published surface is intentionally small.</p>
+</section>
+</main>
+
+<!-- ============ APPROACH BAND ============ -->
+<section class="approach" id="approach">
+  <div class="wrap">
+    <span class="kicker">The approach</span>
+    <h2 style="margin:14px 0 0;max-width:20ch;">Watch the path, not just the destination.</h2>
+    <div class="approach-grid">
+      <div class="item reveal">
+        <span class="n">01 — The question</span>
+        <h3>How did learning happen?</h3>
+        <p>We hold a model still at many points in its training and compare. The interesting structure — phase transitions, grokking, representations forming — lives <em>between</em> checkpoints, in the movement.</p>
+      </div>
+      <div class="item reveal">
+        <span class="n">02 — The method</span>
+        <h3>A dynamical-systems lens.</h3>
+        <p>Trajectories, dimensionality, eigenvalue migration, geometry over time. Tools from nonlinear dynamics, applied to model internals rather than to behavior alone.</p>
+      </div>
+      <div class="item reveal">
+        <span class="n">03 — Why it matters</span>
+        <h3>Diagnostics for model health.</h3>
+        <p>A motivation was the Betley et&nbsp;al. (2025) result, where narrow fine-tuning produced broad misalignment. Understanding how representations are <em>shaped</em> over training could make model-health diagnostics — and more targeted steering — possible during production runs.</p>
+      </div>
+    </div>
+    <p class="metaline" style="margin-top:34px;max-width:62ch;">On safety and human–AI collaboration: these are real consequences of the work, not its front door. They're argued in prose, in the notes — never worn as a badge.</p>
+  </div>
+</section>
+
+<main>
+<!-- ============ MISCOPE (secondary) ============ -->
+<section class="wrap section" id="miscope">
+  <div class="card" style="padding:40px;">
+    <div class="miscope-row">
+      <div>
+        <span class="kicker bare" style="color:var(--blue);">Downstream · the tooling</span>
+        <h2 style="margin:12px 0 0;font-size:1.6rem;">MIScope</h2>
+        <p style="margin-top:14px;color:var(--ink-soft);max-width:52ch;">The research infrastructure the program is built on: a Python library that frames analysis of model variants and their internals across checkpoints as an ETL-like pipeline, and standardizes its Plotly figures to reduce drift in interpretation. A Plotly&nbsp;Dash dashboard, run locally, sits on top.</p>
+        <div class="meta">
+          <span>Python · Plotly · Dash</span>
+          <span>Targeting PyPI v1.0.0</span>
+          <span>Run locally</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a class="btn" href="#">Repository <span class="arrow">→</span></a>
+        <a class="btn ghost" href="#">Dashboard setup</a>
+      </div>
+    </div>
+  </div>
+  <p class="metaline" style="margin-top:16px;">Discovered through the research, not the headline — modules earn their own homes only when stable enough to deserve them.</p>
+</section>
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <div>
+      <div class="brand" style="font-size:1.05rem;"><span class="markwrap" data-mark="ring" style="width:26px;height:26px;"></span><span><b>Kinomorphic</b></span></div>
+      <p style="max-width:36ch;margin-top:16px;font-size:.92rem;color:var(--muted);">Independent research on the learning dynamics of neural networks — interpretability through a dynamical-systems lens.</p>
+    </div>
+    <div><h5>Site</h5><ul><li><a href="Home.html">Home</a></li><li><a href="Fieldnotes.html">Fieldnotes</a></li><li><a href="#approach">Approach</a></li><li><a href="#miscope">MIScope</a></li></ul></div>
+    <div><h5>Elsewhere</h5><ul><li><a href="#">GitHub · Kinomorphic</a></li><li><a href="#">MIScope on PyPI</a></li><li><a href="#">RSS</a></li></ul></div>
+  </div>
+</footer>
+
+<script src="assets/kino.js"></script>
+</body>
+</html>

@@ -129,8 +129,12 @@ def _make_norm_matrix(n_freq: int, d_mlp: int, assignments: list[int]) -> np.nda
 def _run_analyzer(loader, epochs):
     """Run analyzer using a mock deps that bypasses the filesystem."""
     analyzer = NeuronGroupPCAAnalyzer()
+    # The pipeline resolves the reference_epoch parameter (REQ_138); supply the
+    # default it would compute (max checkpoint) for these analyzer-unit tests.
     return analyzer.analyze(
-        ResolvedInputs(deps=loader, epochs=tuple(epochs)),
+        ResolvedInputs(
+            deps=loader, epochs=tuple(epochs), parameters={"reference_epoch": int(max(epochs))}
+        ),
         {"params": {"prime": PRIME}},
     )
 

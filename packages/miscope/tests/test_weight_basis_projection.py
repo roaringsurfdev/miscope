@@ -119,7 +119,8 @@ def test_1d_site_shapes_and_keys():
     assert set(result.keys()) == expected_keys
     assert result["embedding_cos_coeffs"].shape == (n_freq, d_model)
     assert result["embedding_sin_coeffs"].shape == (n_freq, d_model)
-    assert result["embedding_dominant_frequency"].shape == (d_model,)
+    # Uniform-rank dominant_frequency (REQ_136): single-head 1D site → (1, d_model).
+    assert result["embedding_dominant_frequency"].shape == (1, d_model)
     np.testing.assert_array_equal(result["embedding_frequencies"], np.arange(1, n_freq + 1))
 
 
@@ -231,7 +232,9 @@ def test_parity_fourier_nucleation_one_shot(canon_snapshot, canon_new_result):
     new_power = canon_new_result["mlp_in_power"]  # (K, d_mlp)
     new_agg_raw = new_power.sum(axis=-1)
     new_agg = new_agg_raw / new_agg_raw.max()
-    new_peak = canon_new_result["mlp_in_dominant_frequency"]  # (d_mlp,)
+    # Uniform-rank dominant_frequency (REQ_136): (1, d_mlp) for this single-head
+    # 1D site; squeeze the head axis to compare values against the legacy (d_mlp,).
+    new_peak = canon_new_result["mlp_in_dominant_frequency"][0]  # (d_mlp,)
 
     np.testing.assert_allclose(new_agg, legacy_agg, rtol=PARITY_RTOL, atol=PARITY_ATOL)
     np.testing.assert_array_equal(new_peak, legacy_peak)

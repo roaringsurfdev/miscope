@@ -14,13 +14,36 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# Per-input graduation epoch (when an input becomes permanently correct). One
+# row per (a, b) input; row_id = a * p + b.
 SPEC = AnalyzerSpec(
     name="input_trace_graduation",
     output_scope="cross_epoch",
     inputs=(ArtifactInput("input_trace"),),
+    outputs=(
+        F.columnar(
+            "graduation_epochs",
+            "int32",
+            ("variant", "row_id"),
+            "Epoch at which each input becomes permanently correct (-1 if never).",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis scanned for graduation.",
+        ),
+        F.columnar(
+            "split",
+            "bool",
+            ("variant", "row_id"),
+            "Train (True) vs. test (False) membership of each input.",
+        ),
+    ),
 )
 
 

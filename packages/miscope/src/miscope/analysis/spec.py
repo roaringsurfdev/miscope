@@ -28,6 +28,8 @@ from miscope.analysis.inputs import (
     derive_needs_model_weights,
     derive_required_artifacts,
 )
+from miscope.analysis.output_schema import OutputField
+from miscope.analysis.parameters import ParameterSpec
 
 OutputScope = Literal["per_epoch", "cross_epoch"]
 
@@ -53,6 +55,22 @@ class AnalyzerSpec:
         required_hooks: Canonical hook names the analyzer reads.
         produces_summary: Whether the analyzer implements the
             ``get_summary_keys`` / ``compute_summary`` surface (REQ_022).
+        outputs: Declared output fields (REQ_107). Each :class:`OutputField`
+            states a field's name, dtype, ``kind`` (columnar|tensor), keying
+            ``coords``, and a one-line description. This is the write-routing +
+            join-key + discoverability declaration REQ_110 consumes. The names
+            match the analyzer's ``analyze()`` return-dict keys (and the on-disk
+            artifact keys) — the honesty contract.
+        version: Output-schema version (REQ_107). Bumped when a field is added,
+            removed, or its dtype changes; consumers declare the minimum version
+            they are compatible with, and drift detection compares the two.
+        parameters: Declared generation parameters (REQ_138). Each
+            :class:`~miscope.analysis.parameters.ParameterSpec` states a parameter's
+            name, dtype, scope, and default *binding*. An analyzer reads its declared
+            parameters from ``inputs.parameters`` (scoped to exactly these names);
+            reading an undeclared parameter raises. These are the bindings that, when
+            non-default, form an artifact's storage recipe — the parameterization
+            coordinate REQ_110 threads through.
     """
 
     name: str
@@ -60,6 +78,9 @@ class AnalyzerSpec:
     inputs: tuple[InputSpec, ...] = ()
     required_hooks: tuple[str, ...] = ()
     produces_summary: bool = False
+    outputs: tuple[OutputField, ...] = ()
+    version: int = 1
+    parameters: tuple[ParameterSpec, ...] = ()
 
     # ----- Derived properties ----------------------------------------------
 
@@ -75,3 +96,35 @@ class AnalyzerSpec:
     @property
     def requires_activation_cache(self) -> bool:
         return derive_needs_activation_cache(self.inputs)
+
+    # ----- Output schema helpers (REQ_107) ---------------------------------
+
+    def output_names(self) -> tuple[str, ...]:
+        """Names of every declared output field, in declaration order."""
+        return tuple(f.name for f in self.outputs)
+
+    def output_field(self, name: str) -> OutputField:
+        """Look up a declared output field by name."""
+        for f in self.outputs:
+            if f.name == name:
+                return f
+        raise KeyError(
+            f"Analyzer '{self.name}' declares no output field '{name}'. "
+            f"Declared: {list(self.output_names())}"
+        )
+
+    # ----- Parameter helpers (REQ_138) -------------------------------------
+
+    def parameter_names(self) -> tuple[str, ...]:
+        """Names of every declared generation parameter, in declaration order."""
+        return tuple(p.name for p in self.parameters)
+
+    def parameter(self, name: str) -> ParameterSpec:
+        """Look up a declared generation parameter by name."""
+        for p in self.parameters:
+            if p.name == name:
+                return p
+        raise KeyError(
+            f"Analyzer '{self.name}' declares no parameter '{name}'. "
+            f"Declared: {list(self.parameter_names())}"
+        )

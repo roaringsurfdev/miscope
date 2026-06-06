@@ -1,0 +1,276 @@
+/* ============================================================
+   KINOMORPHIC — design language
+   Tokens are driven by attributes on <html>:
+     data-theme   = light | dark
+     data-temp    = warm | cool | mono     (neutral temperature)
+     data-type    = paper | lab | journal  (type pairing)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@300;400;500;600&family=Space+Mono:wght@400&display=swap');
+
+/* ---------- temperature: neutral hue + chroma ---------- */
+:root{
+  --nh: 78;            /* warm */
+  --nc: 0.007;
+  --nc-ink: 0.012;
+}
+[data-temp="cool"]{ --nh: 248; --nc: 0.006; --nc-ink: 0.012; }
+[data-temp="mono"]{ --nh: 250; --nc: 0;     --nc-ink: 0;     }
+
+/* ---------- type pairings ---------- */
+:root{
+  --serif: 'Spectral', Georgia, serif;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --serif-features: normal;
+}
+[data-type="lab"]{
+  --serif: 'Source Serif 4', Georgia, serif;
+  --sans: 'Space Grotesk', system-ui, sans-serif;
+  --mono: 'Space Mono', ui-monospace, monospace;
+}
+[data-type="journal"]{
+  --serif: 'Newsreader', Georgia, serif;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ---------- LIGHT neutrals + accents ---------- */
+:root{
+  --bg:        oklch(98.6% var(--nc) var(--nh));
+  --surface:   oklch(97.0% var(--nc) var(--nh));
+  --surface-2: oklch(94.2% var(--nc) var(--nh));
+  --border:    oklch(89.5% var(--nc) var(--nh));
+  --border-strong: oklch(83% var(--nc) var(--nh));
+  --ink:       oklch(24% var(--nc-ink) var(--nh));
+  --ink-soft:  oklch(36% var(--nc-ink) var(--nh));
+  --muted:     oklch(50% var(--nc-ink) var(--nh));
+  --faint:     oklch(64% var(--nc) var(--nh));
+
+  --blue:      oklch(47% 0.105 248);   /* structure */
+  --blue-soft: oklch(47% 0.105 248 / 0.10);
+  --red:       oklch(56% 0.16 30);     /* phase transition — used sparingly */
+  --red-soft:  oklch(56% 0.16 30 / 0.10);
+
+  --shadow: 0 1px 2px oklch(24% 0.01 var(--nh) / 0.04), 0 8px 30px oklch(24% 0.01 var(--nh) / 0.05);
+  --shadow-lift: 0 2px 6px oklch(24% 0.01 var(--nh) / 0.06), 0 18px 50px oklch(24% 0.01 var(--nh) / 0.09);
+
+  --maxw: 1180px;
+  --measure: 68ch;
+  --radius: 4px;
+  --radius-lg: 8px;
+  --ease: cubic-bezier(.22,.61,.36,1);
+}
+
+/* ---------- DARK neutrals + accents ---------- */
+[data-theme="dark"]{
+  --bg:        oklch(20.5% var(--nc) var(--nh));
+  --surface:   oklch(23.5% var(--nc) var(--nh));
+  --surface-2: oklch(27.5% var(--nc) var(--nh));
+  --border:    oklch(33% var(--nc) var(--nh));
+  --border-strong: oklch(42% var(--nc) var(--nh));
+  --ink:       oklch(91% var(--nc) var(--nh));
+  --ink-soft:  oklch(80% var(--nc) var(--nh));
+  --muted:     oklch(66% var(--nc) var(--nh));
+  --faint:     oklch(52% var(--nc) var(--nh));
+
+  --blue:      oklch(74% 0.11 245);
+  --blue-soft: oklch(74% 0.11 245 / 0.14);
+  --red:       oklch(71% 0.15 32);
+  --red-soft:  oklch(71% 0.15 32 / 0.14);
+
+  --shadow: 0 1px 2px oklch(0% 0 0 / 0.3), 0 10px 36px oklch(0% 0 0 / 0.36);
+  --shadow-lift: 0 2px 8px oklch(0% 0 0 / 0.36), 0 22px 60px oklch(0% 0 0 / 0.46);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*{ box-sizing: border-box; }
+html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:17px;
+  line-height:1.65;
+  font-weight:400;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  font-feature-settings:"kern" 1, "liga" 1;
+  transition: background .5s var(--ease), color .5s var(--ease);
+}
+::selection{ background: var(--blue-soft); }
+
+h1,h2,h3,h4{ font-family:var(--serif); font-weight:500; color:var(--ink); line-height:1.18; letter-spacing:-0.01em; margin:0; text-wrap:balance; }
+h1{ font-size:clamp(2.1rem,4.4vw,3.05rem); font-weight:400; letter-spacing:-0.018em; }
+h2{ font-size:clamp(1.5rem,2.6vw,2rem); font-weight:400; }
+h3{ font-size:1.27rem; font-weight:500; }
+h4{ font-size:1.05rem; font-weight:600; }
+p{ margin:0 0 1.05em; text-wrap:pretty; }
+a{ color:var(--blue); text-decoration:none; }
+
+.serif{ font-family:var(--serif); }
+.mono{ font-family:var(--mono); }
+
+/* eyebrow / kicker */
+.kicker{
+  font-family:var(--mono);
+  font-size:.72rem;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:500;
+  display:inline-flex; align-items:center; gap:.55em;
+}
+.kicker::before{
+  content:""; width:1.6em; height:1px; background:var(--border-strong);
+}
+.kicker.bare::before{ display:none; }
+
+.lead{ font-size:1.2rem; line-height:1.6; color:var(--ink-soft); }
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.wrap{ max-width:var(--maxw); margin:0 auto; padding:0 32px; }
+.measure{ max-width:var(--measure); }
+section{ position:relative; }
+.rule{ height:1px; background:var(--border); border:0; margin:0; }
+.dotrule{ height:1px; background-image:linear-gradient(90deg,var(--border-strong) 1.5px,transparent 1.5px); background-size:7px 1px; border:0; }
+
+/* ============================================================
+   TOP NAV
+   ============================================================ */
+.nav{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in oklab, var(--bg) 86%, transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.nav-inner{ max-width:var(--maxw); margin:0 auto; padding:0 32px; height:64px; display:flex; align-items:center; gap:28px; }
+.brand{ display:flex; align-items:center; gap:11px; color:var(--ink); font-family:var(--serif); font-size:1.15rem; letter-spacing:-0.01em; }
+.brand .markwrap{ width:30px; height:30px; flex:none; }
+.brand b{ font-weight:500; }
+.brand .tld{ color:var(--faint); font-weight:300; }
+.nav-links{ display:flex; align-items:center; gap:4px; margin-left:6px; }
+.nav-links a{
+  color:var(--ink-soft); font-size:.92rem; padding:7px 12px; border-radius:var(--radius);
+  position:relative; transition:color .2s, background .2s;
+}
+.nav-links a:hover{ color:var(--ink); background:var(--surface-2); }
+.nav-links a.active{ color:var(--ink); }
+.nav-links a.active::after{
+  content:""; position:absolute; left:12px; right:12px; bottom:1px; height:1.5px; background:var(--blue);
+}
+.nav-links a.sub{ color:var(--muted); }
+.nav-spacer{ flex:1; }
+.nav-tools{ display:flex; align-items:center; gap:6px; }
+.icon-btn{
+  width:34px; height:34px; display:grid; place-items:center; border-radius:var(--radius);
+  border:1px solid var(--border); background:transparent; color:var(--ink-soft); cursor:pointer;
+  transition:background .2s, color .2s, border-color .2s;
+}
+.icon-btn:hover{ background:var(--surface-2); color:var(--ink); border-color:var(--border-strong); }
+.icon-btn svg{ width:16px; height:16px; }
+
+/* ============================================================
+   BUTTONS / CHIPS / TAGS
+   ============================================================ */
+.btn{
+  display:inline-flex; align-items:center; gap:.5em; font-family:var(--sans);
+  font-size:.92rem; font-weight:500; padding:9px 16px; border-radius:var(--radius);
+  border:1px solid var(--border-strong); background:var(--surface); color:var(--ink);
+  cursor:pointer; transition:all .2s var(--ease);
+}
+.btn:hover{ background:var(--surface-2); transform:translateY(-1px); }
+.btn.primary{ background:var(--ink); color:var(--bg); border-color:var(--ink); }
+.btn.primary:hover{ background:var(--ink-soft); }
+.btn.ghost{ border-color:transparent; background:transparent; padding-left:6px; padding-right:6px; }
+.btn .arrow{ transition:transform .25s var(--ease); }
+.btn:hover .arrow{ transform:translateX(3px); }
+
+.tag{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.02em; color:var(--muted);
+  padding:3px 9px; border:1px solid var(--border); border-radius:100px; background:transparent;
+  cursor:pointer; transition:all .18s; white-space:nowrap;
+}
+.tag:hover{ color:var(--ink); border-color:var(--border-strong); }
+.tag.on{ color:var(--bg); background:var(--ink); border-color:var(--ink); }
+
+.metaline{ font-family:var(--mono); font-size:.76rem; color:var(--faint); letter-spacing:.02em; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+  padding:26px; transition:border-color .25s, box-shadow .35s, transform .35s var(--ease), background .5s;
+}
+.card.hover:hover{ border-color:var(--border-strong); box-shadow:var(--shadow); transform:translateY(-2px); }
+
+/* ============================================================
+   FIGURE FRAME — the unifying Plotly embed treatment
+   ============================================================ */
+.figure{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+  transition:background .5s, border-color .25s;
+}
+.figure-head{
+  display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  padding:14px 18px 12px; border-bottom:1px solid var(--border);
+}
+.figure-head .fnum{ font-family:var(--mono); font-size:.72rem; color:var(--blue); letter-spacing:.08em; font-weight:500; }
+.figure-head .ftitle{ font-family:var(--sans); font-size:.95rem; font-weight:500; color:var(--ink); }
+.figure-head .fmeta{ margin-left:auto; font-family:var(--mono); font-size:.7rem; color:var(--faint); }
+.figure-body{ padding:8px; background:var(--bg); }
+.figure-body img{ display:block; width:100%; height:auto; border-radius:3px; }
+[data-theme="dark"] .figure-body{ background:oklch(96% 0 0); } /* keep plotly stills legible on dark */
+[data-theme="dark"] .figure-body img{ box-shadow:0 0 0 1px var(--border); }
+.figure-cap{ padding:13px 18px; font-size:.86rem; line-height:1.55; color:var(--muted); border-top:1px solid var(--border); }
+.figure-cap b{ color:var(--ink-soft); font-weight:600; }
+.figure-cap .fc-num{ font-family:var(--mono); color:var(--blue); font-weight:500; margin-right:.4em; }
+
+/* placeholder figure (for surfaces without a real still) */
+.fig-ph{
+  position:relative; width:100%; aspect-ratio:16/9; border-radius:3px;
+  background:
+    repeating-linear-gradient(135deg, var(--surface-2), var(--surface-2) 9px, transparent 9px, transparent 18px),
+    var(--surface);
+  display:grid; place-items:center;
+}
+.fig-ph span{ font-family:var(--mono); font-size:.74rem; color:var(--muted); letter-spacing:.04em; background:var(--bg); padding:4px 10px; border:1px solid var(--border); border-radius:3px; }
+
+/* phase-transition marker (vermilion) — echoes the red epoch line in figures */
+.phase-mark{ display:inline-flex; align-items:center; gap:.45em; font-family:var(--mono); font-size:.72rem; color:var(--red); letter-spacing:.04em; }
+.phase-mark::before{ content:""; width:9px; height:9px; border:1.5px solid var(--red); transform:rotate(45deg); }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.foot{ border-top:1px solid var(--border); margin-top:120px; padding:54px 0 64px; color:var(--muted); }
+.foot a{ color:var(--ink-soft); }
+.foot a:hover{ color:var(--ink); }
+.foot-grid{ display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:40px; }
+.foot h5{ font-family:var(--mono); font-size:.72rem; text-transform:uppercase; letter-spacing:.14em; color:var(--faint); margin:0 0 14px; font-weight:500; }
+.foot ul{ list-style:none; margin:0; padding:0; display:grid; gap:9px; font-size:.92rem; }
+
+/* ============================================================
+   MISC
+   ============================================================ */
+.reveal{ opacity:0; transform:translateY(14px); transition:opacity .7s var(--ease), transform .7s var(--ease); }
+.reveal.in{ opacity:1; transform:none; }
+
+@media (max-width:820px){
+  .wrap, .nav-inner{ padding-left:20px; padding-right:20px; }
+  .nav-links{ display:none; }
+  .foot-grid{ grid-template-columns:1fr; gap:30px; }
+}
+@media (prefers-reduced-motion: reduce){
+  *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  .reveal{ opacity:1; transform:none; }
+}

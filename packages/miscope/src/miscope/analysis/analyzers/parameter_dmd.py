@@ -40,9 +40,12 @@ from miscope.analysis.library.dmd import (
     compute_per_regime_dmd,
     compute_windowed_dmd,
     detect_regime_boundaries,
+    dmd_output_fields,
     track_eigenvalues_across_windows,
 )
 from miscope.analysis.library.pca import pca
+from miscope.analysis.output_schema import OutputField as F
+from miscope.analysis.parameters import ParameterSpec, Reducer, ReferenceBinding
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -60,10 +63,22 @@ _PCA_VARIANCE_TARGET = 0.95
 # Defensive cap so a fluke high-variance trajectory does not blow up DMD.
 _PCA_MAX_COMPONENTS = 50
 
-# Context key for choosing which neuron_grouping snapshot to use.
-_CONTEXT_REFERENCE_EPOCH_KEY = "parameter_dmd_reference_epoch"
+# REQ_138: the reference epoch is a declared generation parameter. Its default is a
+# *reference* binding into neuron_grouping's epoch inventory (``max_epoch``) — a
+# floating "last checkpoint" that re-resolves when training extends — never a captured
+# literal. Pinning a value (a literal binding) selects a coexisting recipe artifact.
+_REFERENCE_EPOCH_PARAM = ParameterSpec(
+    name="reference_epoch",
+    dtype="int64",
+    scope="analyzer",
+    default=ReferenceBinding("reference_epoch", "neuron_grouping", Reducer("max_epoch")),
+)
 
 
+# Windowed/regime/per-regime DMD on per-(frequency-group, weight-matrix) weight
+# trajectories. One nested DMD unit per (group, matrix); on-disk key is
+# group_{freq}__{matrix}__{nested}. Group ids are data-dependent, so `group` is a
+# coord, not an enumerable field.
 SPEC = AnalyzerSpec(
     name="parameter_dmd",
     output_scope="cross_epoch",
@@ -71,6 +86,40 @@ SPEC = AnalyzerSpec(
         ArtifactInput("parameter_snapshot"),
         ArtifactInput("neuron_grouping"),
     ),
+    outputs=(
+        F.columnar(
+            "epochs",
+            "int64",
+            ("variant", "epoch"),
+            "Epoch axis labels for the weight trajectories.",
+        ),
+        F.columnar(
+            "reference_epoch",
+            "int64",
+            ("variant",),
+            "Epoch whose neuron_grouping defined the frequency groups.",
+        ),
+        F.columnar(
+            "n_groups",
+            "int64",
+            ("variant",),
+            "Number of frequency groups analyzed.",
+        ),
+        F.columnar(
+            "populated_groups",
+            "int64",
+            ("variant", "group"),
+            "Frequency-group ids that had enough neurons to analyze.",
+        ),
+        F.columnar(
+            "group_n_neurons",
+            "int64",
+            ("variant", "group"),
+            "Neuron count per analyzed frequency group.",
+        ),
+        *dmd_output_fields(("variant", "group", "site")),
+    ),
+    parameters=(_REFERENCE_EPOCH_PARAM,),
 )
 
 
@@ -96,10 +145,9 @@ class ParameterDMD:
         Args:
             artifacts_dir: Root artifacts directory for the variant.
             epochs: Sorted list of available epoch numbers.
-            context: Family-provided analysis context. Optional key:
-                - ``parameter_dmd_reference_epoch``: int — which
-                  ``neuron_grouping`` epoch to use as the partition
-                  source. Defaults to the last available checkpoint.
+            context: Family-provided analysis context (deterministic context only).
+                The reference epoch is a declared generation parameter (REQ_138),
+                read from ``inputs.parameters["reference_epoch"]`` — not the context.
 
         Returns:
             Dict of arrays for storage in cross_epoch.npz.
@@ -112,7 +160,9 @@ class ParameterDMD:
         assert inputs.epochs is not None
         epochs = list(inputs.epochs)
 
-        reference_epoch = self._resolve_reference_epoch(inputs.deps, context)
+        reference_epoch = self._snap_reference_epoch(
+            inputs.deps, inputs.parameters["reference_epoch"]
+        )
         grouping = inputs.deps.load_epoch(
             "neuron_grouping",
             reference_epoch,
@@ -155,29 +205,20 @@ class ParameterDMD:
 
         return result
 
-    def _resolve_reference_epoch(
-        self,
-        deps: DepsAccessor,
-        context: dict[str, Any],
-    ) -> int:
-        """Pick the neuron_grouping epoch to use as the partition source.
+    def _snap_reference_epoch(self, deps: DepsAccessor, requested: int) -> int:
+        """Snap the resolved ``reference_epoch`` to the nearest neuron_grouping epoch.
 
-        Default: last available `neuron_grouping` epoch. Caller can pin
-        via the ``parameter_dmd_reference_epoch`` context key.
+        ``requested`` is the resolved binding value (REQ_138) — the floating
+        ``max_epoch`` default, or an analyst-pinned literal. Snapping covers a pin to
+        an epoch the variant didn't checkpoint; the snapped value is what the artifact
+        records as its ``reference_epoch`` output.
         """
-        configured = context.get(_CONTEXT_REFERENCE_EPOCH_KEY)
         available = sorted(deps.epochs("neuron_grouping"))
         if not available:
             raise FileNotFoundError(
                 "parameter_dmd requires neuron_grouping artifacts. Run neuron_grouping first."
             )
-        if configured is None:
-            return int(available[-1])
-        configured = int(configured)
-        # Snap to the nearest available epoch — caller may have requested
-        # an epoch the variant didn't checkpoint.
-        nearest = min(available, key=lambda e: abs(e - configured))
-        return int(nearest)
+        return int(min(available, key=lambda e: abs(e - int(requested))))
 
     def _build_trajectory(
         self,

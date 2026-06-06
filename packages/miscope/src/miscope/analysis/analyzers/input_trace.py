@@ -17,9 +17,12 @@ import numpy as np
 import torch
 
 from miscope.analysis.inputs import ModelInput, ResolvedInputs
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# Per-input trace: one row per (a, b) input (row_id = a * p + b). The basis for
+# per-input-trace analysis — kept compact via narrow dtypes.
 SPEC = AnalyzerSpec(
     name="input_trace",
     output_scope="per_epoch",
@@ -28,6 +31,32 @@ SPEC = AnalyzerSpec(
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=(),
     produces_summary=True,
+    outputs=(
+        F.columnar(
+            "predictions",
+            "int16",
+            ("variant", "epoch", "row_id"),
+            "Predicted class (argmax logit) for each input.",
+        ),
+        F.columnar(
+            "correct",
+            "bool",
+            ("variant", "epoch", "row_id"),
+            "Whether the prediction matches the target for each input.",
+        ),
+        F.columnar(
+            "confidence",
+            "float16",
+            ("variant", "epoch", "row_id"),
+            "Softmax probability assigned to the predicted class for each input.",
+        ),
+        F.columnar(
+            "split",
+            "bool",
+            ("variant", "epoch", "row_id"),
+            "Train (True) vs. test (False) membership of each input.",
+        ),
+    ),
 )
 
 

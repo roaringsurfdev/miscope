@@ -14,6 +14,7 @@ from miscope.analysis.inputs import ModelInput, ResolvedInputs
 from miscope.analysis.library import (
     compute_grid_size_from_dataset,
 )
+from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
@@ -22,6 +23,15 @@ SPEC = AnalyzerSpec(
     output_scope="per_epoch",
     inputs=(ModelInput(needs_weights=False, needs_cache=True),),
     required_hooks=("blocks.0.attn.hook_pattern",),
+    outputs=(
+        F.tensor(
+            "patterns",
+            "float32",
+            ("variant", "epoch"),
+            "Attention probabilities per head over a probe grid. Inner axes are "
+            "(n_heads, query positions, key positions, a, b).",
+        ),
+    ),
 )
 
 

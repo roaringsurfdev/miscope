@@ -21,9 +21,26 @@ from miscope.analysis.library import (
     extract_neuron_weight_matrix,
     reconstruct_neuron_freq_norm,
 )
+from miscope.analysis.output_schema import OutputField as F
+from miscope.analysis.parameters import ParameterSpec, Reducer, ReferenceBinding
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
+# REQ_138: the group-defining reference epoch is a declared parameter, defaulting to
+# a floating ``max_epoch`` reference into activation_basis_projection (the artifact
+# read at the reference epoch) rather than a hardcoded ``sorted_epochs[-1]``.
+_REFERENCE_EPOCH_PARAM = ParameterSpec(
+    name="reference_epoch",
+    dtype="int64",
+    scope="analyzer",
+    default=ReferenceBinding(
+        "reference_epoch", "activation_basis_projection", Reducer("max_epoch")
+    ),
+)
+
+# Keys are flat (no prefix): for columnar fields the group/neuron axes flatten to
+# rows; the dense trajectory cubes stay single per-variant tensors (group/pc/
+# d_model are internal array axes, not separately-addressable blobs).
 SPEC = AnalyzerSpec(
     name="neuron_group_pca",
     output_scope="cross_epoch",
@@ -31,6 +48,87 @@ SPEC = AnalyzerSpec(
         ArtifactInput("activation_basis_projection"),
         ArtifactInput("parameter_snapshot"),
     ),
+    outputs=(
+        F.columnar(
+            "group_freqs",
+            "int32",
+            ("variant", "group"),
+            "Frequency each neuron group represents.",
+        ),
+        F.columnar(
+            "group_sizes",
+            "int32",
+            ("variant", "group"),
+            "Neuron count in each group.",
+        ),
+        F.columnar(
+            "pc_var",
+            "float32",
+            ("variant", "epoch", "group", "row_id"),
+            "Per-group PCA variance fraction per PC over training (row_id = PC index).",
+        ),
+        F.columnar(
+            "mean_spread",
+            "float32",
+            ("variant", "epoch", "group"),
+            "Mean within-group spread over training.",
+        ),
+        F.columnar(
+            "neuron_group_idx",
+            "int32",
+            ("variant", "neuron"),
+            "Group index assigned to each neuron.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for the trajectories.",
+        ),
+        F.columnar(
+            "centroid_pca_var",
+            "float32",
+            ("variant", "row_id"),
+            "Variance fraction per PC of the group-centroid PCA (row_id = PC index).",
+        ),
+        F.tensor(
+            "group_bases",
+            "float32",
+            ("variant",),
+            "Per-group PCA basis vectors (group, n_pc, d_model).",
+        ),
+        F.tensor(
+            "group_centers",
+            "float32",
+            ("variant",),
+            "Per-group center in activation space (group, d_model).",
+        ),
+        F.tensor(
+            "projections",
+            "float32",
+            ("variant",),
+            "Per-neuron projections onto group PCs over training (n_epochs, d_mlp, n_pc).",
+        ),
+        F.tensor(
+            "centroid_traj",
+            "float32",
+            ("variant",),
+            "Group-centroid trajectories (n_epochs, group, d_model).",
+        ),
+        F.tensor(
+            "centroid_pca_coords",
+            "float32",
+            ("variant",),
+            "Group centroids projected into a shared PCA space (n_epochs, group, n_pc).",
+        ),
+        F.tensor(
+            "centroid_pca_basis",
+            "float32",
+            ("variant",),
+            "Basis of the shared group-centroid PCA space (n_pc, d_model).",
+        ),
+    ),
+    parameters=(_REFERENCE_EPOCH_PARAM,),
 )
 
 
@@ -70,7 +168,8 @@ class NeuronGroupPCAAnalyzer:
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
-        group_freqs, group_members = _assign_groups(inputs.deps, sorted_epochs[-1], prime)
+        reference_epoch = int(inputs.parameters["reference_epoch"])
+        group_freqs, group_members = _assign_groups(inputs.deps, reference_epoch, prime)
 
         if not group_freqs:
             return _empty_result(sorted_epochs)

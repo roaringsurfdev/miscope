@@ -1,0 +1,40 @@
+name: Data Release (bundle gate)
+
+# Publication data bundles are BUILT LOCALLY — the warehouse data is gitignored and
+# never reaches CI, so a runner cannot materialize a bundle from scratch. The actual
+# `data-*` Release is cut from the machine that has the data:
+#
+#     uv run python scripts/build_publication_bundle.py <spec.toml> --update-history --release
+#
+# This workflow is the CI-side guard for that flow. Bundle *manifests* (small JSON,
+# carrying the captured schema) ARE committed, so CI can enforce manifest integrity
+# and surface schema deltas without the Parquet. It runs on PRs that touch a bundle
+# spec or manifest, and on manual dispatch.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - 'apps/fieldnotes/bundles/**'
+  workflow_dispatch:
+
+jobs:
+  bundle-gate:
+    name: Validate bundle manifest histories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Validate manifest integrity + report schema deltas
+        run: uv run python scripts/validate_bundle_history.py apps/fieldnotes/bundles

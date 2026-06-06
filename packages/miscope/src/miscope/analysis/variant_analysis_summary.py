@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from miscope.analysis import neuron_frequency as nf
+
 if TYPE_CHECKING:
     from miscope.families.protocols import ModelFamily
     from miscope.families.variant import Variant
@@ -33,22 +35,18 @@ _REBOUND_TEST_LOSS_THRESHOLD: float = 0.2
 _CANONICAL_SPECIALIZATION_THRESHOLD: float = 0.10
 
 
-def _classify_frequency_band(freq: int, prime: int) -> str:
-    """Classify a 1-indexed frequency into low / mid / high band relative to prime."""
-    if freq <= prime // 4:
-        return "low"
-    if freq > 3 * prime // 8:
-        return "high"
-    return "mid"
-
-
 def build_variant_registry(family: ModelFamily) -> Path:
-    """Aggregate all existing variant_summary.json files into variant_registry.json.
+    """Aggregate per-variant outcomes into variant_registry.json via the query surface.
 
-    Scans the family's variants directory for ``variant_summary.json`` files and
-    assembles them into a single registry array, adding a ``variant_id`` field
-    (``"{prime}_{model_seed}_{data_seed}"``) to each entry. The registry is
-    written to ``{family.family_dir}/variant_registry.json``.
+    REQ_110D: the hand-rolled ``glob("*/variant_summary.json")`` aggregation is
+    replaced by SQL over the ``variant_outcomes`` warehouse table. Each variant's
+    outcome row is first refreshed from its current ``variant_summary.json`` (cheap
+    — co-emission keeps the table consistent with the JSON), then a single
+    ``SELECT`` over the cross-variant union assembles the registry. The full
+    snapshot round-trips through the ``summary_json`` carrier, so each entry is
+    identical to reading the JSON directly; ``variant_id`` (the family-owned
+    directory name) and the declared ``domain_parameters`` are attached as before.
+    The registry is written to ``{family.family_dir}/variant_registry.json``.
 
     Args:
         family: ModelFamily whose variants should be aggregated.
@@ -56,15 +54,29 @@ def build_variant_registry(family: ModelFamily) -> Path:
     Returns:
         Path to the written variant_registry.json file.
     """
-    registry: list[dict[str, Any]] = []
+    import miscope.query
+    from miscope.warehouse.outcomes import materialize_variant_outcomes
 
-    for summary_path in sorted(family.variants_dir.glob("*/variant_summary.json")):
-        entry = json.loads(summary_path.read_text())
-        prime = entry.get("prime", "?")
-        model_seed = entry.get("model_seed", "?")
-        data_seed = entry.get("data_seed", "?")
-        entry["variant_id"] = f"{prime}_{model_seed}_{data_seed}"
-        registry.append(entry)
+    # Refresh each variant's outcome row from its current summary so the SQL
+    # aggregation reflects the latest summaries (variants without a summary are
+    # skipped, matching the old glob over existing summary files).
+    params_by_name = {variant.name: variant.params for variant in family.variants}
+    for variant in family.variants:
+        materialize_variant_outcomes(variant)
+
+    registry: list[dict[str, Any]] = []
+    with miscope.query.open(family=family) as con:
+        if "variant_outcomes" in con.tables():
+            rows = con.df(
+                "SELECT variant_id, summary_json FROM variant_outcomes ORDER BY variant_id"
+            )
+            for variant_id, summary_json in zip(rows["variant_id"], rows["summary_json"]):
+                entry = json.loads(summary_json)
+                entry["variant_id"] = variant_id
+                # Add the family's declared parameter columns (does not clobber existing).
+                for key, value in params_by_name.get(variant_id, {}).items():
+                    entry.setdefault(key, value)
+                registry.append(entry)
 
     output_path = family.family_dir / "variant_registry.json"
     output_path.write_text(json.dumps(registry, indent=2))
@@ -82,9 +94,7 @@ class VariantAnalysisData:
 
     neurons_loaded: bool = False
     neurons_checkpoints: list[Any] = field(default_factory=list)
-    neurons_dominant_frequencies: np.ndarray | None = None
-    neurons_frequency_specialization: np.ndarray | None = None
-    neurons_commitment_epochs: np.ndarray | None = None
+    attribution: nf.NeuronFrequencyAttribution | None = None
 
     effective_dimensionality_loaded: bool = False
     effective_dimensionality_pr_epochs: list[Any] = field(default_factory=list)
@@ -106,15 +116,11 @@ class VariantAnalysisData:
         self.losses_loaded = True
 
     def load_neuron_data(self):
-        neuron_dynamics_data = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
-        self.neurons_checkpoints = list(neuron_dynamics_data["epochs"])
-        self.neurons_dominant_frequencies = neuron_dynamics_data[
-            "dominant_freq"
-        ]  # (n_epochs, d_mlp)
-        self.neurons_frequency_specialization = neuron_dynamics_data[
-            "max_frac"
-        ]  # (n_epochs, d_mlp)
-        self.neurons_commitment_epochs = neuron_dynamics_data["commitment_epochs"]  # (d_mlp,)
+        # REQ_110D: the conformed (epoch, neuron) -> dominant-frequency dimension
+        # comes from the warehouse via neuron_frequency.load, not the npz. The
+        # returned dominant_freq is 1-indexed (the +1 lives in the helper).
+        self.attribution = nf.load(self.variant)
+        self.neurons_checkpoints = list(self.attribution.epochs)
         self.neurons_loaded = True
 
     def load_effective_dimensionality_data(self):
@@ -187,64 +193,25 @@ class VariantAnalysisSummary:
     def _get_learned_frequencies(self, epoch_index: int) -> list[int]:
         if not self.analysis_data.neurons_loaded:
             self.analysis_data.load_neuron_data()
-
-        frequencies_over_threshold = []
-        dominant_freq = self.analysis_data.neurons_dominant_frequencies  # (n_epochs, d_mlp)
-        max_frac = self.analysis_data.neurons_frequency_specialization  # (n_epochs, d_mlp)
-
-        if max_frac is not None and dominant_freq is not None:
-            neuron_fracs = max_frac[epoch_index, :]
-            # list of neurons over threshold
-            neurons_over_threshold = list(
-                set(
-                    i
-                    for i, x in enumerate(neuron_fracs)
-                    if x >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-                )
-            )
-            # total count of neurons over threshold
-            # count_neurons_over_threshold = len(neurons_over_threshold)
-            # frequencies over threshold
-            frequencies_over_threshold = list(
-                set(
-                    frequency_idx + 1
-                    for frequency_idx in dominant_freq[epoch_index, neurons_over_threshold]
-                )
-            )
-
-        return frequencies_over_threshold
+        return self.analysis_data.attribution.specialized_frequencies(
+            epoch_index, threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY
+        )
 
     def _get_committed_frequencies(self, epoch_index: int) -> list[int]:
         """Return frequencies with population-level commitment at this epoch.
 
         A frequency is committed when the number of neurons specialized to it
-        (max_frac >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY) meets or exceeds
+        (frac_explained >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY) meets or exceeds
         _SPECIALIZATION_FLOOR * d_mlp. This is distinct from learned_frequencies,
         which fires on any single neuron above threshold.
         """
         if not self.analysis_data.neurons_loaded:
             self.analysis_data.load_neuron_data()
-
-        dominant_freq = self.analysis_data.neurons_dominant_frequencies
-        max_frac = self.analysis_data.neurons_frequency_specialization
-
-        if max_frac is None or dominant_freq is None:
-            return []
-
-        d_mlp = dominant_freq.shape[1]
-        population_threshold = _SPECIALIZATION_FLOOR * d_mlp
-
-        neuron_fracs = max_frac[epoch_index, :]
-        specialized_neurons = [
-            i for i, x in enumerate(neuron_fracs) if x >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-        ]
-
-        freq_counts: dict[int, int] = {}
-        for neuron_idx in specialized_neurons:
-            freq = int(dominant_freq[epoch_index, neuron_idx]) + 1  # 0-indexed to 1-indexed
-            freq_counts[freq] = freq_counts.get(freq, 0) + 1
-
-        return sorted(f for f, cnt in freq_counts.items() if cnt >= population_threshold)
+        return self.analysis_data.attribution.committed_frequencies(
+            epoch_index,
+            threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY,
+            population_floor=_SPECIALIZATION_FLOOR,
+        )
 
     def _get_variant_preformance_classification(self) -> tuple[str, list[str]]:
         """Classify a variant's failure mode from its metrics.
@@ -377,46 +344,28 @@ class VariantAnalysisSummary:
         first_mover_frequency_count_threshold_epoch = -1
         total_neurons_over_specialization_threshold_epoch = -1
 
+        attr = self.analysis_data.attribution
         epochs = self.analysis_data.neurons_checkpoints
-        dominant_freq = self.analysis_data.neurons_dominant_frequencies  # (n_epochs, d_mlp)
-        max_frac = self.analysis_data.neurons_frequency_specialization  # (n_epochs, d_mlp)
+        thr = _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
 
-        if max_frac is not None and dominant_freq is not None:
-            for epoch_idx, neuron_fracs in enumerate(max_frac):
-                # list of neurons over threshold
-                neurons_over_threshold = list(
-                    set(
-                        i
-                        for i, x in enumerate(neuron_fracs)
-                        if x >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-                    )
-                )
-                # total count of neurons over threshold
-                count_neurons_over_threshold = len(neurons_over_threshold)
-                # frequencies over threshold
-                frequencies_over_threshold = list(
-                    set(
-                        frequency_idx + 1
-                        for frequency_idx in dominant_freq[epoch_idx, neurons_over_threshold]
-                    )
-                )
+        if attr is not None:
+            for epoch_idx in range(attr.n_epochs):
+                # 1-indexed dominant-frequency -> #specialized neurons at this epoch.
+                freq_counts = attr.frequency_counts(epoch_idx, threshold=thr)
 
-                # capture first mover frequency
-                if len(frequencies_over_threshold) > 0 and first_mover_frequency == -1:
+                # capture first mover frequency (lowest specialized freq, deterministic)
+                if freq_counts and first_mover_frequency == -1:
                     first_mover_epoch = epochs[epoch_idx]
-                    first_mover_frequency = frequencies_over_threshold[0]
+                    first_mover_frequency = sorted(freq_counts)[0]
 
-                # get counts for all neurons specializing in first_mover_frequency
+                # first epoch the first-mover frequency reaches the population count
                 if first_mover_frequency > -1 and first_mover_frequency_count_threshold_epoch == -1:
-                    total_first_mover_count = sum(
-                        (frequency_idx + 1) == first_mover_frequency
-                        for frequency_idx in dominant_freq[epoch_idx, neurons_over_threshold]
-                    )
-                    if total_first_mover_count >= _FIRST_MOVER_COUNT:
+                    if freq_counts.get(first_mover_frequency, 0) >= _FIRST_MOVER_COUNT:
                         first_mover_frequency_count_threshold_epoch = epochs[epoch_idx]
 
                 if (
-                    count_neurons_over_threshold >= _TOTAL_NEURON_COUNT_OVER_THRESHOLD
+                    attr.specialized_count(epoch_idx, threshold=thr)
+                    >= _TOTAL_NEURON_COUNT_OVER_THRESHOLD
                     and total_neurons_over_specialization_threshold_epoch == -1
                 ):
                     total_neurons_over_specialization_threshold_epoch = epochs[epoch_idx]
@@ -670,32 +619,12 @@ class VariantAnalysisSummary:
         The artifact's stored commitment_epochs use a low threshold (~0.054),
         which causes many neurons to appear committed from epoch 0 due to random
         initialization. This recomputes using the same 0.7 threshold used
-        throughout the rest of the summary.
+        throughout the rest of the summary, off the conformed dimension.
         """
-        epochs = np.array(self.analysis_data.neurons_checkpoints)
-        dominant_freq = self.analysis_data.neurons_dominant_frequencies
-        max_frac = self.analysis_data.neurons_frequency_specialization
-        if dominant_freq is None or max_frac is None:
+        attr = self.analysis_data.attribution
+        if attr is None:
             return np.full(0, np.nan)
-        n_epochs, d_mlp = dominant_freq.shape
-        commitment_epochs = np.full(d_mlp, np.nan)
-        final_freq = dominant_freq[-1]
-
-        for n in range(d_mlp):
-            if max_frac[-1, n] < _NEURON_FRAC_EXPLAINED_BY_FREQUENCY:
-                continue
-            stable_from = n_epochs - 1
-            for t in range(n_epochs - 2, -1, -1):
-                if (
-                    max_frac[t, n] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-                    and dominant_freq[t, n] == final_freq[n]
-                ):
-                    stable_from = t
-                else:
-                    break
-            commitment_epochs[n] = epochs[stable_from]
-
-        return commitment_epochs
+        return attr.recompute_commitment_epochs(threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY)
 
     def _load_competition_and_geometry_summary_metrics(self) -> None:
         if not self.analysis_data.neurons_loaded:
@@ -724,72 +653,51 @@ class VariantAnalysisSummary:
             float(max(circularity)) if circularity else None
         )
 
+    def _attribution(self) -> nf.NeuronFrequencyAttribution | None:
+        """Cached conformed dimension; None if neuron_dynamics is unavailable."""
+        if not self.analysis_data.neurons_loaded:
+            try:
+                self.analysis_data.load_neuron_data()
+            except FileNotFoundError:
+                return None
+        return self.analysis_data.attribution
+
     def _load_learned_frequencies(self) -> None:
-        """Populate learned_frequencies and related fields from neuron_dynamics."""
-        try:
-            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
-        except FileNotFoundError:
-            self.summary_data["learned_frequencies"] = None
-            self.summary_data["learned_frequency_count"] = None
-            self.summary_data["canonical_specialization_threshold"] = (
-                _CANONICAL_SPECIALIZATION_THRESHOLD
-            )
-            return
-
-        dominant_freq = nd["dominant_freq"]
-        max_frac = nd["max_frac"]
-        d_mlp = dominant_freq.shape[1]
-        threshold_count = _CANONICAL_SPECIALIZATION_THRESHOLD * d_mlp
-        specialized_final = max_frac[-1] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-
-        freq_counts: dict[int, int] = {}
-        for i in range(d_mlp):
-            if specialized_final[i]:
-                freq = int(dominant_freq[-1, i]) + 1  # 0-indexed → 1-indexed
-                freq_counts[freq] = freq_counts.get(freq, 0) + 1
-
-        learned = sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)
-        self.summary_data["learned_frequencies"] = learned
-        self.summary_data["learned_frequency_count"] = len(learned)
+        """Populate learned_frequencies and related fields from the conformed dim."""
         self.summary_data["canonical_specialization_threshold"] = (
             _CANONICAL_SPECIALIZATION_THRESHOLD
         )
+        attr = self._attribution()
+        if attr is None:
+            self.summary_data["learned_frequencies"] = None
+            self.summary_data["learned_frequency_count"] = None
+            return
+
+        learned = attr.committed_frequencies(
+            attr.n_epochs - 1,
+            threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY,
+            population_floor=_CANONICAL_SPECIALIZATION_THRESHOLD,
+        )
+        self.summary_data["learned_frequencies"] = learned
+        self.summary_data["learned_frequency_count"] = len(learned)
 
     def _load_handshake_metrics(self) -> None:
         """Populate committed_frequencies_at_onset and handshake failure fields."""
         onset_epoch = self.summary_data.get("second_descent_onset_epoch")
         learned = self.summary_data.get("learned_frequencies")
+        attr = self._attribution()
 
-        if onset_epoch is None or learned is None:
+        if onset_epoch is None or learned is None or attr is None:
             self.summary_data["committed_frequencies_at_onset"] = None
             self.summary_data["handshake_failures"] = None
             self.summary_data["handshake_succeeded"] = None
             return
 
-        try:
-            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
-        except FileNotFoundError:
-            self.summary_data["committed_frequencies_at_onset"] = None
-            self.summary_data["handshake_failures"] = None
-            self.summary_data["handshake_succeeded"] = None
-            return
-
-        dominant_freq = nd["dominant_freq"]
-        max_frac = nd["max_frac"]
-        epochs = nd["epochs"]
-        d_mlp = dominant_freq.shape[1]
-        threshold_count = _CANONICAL_SPECIALIZATION_THRESHOLD * d_mlp
-
-        epoch_idx = min(int(np.searchsorted(epochs, onset_epoch)), len(epochs) - 1)
-        specialized_mask = max_frac[epoch_idx] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-
-        freq_counts: dict[int, int] = {}
-        for i in range(d_mlp):
-            if specialized_mask[i]:
-                freq = int(dominant_freq[epoch_idx, i]) + 1
-                freq_counts[freq] = freq_counts.get(freq, 0) + 1
-
-        committed = sorted(f for f, cnt in freq_counts.items() if cnt >= threshold_count)
+        committed = attr.committed_frequencies(
+            attr.epoch_index(onset_epoch),
+            threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY,
+            population_floor=_CANONICAL_SPECIALIZATION_THRESHOLD,
+        )
         failures = [f for f in committed if f not in set(learned)]
         self.summary_data["committed_frequencies_at_onset"] = committed
         self.summary_data["handshake_failures"] = failures
@@ -799,31 +707,19 @@ class VariantAnalysisSummary:
         """Populate second_descent_onset frequency portfolio fields."""
         onset_epoch = self.summary_data.get("second_descent_onset_epoch")
         prime = self.summary_data.get("prime", 0)
+        attr = self._attribution()
 
-        if onset_epoch is None:
+        if onset_epoch is None or attr is None:
             self.summary_data["second_descent_onset_committed_frequencies"] = None
             self.summary_data["second_descent_onset_frequency_bands"] = None
             self.summary_data["second_descent_onset_has_low_band"] = None
             self.summary_data["second_descent_onset_band_count"] = None
             return
 
-        try:
-            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
-        except FileNotFoundError:
-            self.summary_data["second_descent_onset_committed_frequencies"] = None
-            self.summary_data["second_descent_onset_frequency_bands"] = None
-            self.summary_data["second_descent_onset_has_low_band"] = None
-            self.summary_data["second_descent_onset_band_count"] = None
-            return
-
-        epochs = nd["epochs"]
-        dominant_freq = nd["dominant_freq"]
-        max_frac = nd["max_frac"]
-        epoch_idx = min(int(np.searchsorted(epochs, onset_epoch)), len(epochs) - 1)
-
-        committed_mask = max_frac[epoch_idx] >= _NEURON_FRAC_EXPLAINED_BY_FREQUENCY
-        active_freqs = sorted(set(int(f) + 1 for f in dominant_freq[epoch_idx][committed_mask]))
-        bands = [_classify_frequency_band(f, prime) for f in active_freqs]
+        active_freqs = attr.specialized_frequencies(
+            attr.epoch_index(onset_epoch), threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY
+        )
+        bands = [nf.classify_band(f, prime) for f in active_freqs]
 
         self.summary_data["second_descent_onset_committed_frequencies"] = active_freqs
         self.summary_data["second_descent_onset_frequency_bands"] = bands
@@ -849,11 +745,10 @@ class VariantAnalysisSummary:
         transient_freqs = sorted(int(f) + 1 for f in ever_qualified[transient_mask])
         total_homeless = int(homeless_count[transient_mask].sum())
 
-        try:
-            nd = self.variant.artifacts.load_cross_epoch("neuron_dynamics")
-            d_mlp = nd["dominant_freq"].shape[1]
-            homeless_fraction = total_homeless / d_mlp if d_mlp > 0 else None
-        except FileNotFoundError:
+        attr = self._attribution()
+        if attr is not None and attr.d_mlp > 0:
+            homeless_fraction = total_homeless / attr.d_mlp
+        else:
             homeless_fraction = None
 
         self.summary_data["transient_frequencies"] = transient_freqs
