@@ -355,9 +355,7 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
         # depends_on is purely cosmetic now: the single upstream of a purely
         # artifact-derived per-epoch analyzer (the former "secondary" shape).
         depends_on = (
-            requires[0]
-            if item.output_scope == "per_epoch" and not has_model and requires
-            else None
+            requires[0] if item.output_scope == "per_epoch" and not has_model and requires else None
         )
         return _AnalyzerDescriptor(
             name=item.name,

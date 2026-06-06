@@ -34,6 +34,7 @@ def _attribution_from_mock(monkeypatch):
 
     monkeypatch.setattr("miscope.views.cross_variant.nf.load", fake_load)
 
+
 # ---------------------------------------------------------------------------
 # Fixtures / Helpers
 # ---------------------------------------------------------------------------

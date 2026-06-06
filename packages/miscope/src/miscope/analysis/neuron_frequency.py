@@ -70,9 +70,7 @@ class NeuronFrequencyAttribution:
         epochs = np.asarray(nd["epochs"])
         thr = nd.get("threshold")
         threshold = (
-            float(np.asarray(thr).ravel()[0])
-            if thr is not None and np.asarray(thr).size
-            else None
+            float(np.asarray(thr).ravel()[0]) if thr is not None and np.asarray(thr).size else None
         )
         return cls(
             epochs=epochs,
@@ -165,7 +163,10 @@ class NeuronFrequencyAttribution:
                 continue
             stable_from = self.n_epochs - 1
             for t in range(self.n_epochs - 2, -1, -1):
-                if self.frac_explained[t, n] >= threshold and self.dominant_freq[t, n] == final_freq[n]:
+                if (
+                    self.frac_explained[t, n] >= threshold
+                    and self.dominant_freq[t, n] == final_freq[n]
+                ):
                     stable_from = t
                 else:
                     break
@@ -195,9 +196,9 @@ def load(variant: object) -> NeuronFrequencyAttribution:
         neurons=neurons,
         dominant_freq=freq_wide.to_numpy().astype(int) + 1,
         frac_explained=frac_wide.to_numpy().astype(float),
-        commitment_epochs=aux.get("commitment_epochs"),
-        switch_counts=aux.get("switch_counts"),
-        threshold=aux.get("threshold"),
+        commitment_epochs=aux.commitment_epochs,
+        switch_counts=aux.switch_counts,
+        threshold=aux.threshold,
     )
 
 
@@ -227,19 +228,30 @@ def _read_attribution(variant: object):
         return read_table(variant, ATTRIBUTION_TABLE).df
 
 
-def _read_aux(variant: object) -> dict[str, object]:
+@dataclass(frozen=True)
+class _NeuronAux:
+    """The optional ``neuron_dynamics`` aux signatures, tolerant of absence."""
+
+    commitment_epochs: np.ndarray | None = None
+    switch_counts: np.ndarray | None = None
+    threshold: float | None = None
+
+
+def _read_aux(variant: object) -> _NeuronAux:
     """Per-neuron + scalar ``neuron_dynamics`` aux fields, tolerant of absence."""
-    aux: dict[str, object] = {}
+    commitment_epochs: np.ndarray | None = None
+    switch_counts: np.ndarray | None = None
+    threshold: float | None = None
     sigs = list_signatures(variant, _NEURON_DYNAMICS_TABLE)
     if _NEURON_SIGNATURE in sigs:
         ndf = read_table(variant, _NEURON_DYNAMICS_TABLE, _NEURON_SIGNATURE).df
         ndf = ndf.sort_values("neuron")
         if "commitment_epochs" in ndf:
-            aux["commitment_epochs"] = ndf["commitment_epochs"].to_numpy().astype(float)
+            commitment_epochs = ndf["commitment_epochs"].to_numpy().astype(float)
         if "switch_counts" in ndf:
-            aux["switch_counts"] = ndf["switch_counts"].to_numpy()
+            switch_counts = ndf["switch_counts"].to_numpy()
     if _SCALAR_SIGNATURE in sigs:
         sdf = read_table(variant, _NEURON_DYNAMICS_TABLE, _SCALAR_SIGNATURE).df
         if "threshold" in sdf and len(sdf):
-            aux["threshold"] = float(sdf["threshold"].iloc[0])
-    return aux
+            threshold = float(sdf["threshold"].iloc[0])
+    return _NeuronAux(commitment_epochs, switch_counts, threshold)

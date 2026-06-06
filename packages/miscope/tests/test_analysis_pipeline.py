@@ -37,9 +37,7 @@ def _auto_spec_register():
 
     def _register(self, analyzer):
         if not AnalyzerRegistry.has_spec(analyzer.name):
-            reg_mod._specs[analyzer.name] = AnalyzerSpec(
-                name=analyzer.name, inputs=(ModelInput(),)
-            )
+            reg_mod._specs[analyzer.name] = AnalyzerSpec(name=analyzer.name, inputs=(ModelInput(),))
             reg_mod._factories[analyzer.name] = lambda a=analyzer: a
         return original_register(self, analyzer)
 
@@ -279,7 +277,9 @@ class TestAnalysisPipelineParameterization:
             name="param_probe",
             inputs=(ModelInput(needs_cache=False),),
             outputs=(F.columnar("data", "float32", ("variant", "epoch"), "probe value"),),
-            parameters=(ParameterSpec("k", "int64", "analyzer", LiteralBinding("k", default_value)),),
+            parameters=(
+                ParameterSpec("k", "int64", "analyzer", LiteralBinding("k", default_value)),
+            ),
         )
         reg_mod._factories["param_probe"] = lambda: ParamAnalyzer()
         return ParamAnalyzer(), seen

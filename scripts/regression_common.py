@@ -31,7 +31,7 @@ from miscope.analysis.registry import AnalyzerRegistry
 
 if TYPE_CHECKING:
     from miscope.analysis.planner import Plan
-    from miscope.families.model_family import ModelFamily
+    from miscope.families.protocols import ModelFamily
     from miscope.families.variant import Variant
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

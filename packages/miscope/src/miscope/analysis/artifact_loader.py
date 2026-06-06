@@ -102,7 +102,9 @@ class ArtifactLoader:
 
     def _dir(self, analyzer_name: str) -> str:
         """Recipe-scoped blob directory for an analyzer (storage primitive)."""
-        return analyzer_dir(self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, ""))
+        return analyzer_dir(
+            self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, "")
+        )
 
     @property
     def manifest(self) -> dict[str, Any]:
@@ -256,9 +258,7 @@ class ArtifactLoader:
             scan_dir = self._dir(entry)
             if os.path.isdir(scan_dir):
                 # Check that it contains at least one epoch file
-                if any(
-                    f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(scan_dir)
-                ):
+                if any(f.startswith("epoch_") and f.endswith(".npz") for f in os.listdir(scan_dir)):
                     analyzers.append(entry)
 
         return sorted(analyzers)

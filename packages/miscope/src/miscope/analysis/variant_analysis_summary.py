@@ -193,7 +193,9 @@ class VariantAnalysisSummary:
     def _get_learned_frequencies(self, epoch_index: int) -> list[int]:
         if not self.analysis_data.neurons_loaded:
             self.analysis_data.load_neuron_data()
-        return self.analysis_data.attribution.specialized_frequencies(
+        attr = self.analysis_data.attribution
+        assert attr is not None  # load_neuron_data() populates it or raises
+        return attr.specialized_frequencies(
             epoch_index, threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY
         )
 
@@ -207,7 +209,9 @@ class VariantAnalysisSummary:
         """
         if not self.analysis_data.neurons_loaded:
             self.analysis_data.load_neuron_data()
-        return self.analysis_data.attribution.committed_frequencies(
+        attr = self.analysis_data.attribution
+        assert attr is not None  # load_neuron_data() populates it or raises
+        return attr.committed_frequencies(
             epoch_index,
             threshold=_NEURON_FRAC_EXPLAINED_BY_FREQUENCY,
             population_floor=_SPECIALIZATION_FLOOR,

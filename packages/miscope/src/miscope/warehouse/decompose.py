@@ -22,6 +22,7 @@ that belongs to a more specific one.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from enum import Enum
@@ -157,7 +158,7 @@ def assign_keys(
 
 def _best_field(
     fields: tuple[OutputField, ...],
-    parse: callable[[OutputField], dict[str, str] | None],
+    parse: Callable[[OutputField], dict[str, str] | None],
 ) -> tuple[int, OutputField, dict[str, str]] | None:
     """Pick the longest-name field whose ``parse`` succeeds (most specific wins)."""
     best: tuple[int, OutputField, dict[str, str]] | None = None

@@ -178,8 +178,7 @@ def _check_parameter(
     out: list[str] = []
     if not _valid_dtype(param.dtype):
         out.append(
-            f"analyzer {analyzer_name!r} parameter {param.name!r} has unknown "
-            f"dtype {param.dtype!r}"
+            f"analyzer {analyzer_name!r} parameter {param.name!r} has unknown dtype {param.dtype!r}"
         )
     if param.scope not in ("run", "analyzer"):
         out.append(

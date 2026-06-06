@@ -43,7 +43,6 @@ from miscope.analysis.parameters import (
     LiteralBinding,
     Parameterization,
     Reducer,
-    ReferenceBinding,
     binding_key,
     reference_default_sources,
 )

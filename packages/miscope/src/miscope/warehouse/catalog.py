@@ -58,7 +58,9 @@ def emit_columnar_rows(
     # Store the payload location relative to the warehouse root so the catalog
     # stays portable if the variant tree moves (the warehouse is regeneratable).
     rel_uri = parquet_path.relative_to(paths.warehouse_dir(variant)).as_posix()  # type: ignore[arg-type]
-    run_set = str(df["run_set"].iloc[0]) if "run_set" in df.columns and len(df) else paths.DEFAULT_RUN_SET
+    run_set = (
+        str(df["run_set"].iloc[0]) if "run_set" in df.columns and len(df) else paths.DEFAULT_RUN_SET
+    )
     rows = [
         ColumnarCatalogRow(
             id=f"{variant_id}/{run_set}/{table}/{sig_token}/{col}",

@@ -13,11 +13,16 @@ consumer migration; this reader serves the new warehouse tables only.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
 from miscope.analysis.output_schema import Coord
 from miscope.warehouse import paths, schema
+
+if TYPE_CHECKING:
+    from miscope.families.variant import Variant
+    from miscope.warehouse.writer import MaterializeReport
 
 
 @dataclass(frozen=True)
@@ -49,10 +54,10 @@ class WarehouseAccessor:
     materialized tables and triggers (re)materialization.
     """
 
-    def __init__(self, variant: object) -> None:
+    def __init__(self, variant: Variant) -> None:
         self._variant = variant
 
-    def materialize(self) -> object:
+    def materialize(self) -> MaterializeReport:
         """(Re)materialize this variant's columnar warehouse from its npz artifacts."""
         from miscope.warehouse.writer import materialize_variant_columnar
 
@@ -60,7 +65,7 @@ class WarehouseAccessor:
 
     def tables(self) -> list[str]:
         """Materialized table names under the warehouse root."""
-        wdir = paths.warehouse_dir(self._variant)  # type: ignore[arg-type]
+        wdir = paths.warehouse_dir(self._variant)
         if not wdir.exists():
             return []
         return sorted(

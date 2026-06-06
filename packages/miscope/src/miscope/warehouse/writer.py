@@ -24,6 +24,7 @@ import shutil
 from collections import defaultdict
 from dataclasses import dataclass
 from dataclasses import field as dc_field
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -34,6 +35,15 @@ from miscope.warehouse import catalog as catalog_mod
 from miscope.warehouse import mapping, mapping_semantic, paths, schema
 from miscope.warehouse.decompose import KeyMatch, assign_keys, get_decomp
 from miscope.warehouse.flatten import flatten_field
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import numpy as np
+
+    from miscope.analysis.spec import AnalyzerSpec
+    from miscope.families.variant import Variant
+    from miscope.warehouse.decompose import AnalyzerDecomp
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +67,7 @@ class _FieldFrame:
 
 
 def materialize_variant_columnar(
-    variant: object, run_set: str = paths.DEFAULT_RUN_SET
+    variant: Variant, run_set: str = paths.DEFAULT_RUN_SET
 ) -> MaterializeReport:
     """Materialize a variant's columnar analyzer outputs to Parquet (REQ_110A).
 
@@ -67,7 +77,7 @@ def materialize_variant_columnar(
     today's empty-recipe artifacts); the column reconciles by name with any future
     parameterized plane in the cross-variant union.
     """
-    report = MaterializeReport(variant_id=variant.name)  # type: ignore[attr-defined]
+    report = MaterializeReport(variant_id=variant.name)
     # Deterministic regeneration: wipe the prior columnar outputs so a field that
     # moved tables (generic <-> semantic) leaves no stale Parquet behind. The wipe
     # is selective — it preserves the 110-B tensor catalog so the two halves of
@@ -97,7 +107,7 @@ def materialize_variant_columnar(
             logger.warning(
                 "warehouse materialize: analyzer %r failed on variant %s, skipping (%s: %s)",
                 spec.name,
-                variant.name,  # type: ignore[attr-defined]
+                variant.name,
                 type(exc).__name__,
                 exc,
             )
@@ -107,7 +117,7 @@ def materialize_variant_columnar(
     return report
 
 
-def _scoped_specs(variant: object) -> list[object]:
+def _scoped_specs(variant: Variant) -> list[AnalyzerSpec]:
     """Analyzer specs in scope for materialization — the family's declared set.
 
     REQ_140: ``family.json`` (via ``AnalyzerRegistry.list_for_family``) is the
@@ -117,11 +127,11 @@ def _scoped_specs(variant: object) -> list[object]:
     whose leftover artifacts aborted the pass. Sorted by name so output ordering
     matches the prior registry iteration (byte-identical on baselines).
     """
-    specs = AnalyzerRegistry.list_for_family(variant.family)  # type: ignore[attr-defined]
+    specs = AnalyzerRegistry.list_for_family(variant.family)
     return sorted(specs, key=lambda s: s.name)
 
 
-def _emit_outcomes(variant: object, run_set: str, report: MaterializeReport) -> None:
+def _emit_outcomes(variant: Variant, run_set: str, report: MaterializeReport) -> None:
     """Co-emit the per-variant outcome rollup (REQ_110D), if the summary exists.
 
     A cross-analyzer rollup, not an analyzer output — sourced from
@@ -141,23 +151,25 @@ def _emit_outcomes(variant: object, run_set: str, report: MaterializeReport) -> 
 # ---------------------------------------------------------------------------
 
 
-def _build_field_frames(variant: object, spec: object) -> list[_FieldFrame]:
-    decomp = get_decomp(spec.name)  # type: ignore[attr-defined]
-    if spec.output_scope == "per_epoch":  # type: ignore[attr-defined]
+def _build_field_frames(variant: Variant, spec: AnalyzerSpec) -> list[_FieldFrame]:
+    decomp = get_decomp(spec.name)
+    if spec.output_scope == "per_epoch":
         return _per_epoch_frames(variant, spec, decomp)
     return _cross_epoch_frames(variant, spec, decomp)
 
 
-def _per_epoch_frames(variant: object, spec: object, decomp: object) -> list[_FieldFrame]:
-    loader = variant.artifacts  # type: ignore[attr-defined]
-    epochs = loader.get_epochs(spec.name)  # type: ignore[attr-defined]
+def _per_epoch_frames(
+    variant: Variant, spec: AnalyzerSpec, decomp: AnalyzerDecomp
+) -> list[_FieldFrame]:
+    loader = variant.artifacts
+    epochs = loader.get_epochs(spec.name)
     if not epochs:
         return []
     parts: dict[str, list[pd.DataFrame]] = defaultdict(list)
     fields: dict[str, OutputField] = {}
     loose: set[str] = set()
     for epoch in epochs:
-        npz = loader.load_epoch(spec.name, epoch)  # type: ignore[attr-defined]
+        npz = loader.load_epoch(spec.name, epoch)
         labels = _resolve_labels(decomp, npz, epoch_axis=False)
         for m in _columnar_matches(spec, npz):
             df = flatten_field(
@@ -176,10 +188,12 @@ def _per_epoch_frames(variant: object, spec: object, decomp: object) -> list[_Fi
     return _concat_parts(parts, fields, loose)
 
 
-def _cross_epoch_frames(variant: object, spec: object, decomp: object) -> list[_FieldFrame]:
-    loader = variant.artifacts  # type: ignore[attr-defined]
+def _cross_epoch_frames(
+    variant: Variant, spec: AnalyzerSpec, decomp: AnalyzerDecomp
+) -> list[_FieldFrame]:
+    loader = variant.artifacts
     try:
-        npz = loader.load_cross_epoch(spec.name)  # type: ignore[attr-defined]
+        npz = loader.load_cross_epoch(spec.name)
     except FileNotFoundError:
         return []
     labels = _resolve_labels(decomp, npz, epoch_axis=True)
@@ -204,8 +218,8 @@ def _cross_epoch_frames(variant: object, spec: object, decomp: object) -> list[_
     return _concat_parts(parts, fields, loose)
 
 
-def _columnar_matches(spec: object, npz: dict) -> list[KeyMatch]:
-    matches = assign_keys(spec.name, spec.outputs, tuple(npz.keys()))  # type: ignore[attr-defined]
+def _columnar_matches(spec: AnalyzerSpec, npz: dict) -> list[KeyMatch]:
+    matches = assign_keys(spec.name, spec.outputs, tuple(npz.keys()))
     return [m for m in matches if m.field.kind is FieldKind.COLUMNAR]
 
 
@@ -223,9 +237,11 @@ def _concat_parts(
     return out
 
 
-def _resolve_labels(decomp: object, npz: dict, *, epoch_axis: bool) -> dict[Coord, object]:
-    labels: dict[Coord, object] = {}
-    for coord, field_name in decomp.axis_labels.items():  # type: ignore[attr-defined]
+def _resolve_labels(
+    decomp: AnalyzerDecomp, npz: dict, *, epoch_axis: bool
+) -> dict[Coord, np.ndarray]:
+    labels: dict[Coord, np.ndarray] = {}
+    for coord, field_name in decomp.axis_labels.items():
         if field_name in npz:
             labels[coord] = npz[field_name]
     if epoch_axis and "epochs" in npz:
@@ -269,7 +285,7 @@ def _collect_semantic(
 
 
 def _emit_generic(
-    variant: object,
+    variant: Variant,
     analyzer_name: str,
     field_frames: list[_FieldFrame],
     variant_cols: dict[str, object],
@@ -298,7 +314,7 @@ def _emit_generic(
 
 
 def _emit_semantic(
-    variant: object,
+    variant: Variant,
     semantic: dict[str, _SemanticAcc],
     variant_cols: dict[str, object],
     report: MaterializeReport,
@@ -357,16 +373,16 @@ def _merge_on_coords(frames: list[pd.DataFrame]) -> pd.DataFrame:
 
 
 def _write_table(
-    variant: object,
+    variant: Variant,
     table: str,
-    path: object,
+    path: Path,
     coords_str: str,
     sig_token: str,
     df: pd.DataFrame,
     value_columns: tuple[str, ...],
     report: MaterializeReport,
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)  # type: ignore[attr-defined]
+    path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, engine="pyarrow", compression="snappy", index=False)
     report.files_written.append(str(path))
     report.tables[table] = report.tables.get(table, 0) + len(df)
@@ -378,13 +394,13 @@ def _write_table(
         df,
         path,
         value_columns,
-        variant.name,  # type: ignore[attr-defined]
+        variant.name,
     )
 
 
-def _wipe_columnar_outputs(variant: object) -> None:
+def _wipe_columnar_outputs(variant: Variant) -> None:
     """Remove the columnar warehouse children, preserving the tensor catalog (110-B)."""
-    wdir = paths.warehouse_dir(variant)  # type: ignore[arg-type]
+    wdir = paths.warehouse_dir(variant)
     if not wdir.exists():
         return
     for child in wdir.iterdir():
@@ -393,7 +409,7 @@ def _wipe_columnar_outputs(variant: object) -> None:
         shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
 
 
-def _variant_columns(variant: object, run_set: str) -> dict[str, object]:
+def _variant_columns(variant: Variant, run_set: str) -> dict[str, object]:
     """Leading key columns: ``variant_id`` + family domain params + ``run_set``.
 
     ``run_set`` (REQ_138) is the parameterization coordinate every row is keyed by;

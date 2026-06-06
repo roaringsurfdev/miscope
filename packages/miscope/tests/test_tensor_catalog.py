@@ -214,7 +214,9 @@ def test_round_trip_reconstructs_original_arrays(variant):
     power = next(i for i, r in by_id.items() if r["field"] == "power")
     np.testing.assert_array_equal(arrays[power], ref[("weight_basis_projection", "mlp_out_power")])
     proj = next(i for i, r in by_id.items() if r["field"] == "projections")
-    np.testing.assert_array_equal(arrays[proj], ref[("parameter_trajectory", "group_8__projections")])
+    np.testing.assert_array_equal(
+        arrays[proj], ref[("parameter_trajectory", "group_8__projections")]
+    )
 
 
 def test_tensor_catalog_survives_columnar_rematerialize(variant):

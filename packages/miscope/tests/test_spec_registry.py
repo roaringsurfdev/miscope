@@ -497,8 +497,7 @@ def test_secondary_spec_requires_matches_depends_on():
         analyzer = AnalyzerRegistry.create(spec.name)
         if len(spec.requires) != 1:
             mismatches.append(
-                f"{spec.name}: secondary Spec.requires has {len(spec.requires)} items "
-                f"(expected 1)"
+                f"{spec.name}: secondary Spec.requires has {len(spec.requires)} items (expected 1)"
             )
             continue
         if spec.requires[0] != analyzer.depends_on:

@@ -93,7 +93,7 @@ class FieldIndex:
     index: int
 
 
-Selector = Union[Reducer, FieldIndex]
+Selector = Union[Reducer, FieldIndex]  # noqa: UP007
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +132,7 @@ class ReferenceBinding:
     """Consuming analyzer for analyzer-local scope; ``None`` for run-level."""
 
 
-Binding = Union[LiteralBinding, ReferenceBinding]
+Binding = Union[LiteralBinding, ReferenceBinding]  # noqa: UP007
 
 
 def binding_key(binding: Binding) -> tuple[str | None, str]:

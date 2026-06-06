@@ -66,9 +66,7 @@ def test_empty_parameterization_projects_to_empty_recipe():
 
 def test_local_binding_lands_only_on_declaring_analyzer_and_its_dependents():
     specs = _specs()
-    pin = Parameterization(
-        bindings=(LiteralBinding("reference_epoch", 20000, analyzer="dmd"),)
-    )
+    pin = Parameterization(bindings=(LiteralBinding("reference_epoch", 20000, analyzer="dmd"),))
     # dmd declares it -> recipe; downstream reads dmd (closure) -> recipe (transitive);
     # grouping is upstream of dmd, not downstream -> empty; unrelated -> empty.
     assert not project_recipe("dmd", pin, specs).is_empty

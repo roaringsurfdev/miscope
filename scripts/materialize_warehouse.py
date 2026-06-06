@@ -15,12 +15,16 @@ artifacts — this script is the regeneration entry point (REQ_110A).
 from __future__ import annotations
 
 import argparse
+from typing import TYPE_CHECKING
 
 import miscope
 from miscope.warehouse import materialize_variant_columnar
 
+if TYPE_CHECKING:
+    from miscope.families.variant import Variant
 
-def _report(variant: object) -> None:
+
+def _report(variant: Variant) -> None:
     rep = materialize_variant_columnar(variant)
     print(f"[{rep.variant_id}] {len(rep.files_written)} files across {len(rep.tables)} tables")
     for table, rows in sorted(rep.tables.items()):

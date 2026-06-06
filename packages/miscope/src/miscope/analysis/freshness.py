@@ -153,7 +153,9 @@ def check_reference_freshness(
     for spec in specs:
         for param in getattr(spec, "parameters", ()):
             default = param.default
-            if not (isinstance(default, ReferenceBinding) and isinstance(default.selector, Reducer)):
+            if not (
+                isinstance(default, ReferenceBinding) and isinstance(default.selector, Reducer)
+            ):
                 continue
             stored = _stored_reference_value(loader, spec.name, param.name)
             resolved = None

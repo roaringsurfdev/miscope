@@ -32,7 +32,7 @@ def _attribution(monkeypatch, dominant_freq_0idx: np.ndarray, frac: np.ndarray, 
     frame = pd.DataFrame(rows)
 
     monkeypatch.setattr(nf, "_read_attribution", lambda variant: frame)
-    monkeypatch.setattr(nf, "_read_aux", lambda variant: {})
+    monkeypatch.setattr(nf, "_read_aux", lambda variant: nf._NeuronAux())
     return nf.load(object())
 
 

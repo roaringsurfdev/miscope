@@ -17,6 +17,7 @@ Two responsibilities:
 from __future__ import annotations
 
 from enum import Enum
+from typing import cast
 
 import pandas as pd
 
@@ -95,7 +96,7 @@ def assemble_table(
             df = df.drop(columns=[col])
         df.insert(0, col, val)
 
-    return df[_ordered_columns(df, tuple(variant_cols.keys()))]
+    return cast(pd.DataFrame, df[_ordered_columns(df, tuple(variant_cols.keys()))])
 
 
 def _ordered_columns(df: pd.DataFrame, variant_cols: tuple[str, ...]) -> list[str]:

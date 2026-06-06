@@ -50,9 +50,7 @@ def find_deprecated_artifact_dirs(variant: Variant, active: set[str]) -> list[Pa
     artifacts_dir = variant.artifacts_dir
     if not artifacts_dir.exists():
         return []
-    return sorted(
-        d for d in artifacts_dir.iterdir() if d.is_dir() and d.name not in active
-    )
+    return sorted(d for d in artifacts_dir.iterdir() if d.is_dir() and d.name not in active)
 
 
 def prune_family(family: ModelFamily, *, apply: bool) -> int:

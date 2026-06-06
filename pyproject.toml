@@ -61,8 +61,37 @@ known-first-party = ["miscope", "dashboard"]
 [tool.pyright]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
+# Mirror pytest's `pythonpath = ["scripts"]` so callers that import the shared
+# regression-harness modules (the way the scripts do) resolve.
+extraPaths = ["scripts"]
 ignore = [
     "*.ipynb",
     "apps/research/sketches",
     "docs",
 ]
+
+# Tests duck-type domain objects (_FakeVariant, _FakeLoader) and lean on pandas /
+# numpy, whose partial inline stubs trip basic-mode checks (Series vs ndarray,
+# numpy scalars). That is fixture noise, not bugs — relax the affected rules for
+# the test trees only; src stays strict.
+[[tool.pyright.executionEnvironments]]
+root = "packages/miscope/tests"
+reportArgumentType = false
+reportAttributeAccessIssue = false
+reportOptionalMemberAccess = false
+reportGeneralTypeIssues = false
+
+[[tool.pyright.executionEnvironments]]
+root = "apps/dashboard/tests"
+reportArgumentType = false
+reportAttributeAccessIssue = false
+reportOptionalMemberAccess = false
+reportGeneralTypeIssues = false
+
+[[tool.pyright.executionEnvironments]]
+root = "tests/integration"
+extraPaths = ["scripts"]
+reportArgumentType = false
+reportAttributeAccessIssue = false
+reportOptionalMemberAccess = false
+reportGeneralTypeIssues = false

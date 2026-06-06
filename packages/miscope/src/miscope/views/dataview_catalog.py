@@ -42,7 +42,8 @@ class DataViewField:
         shape_or_columns: For ndarrays, a description of shape (e.g., "(n_epochs, n_freqs)").
             For DataFrames, a list of column names.
         coords: REQ_107 coordinate keys for this field (the join keys). Optional;
-            empty until populated for a given view.
+            empty until populated for a given view. ``__post_init__`` also coerces
+            bare string values to ``Coord`` for defensiveness.
         kind: REQ_107 storage nature (columnar|tensor). Defaults to the mapping of
             ``field_type`` so existing views need no change.
     """

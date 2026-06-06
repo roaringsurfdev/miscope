@@ -36,7 +36,7 @@ import zipfile
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from pathlib import Path
-from typing import Any
+from typing import IO, Any, cast
 
 import numpy as np
 import numpy.lib.format as npformat
@@ -259,7 +259,12 @@ def _build_row(
 
 
 def _row_id(
-    variant_id: object, analyzer: str, field: str, epoch: int | None, site: str | None, group: str | None
+    variant_id: object,
+    analyzer: str,
+    field: str,
+    epoch: int | None,
+    site: str | None,
+    group: str | None,
 ) -> str:
     """Deterministic surrogate key — survives recompute, stable across runs."""
     parts = [str(variant_id), analyzer, field]
@@ -286,7 +291,9 @@ def _write_descriptors(
     df = pd.DataFrame([r.to_flat() for r in rows])
     params = {col: val for col, val in variant_cols.items() if col != "variant_id"}
     for col, val in reversed(list(params.items())):  # keep declared param order
-        df.insert(df.columns.get_loc("variant_id") + 1, col, val)
+        # variant_id is unique, so get_loc returns an int position.
+        variant_id_pos = cast(int, df.columns.get_loc("variant_id"))
+        df.insert(variant_id_pos + 1, col, val)
     _stabilize_coord_dtypes(df)
     df.to_parquet(path, engine="pyarrow", compression="snappy", index=False)
     return str(path)
@@ -458,9 +465,9 @@ def _inspect_npz(path: Path) -> dict[str, _MemberMeta]:
     return out
 
 
-def _read_header(fp: object) -> tuple[tuple[int, ...], str]:
+def _read_header(fp: IO[bytes]) -> tuple[tuple[int, ...], str]:
     """Read an npy stream's header -> (shape, dtype string). Header bytes only."""
-    version = npformat.read_magic(fp)  # type: ignore[arg-type]
+    version = npformat.read_magic(fp)
     reader = _HEADER_READERS.get(version)
     if reader is None:
         raise ValueError(f"unsupported npy header version {version}")

@@ -280,9 +280,7 @@ def test_one_malformed_artifact_is_contained_not_fatal(tmp_path):
     bad = v.variant_dir / "artifacts" / "weight_spectra" / "epoch_00000.npz"
     bad.parent.mkdir(parents=True, exist_ok=True)
     bad.write_bytes(b"not a real npz")
-    v.family = _scoped_family(
-        ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
-    )
+    v.family = _scoped_family(("fourier_frequency_quality", "neuron_dynamics", "weight_spectra"))
 
     report = materialize_variant_columnar(v)
 

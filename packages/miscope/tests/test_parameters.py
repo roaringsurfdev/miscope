@@ -94,7 +94,10 @@ def test_bad_parameter_dtype_fails_load():
 def test_bad_parameter_scope_fails_load():
     idx = reg.load()
     bad = ParameterSpec(
-        "p", dtype="int64", scope="global", default=LiteralBinding("p", 1)  # type: ignore[arg-type]
+        "p",
+        dtype="int64",
+        scope="global",
+        default=LiteralBinding("p", 1),  # type: ignore[arg-type]
     )
     with pytest.raises(RegistryError, match="unknown scope"):
         validate(_spec_with_parameters(idx, (bad,)))

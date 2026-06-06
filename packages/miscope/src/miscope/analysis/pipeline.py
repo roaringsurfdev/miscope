@@ -84,7 +84,9 @@ class AnalysisPipeline:
 
     def _recipe_dir(self, analyzer_name: str) -> str:
         """Recipe-scoped write/scan directory for an analyzer (REQ_138 storage primitive)."""
-        return analyzer_dir(self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, ""))
+        return analyzer_dir(
+            self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, "")
+        )
 
     def register(self, analyzer: Analyzer) -> AnalysisPipeline:
         """Register an analyzer with the pipeline.
@@ -334,16 +336,13 @@ class AnalysisPipeline:
         if not self.config.analyzers:
             return list(analyzers)
         from miscope.analysis.inputs import derive_has_model_input
-        from miscope.analysis.registry import AnalyzerRegistry
 
         config_names = set(self.config.analyzers)
         kept: list[Analyzer] = []
         for analyzer in analyzers:
             spec = self._spec_for(analyzer)
             artifact_only = (
-                spec is not None
-                and not derive_has_model_input(spec.inputs)
-                and bool(spec.requires)
+                spec is not None and not derive_has_model_input(spec.inputs) and bool(spec.requires)
             )
             if artifact_only and analyzer.name not in config_names:
                 continue
