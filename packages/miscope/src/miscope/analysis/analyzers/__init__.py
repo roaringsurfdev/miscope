@@ -25,6 +25,9 @@ from miscope.analysis.analyzers.intragroup_manifold import IntraGroupManifoldAna
 from miscope.analysis.analyzers.landscape_flatness import LandscapeFlatnessAnalyzer
 from miscope.analysis.analyzers.neuron_activations import NeuronActivationsAnalyzer
 from miscope.analysis.analyzers.neuron_dynamics import NeuronDynamicsAnalyzer
+from miscope.analysis.analyzers.neuron_frequency_attribution import (
+    NeuronFrequencyAttributionAnalyzer,
+)
 
 
 # Secondary Analyzers
@@ -40,7 +43,6 @@ from miscope.analysis.analyzers.parameter_dmd import ParameterDMD
 from miscope.analysis.analyzers.parameter_trajectory import ParameterTrajectory
 from miscope.analysis.analyzers.registry import AnalyzerRegistry
 from miscope.analysis.analyzers.repr_geometry import RepresentationalGeometryAnalyzer
-from miscope.analysis.analyzers.transient_frequency import TransientFrequencyAnalyzer
 from miscope.analysis.analyzers.weight_spectra import WeightSpectraAnalyzer
 
 
@@ -54,6 +56,7 @@ __all__ = [
     "LandscapeFlatnessAnalyzer",
     "NeuronActivationsAnalyzer",
     "NeuronDynamicsAnalyzer",
+    "NeuronFrequencyAttributionAnalyzer",
     "ParameterSnapshotAnalyzer",
     "ParameterTrajectory",
     "RepresentationalGeometryAnalyzer",
@@ -65,7 +68,6 @@ __all__ = [
     "FreqGroupWeightGeometryAnalyzer",
     "IntraGroupManifoldAnalyzer",
     "NeuronGroupPCAAnalyzer",
-    "TransientFrequencyAnalyzer",
     "NeuronGrouping",
     "ParameterDMD",
     "WeightBasisProjectionAnalyzer",

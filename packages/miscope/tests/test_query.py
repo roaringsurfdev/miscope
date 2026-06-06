@@ -24,7 +24,12 @@ class _FakeFamily:
     name = "modulo_addition_1layer"
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
     # Declared analyzer scope (REQ_140): the materializer iterates this set.
-    analyzers = ("fourier_frequency_quality", "neuron_dynamics", "parameter_snapshot")
+    analyzers = (
+        "fourier_frequency_quality",
+        "neuron_frequency_attribution",
+        "neuron_dynamics",
+        "parameter_snapshot",
+    )
 
     def __init__(self, variants_dir: Path) -> None:
         self.variants_dir = variants_dir
@@ -62,11 +67,18 @@ def _seed_columnar(variant: _FakeVariant, n_neurons: int = 4) -> None:
             k=np.int32(3),
             reconstruction_error=np.float32(0.01),
         )
+    # REQ_141: per-epoch attribution feeds the neuron_frequency_attribution table.
+    dominant_by_epoch = {0: [0, 5, 9, 5], 100: [5, 5, 9, 0]}
+    frac_by_epoch = {0: [0.1, 0.4, 0.7, 0.3], 100: [0.5, 0.4, 0.8, 0.2]}
+    for epoch in (0, 100):
+        _write_npz(
+            art / "neuron_frequency_attribution" / f"epoch_{epoch:05d}.npz",
+            dominant_freq=np.array(dominant_by_epoch[epoch], dtype=np.int64),
+            max_frac=np.array(frac_by_epoch[epoch], dtype=np.float64),
+        )
     _write_npz(
         art / "neuron_dynamics" / "cross_epoch.npz",
         epochs=np.array([0, 100], dtype=np.int64),
-        dominant_freq=np.array([[0, 5, 9, 5], [5, 5, 9, 0]], dtype=np.int64),
-        max_frac=np.array([[0.1, 0.4, 0.7, 0.3], [0.5, 0.4, 0.8, 0.2]], dtype=np.float32),
         switch_counts=np.arange(n_neurons, dtype=np.int32),
         commitment_epochs=np.full(n_neurons, 100.0, dtype=np.float64),
         threshold=np.float64(0.05),

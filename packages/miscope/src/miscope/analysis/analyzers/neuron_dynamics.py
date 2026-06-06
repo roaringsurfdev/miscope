@@ -1,13 +1,17 @@
-"""REQ_042: Neuron dynamics cross-epoch analyzer.
+"""REQ_042 / REQ_141: Neuron dynamics cross-epoch analyzer.
 
-Consumes activation_basis_projection per-epoch artifacts (the mlp_out site)
-and produces per-neuron frequency trajectory metrics: dominant frequency over
-time, switch counts, and commitment epochs.
+Produces the *genuinely cross-epoch* per-neuron frequency-dynamics metrics:
+frequency switch counts and commitment epochs (plus the epoch axis and the
+uncommitted-frequency threshold they are computed under).
 
-REQ_131: re-pointed off the legacy neuron_freq_norm artifact onto the generic
-activation_basis_projection, reconstructing the per-epoch norm_matrix on the
-fly (behavior-preserving — see reconstruct_neuron_freq_norm). Streams one epoch
-at a time so the large per-epoch power cube is never stacked across epochs.
+REQ_141 (bucket-1): the per-epoch ``dominant_freq`` / ``max_frac`` attribution —
+a per-epoch fact this analyzer used to back-fill by stacking an
+``(n_epochs, n_freq, d_mlp)`` norm cube — now belongs to the per-epoch
+``neuron_frequency_attribution`` analyzer. This analyzer *streams* that per-epoch
+output (small ``(d_mlp,)`` vectors) and stacks only the ``(n_epochs, d_mlp)``
+dominant/frac trajectories it needs for the switch/commitment reductions; the
+``(n_epochs, n_freq, d_mlp)`` cube is gone. The switch/commitment computations are
+unchanged, so their values are identical.
 """
 
 from typing import Any
@@ -15,39 +19,21 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
-from miscope.analysis.library import (
-    NEURON_FREQ_NORM_FIELDS,
-    reconstruct_neuron_freq_norm,
-)
+from miscope.analysis.library.fourier_basis import get_fourier_basis
 from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
-# The conformed (variant, epoch, neuron) → dominant-frequency relation. REQ_107
-# flags this as the canonical join target the re-derivation Problem Statement
-# cites (consumers should join dominant_freq, not re-argmax neuron_freq_norm).
 SPEC = AnalyzerSpec(
     name="neuron_dynamics",
     output_scope="cross_epoch",
-    inputs=(ArtifactInput("activation_basis_projection"),),
+    inputs=(ArtifactInput("neuron_frequency_attribution"),),
     outputs=(
         F.columnar(
             "epochs",
             "int64",
             ("variant", "epoch"),
             "Epoch axis labels for the per-epoch trajectories.",
-        ),
-        F.columnar(
-            "dominant_freq",
-            "int64",
-            ("variant", "epoch", "neuron"),
-            "Dominant frequency index (0-based argmax) per neuron per epoch.",
-        ),
-        F.columnar(
-            "max_frac",
-            "float32",
-            ("variant", "epoch", "neuron"),
-            "Fraction of Fourier norm in the dominant frequency per neuron per epoch.",
         ),
         F.columnar(
             "switch_counts",
@@ -68,68 +54,62 @@ SPEC = AnalyzerSpec(
             "Uncommitted-frequency floor (3/n_freq) used at analysis time.",
         ),
     ),
+    version=2,  # v2 (REQ_141): dominant_freq/max_frac moved to neuron_frequency_attribution
 )
 
 
 @register_analyzer(SPEC)
 class NeuronDynamicsAnalyzer:
-    """Cross-epoch analyzer for neuron frequency dynamics.
+    """Cross-epoch analyzer for neuron frequency dynamics (switch + commitment).
 
-    Precomputes per-neuron dominant frequency trajectories, frequency
-    switch counts, and commitment epochs so the dashboard can render
-    neuron dynamics visualizations without loading all per-epoch data.
+    Streams the per-epoch ``neuron_frequency_attribution`` output and reduces it
+    over the epoch axis. The dashboard renders neuron dynamics from the conformed
+    attribution table plus these cross-epoch scalars.
     """
 
     name = "neuron_dynamics"
-    requires = ["activation_basis_projection"]
+    requires = ["neuron_frequency_attribution"]
 
     def analyze(
         self,
         inputs: ResolvedInputs,
         context: dict[str, Any],
     ) -> dict[str, np.ndarray]:
-        """Compute neuron frequency dynamics across all epochs."""
+        """Compute cross-epoch switch counts + commitment epochs by streaming."""
         assert inputs.deps is not None
         assert inputs.epochs is not None
         prime = int(context["params"]["prime"])
 
-        # Stream the run's analyzed epochs (not whatever artifacts happen to
-        # exist on disk) so the output epoch axis stays aligned with the other
-        # per-checkpoint analyzers that downstream summaries index by. Reconstruct
-        # the small (n_freq, d_mlp) norm_matrix per epoch and keep only that —
-        # the large per-epoch power cube is never stacked across epochs.
-        epochs: list[int] = []
-        norm_matrices: list[np.ndarray] = []
-        for epoch, projection in inputs.deps.stream(
-            "activation_basis_projection",
-            epochs=sorted(inputs.epochs),
-            fields=NEURON_FREQ_NORM_FIELDS,
-        ):
-            epochs.append(int(epoch))
-            norm_matrices.append(reconstruct_neuron_freq_norm(projection, prime))
-
-        norm_matrix = np.stack(norm_matrices, axis=0)  # (n_epochs, n_freq, d_mlp)
-        n_epochs, n_freq, d_mlp = norm_matrix.shape
-
-        # Uncommitted threshold: 3× uniform baseline
+        # n_freq is the family basis frequency count — the same value the old path
+        # read off norm_matrix.shape[1] (reconstruct yields (n_freq, d_mlp) with
+        # n_freq == basis.n_frequencies), so the 3/n_freq threshold is identical.
+        n_freq = get_fourier_basis(prime).n_frequencies
         threshold = 3.0 / n_freq
 
-        # Per-neuron dominant frequency and max frac at each epoch
-        dominant_freq = np.argmax(norm_matrix, axis=1)  # (n_epochs, d_mlp)
-        max_frac = np.max(norm_matrix, axis=1)  # (n_epochs, d_mlp)
+        # Stream the per-epoch attribution; stack only the (n_epochs, d_mlp)
+        # dominant/frac trajectories — never the (n_epochs, n_freq, d_mlp) cube.
+        epochs: list[int] = []
+        dom_rows: list[np.ndarray] = []
+        frac_rows: list[np.ndarray] = []
+        for epoch, attribution in inputs.deps.stream(
+            "neuron_frequency_attribution",
+            epochs=sorted(inputs.epochs),
+            fields=["dominant_freq", "max_frac"],
+        ):
+            epochs.append(int(epoch))
+            dom_rows.append(attribution["dominant_freq"])
+            frac_rows.append(attribution["max_frac"])
 
-        # Switch counts: times each neuron changes dominant frequency
+        dominant_freq = np.stack(dom_rows, axis=0)  # (n_epochs, d_mlp)
+        max_frac = np.stack(frac_rows, axis=0)  # (n_epochs, d_mlp)
+
         switch_counts = _compute_switch_counts(dominant_freq, max_frac, threshold)
-
-        # Commitment epochs: when each neuron locks into its final frequency
         commitment_epochs = _compute_commitment_epochs(
             dominant_freq, max_frac, np.array(epochs), threshold
         )
 
         return {
             "epochs": np.array(epochs),
-            "dominant_freq": dominant_freq,
-            "max_frac": max_frac,
             "switch_counts": switch_counts,
             "commitment_epochs": commitment_epochs,
             "threshold": np.array([threshold]),

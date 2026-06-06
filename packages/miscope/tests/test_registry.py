@@ -71,16 +71,18 @@ def test_search_is_case_insensitive():
 
 
 def test_field_reverse_lookup_reports_producer_coords_and_consumers():
+    # REQ_141: dominant_freq is now produced by the per-epoch
+    # neuron_frequency_attribution analyzer; neuron_dynamics consumes it.
     info = reg.field("dominant_freq")
     producers = {an for an, _ in info.producers}
-    assert "neuron_dynamics" in producers
-    (_, fld) = next(f for f in info.producers if f[0] == "neuron_dynamics")
+    assert "neuron_frequency_attribution" in producers
+    (_, fld) = next(f for f in info.producers if f[0] == "neuron_frequency_attribution")
     assert fld.coord_names == ("variant", "epoch", "neuron")
     assert fld.kind.value == "columnar"
     # Consumers: the neuron_dynamics.raw DataView (field-level) and the
-    # transient_frequency analyzer (artifact-level).
+    # neuron_dynamics analyzer (artifact-level — it streams the attribution).
     assert "neuron_dynamics.raw" in info.dataview_consumers
-    assert "transient_frequency" in info.analyzer_consumers
+    assert "neuron_dynamics" in info.analyzer_consumers
 
 
 def test_field_unknown_returns_empty_fieldinfo():

@@ -63,7 +63,6 @@ NATURAL_WIDE_INDEX: dict[str, tuple[str, ...]] = {
     "pca_results": ("variant_id", "epoch", "group", "operation_type", "pc_index"),
     "pca_projections": ("variant_id", "epoch", "group", "operation_type", "row_id"),
     "frequency_spectrum": ("variant_id", "epoch", "site", "frequency"),
-    "learned_frequencies": ("variant_id", "epoch", "site", "frequency"),
     "neuron_frequency_attribution": ("variant_id", "epoch", "neuron", "frequency"),
     "shape_characterizations": ("variant_id", "epoch", "group", "operation_type"),
 }

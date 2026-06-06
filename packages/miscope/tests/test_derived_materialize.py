@@ -31,7 +31,7 @@ from miscope.warehouse import (
 class _FakeFamily:
     name = "modulo_addition_1layer"
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
-    analyzers = ("neuron_dynamics",)
+    analyzers = ("neuron_frequency_attribution",)
 
 
 class _FakeVariant:
@@ -51,24 +51,24 @@ class _FakeVariant:
         return self.variant_dir / "variant_summary.json"
 
 
-def _seed_neuron_dynamics(variant: _FakeVariant) -> None:
-    art = variant.variant_dir / "artifacts" / "neuron_dynamics"
+def _seed_attribution(variant: _FakeVariant) -> None:
+    """Per-epoch neuron_frequency_attribution artifacts (the conformed source)."""
+    art = variant.variant_dir / "artifacts" / "neuron_frequency_attribution"
     art.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        art / "cross_epoch",
-        epochs=np.array([0, 100], dtype=np.int64),
-        dominant_freq=np.array([[0, 5, 9, 5], [5, 5, 9, 0]], dtype=np.int64),
-        max_frac=np.array([[0.1, 0.4, 0.7, 0.3], [0.5, 0.4, 0.8, 0.2]], dtype=np.float32),
-        switch_counts=np.arange(4, dtype=np.int32),
-        commitment_epochs=np.full(4, 100.0, dtype=np.float64),
-        threshold=np.float64(0.05),
-    )
+    dominant_by_epoch = {0: [0, 5, 9, 5], 100: [5, 5, 9, 0]}
+    frac_by_epoch = {0: [0.1, 0.4, 0.7, 0.3], 100: [0.5, 0.4, 0.8, 0.2]}
+    for epoch in (0, 100):
+        np.savez_compressed(
+            art / f"epoch_{epoch:05d}",
+            dominant_freq=np.array(dominant_by_epoch[epoch], dtype=np.int64),
+            max_frac=np.array(frac_by_epoch[epoch], dtype=np.float64),
+        )
 
 
 @pytest.fixture
 def materialized_variant(tmp_path: Path) -> _FakeVariant:
     v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
-    _seed_neuron_dynamics(v)
+    _seed_attribution(v)
     materialize_variant_columnar(v)  # writes neuron_frequency_attribution
     return v
 
@@ -204,6 +204,61 @@ def test_view_mode_derived_table_registered_live(isolated_derived_registry):
     out = con.sql("SELECT epoch, c FROM view_counts ORDER BY epoch").df()
     assert list(out["epoch"]) == [0, 100]
     assert list(out["c"]) == [2, 1]
+
+
+def _seed_transient_pattern(variant: _FakeVariant) -> None:
+    """Per-epoch attribution with one transient (freq 3) and one final (freq 7) freq.
+
+    d_mlp=20. Epoch 100: neurons 0-4 commit to freq 3, neurons 5-9 to freq 7.
+    Epoch 200: freq 3 cohort abandons (max_frac drops), freq 7 cohort holds — so
+    freq 3 is transient with 5 homeless, freq 7 is final.
+    """
+    art = variant.variant_dir / "artifacts" / "neuron_frequency_attribution"
+    art.mkdir(parents=True, exist_ok=True)
+    d_mlp = 20
+    plan = {
+        0: ([0] * d_mlp, [0.5] * d_mlp),  # nothing committed
+        100: ([3] * 5 + [7] * 5 + [0] * 10, [0.9] * 10 + [0.5] * 10),
+        200: ([3] * 5 + [7] * 5 + [0] * 10, [0.5] * 5 + [0.9] * 5 + [0.5] * 10),
+    }
+    for epoch, (dom, frac) in plan.items():
+        np.savez_compressed(
+            art / f"epoch_{epoch:05d}",
+            dominant_freq=np.array(dom, dtype=np.int64),
+            max_frac=np.array(frac, dtype=np.float64),
+        )
+
+
+def test_transient_derived_tables_reproduce_analyzer(tmp_path: Path):
+    """The real transient derived tables compute committed/peak/final/homeless/members.
+
+    Exercises the registered committed_counts / transient_frequencies /
+    transient_peak_members tables end to end (the bucket-2 proof), replacing the
+    retired analyzer's unit coverage.
+    """
+    v = _FakeVariant(tmp_path, "p23_seed1_dseed2", {"prime": 23, "seed": 1, "data_seed": 2})
+    _seed_transient_pattern(v)
+    materialize_variant_columnar(v)
+    report = materialize_variant_derived(v)
+
+    assert {"committed_counts", "transient_frequencies", "transient_peak_members"} <= set(
+        report.tables
+    )
+
+    tf = read_table(v, "transient_frequencies").df.sort_values("frequency").reset_index(drop=True)
+    assert list(tf["frequency"]) == [3, 7]
+    row3 = tf[tf.frequency == 3].iloc[0]
+    row7 = tf[tf.frequency == 7].iloc[0]
+    assert row3["peak_epoch"] == 100 and row3["peak_count"] == 5
+    assert not bool(row3["is_final"]) and row3["homeless_count"] == 5  # transient, all homeless
+    assert row7["peak_epoch"] == 100 and row7["peak_count"] == 5
+    assert bool(row7["is_final"]) and row7["homeless_count"] == 0  # final, none homeless
+
+    members = read_table(v, "transient_peak_members").df
+    freq3_members = sorted(members[members.frequency == 3]["member_neuron"])
+    freq7_members = sorted(members[members.frequency == 7]["member_neuron"])
+    assert freq3_members == [0, 1, 2, 3, 4]
+    assert freq7_members == [5, 6, 7, 8, 9]
 
 
 def test_view_mode_not_materialized(materialized_variant: _FakeVariant, isolated_derived_registry):

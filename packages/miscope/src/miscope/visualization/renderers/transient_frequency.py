@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 import plotly.graph_objects as go
 
-from miscope.analysis.analyzers.transient_frequency import load_peak_members
+from miscope.analysis.transient_frequency_dim import load_peak_members
 
 _TRANSIENT_COLOR = "crimson"
 _PERSISTENT_COLOR_ALPHA = "rgba(100, 130, 200, 0.6)"

@@ -2,7 +2,7 @@
 
 A *claim* pulls a named set of an analyzer's columnar fields into one of the
 designed semantic tables (``pca_results``, ``shape_characterizations``,
-``neuron_frequency_attribution``, ``learned_frequencies``, ``frequency_spectrum``),
+``neuron_frequency_attribution``, ``frequency_spectrum``),
 reshaping them into that table's conformed schema and stamping the
 ``group_type``/``operation_type`` discriminators. Fields no claim takes fall
 through to the generic analyzer-named table (REQ_110A: designed tables + generic
@@ -156,26 +156,6 @@ def _neuron_freq_attribution() -> Reshaper:
 
 
 # ---------------------------------------------------------------------------
-# learned_frequencies — transient_frequency committed counts per (epoch, frequency)
-# ---------------------------------------------------------------------------
-
-
-def _learned_frequencies() -> Reshaper:
-    def fn(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
-        f = frames["committed_counts"]  # epoch, frequency, committed_counts
-        out = pd.DataFrame()
-        out["epoch"] = f["epoch"]
-        out["site"] = "mlp_neurons"
-        out["frequency"] = f["frequency"]
-        out["commitment_method"] = "neuron_dominant"
-        out["is_committed"] = f["committed_counts"] > 0
-        out["n_committed"] = f["committed_counts"]
-        return out
-
-    return fn
-
-
-# ---------------------------------------------------------------------------
 # frequency_spectrum — gradient_site per-frequency energy (windowed; absent on canon)
 # ---------------------------------------------------------------------------
 
@@ -270,15 +250,17 @@ CLAIMS: dict[str, list[Claim]] = {
             _shape_melt(GroupType.ACTIVATION_SITE, group_col="site"),
         ),
     ],
-    "neuron_dynamics": [
+    # REQ_141 (bucket-1): the per-epoch attribution table is now sourced from the
+    # per-epoch neuron_frequency_attribution analyzer, not the cross-epoch
+    # neuron_dynamics stack. neuron_dynamics keeps only its cross-epoch tail
+    # (switch_counts/commitment_epochs/threshold), which falls through to its
+    # generic analyzer-named table (no semantic claim).
+    "neuron_frequency_attribution": [
         Claim(
             "neuron_frequency_attribution",
             ("dominant_freq", "max_frac"),
             _neuron_freq_attribution(),
         ),
-    ],
-    "transient_frequency": [
-        Claim("learned_frequencies", ("committed_counts",), _learned_frequencies()),
     ],
     "gradient_site": [
         Claim("frequency_spectrum", ("energy",), _frequency_spectrum_energy()),

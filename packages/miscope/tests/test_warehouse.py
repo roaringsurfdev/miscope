@@ -25,7 +25,12 @@ class _FakeFamily:
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
     # Declared analyzer scope (REQ_140): the materializer iterates this set, the
     # same family.json source the run plan uses — not the global registry.
-    analyzers = ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
+    analyzers = (
+        "fourier_frequency_quality",
+        "neuron_frequency_attribution",
+        "neuron_dynamics",
+        "weight_spectra",
+    )
 
 
 class _FakeVariant:
@@ -64,13 +69,21 @@ def _seed_artifacts(variant: _FakeVariant, n_neurons: int = 4) -> None:
             k=np.int32(3),
             reconstruction_error=np.float32(0.01),
         )
-    # cross-epoch with a semantic claim: neuron_dynamics
+    # REQ_141: per-epoch attribution analyzer feeds the neuron_frequency_attribution
+    # semantic table; one npz per epoch with (d_mlp,) dominant_freq / max_frac.
+    dominant_by_epoch = {0: [0, 5, 9, 5], 100: [5, 5, 9, 0]}
+    frac_by_epoch = {0: [0.1, 0.4, 0.7, 0.3], 100: [0.5, 0.4, 0.8, 0.2]}
+    for epoch in (0, 100):
+        _write_npz(
+            art / "neuron_frequency_attribution" / f"epoch_{epoch:05d}.npz",
+            dominant_freq=np.array(dominant_by_epoch[epoch], dtype=np.int64),
+            max_frac=np.array(frac_by_epoch[epoch], dtype=np.float64),
+        )
+    # cross-epoch tail: neuron_dynamics (switch/commitment/threshold).
     epochs = np.array([0, 100], dtype=np.int64)
     _write_npz(
         art / "neuron_dynamics" / "cross_epoch.npz",
         epochs=epochs,
-        dominant_freq=np.array([[0, 5, 9, 5], [5, 5, 9, 0]], dtype=np.int64),
-        max_frac=np.array([[0.1, 0.4, 0.7, 0.3], [0.5, 0.4, 0.8, 0.2]], dtype=np.float32),
         switch_counts=np.arange(n_neurons, dtype=np.int32),
         commitment_epochs=np.full(n_neurons, 100.0, dtype=np.float64),
         threshold=np.float64(0.05),
@@ -280,7 +293,9 @@ def test_one_malformed_artifact_is_contained_not_fatal(tmp_path):
     bad = v.variant_dir / "artifacts" / "weight_spectra" / "epoch_00000.npz"
     bad.parent.mkdir(parents=True, exist_ok=True)
     bad.write_bytes(b"not a real npz")
-    v.family = _scoped_family(("fourier_frequency_quality", "neuron_dynamics", "weight_spectra"))
+    v.family = _scoped_family(
+        ("fourier_frequency_quality", "neuron_frequency_attribution", "weight_spectra")
+    )
 
     report = materialize_variant_columnar(v)
 

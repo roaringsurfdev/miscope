@@ -731,9 +731,17 @@ class VariantAnalysisSummary:
         self.summary_data["second_descent_onset_band_count"] = len(set(bands))
 
     def _load_transient_metrics(self) -> None:
-        """Populate transient frequency fields from transient_frequency artifact."""
+        """Populate transient frequency fields from the transient_frequencies table.
+
+        REQ_141 (bucket-2): ``transient_frequency`` is now the ``transient_frequencies``
+        derived table over the conformed attribution. Values are identical: the
+        not-final rows give the transient frequencies (1-indexed for the summary) and
+        the homeless-neuron total; the detection threshold is the 0.05*d_mlp fraction.
+        """
+        from miscope.warehouse.reader import read_table
+
         try:
-            tf = self.variant.artifacts.load_cross_epoch("transient_frequency")
+            tf = read_table(self.variant, "transient_frequencies").df
         except FileNotFoundError:
             self.summary_data["transient_frequencies"] = None
             self.summary_data["transient_frequency_count"] = None
@@ -742,12 +750,9 @@ class VariantAnalysisSummary:
             self.summary_data["transient_detection_threshold"] = None
             return
 
-        ever_qualified = tf["ever_qualified_freqs"]
-        is_final = tf["is_final"]
-        homeless_count = tf["homeless_count"]
-        transient_mask = ~is_final
-        transient_freqs = sorted(int(f) + 1 for f in ever_qualified[transient_mask])
-        total_homeless = int(homeless_count[transient_mask].sum())
+        not_final = tf[~tf["is_final"].astype(bool)]
+        transient_freqs = sorted(int(f) + 1 for f in np.asarray(not_final["frequency"]))
+        total_homeless = int(np.asarray(not_final["homeless_count"]).sum())
 
         attr = self._attribution()
         if attr is not None and attr.d_mlp > 0:
@@ -759,9 +764,8 @@ class VariantAnalysisSummary:
         self.summary_data["transient_frequency_count"] = len(transient_freqs)
         self.summary_data["homeless_neuron_count"] = total_homeless
         self.summary_data["homeless_neuron_fraction"] = homeless_fraction
-        self.summary_data["transient_detection_threshold"] = float(
-            tf["_transient_canonical_threshold"]
-        )
+        # The transient detection fraction (0.05 * d_mlp), carried from the derived table.
+        self.summary_data["transient_detection_threshold"] = 0.05
 
     def _load_failure_mode(self) -> None:
         """Populate failure_mode and failure_mode_reasons using cross_variant classifier."""

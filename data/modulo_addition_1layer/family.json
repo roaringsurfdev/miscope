@@ -45,6 +45,7 @@
     "neuron_grouping",
     "centroid_fourier_alignment",
     "parameter_trajectory",
+    "neuron_frequency_attribution",
     "neuron_dynamics",
     "global_centroid_pca",
     "activation_dmd",
@@ -52,7 +53,6 @@
     "input_trace_graduation",
     "neuron_group_pca",
     "intragroup_manifold",
-    "transient_frequency",
     "freq_group_weight_geometry"
   ],
   "analysis_dataset": {
