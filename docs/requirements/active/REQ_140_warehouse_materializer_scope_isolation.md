@@ -1,6 +1,7 @@
 # REQ_140: Warehouse Materializer Scope + Per-Analyzer Isolation
 
-**Status:** Active (defect surfaced during REQ_110 smoke testing).
+**Status:** Completed (implemented + validated on real data, 2026-06-06). Stays in
+`active/` until the whole REQ_110 merges to `develop` (see `feedback_req110_children_stay_active`).
 **Priority:** High — a Force=True run over any variant carrying a deprecated/stale on-disk analyzer silently loses dashboard views.
 **Branch:** `feature/REQ_110_lakehouse_surface`
 **Parent:** REQ_110 (Lakehouse Surface) — hardens the 110-A columnar materializer.
@@ -49,29 +50,29 @@ The materializer must honor that declaration, not the global registry.
 
 ## Conditions of Satisfaction
 
-- [ ] **Materializer scopes to the family's declared analyzers.**
+- [x] **Materializer scopes to the family's declared analyzers.**
   `materialize_variant_columnar` derives its analyzer set from the variant's
   family declaration (the same `list_for_family` source the run plan uses), not
   from `reg.index().analyzers`. `gradient_site` (registered, not in `family.json`)
   is never reached by materialize. One source of truth for analyzer scope across
   run and warehouse.
-- [ ] **A single analyzer's failure is contained, not fatal.** A field-frame
+- [x] **A single analyzer's failure is contained, not fatal.** A field-frame
   build that raises is caught, recorded, and skipped; every other analyzer still
   materializes and the pass writes its tables (including
   `neuron_frequency_attribution`). One bad artifact can no longer take down the
   whole warehouse.
-- [ ] **Failures are visible, not silent.** `MaterializeReport` distinguishes
+- [x] **Failures are visible, not silent.** `MaterializeReport` distinguishes
   `skipped_analyzers` (no data / empty frames — already exists) from a new
   `failed_analyzers` (name + error summary). A failed analyzer is logged at
   warning level. Silence is the failure mode we are removing.
-- [ ] **The self-heal path completes on a variant with a deprecated folder.**
+- [x] **The self-heal path completes on a variant with a deprecated folder.**
   `neuron_frequency.load` succeeds (table present after materialize), so
   `VariantAnalysisSummary` and `build_variant_registry` complete and views render
   — with the deprecated folder still physically on disk.
 
 ## Validation
 
-- [ ] **Reproduction, before vs. after** on `p101_seed485_dseed999` (carries both
+- [x] **Reproduction, before vs. after** on `p101_seed485_dseed999` (carries both
   a deprecated `gradient_site` artifact and a stale-shape `intragroup_manifold`):
   - *Before:* `variant.warehouse.materialize()` raises `IndexError` on
     `gradient_site`; no tables written.
@@ -79,23 +80,52 @@ The materializer must honor that declaration, not the global registry.
     attempted); `intragroup_manifold` lands in `failed_analyzers` (stale shape,
     an in-family artifact — a REQ_137 staleness artifact, not a real finding);
     all healthy tables written; `nf.load` succeeds.
-- [ ] **First-pass success on a sibling stale variant.** Pick another variant with
+- [x] **First-pass success on a sibling stale variant.** Pick another variant with
   the same profile (dense checkpointing + deprecated analyzers on disk) and confirm
   a Force=True run's *first* pass completes — materialize builds, views render —
   without the delete-and-rerun workaround. This is the real acceptance bar: the
   deprecated folder stays on disk and the run still succeeds. (`p101_seed485_dseed999`
   is left in its current partially-materialized state as a **self-heal canary** —
   used separately to confirm a later run recovers it, not as the first-pass test.)
-- [ ] **No regression on the three baselines** (p113/s999/ds598, p109/s485/ds598,
+- [x] **No regression on the three baselines** (p113/s999/ds598, p109/s485/ds598,
   p101/s999/ds598): the set of materialized tables and their row counts is
   unchanged for in-`family.json` analyzers (the baselines carry no deprecated
   folders, so scope-narrowing is a no-op there and output is byte-identical).
-- [ ] **Unit test for isolation:** a synthetic variant with one analyzer whose
+- [x] **Unit test for isolation:** a synthetic variant with one analyzer whose
   artifact is deliberately malformed materializes every *other* analyzer and
   reports the bad one in `failed_analyzers`.
-- [ ] **Unit test for scope:** a family declaring a subset of registered
+- [x] **Unit test for scope:** a family declaring a subset of registered
   analyzers materializes only the declared subset; a registered-but-undeclared
   analyzer with an on-disk artifact is not materialized.
+
+### Validation evidence (2026-06-06)
+
+- **Code:** `warehouse/writer.py` — new `_scoped_specs(variant)` iterates
+  `AnalyzerRegistry.list_for_family(variant.family)` (sorted by name to preserve
+  the prior registry iteration order → byte-identical output); the per-spec body
+  is wrapped in a `try/except` that records `report.failed_analyzers[name]` and
+  logs at warning level; `MaterializeReport` gains a `failed_analyzers: dict[str, str]`.
+- **Setup confirmed:** `family.json` declares 23 analyzers; registry holds 24;
+  the extra is `gradient_site` (registered, undeclared). The three baselines carry
+  no `gradient_site` folder.
+- **Before/after** demonstrated on the *sibling* `p101_seed485_dseed598` (same
+  profile: on-disk `gradient_site` + stale-shape `intragroup_manifold`) to leave
+  the `p101_seed485_dseed999` canary untouched. *Before* (HEAD `writer.py`): raises
+  `IndexError` mid-pass, no tables. *After*: 20 tables written, `gradient_site`
+  never reached, `intragroup_manifold` → `failed_analyzers` (`ValueError: field
+  axes ['epoch','group'] expect 2D array, got shape (4,)`) with a logged warning,
+  `neuron_frequency_attribution` present, and `nf.load(v)` succeeds (d_mlp 512,
+  251 epochs) with the deprecated folder still on disk.
+- **No regression:** `p113_seed999_dseed598` materialized under HEAD vs. fixed
+  `writer.py` → identical directory trees and identical aggregate SHA-256 over all
+  columnar Parquet (`3e96c05e…`). Old code reported `skipped=['gradient_site']`;
+  new code never attempts it — on-disk output byte-identical.
+- **Tests:** `packages/miscope/tests/test_warehouse.py` gains
+  `test_materializer_scopes_to_declared_analyzers` and
+  `test_one_malformed_artifact_is_contained_not_fatal`; the warehouse fake
+  families across `test_warehouse.py`, `test_query.py`, `test_run_sets.py`,
+  `test_tensor_catalog.py` now declare `analyzers` (the scope source). Full
+  package suite green: 1551 passed, 29 skipped.
 
 ---
 

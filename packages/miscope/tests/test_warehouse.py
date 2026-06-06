@@ -23,6 +23,9 @@ from miscope.warehouse.writer import materialize_variant_columnar
 class _FakeFamily:
     name = "modulo_addition_1layer"
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
+    # Declared analyzer scope (REQ_140): the materializer iterates this set, the
+    # same family.json source the run plan uses — not the global registry.
+    analyzers = ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
 
 
 class _FakeVariant:
@@ -234,3 +237,58 @@ def test_variant_outcomes_skipped_without_summary(variant):
     """No variant_summary.json -> no variant_outcomes table (no error)."""
     materialize_variant_columnar(variant)
     assert not paths.table_dir(variant, "variant_outcomes").exists()
+
+
+def _scoped_family(analyzers: tuple[str, ...]) -> _FakeFamily:
+    """A family declaring an explicit analyzer scope (REQ_140)."""
+    fam = _FakeFamily()
+    fam.analyzers = analyzers
+    return fam
+
+
+def test_materializer_scopes_to_declared_analyzers(tmp_path):
+    """REQ_140: a registered-but-undeclared analyzer on disk is not materialized.
+
+    The family declares only ``fourier_frequency_quality``; ``neuron_dynamics`` is
+    registered and has artifacts on disk, but is out of the family's scope. Only
+    the declared subset materializes — the materializer honors family.json, not the
+    global registry.
+    """
+    v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    _seed_artifacts(v)  # seeds BOTH fourier_frequency_quality and neuron_dynamics
+    v.family = _scoped_family(("fourier_frequency_quality",))
+
+    report = materialize_variant_columnar(v)
+
+    assert paths.table_dir(v, "fourier_frequency_quality").exists()
+    # Undeclared analyzer: never reached — no generic table, no semantic claim.
+    assert not paths.table_dir(v, "neuron_dynamics").exists()
+    assert not paths.table_dir(v, "neuron_frequency_attribution").exists()
+    assert "neuron_dynamics" not in report.tables
+    assert "neuron_dynamics" not in report.failed_analyzers
+
+
+def test_one_malformed_artifact_is_contained_not_fatal(tmp_path):
+    """REQ_140: a single analyzer's bad artifact is recorded and skipped.
+
+    ``weight_spectra`` carries a corrupt npz (raises on load); every other declared
+    analyzer still materializes and the bad one lands in ``failed_analyzers``.
+    """
+    v = _FakeVariant(tmp_path, "p5_seed1_dseed2", {"prime": 5, "seed": 1, "data_seed": 2})
+    _seed_artifacts(v)  # valid fourier_frequency_quality + neuron_dynamics
+    # Corrupt weight_spectra: a file named like an epoch artifact but not a valid npz.
+    bad = v.variant_dir / "artifacts" / "weight_spectra" / "epoch_00000.npz"
+    bad.parent.mkdir(parents=True, exist_ok=True)
+    bad.write_bytes(b"not a real npz")
+    v.family = _scoped_family(
+        ("fourier_frequency_quality", "neuron_dynamics", "weight_spectra")
+    )
+
+    report = materialize_variant_columnar(v)
+
+    # The healthy analyzers still wrote their tables.
+    assert paths.table_dir(v, "fourier_frequency_quality").exists()
+    assert paths.table_dir(v, "neuron_frequency_attribution").exists()
+    # The bad one is reported, not silent, and did not abort the pass.
+    assert "weight_spectra" in report.failed_analyzers
+    assert report.failed_analyzers["weight_spectra"]  # non-empty error summary

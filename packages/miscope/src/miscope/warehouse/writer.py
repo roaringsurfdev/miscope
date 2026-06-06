@@ -19,6 +19,7 @@ deterministically from checkpoints regardless of what happens to be on disk.
 
 from __future__ import annotations
 
+import logging
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass
@@ -28,10 +29,13 @@ import pandas as pd
 
 import miscope.registry as reg
 from miscope.analysis.output_schema import Coord, FieldKind, OutputField
+from miscope.analysis.registry import AnalyzerRegistry
 from miscope.warehouse import catalog as catalog_mod
 from miscope.warehouse import mapping, mapping_semantic, paths, schema
 from miscope.warehouse.decompose import KeyMatch, assign_keys, get_decomp
 from miscope.warehouse.flatten import flatten_field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,7 +45,8 @@ class MaterializeReport:
     variant_id: str
     files_written: list[str] = dc_field(default_factory=list)
     tables: dict[str, int] = dc_field(default_factory=dict)  # table -> row count
-    skipped_analyzers: list[str] = dc_field(default_factory=list)
+    skipped_analyzers: list[str] = dc_field(default_factory=list)  # no data / empty frames
+    failed_analyzers: dict[str, str] = dc_field(default_factory=dict)  # name -> error summary
 
 
 # A field's long frame before variant columns / discriminators are attached.
@@ -71,23 +76,49 @@ def materialize_variant_columnar(
     variant_cols = _variant_columns(variant, run_set)
     semantic: dict[str, _SemanticAcc] = defaultdict(_SemanticAcc)
 
-    for spec in reg.index().analyzers:
+    for spec in _scoped_specs(variant):
         if not any(f.kind is FieldKind.COLUMNAR for f in spec.outputs):
             continue
         # Availability is decided per scope inside _build_field_frames (per-epoch
         # checks get_epochs; cross-epoch checks cross_epoch.npz) — the loader's
         # get_available_analyzers only counts epoch_* dirs, missing cross-epoch ones.
-        field_frames = _build_field_frames(variant, spec)
-        if not field_frames:
-            report.skipped_analyzers.append(spec.name)
-            continue
-        claimed = _collect_semantic(spec.name, field_frames, semantic)
-        generic = [ff for ff in field_frames if ff.field.name not in claimed]
-        _emit_generic(variant, spec.name, generic, variant_cols, report)
+        # Per-analyzer isolation (REQ_140): one malformed on-disk artifact is
+        # recorded and skipped, never fatal to the whole columnar pass.
+        try:
+            field_frames = _build_field_frames(variant, spec)
+            if not field_frames:
+                report.skipped_analyzers.append(spec.name)
+                continue
+            claimed = _collect_semantic(spec.name, field_frames, semantic)
+            generic = [ff for ff in field_frames if ff.field.name not in claimed]
+            _emit_generic(variant, spec.name, generic, variant_cols, report)
+        except Exception as exc:  # noqa: BLE001 — quarantine one bad artifact
+            report.failed_analyzers[spec.name] = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "warehouse materialize: analyzer %r failed on variant %s, skipping (%s: %s)",
+                spec.name,
+                variant.name,  # type: ignore[attr-defined]
+                type(exc).__name__,
+                exc,
+            )
 
     _emit_semantic(variant, semantic, variant_cols, report)
     _emit_outcomes(variant, run_set, report)
     return report
+
+
+def _scoped_specs(variant: object) -> list[object]:
+    """Analyzer specs in scope for materialization — the family's declared set.
+
+    REQ_140: ``family.json`` (via ``AnalyzerRegistry.list_for_family``) is the
+    single source of truth for a family's analyzer scope — the same source the
+    run plan uses. Iterating the global registry instead pulled in
+    registered-but-undeclared analyzers (e.g. deprecated ``gradient_site``),
+    whose leftover artifacts aborted the pass. Sorted by name so output ordering
+    matches the prior registry iteration (byte-identical on baselines).
+    """
+    specs = AnalyzerRegistry.list_for_family(variant.family)  # type: ignore[attr-defined]
+    return sorted(specs, key=lambda s: s.name)
 
 
 def _emit_outcomes(variant: object, run_set: str, report: MaterializeReport) -> None:

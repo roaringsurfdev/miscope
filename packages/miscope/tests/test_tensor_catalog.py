@@ -30,6 +30,8 @@ from miscope.warehouse.tensor_catalog import TensorCatalogAccessor, TensorResolv
 class _FakeFamily:
     name = "modulo_addition_1layer"
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
+    # Declared analyzer scope (REQ_140): the columnar materializer iterates this set.
+    analyzers = ("parameter_snapshot", "weight_basis_projection", "parameter_trajectory")
 
 
 class _FakeVariant:

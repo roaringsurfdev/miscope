@@ -18,6 +18,8 @@ from miscope.warehouse.writer import materialize_variant_columnar
 class _FakeFamily:
     name = "modulo_addition_1layer"
     domain_parameters = {"prime": None, "seed": None, "data_seed": None}
+    # Declared analyzer scope (REQ_140): the materializer iterates this set.
+    analyzers = ("fourier_frequency_quality",)
 
     @property
     def variants_dir(self) -> Path:
