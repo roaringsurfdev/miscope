@@ -13,6 +13,7 @@ First five minutes
     import miscope.registry as reg
 
     reg.analyzers()            # every analyzer output field (a DataFrame)
+    reg.derived()              # every derived-table output field (REQ_141)
     reg.dataviews()            # every queryable DataView field
     reg.search("frequency")    # do we already have something for X?
     reg.field("dominant_freq") # who produces it, how it's keyed, who consumes it
@@ -51,6 +52,7 @@ from miscope.registry._index import (
 __all__ = [
     "analyzers",
     "dataviews",
+    "derived",
     "field",
     "search",
     "load",
@@ -135,11 +137,36 @@ def dataviews() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=_DATAVIEW_COLUMNS)
 
 
-def search(query: str) -> pd.DataFrame:
-    """Substring search over analyzer + DataView fields (names and descriptions).
+def derived() -> pd.DataFrame:
+    """Every derived-table output field as a long-format DataFrame (REQ_141).
 
-    Returns a combined DataFrame with a ``surface`` column (``analyzer`` or
-    ``dataview``) so frequency-related fields across both planes show together.
+    Columns: ``derived_table, version, materialized, field, kind, coords, dtype,
+    input_tables, description``. One row per declared output field — the columns a
+    derived table contributes to the warehouse, alongside :func:`analyzers`.
+    """
+    rows = [
+        {
+            "derived_table": d.name,
+            "version": d.version,
+            "materialized": d.materialized,
+            "field": f.name,
+            "kind": f.kind.value,
+            "coords": ", ".join(f.coord_names),
+            "dtype": f.dtype,
+            "input_tables": ", ".join(d.input_tables),
+            "description": f.description,
+        }
+        for d in index().derived
+        for f in d.outputs
+    ]
+    return pd.DataFrame(rows, columns=_DERIVED_COLUMNS)
+
+
+def search(query: str) -> pd.DataFrame:
+    """Substring search over analyzer + derived + DataView fields.
+
+    Returns a combined DataFrame with a ``surface`` column (``analyzer``,
+    ``derived``, or ``dataview``) so related fields across all planes show together.
     """
     q = query.lower()
 
@@ -154,6 +181,19 @@ def search(query: str) -> pd.DataFrame:
                     {
                         "surface": "analyzer",
                         "name": s.name,
+                        "field": f.name,
+                        "kind": f.kind.value,
+                        "coords": ", ".join(f.coord_names),
+                        "description": f.description,
+                    }
+                )
+    for d in index().derived:
+        for f in d.outputs:
+            if _match(d.name, f.name, f.description):
+                rows.append(
+                    {
+                        "surface": "derived",
+                        "name": d.name,
                         "field": f.name,
                         "kind": f.kind.value,
                         "coords": ", ".join(f.coord_names),
@@ -192,4 +232,15 @@ _ANALYZER_COLUMNS = [
     "description",
 ]
 _DATAVIEW_COLUMNS = ["dataview", "field", "kind", "coords", "sources", "description"]
+_DERIVED_COLUMNS = [
+    "derived_table",
+    "version",
+    "materialized",
+    "field",
+    "kind",
+    "coords",
+    "dtype",
+    "input_tables",
+    "description",
+]
 _SEARCH_COLUMNS = ["surface", "name", "field", "kind", "coords", "description"]

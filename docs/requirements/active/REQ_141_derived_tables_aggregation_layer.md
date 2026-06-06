@@ -99,7 +99,10 @@ materialize/view line falls.
   producer rather than back-filled by a cross-epoch stack. `neuron_dynamics`
   shrinks to its genuine cross-epoch tail (`switch_counts`, `commitment_epochs`),
   computed by streaming the per-epoch attribution — the
-  `(n_epochs, n_freq, d_mlp)` stack is gone.
+  `(n_epochs, n_freq, d_mlp)` stack is gone. This keystone is the first instance of
+  the **output-completeness rule** below: the cross-epoch stack existed *only*
+  because the per-epoch producer's output contract was too narrow to emit the fact
+  it already had in hand.
 - [ ] **Bucket-2 proof: `transient_frequency` becomes a derived table.** Its
   columnar outputs (committed counts, peaks, is-final, homeless) are produced by a
   registered derived table over `neuron_frequency_attribution`, not by an
@@ -136,6 +139,22 @@ materialize/view line falls.
 ## Constraints
 
 **Must have:**
+- **Analyzer output-completeness (user expectation, 2026-06-06).** An analyzer
+  declares and emits, at per-epoch granularity, every columnar fact it can cheaply
+  produce from data already in hand. A too-narrow output contract — one headline
+  output, everything else recomputed later — is the antipattern, because it forces
+  a secondary pass that re-opens npz to recover a fact that was free during the
+  analyzer's pass (the bucket-1 keystone is the canonical example). **Emission locus
+  is settled: widen the analyzer's declared `AnalyzerSpec.outputs` (REQ_107) so the
+  fact lands in the npz; the existing decoupled `materialize_variant_columnar`
+  reshapes it to Parquet (cheap, no recompute). Do *not* co-emit Parquet inside the
+  analyzer pass** — that would couple the analysis engine to warehouse format and
+  forfeit "rebuild the warehouse from artifacts without re-running analysis." Goal
+  state: npz opened at most once (by materialize); downstream reads Parquet, never
+  npz. Within this REQ the rule is applied to the neuron-frequency slice only;
+  widening other analyzers (`repr_geometry` circularity/fisher, `weight_spectra`
+  participation ratios — both reached today via `load_summary`) is follow-on and
+  feeds REQ_144.
 - **Frictionless at the point of inquiry.** No researcher-facing query pays a
   slow/memory-intensive cost interactively. Expensive derived computation is
   materialized to disk and read back; the cost is paid once, off the interactive
@@ -185,14 +204,35 @@ materialize/view line falls.
   the old `neuron_dynamics` output shape is needed — update consumers in place.
 
 ## Decision Authority
-- [x] Propose options for review — **the registry-modeling fork is open:** how a
-  derived table is represented alongside `AnalyzerSpec` (a sibling spec type? a
-  `producer` discriminator on the field record?), and how the ragged
-  peak-membership arrays in `transient_frequency` are handled (keep as a small
-  companion tensor artifact vs. a flattened columnar `(frequency, member_neuron)`
-  long table). Bring options before building.
+- [x] Propose options for review — **both forks resolved 2026-06-06 (see Resolved
+  design below).** Registry modeling → sibling `DerivedTableSpec` + narrow
+  `SchemaProducer` protocol (1C). Ragged peak-membership → columnar
+  `(variant, frequency, member_neuron)` long table (2B).
 - [ ] Make reasonable decisions and flag for review
 - [ ] Full autonomy to proceed
+
+### Resolved design (2026-06-06)
+- **Registry modeling — 1C (sibling type + shared protocol).** A concrete
+  `DerivedTableSpec` dataclass (`name`, `version`, `outputs: tuple[OutputField]`,
+  `input_tables: tuple[str]`, `query`, `materialized: bool`) stays a sibling of
+  `AnalyzerSpec` — *not* a unified producer record. `AnalyzerSpec` and
+  `RegistryIndex.analyzers` are untouched. The registry's enumeration/lookup code
+  (`field()`, `search()`, the output-schema half of `validate()`) iterates a narrow
+  structural `SchemaProducer` protocol — anything with `name`, `version`,
+  `outputs` — so analyzers and derived tables are treated uniformly without a lossy
+  union. `RegistryIndex` gains `derived: tuple[DerivedTableSpec]`; `build_index`
+  collects them; `FieldInfo` reports derived producers (kept distinct from analyzer
+  producers so `field()` names the derived table as producer). Rejected: 1B
+  (unified `producer` discriminator) — would refactor the stable REQ_107
+  `.analyzers` surface for no gain.
+- **Ragged peak-membership — 2B (columnar long table).** Peak membership becomes a
+  derived `(variant, frequency, member_neuron)` long table over
+  `neuron_frequency_attribution` (filter at peak epoch, gate by frac threshold).
+  Peak membership *is* a per-neuron fact, so long-format is its natural home and
+  the whole slice stays columnar. Value-parity (not byte) per the CoS clause. Only
+  consumer of the old flat+offsets tensor is one research sketch
+  (`apps/research/sketches/sketch_per_group_kinks.py`) — migrate it. Rejected: 2A
+  (companion tensor) — preserves a tensor exception in an otherwise columnar slice.
 
 ## Success Validation
 "Done" looks like: the neuron-frequency lens is produced by a per-epoch analyzer
@@ -214,6 +254,15 @@ the next aggregator is a mechanical application of the litmus test, not a redesi
 | **3 — joint fit over all epochs (the exception)** | `parameter_trajectory`, `global_centroid_pca`, `neuron_group_pca`, `intragroup_manifold`, `freq_group_weight_geometry`, `parameter_dmd`, `activation_dmd`, `gradient_site` | Fits stay imperative. Only their columnar *tails* are future bucket-2 candidates. |
 
 ### Follow-on (explicitly out of scope here)
+- **Recast the variant summary engine as derived tables (REQ_144, drafted).**
+  `VariantAnalysisSummary` is the variant-level twin of this pattern — a mostly
+  bucket-2 aggregator that reaches around the warehouse and round-trips
+  JSON↔Parquet↔JSON. Sequenced after this REQ to keep the one-slice mandate intact.
+  **Coupling to honor here:** `variant_analysis_summary._load_transient_metrics`
+  consumes `transient_frequency` via `load_cross_epoch`; when this REQ converts
+  that analyzer to a derived table (new shape, no back-compat per v1.0.0 cutoff),
+  patch this consumer in place so the summary stays green — REQ_144 graduates the
+  patch into the full conversion.
 - Convert `input_trace_graduation` to a derived table (clean bucket-2; already
   streams).
 - Audit bucket-3 columnar tails for surfaceable per-epoch/per-group metrics.
