@@ -1,0 +1,237 @@
+# REQ_141: Derived Tables — a Declarative Cross-Epoch Aggregation Layer
+
+**Status:** Active (design surfaced in a 2026-06-06 data-model session).
+**Priority:** Medium — architectural; unlocks memory + provenance wins, not a defect.
+**Branch:** TBD (`feature/REQ_141_derived_tables`); lands **after REQ_110 merges to `develop`**.
+**Parent:** REQ_110 (Lakehouse Surface) — builds the next layer on the columnar warehouse + query surface.
+**Dependencies:** 110-A (`warehouse` columnar tables), 110-C (`miscope.query`), REQ_107 (output-schema registry), REQ_133 (freshness DAG). Interacts with REQ_140 (materializer scope/isolation).
+**Attribution:** Engineering Claude (under user direction)
+
+---
+
+## Problem Statement
+
+The analysis layer treats every analyzer as an independent island: each one
+loads what it needs and recomputes its own view of the data. Now that the
+lakehouse surface exists (columnar warehouse + DuckDB query layer + a registry
+that declares every field's coords and kind), a sharper data model is possible —
+one where **per-epoch analyzers expose conformed columnar facts, and cross-epoch
+results that are mere aggregations of those facts are *derived* from them rather
+than recomputed from raw artifacts.**
+
+A litmus test separates three kinds of cross-epoch output:
+
+1. **Per-epoch fact trapped in a cross-epoch analyzer.** A field that is a pure
+   function of a single epoch's data, emitted by a cross-epoch analyzer only
+   because that's where the stacking loop happens to live.
+2. **Aggregation over the epoch axis.** A reduction (cumulative / windowed /
+   argmax-over-time / group-by) that needs the time axis but not the stacked
+   *tensors* — expressible as a query over a conformed columnar table.
+3. **Joint fit over all epochs.** PCA / DMD / geometry that genuinely needs the
+   whole stacked tensor at once. Irreducible; out of scope here.
+
+The motivating case is the platform's highest-traffic lens. `neuron_dynamics`
+(`output_scope="cross_epoch"`) emits `dominant_freq` and `max_frac`, both keyed
+`(variant, epoch, neuron)` — **per-epoch argmaxes** (kind 1). To produce them it
+stacks `(n_epochs, n_freq, d_mlp)` norm matrices in memory and argmaxes in bulk,
+though nothing about the argmax needs the time axis. Those two columnar fields
+are already materialized as the `neuron_frequency_attribution` warehouse table
+(`warehouse/mapping_semantic.py`), which `analysis/neuron_frequency.py` reads as
+*the* conformed `(epoch, neuron) → frequency` dimension (REQ_110D). So the
+per-epoch columnar surface already exists — **it is just authored by a
+cross-epoch analyzer that stacks to produce it.**
+
+Downstream, `transient_frequency` (`output_scope="cross_epoch"`) is a pure
+aggregation (kind 2) of that same dimension: it `load_cross_epoch`s the full 2-D
+`dominant_freq`/`max_frac` arrays and computes committed-neuron counts per
+`(epoch, frequency)` gated by `max_frac >= 0.70`, peaks (argmax-over-epoch), and
+membership. Its committed-count core is literally
+`SELECT epoch, frequency, COUNT(*) FROM neuron_frequency_attribution
+WHERE frac_explained >= 0.70 GROUP BY epoch, frequency`.
+
+This requirement establishes the missing layer and proves it on this lens:
+a **derived table** — a registered, versioned, provenance-bearing query over
+warehouse tables — as a first-class output producer alongside analyzers. The
+codified-analysis invariant must hold: a derived table carries the same declared
+output schema and audit trail an analyzer does. The goal is not to let
+aggregations bypass the registry; it is to give them a *declarative* home in it.
+
+**The purpose of the layer is frictionless researcher-facing analysis.** A slow or
+memory-intensive computation is converted into on-disk storage: the cost is paid
+**once, at materialization time**, and never re-paid in an interactive query. This
+is the load-bearing reason to persist, and it implies a property each derived table
+must declare — *materialized* vs. *view*. A cheap aggregation can be a query-time
+view (computed on read, always live, no storage); an **expensive one must be a
+persisted Parquet table** so the researcher reads bytes, not a recomputation. If the
+cross-epoch SQL turns out to be time-intensive, it is saved to disk by definition —
+"frictionless at the point of inquiry" is the acceptance test for where the
+materialize/view line falls.
+
+---
+
+## Conditions of Satisfaction
+
+- [ ] **A `DerivedTable` primitive exists and is first-class in the registry.**
+  A derived table declares: a name, an output schema (REQ_107 `OutputField`s with
+  kind + coords), a version, its input warehouse tables, and the query that
+  produces it. `registry.field(name)` reports a derived field's producer (the
+  derived table) and its keying coords exactly as it does for an analyzer field;
+  `registry.search(...)` finds derived tables. A derived table without a declared
+  output schema fails `registry.load()`, same as an analyzer.
+- [ ] **Derived tables materialize into the warehouse and are queryable.** A
+  derived table emits a Parquet table reachable through `miscope.query.open(...)`
+  as a registered view, indistinguishable to a consumer from a semantic table.
+  No consumer composes a file path to reach it (constraint 3).
+- [ ] **Materialized vs. view is a declared, cost-driven property.** Each derived
+  table declares whether it persists to disk (materialized) or computes on read
+  (view). An expensive aggregation is persisted so a researcher's interactive query
+  reads bytes, not a recomputation; the chosen line is justified by a measured
+  query cost, not by guess. The neuron-frequency derived table is materialized
+  (it feeds the dashboard and registry build).
+- [ ] **Freshness threads through the DAG.** A derived table is a node downstream
+  of its input tables; when an input is recomputed, the derived table is stale and
+  re-materializes. This extends the REQ_133 ordering/freshness machinery to a new
+  node kind — it does not fork a parallel staleness mechanism.
+- [ ] **Bucket-1 keystone: per-epoch attribution moves to a per-epoch analyzer.**
+  `dominant_freq` / `frac_explained` keyed `(epoch, neuron)` are produced by a
+  **per-epoch** analyzer (depending on `activation_basis_projection`), so the
+  `neuron_frequency_attribution` table is sourced from a natively per-epoch
+  producer rather than back-filled by a cross-epoch stack. `neuron_dynamics`
+  shrinks to its genuine cross-epoch tail (`switch_counts`, `commitment_epochs`),
+  computed by streaming the per-epoch attribution — the
+  `(n_epochs, n_freq, d_mlp)` stack is gone.
+- [ ] **Bucket-2 proof: `transient_frequency` becomes a derived table.** Its
+  columnar outputs (committed counts, peaks, is-final, homeless) are produced by a
+  registered derived table over `neuron_frequency_attribution`, not by an
+  npz-stacking analyzer. The ragged peak-membership arrays (the one non-columnar
+  part) are handled explicitly — see Decision Authority.
+- [ ] **`analysis/neuron_frequency.py` is unaffected at its interface.** The
+  conformed-dimension API (`NeuronFrequencyAttribution`, `load`) returns identical
+  values; only its upstream producer changes. Its self-heal path still works.
+
+## Validation
+
+- [ ] **Byte-parity on the three baselines** (p113/s999/ds598, p109/s485/ds598,
+  p101/s999/ds598 — the only variants validated against until REQ_137; never
+  `find | head`). The `neuron_frequency_attribution` table, the
+  `transient_frequency` outputs, and `neuron_dynamics`'s remaining fields are
+  value-identical before vs. after (allow `rtol=1e-3` per REQ_126 if any float
+  recompute is unavoidable; integer counts/indices must be exact). A shape-of-
+  behavior change is a finding to surface, not precision noise.
+- [ ] **Memory reduction is demonstrated, not asserted.** Using the existing
+  `apps/research/sketches/profile_analysis_memory.py` harness, the peak resident
+  set for producing the neuron-frequency lens on a baseline drops measurably (the
+  `(n_epochs, n_freq, d_mlp)` stack and the full-array `load_cross_epoch` no longer
+  appear). Record before/after numbers in the notes.
+- [ ] **Registry round-trip test.** `registry.field("committed_counts")` (or the
+  chosen derived field) reports the derived table as producer with the right
+  coords; `registry.load()` rejects a derived table missing its schema.
+- [ ] **Freshness test.** Recomputing `activation_basis_projection` for one epoch
+  marks the per-epoch attribution stale → marks `transient_frequency`'s derived
+  table stale → both re-materialize on the next pass; an untouched derived table is
+  not rebuilt.
+
+---
+
+## Constraints
+
+**Must have:**
+- **Frictionless at the point of inquiry.** No researcher-facing query pays a
+  slow/memory-intensive cost interactively. Expensive derived computation is
+  materialized to disk and read back; the cost is paid once, off the interactive
+  path. This is the layer's reason to exist, not a nice-to-have.
+- **One provenance model.** A derived table carries a declared output schema +
+  version + audit trail. Aggregations do not get a registry-bypass back door
+  (this is the whole point of choosing the declarative form over loose SQL).
+- **Storage-encapsulation invariant** (constraint 3): derived tables are reached
+  through `miscope.query` / the warehouse reader, never a path literal; their
+  definitions are code, their deployment locations are config.
+- **Universal-instrument invariant** (constraint 1): a derived table is a view of
+  data, not owned by a family. Family context (e.g. prime) enters as a column or a
+  parameter, never as table ownership.
+
+**Must avoid:**
+- Converting all 11 cross-epoch analyzers in one pass. This requirement establishes
+  the primitive and proves it on **one vertical slice** (neuron-frequency).
+- Touching the bucket-3 analyzers' fits (`parameter_trajectory`,
+  `global_centroid_pca`, `neuron_group_pca`, `intragroup_manifold`,
+  `freq_group_weight_geometry`, `parameter_dmd`, `activation_dmd`, `gradient_site`).
+  Their *columnar tails* are noted for follow-on, but the joint fits stay.
+- A second staleness mechanism. Derived tables join the REQ_133 DAG; they don't get
+  a bespoke freshness checker.
+
+**Flexible:**
+- Where derived-table definitions physically live (a `warehouse/derived/` module,
+  co-located with the semantic mapping, or alongside the analyzer they replace) —
+  decide for legibility.
+- Whether the query is authored as SQL text or a small builder over the query
+  surface — pick whichever keeps the audit trail honest and the definition readable.
+
+---
+
+## Context & Assumptions
+
+- A derived table is conceptually adjacent to a REQ_110-A **semantic table**: both
+  produce a queryable Parquet table from declared schema. The difference is the
+  *source* — a semantic table maps an analyzer's on-disk artifact; a derived table
+  runs a query over already-materialized tables. Reuse the semantic-table
+  machinery where it fits rather than inventing a parallel writer.
+- The three buckets and the litmus test are the durable design output of this
+  session; the neuron-frequency slice is the first instance, not the whole job.
+  Validate that the bucket-1/2 split holds for `input_trace_graduation`
+  (already a model streamed aggregator — likely a clean bucket-2 derived table)
+  before generalizing.
+- Assume nothing is in production (v1.0.0 cutoff pending): no back-compat shim for
+  the old `neuron_dynamics` output shape is needed — update consumers in place.
+
+## Decision Authority
+- [x] Propose options for review — **the registry-modeling fork is open:** how a
+  derived table is represented alongside `AnalyzerSpec` (a sibling spec type? a
+  `producer` discriminator on the field record?), and how the ragged
+  peak-membership arrays in `transient_frequency` are handled (keep as a small
+  companion tensor artifact vs. a flattened columnar `(frequency, member_neuron)`
+  long table). Bring options before building.
+- [ ] Make reasonable decisions and flag for review
+- [ ] Full autonomy to proceed
+
+## Success Validation
+"Done" looks like: the neuron-frequency lens is produced by a per-epoch analyzer
+feeding a registered derived table; the warehouse and query surface expose the
+same tables with the same values; the registry reports the derived producer; the
+memory profile drops; and the pattern is documented well enough that converting
+the next aggregator is a mechanical application of the litmus test, not a redesign.
+
+---
+
+## Notes
+
+### The three buckets, mapped (session output, 2026-06-06)
+
+| Bucket | Analyzers | Disposition |
+|---|---|---|
+| **1 — per-epoch fact trapped in cross-epoch** | `neuron_dynamics.dominant_freq` / `.max_frac` | Move to a per-epoch analyzer (this REQ). |
+| **2 — aggregation over the epoch axis** | `transient_frequency`←neuron_dynamics; `input_trace_graduation`←input_trace; the `switch_counts`/`commitment_epochs` tail of `neuron_dynamics` | Derived tables / streamed reductions. `transient_frequency` proven here; others follow. |
+| **3 — joint fit over all epochs (the exception)** | `parameter_trajectory`, `global_centroid_pca`, `neuron_group_pca`, `intragroup_manifold`, `freq_group_weight_geometry`, `parameter_dmd`, `activation_dmd`, `gradient_site` | Fits stay imperative. Only their columnar *tails* are future bucket-2 candidates. |
+
+### Follow-on (explicitly out of scope here)
+- Convert `input_trace_graduation` to a derived table (clean bucket-2; already
+  streams).
+- Audit bucket-3 columnar tails for surfaceable per-epoch/per-group metrics.
+- Revisit whether `neuron_dynamics` survives as an analyzer at all, or dissolves
+  fully into (per-epoch attribution analyzer) + (derived tables) once its tail is
+  also expressed declaratively.
+
+### Interaction with REQ_140
+REQ_140 hardens `materialize_variant_columnar` (scope to `family.json`, per-analyzer
+isolation). Derived-table materialization should inherit the same isolation
+discipline — a failing derived table is skipped-and-reported, never fatal — and the
+same scope source. Sequence REQ_141 after REQ_140 lands so it builds on the hardened
+materializer rather than racing it on the same file.
+
+### Why declarative (the fork the session resolved)
+The session weighed keeping aggregators as streamed Python analyzers vs. making them
+declarative derived tables. The declarative form was chosen: the SQL is shorter,
+streams natively (near-zero Python-side memory), and — critically — *forces* the
+provenance question to be answered once, in the registry, rather than re-answered per
+analyzer. The risk it introduces (a class of outputs that bypass the audit trail) is
+exactly what the first CoS forecloses.
