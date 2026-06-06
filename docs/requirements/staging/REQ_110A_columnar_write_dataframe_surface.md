@@ -1,6 +1,6 @@
 # REQ_110A: Columnar Write + DataFrame Surface
 
-**Status:** Draft
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line).
 **Priority:** High — critical-path start of the storage engine.
 **Branch:** TBD
 **Parent:** REQ_110 (Lakehouse Surface) — this is child task 110-A.

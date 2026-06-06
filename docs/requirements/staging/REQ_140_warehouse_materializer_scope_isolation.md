@@ -1,7 +1,6 @@
 # REQ_140: Warehouse Materializer Scope + Per-Analyzer Isolation
 
-**Status:** Completed (implemented + validated on real data, 2026-06-06). Stays in
-`active/` until the whole REQ_110 merges to `develop` (see `feedback_req110_children_stay_active`).
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line). Implemented + validated on real data.
 **Priority:** High — a Force=True run over any variant carrying a deprecated/stale on-disk analyzer silently loses dashboard views.
 **Branch:** `feature/REQ_110_lakehouse_surface`
 **Parent:** REQ_110 (Lakehouse Surface) — hardens the 110-A columnar materializer.

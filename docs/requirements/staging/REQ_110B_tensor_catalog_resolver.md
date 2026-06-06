@@ -1,6 +1,6 @@
 # REQ_110B: Tensor Catalog + Resolver
 
-**Status:** Implemented (on the parent REQ_110 branch; stays in `active/` until all of REQ_110 merges to `develop`).
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line).
 **Priority:** High — the non-columnar half of the storage engine; parallel with 110-A.
 **Branch:** `feature/REQ_110_lakehouse_surface`
 **Parent:** REQ_110 (Lakehouse Surface) — this is child task 110-B.

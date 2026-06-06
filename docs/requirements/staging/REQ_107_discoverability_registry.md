@@ -1,6 +1,6 @@
 # REQ_107: Discoverability Registry (INFORMATION_SCHEMA for Analysis)
 
-**Status:** Implemented on `feature/REQ_110_lakehouse_surface` — awaiting merge approval. See *Implementation Status* below.
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line). See *Implementation Status* below.
 **Priority:** Medium-high — cultural complement to REQ_106; not strictly blocking, but high value before publication.
 **Branch:** `feature/REQ_110_lakehouse_surface` (REQ_107 lands on the REQ_110 branch per the 2026-06-04 scoping decision — it is REQ_110's write-routing keystone).
 **Dependencies:** REQ_106 (defines what gets registered: analyzers, DataViews, their schemas).

@@ -1,6 +1,6 @@
 # REQ_110: Lakehouse Surface (Tabular Output, Tensor Catalog, DuckDB Query, Publication Bundles)
 
-**Status:** Implementation-complete (110-A…F landed on `feature/REQ_110_lakehouse_surface`) — except the live-publication acceptance bar, which is tracked as **REQ_139** (first door-to-door publication, bundled with the public site launch).
+**Status:** Completed — merged to `develop` 2026-06-06 (110-A…F). The live-publication acceptance bar remains open, tracked as **REQ_139** (first door-to-door publication, bundled with the public site launch).
 **Priority:** High — second of the two consolidation streams; the data surface for v1.0 publication.
 **Branch:** `feature/REQ_110_lakehouse_surface`
 **Supersedes:** REQ_101 (DataFrame Support), REQ_108 (Publication Surface).

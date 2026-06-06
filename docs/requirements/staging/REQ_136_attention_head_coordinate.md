@@ -1,6 +1,6 @@
 # REQ_136: Head coordinate for attention weight spectra / basis projection
 
-**Status:** Completed (implemented on `feature/REQ_110_lakehouse_surface`)
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line).
 **Priority:** Medium — corrects a lossy columnar declaration; recommended before REQ_110B.
 **Branch:** feature/REQ_110_lakehouse_surface
 **Attribution:** Engineering Claude (under user direction)

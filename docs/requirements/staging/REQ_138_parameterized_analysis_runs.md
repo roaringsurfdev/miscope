@@ -1,6 +1,6 @@
 # REQ_138: Parameterized Analysis Runs (Recipe-Addressed Storage + Run-Set Registry)
 
-**Status:** Implemented 2026-06-05 on `feature/REQ_110_lakehouse_surface` (6 commits, Phases 1–6; full miscope suite green). Open questions resolved (see Resolution). Stays in `active/` with the other REQ_110 children until the whole REQ_110 line merges to `develop` (per `feedback_req110_children_stay_active`).
+**Status:** Completed — merged to `develop` 2026-06-06 (REQ_110 lakehouse line). Phases 1–6 (6 commits); full miscope suite green. Open questions resolved (see Resolution).
 **Priority:** High — **blocks REQ_110-D**. Establishes the parameterization coordinate that consumer migration must land on *once*. Must be addressed before the rest of REQ_110 continues.
 **Branch:** TBD (suggested: continuation of `feature/REQ_110_lakehouse_surface`, since it extends the 110-A/B/C coordinate model).
 **Relationship to REQ_110:** Extends the coordinate model that 110-A (columnar warehouse), 110-B (tensor catalog), and 110-C (DuckDB query surface) established. Inserts **between 110-C and 110-D** so that 110-D re-points renderers/summaries onto an already-parameterized surface rather than migrating twice. Accepts bounded, one-time thrash to 110-C's view layer (one coordinate added to data views + the `catalog` union; one new `run_sets` registry view).
