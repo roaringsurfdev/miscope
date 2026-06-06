@@ -1291,7 +1291,7 @@ dependencies = [
     { name = "pytest" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "pyright" },
     { name = "ruff" },
@@ -1302,11 +1302,14 @@ requires-dist = [
     { name = "dashboard", editable = "apps/dashboard" },
     { name = "duckdb", specifier = ">=1.5.3" },
     { name = "miscope", editable = "packages/miscope" },
-    { name = "pyright", marker = "extra == 'dev'", specifier = "==1.1.408" },
     { name = "pytest", specifier = ">=9.0.2" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pyright", specifier = "==1.1.408" },
+    { name = "ruff", specifier = ">=0.9.0" },
+]
 
 [[package]]
 name = "mpmath"
