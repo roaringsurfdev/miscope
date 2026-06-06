@@ -1,8 +1,8 @@
 # REQ_135: Retire the per-variant `manifest.json`
 
-**Status:** Draft (stub — for review)
+**Status:** Completed (2026-06-06) — implemented on `feature/REQ_135_manifest_retirement`.
 **Priority:** Low — cleanup; removes a drift surface, no feature impact.
-**Branch:** TBD
+**Branch:** `feature/REQ_135_manifest_retirement`
 **Attribution:** Engineering Claude (under user direction)
 
 ---
@@ -33,20 +33,25 @@ REQ_107 established.
 
 ## Conditions of Satisfaction
 
-- [ ] **Stop writing it.** Remove `_update_manifest` / `_save_manifest` /
+- [x] **Stop writing it.** Removed `_update_manifest` / `_save_manifest` /
   `_load_manifest` and the `self._manifest` plumbing from
   `analysis/pipeline.py`; the pipeline no longer creates or merges `manifest.json`.
-- [ ] **Remove the reader surface** from `ArtifactLoader` (`manifest` property,
-  `get_metadata`, `get_model_config`, `_load_manifest`) — or, if any of those have
-  a genuine consumer discovered during implementation, repoint it to the
-  authoritative source (npz / `config.json` / `variant`) instead.
-- [ ] **Update / drop the manifest tests** in `test_artifact_loader.py`
-  accordingly (they are the only readers).
-- [ ] **Delete the stale `manifest.json` files** under `data/.../artifacts/`
-  (regeneratable / now unused; gitignored already).
-- [ ] **No behavior change** elsewhere: dashboard and analyzers already use
+  (Now-unused `json` and `datetime` imports dropped too.)
+- [x] **Remove the reader surface** from `ArtifactLoader` (`manifest` property,
+  `get_metadata`, `get_model_config`, `_load_manifest`, `self._manifest`). No
+  genuine consumer found — every caller was a test. (Unused `json` / `typing.Any`
+  imports dropped.)
+- [x] **Update / drop the manifest tests** in `test_artifact_loader.py` and
+  `test_analysis_pipeline.py` accordingly (the only readers). Two pipeline tests
+  that were named for the manifest but actually assert filesystem-based completion
+  detection were kept and renamed (`test_completion_persists_between_sessions`,
+  `test_completion_tracked_for_all_analyzers`).
+- [x] **Delete the stale `manifest.json` files** under `data/.../artifacts/`
+  (47 removed; regeneratable / now unused; gitignored already).
+- [x] **No behavior change** elsewhere: dashboard and analyzers already use
   filesystem scans (`get_epochs`, `get_available_analyzers`) and `config.json`,
-  not the manifest. Confirm the full suite stays green.
+  not the manifest. Full miscope suite green (1543 passed; one pre-existing WSL2
+  mtime flake in `test_secondary_force_recomputes`, unrelated — passes in isolation).
 
 ## Constraints
 

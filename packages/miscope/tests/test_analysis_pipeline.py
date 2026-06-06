@@ -185,15 +185,6 @@ class TestAnalysisPipelineRun:
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.run()
 
-    def test_run_creates_manifest(self, trained_variant):
-        """Running pipeline creates manifest.json."""
-        pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(MockAnalyzer())
-        pipeline.run()
-
-        manifest_path = os.path.join(pipeline.artifacts_dir, "manifest.json")
-        assert os.path.exists(manifest_path)
-
     def test_run_saves_artifacts(self, trained_variant):
         """Running pipeline saves per-epoch artifact files."""
         pipeline = AnalysisPipeline(trained_variant)
@@ -228,24 +219,6 @@ class TestAnalysisPipelineRun:
 
         completed = pipeline.get_completed_epochs("mock")
         assert completed == [0, 25]
-
-    def test_manifest_structure(self, trained_variant):
-        """Manifest has correct structure."""
-        pipeline = AnalysisPipeline(trained_variant)
-        pipeline.register(MockAnalyzer("test"))
-        pipeline.run()
-
-        manifest_path = os.path.join(pipeline.artifacts_dir, "manifest.json")
-        with open(manifest_path) as f:
-            manifest = json.load(f)
-
-        assert "analyzers" in manifest
-        assert "test" in manifest["analyzers"]
-        assert "epochs_completed" in manifest["analyzers"]["test"]
-        assert "variant_params" in manifest
-        assert manifest["variant_params"]["prime"] == 17
-        assert "family_name" in manifest
-        assert manifest["family_name"] == "modulo_addition_1layer"
 
 
 class TestAnalysisPipelineParameterization:
@@ -397,8 +370,8 @@ class TestAnalysisPipelineResumability:
 
         assert analyzer2.call_count == first_count
 
-    def test_manifest_persists_between_sessions(self, trained_variant):
-        """Manifest is loaded correctly in new pipeline instance."""
+    def test_completion_persists_between_sessions(self, trained_variant):
+        """Completed epochs are detected from disk by a fresh pipeline instance."""
         config = AnalysisRunConfig(checkpoints=[0])
         pipeline1 = AnalysisPipeline(trained_variant, config)
         pipeline1.register(MockAnalyzer())
@@ -496,19 +469,15 @@ class TestAnalysisPipelineMultipleAnalyzers:
         assert os.path.isdir(os.path.join(pipeline.artifacts_dir, "analyzer_a"))
         assert os.path.isdir(os.path.join(pipeline.artifacts_dir, "analyzer_b"))
 
-    def test_manifest_tracks_all_analyzers(self, trained_variant):
-        """Manifest tracks completion for all analyzers."""
+    def test_completion_tracked_for_all_analyzers(self, trained_variant):
+        """Completion is detectable on disk for every registered analyzer."""
         pipeline = AnalysisPipeline(trained_variant)
         pipeline.register(MockAnalyzer("a"))
         pipeline.register(MockAnalyzer("b"))
         pipeline.run()
 
-        manifest_path = os.path.join(pipeline.artifacts_dir, "manifest.json")
-        with open(manifest_path) as f:
-            manifest = json.load(f)
-
-        assert "a" in manifest["analyzers"]
-        assert "b" in manifest["analyzers"]
+        assert pipeline.get_completed_epochs("a")
+        assert pipeline.get_completed_epochs("b")
 
 
 class TestAnalysisRunConfig:
