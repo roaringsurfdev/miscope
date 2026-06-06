@@ -243,6 +243,50 @@ the next aggregator is a mechanical application of the litmus test, not a redesi
 
 ---
 
+## Implementation status (2026-06-06) — COMPLETE on `feature/REQ_141_derived_tables`
+
+Four commits, each green (full suite + ruff + pyright):
+1. **DerivedTable primitive + registry wiring** (69438e2) — CoS #1. `DerivedTableSpec`
+   + `SchemaProducer` protocol (1C); `RegistryIndex.derived`; `field()`/`search()`/
+   `validate()`/`derived()` cover derived tables.
+2. **Materialization + query exposure** (22cc3c0) — CoS #2/#3. `warehouse/derived.py`
+   executor (`materialize_variant_derived`), `query.open_variant`, materialized→Parquet
+   +catalog (discovered by `query.open`), view-mode live registration, REQ_140
+   isolation, topological derived→derived ordering.
+3. **Neuron-frequency slice — bucket-1 + bucket-2** (026c921) — one atomic change
+   (the `transient_frequency`↔`neuron_dynamics` npz coupling). New per-epoch
+   `neuron_frequency_attribution` analyzer; `neuron_dynamics` shrunk to its
+   cross-epoch tail (cube gone); `transient_frequency` → `committed_counts` /
+   `transient_frequencies` / `transient_peak_members` derived tables; analyzer
+   deleted; consumers migrated (`variant_summary`, a `transient_frequency_dim`
+   accessor for the renderers, the per-group-kinks sketch); `learned_frequencies`
+   (unconsumed) retired; `family.json` updated.
+4. **Freshness test** (this commit).
+
+**Validation results:**
+- **Parity — value-identical on all three baselines** (`apps/research/sketches/validate_req141_parity.py`,
+  read-only): `dominant_freq` exact, `max_frac` rtol 1e-3, `switch_counts` /
+  `commitment_epochs` exact (incl. NaN), `threshold` exact; derived
+  `ever_qualified` / `is_final` / `peak_epoch` / `peak_count` / `homeless_count` /
+  peak-members all exact. p101 exercises the transient path (1 transient freq).
+- **Memory — the stacked allocation is eliminated, not asserted.** Old
+  `neuron_dynamics` built an `(n_epochs, n_freq, d_mlp)` float64 cube; the new path
+  never stacks the `n_freq` axis. Per baseline: p113 57.6MB→2.1MB (28×), p109
+  55.5MB→2.1MB (27×), p101 72.1MB→2.9MB (25×); the per-epoch analyzer holds only the
+  ~205–229KB `(n_freq, d_mlp)` matrix transiently. `transient_frequency` no longer
+  `load_cross_epoch`s the full 2-D arrays (DuckDB streams the aggregation).
+- **Registry round-trip / freshness** — covered by `test_derived_tables.py`,
+  `test_derived_materialize.py` (incl. derived re-materialize on input recompute).
+
+**Freshness approach (no second mechanism, per constraints):** derived tables join
+the materialize DAG downstream of their inputs (columnar→derived ordering +
+topological derived→derived sort). The warehouse full-rebuilds from artifacts
+(REQ_140 model), so when an input analyzer is recomputed and the warehouse is
+re-materialized, derived tables rebuild from the current tables — they are never
+independently stale. No derived-table-specific staleness checker was added (the
+constraint forbids it); the analyzer-level freshness DAG (REQ_080/133) already
+decides what gets recomputed upstream.
+
 ## Notes
 
 ### The three buckets, mapped (session output, 2026-06-06)

@@ -261,6 +261,35 @@ def test_transient_derived_tables_reproduce_analyzer(tmp_path: Path):
     assert freq7_members == [5, 6, 7, 8, 9]
 
 
+def test_derived_rematerializes_when_input_recomputed(tmp_path: Path):
+    """REQ_141 freshness: recomputing an input table rebuilds its derived tables.
+
+    Derived tables join the materialize DAG downstream of their inputs (no separate
+    staleness mechanism): re-running the columnar+derived pass after the attribution
+    artifact changes yields updated derived tables.
+    """
+    v = _FakeVariant(tmp_path, "p23_seed9_dseed9", {"prime": 23, "seed": 9, "data_seed": 9})
+    _seed_transient_pattern(v)
+    materialize_variant_columnar(v)
+    materialize_variant_derived(v)
+    before = read_table(v, "committed_counts").df
+    final7 = before[(before.epoch == 200) & (before.frequency == 7)]["committed_counts"]
+    assert int(final7.iloc[0]) == 5
+
+    # Recompute the input: at the final epoch, freq 7's cohort abandons too.
+    art = v.variant_dir / "artifacts" / "neuron_frequency_attribution"
+    np.savez_compressed(
+        art / "epoch_00200",
+        dominant_freq=np.array([3] * 5 + [7] * 5 + [0] * 10, dtype=np.int64),
+        max_frac=np.array([0.5] * 20, dtype=np.float64),  # nobody committed at final
+    )
+    materialize_variant_columnar(v)
+    materialize_variant_derived(v)
+    after = read_table(v, "committed_counts").df
+    # Epoch 200 now has no committed neurons -> the row is gone (rebuilt, not stale).
+    assert after[(after.epoch == 200)].empty
+
+
 def test_view_mode_not_materialized(materialized_variant: _FakeVariant, isolated_derived_registry):
     """A view-mode table persists nothing and is reported as a view, not a table."""
     register_derived_table(
