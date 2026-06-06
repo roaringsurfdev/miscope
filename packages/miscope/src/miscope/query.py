@@ -114,6 +114,33 @@ def open(  # noqa: A001 — deliberate: mirrors `duckdb.connect`/`sqlite3.connec
     return _open_bundle(root, requested)  # type: ignore[arg-type]
 
 
+def open_variant(
+    variant: object,
+    tables: Iterable[str],
+    *,
+    run_set: str = paths.DEFAULT_RUN_SET,
+) -> QueryConnection:
+    """A connection scoped to one variant's tables, filtered to one run set (REQ_141).
+
+    Registers a view per requested table over *that variant's own* Parquet files
+    (not the cross-variant glob), filtered to ``run_set``, so a derived-table query
+    runs against a single variant + parameterization plane — a per-variant
+    aggregation never merges across variants. Tables absent for the variant are
+    silently skipped (the caller decides whether missing inputs are fatal). This is
+    the materialization-time scan; the consumer-facing surface is :func:`open`.
+    """
+    con = duckdb.connect()
+    registered: list[str] = []
+    for table in tables:
+        tdir = paths.table_dir(variant, table)  # type: ignore[arg-type]
+        if not tdir.is_dir():
+            continue
+        scan = _glob_scan(paths.variant_table_glob(variant, table))  # type: ignore[arg-type]
+        _create_view(con, table, f"{scan} WHERE run_set = '{_escape(run_set)}'")
+        registered.append(table)
+    return QueryConnection(con=con, views=tuple(registered))
+
+
 def _resolve_family(family: object | str, config: AppConfig | None) -> object:
     """A family name resolves through the sanctioned loader; an object passes through."""
     if isinstance(family, str):
@@ -138,7 +165,29 @@ def _open_warehouse(family: object, requested: tuple[str, ...] | None) -> QueryC
     if paths.family_has_run_sets(family):
         _create_view(con, RUN_SETS_VIEW, _glob_scan(paths.family_run_sets_glob(family)))
         views.append(RUN_SETS_VIEW)
+    _register_derived_views(con, views)
     return QueryConnection(con=con, views=tuple(views))
+
+
+def _register_derived_views(con: duckdb.DuckDBPyConnection, views: list[str]) -> None:
+    """Register declared view-mode derived tables as live DuckDB views (REQ_141).
+
+    Materialized derived tables are discovered as ordinary base tables (their
+    Parquet lives in the per-variant warehouse), so only ``materialized=False``
+    specs need a live ``CREATE VIEW`` here — their query computes on read. A view
+    whose input tables are not all present is skipped (its inputs were never
+    materialized for this family). ``views`` is extended in place. Mutates nothing
+    if no view-mode derived tables are registered.
+    """
+    from miscope.analysis.derived_table import DerivedTableRegistry
+
+    for spec in sorted(DerivedTableRegistry.list_specs(), key=lambda d: d.name):
+        if spec.materialized or spec.name in views:
+            continue
+        if not all(t in views for t in spec.input_tables):
+            continue
+        _create_view(con, spec.name, spec.query)
+        views.append(spec.name)
 
 
 def _open_bundle(root: str, requested: tuple[str, ...] | None) -> QueryConnection:

@@ -123,6 +123,16 @@ def family_table_glob(family: object, table: str) -> str:
     return str(_variants_glob(family) / DATAVIEWS_DIRNAME / table / "*.parquet")
 
 
+def variant_table_glob(variant: Variant, table: str) -> str:
+    """Glob over a single variant's Parquet files for ``table`` (single-variant scan).
+
+    The per-variant counterpart of :func:`family_table_glob` — used by the derived
+    table executor (REQ_141), which runs each query scoped to one variant so a
+    per-variant aggregation does not merge across variants.
+    """
+    return str(table_dir(variant, table) / "*.parquet")
+
+
 def family_catalog_glob(family: object) -> str:
     """Glob over every variant's co-emitted columnar catalog Parquet (110-A rows)."""
     return str(_variants_glob(family) / DATAVIEWS_DIRNAME / CATALOG_DIRNAME / "*.parquet")
