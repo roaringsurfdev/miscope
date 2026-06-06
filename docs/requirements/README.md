@@ -74,8 +74,12 @@ Each requirement's own header carries its status, priority, and effort.
 
 When a requirement's implementation is merged to `develop`:
 
-1. Update the requirement file's `Status:` field to `Completed`.
-2. Move the file from `active/` to `staging/`.
+1. Verify the project is clean (the staging gate, same checks CI gates on):
+   `ruff check .`, `ruff format --check .`, and `uv run pyright` all pass.
+   This keeps type/lint debt from pooling across a requirement line. On a
+   long-lived feature branch, run it at each merge to `develop`.
+2. Update the requirement file's `Status:` field to `Completed`.
+3. Move the file from `active/` to `staging/`.
 
 The requirement remains in `staging/` until its release milestone moves it to
 `archive/`.

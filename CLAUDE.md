@@ -131,8 +131,12 @@ A logical unit is a meaningful chunk of work that can be described as a complete
 
 **Continuous Integration:**
 - PRs to `develop` and `main` trigger CI workflow
-- Tests must pass before merge (blocking)
-- Lint/typecheck run as advisory (non-blocking for now)
+- All three CI jobs are blocking before merge: tests, lint (`ruff check` +
+  `ruff format --check`), and typecheck (`pyright`). Lint/typecheck were
+  advisory through the REQ_110 line; a large drift accumulation (89 pyright
+  errors cleared at once) showed the cost of letting them slip, so they are
+  now gates. Keeping `develop` (and what we push to remote) clean is cheaper
+  than a periodic cleanup sweep.
 
 **Merging to Main (Milestone Releases):**
 1. Create PR from `develop` → `main` on GitHub
@@ -172,6 +176,14 @@ docs/requirements/
 A requirement moves `active/` → `staging/` (when its implementation merges to
 `develop`, status flipped to `Completed`) → `archive/vX.Y.Z-name/` (at release
 time). `staging/` answers "what's about to ship next?"
+
+**Staging gate (drift prevention).** Before moving a requirement to `staging/`,
+verify the project is clean: `ruff check .`, `ruff format --check .`, and
+`uv run pyright` all pass (the same jobs CI gates on). This is the cheap
+local checkpoint that keeps `develop` clean per-requirement instead of letting
+type/lint debt pool across a long requirement line. For a long-lived feature
+branch (e.g. the REQ_110 line), run it at each merge to `develop`, not only at
+the final stage.
 
 **Working with requirements:**
 - Claude works on requirements via explicit direction (e.g., "Work on REQ_011")
@@ -403,6 +415,7 @@ The goal is not rigid rules but shared understanding that empowers both of us to
 
 ---
 
-**Version:** 0.8
-**Last Updated:** 2026-05-26
-**Status:** Added third architectural constraint — storage layout is internal to the API (post-REQ_122 review).
+**Version:** 0.9
+**Last Updated:** 2026-06-06
+**Status:** Lint + typecheck are now blocking CI gates with a per-requirement
+staging checkpoint (drift-prevention, post-REQ_110 cleanup).
