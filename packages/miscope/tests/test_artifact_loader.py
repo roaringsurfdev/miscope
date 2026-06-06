@@ -1,7 +1,6 @@
 """Tests for REQ_003_004: Artifact Loader (updated for REQ_021f per-epoch storage
 and REQ_022 summary statistics)."""
 
-import json
 import os
 import tempfile
 
@@ -37,7 +36,7 @@ class TestArtifactLoaderWithEmptyDirectory:
             yield tmpdir
 
     def test_get_available_analyzers_empty(self, empty_artifacts_dir):
-        """Returns empty list when no manifest exists."""
+        """Returns empty list when no artifacts exist."""
         loader = ArtifactLoader(empty_artifacts_dir)
         assert loader.get_available_analyzers() == []
 
@@ -46,13 +45,6 @@ class TestArtifactLoaderWithEmptyDirectory:
         loader = ArtifactLoader(empty_artifacts_dir)
         with pytest.raises(FileNotFoundError) as exc_info:
             loader.load("nonexistent")
-        assert "nonexistent" in str(exc_info.value)
-
-    def test_get_metadata_raises_for_missing(self, empty_artifacts_dir):
-        """Raises KeyError for missing analyzer in manifest."""
-        loader = ArtifactLoader(empty_artifacts_dir)
-        with pytest.raises(KeyError) as exc_info:
-            loader.get_metadata("nonexistent")
         assert "nonexistent" in str(exc_info.value)
 
 
@@ -76,21 +68,6 @@ class TestArtifactLoaderPerEpoch:
                     os.path.join(analyzer_dir, f"epoch_{epoch:05d}.npz"),
                     coefficients=coefficients,
                 )
-
-            # Create manifest
-            manifest = {
-                "analyzers": {
-                    "dominant_frequencies": {
-                        "epochs_completed": epochs,
-                        "shapes": {"coefficients": [33]},
-                        "dtypes": {"coefficients": "float32"},
-                    }
-                },
-                "variant_params": {"prime": 17, "seed": 42},
-                "family_name": "modulo_addition_1layer",
-            }
-            with open(os.path.join(artifacts_dir, "manifest.json"), "w") as f:
-                json.dump(manifest, f)
 
             yield artifacts_dir
 
@@ -143,15 +120,6 @@ class TestArtifactLoaderPerEpoch:
 
         assert epochs == [0, 25, 49]
 
-    def test_get_metadata(self, artifacts_with_epochs):
-        """Gets metadata for analyzer from manifest."""
-        loader = ArtifactLoader(artifacts_with_epochs)
-        metadata = loader.get_metadata("dominant_frequencies")
-
-        assert "epochs_completed" in metadata
-        assert "shapes" in metadata
-        assert "dtypes" in metadata
-
 
 class TestArtifactLoaderIndependence:
     """Tests verifying loader works without pipeline (per-epoch format)."""
@@ -179,20 +147,6 @@ class TestArtifactLoaderIndependence:
                 data=data,
             )
 
-        # Save manifest
-        manifest = {
-            "analyzers": {
-                "test_analyzer": {
-                    "epochs_completed": [0, 100, 200],
-                    "shapes": {"data": [10]},
-                    "dtypes": {"data": "float64"},
-                }
-            },
-            "model_config": {"prime": 113, "seed": 999},
-        }
-        with open(os.path.join(artifacts_dir, "manifest.json"), "w") as f:
-            json.dump(manifest, f)
-
         return artifacts_dir
 
     def test_load_without_pipeline(self, artifacts_dir_only):
@@ -211,43 +165,6 @@ class TestArtifactLoaderIndependence:
 
         assert "data" in epoch_data
         assert epoch_data["data"].shape == (10,)
-
-    def test_metadata_without_pipeline(self, artifacts_dir_only):
-        """Can read metadata without pipeline."""
-        loader = ArtifactLoader(artifacts_dir_only)
-        metadata = loader.get_metadata("test_analyzer")
-
-        assert metadata["epochs_completed"] == [0, 100, 200]
-
-    def test_model_config_without_pipeline(self, artifacts_dir_only):
-        """Can read model config without pipeline."""
-        loader = ArtifactLoader(artifacts_dir_only)
-        config = loader.get_model_config()
-
-        assert config["prime"] == 113
-
-
-class TestArtifactLoaderManifestCaching:
-    """Tests for manifest caching."""
-
-    @pytest.fixture
-    def artifacts_dir(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            manifest = {"analyzers": {"test": {}}, "model_config": {}}
-            with open(os.path.join(tmpdir, "manifest.json"), "w") as f:
-                json.dump(manifest, f)
-            yield tmpdir
-
-    def test_manifest_cached(self, artifacts_dir):
-        """Manifest is cached after first access."""
-        loader = ArtifactLoader(artifacts_dir)
-
-        # Access manifest twice
-        _ = loader.manifest
-        _ = loader.manifest
-
-        # Should be the same object
-        assert loader._manifest is not None
 
 
 class TestArtifactLoaderSummary:

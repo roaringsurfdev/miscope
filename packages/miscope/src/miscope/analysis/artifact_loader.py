@@ -14,9 +14,7 @@ Also supports summary statistics (REQ_022) stored as a single file:
     artifacts/{analyzer_name}/summary.npz
 """
 
-import json
 import os
-from typing import Any
 
 import numpy as np
 
@@ -98,20 +96,12 @@ class ArtifactLoader:
         """
         self.artifacts_dir = artifacts_dir
         self._recipe_map = recipe_map or {}
-        self._manifest: dict[str, Any] | None = None
 
     def _dir(self, analyzer_name: str) -> str:
         """Recipe-scoped blob directory for an analyzer (storage primitive)."""
         return analyzer_dir(
             self.artifacts_dir, analyzer_name, self._recipe_map.get(analyzer_name, "")
         )
-
-    @property
-    def manifest(self) -> dict[str, Any]:
-        """Load and cache the manifest."""
-        if self._manifest is None:
-            self._manifest = self._load_manifest()
-        return self._manifest
 
     def load_epoch(
         self, analyzer_name: str, epoch: int, fields: list[str] | None = None
@@ -287,28 +277,6 @@ class ArtifactLoader:
 
         return sorted(epochs)
 
-    def get_metadata(self, analyzer_name: str) -> dict[str, Any]:
-        """Get metadata for an analyzer from manifest.
-
-        Args:
-            analyzer_name: Name of the analyzer
-
-        Returns:
-            Dict with shapes, dtypes, updated_at, etc.
-
-        Raises:
-            KeyError: If analyzer not found in manifest
-        """
-        analyzers = self.manifest.get("analyzers", {})
-
-        if analyzer_name not in analyzers:
-            available = list(analyzers.keys())
-            raise KeyError(
-                f"Analyzer '{analyzer_name}' not found in manifest. Available: {available}"
-            )
-
-        return analyzers[analyzer_name]
-
     def load_summary(self, analyzer_name: str) -> dict[str, np.ndarray]:
         """Load summary statistics for an analyzer.
 
@@ -390,21 +358,3 @@ class ArtifactLoader:
         """
         cross_epoch_path = os.path.join(self._dir(analyzer_name), "cross_epoch.npz")
         return os.path.exists(cross_epoch_path)
-
-    def get_model_config(self) -> dict[str, Any]:
-        """Get model configuration from manifest.
-
-        Returns:
-            Dict with model config (prime, seed, etc.)
-        """
-        return self.manifest.get("model_config", {})
-
-    def _load_manifest(self) -> dict[str, Any]:
-        """Load manifest from disk."""
-        manifest_path = os.path.join(self.artifacts_dir, "manifest.json")
-
-        if not os.path.exists(manifest_path):
-            return {}
-
-        with open(manifest_path) as f:
-            return json.load(f)

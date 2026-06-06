@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -70,7 +68,6 @@ class AnalysisPipeline:
 
         self._analyzers: list[Analyzer] = []
         self._cross_epoch_analyzers: list[Analyzer] = []
-        self._manifest: dict[str, Any] = {}
 
         self._device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -80,7 +77,6 @@ class AnalysisPipeline:
         self._recipe_map: dict[str, str] = {}
 
         os.makedirs(self.artifacts_dir, exist_ok=True)
-        self._manifest = self._load_manifest()
 
     def _recipe_dir(self, analyzer_name: str) -> str:
         """Recipe-scoped write/scan directory for an analyzer (REQ_138 storage primitive)."""
@@ -238,11 +234,6 @@ class AnalysisPipeline:
         # upstream's ``cross_epoch.npz`` exists before its dependent reads it.
         if self._cross_epoch_analyzers and plan.cross_epoch:
             self._run_cross_epoch_from_plan(plan.cross_epoch, context, progress_callback)
-
-        # Save manifest with metadata at end of run
-        if work_queue:
-            self._update_manifest(work_queue)
-        self._save_manifest()
 
         self._record_run_set()
 
@@ -550,54 +541,6 @@ class AnalysisPipeline:
         np.savez_compressed(temp_base, **result)  # type: ignore[arg-type]
         temp_path = temp_base + ".npz"
         os.replace(temp_path, artifact_path)
-
-    def _update_manifest(self, work_queue: list[tuple[Analyzer, list[int]]]) -> None:
-        """Update manifest with metadata for all analyzers that ran."""
-        if "analyzers" not in self._manifest:
-            self._manifest["analyzers"] = {}
-
-        for analyzer, _ in work_queue:
-            completed = self.get_completed_epochs(analyzer.name)
-            if not completed:
-                continue
-
-            # Load one epoch to get shapes and dtypes
-            sample_path = os.path.join(
-                self._recipe_dir(analyzer.name), f"epoch_{completed[0]:05d}.npz"
-            )
-            sample = dict(np.load(sample_path))
-            shapes = {k: list(v.shape) for k, v in sample.items()}
-            dtypes = {k: str(v.dtype) for k, v in sample.items()}
-
-            self._manifest["analyzers"][analyzer.name] = {
-                "epochs_completed": completed,
-                "shapes": shapes,
-                "dtypes": dtypes,
-                "updated_at": datetime.now(UTC).isoformat(),
-            }
-
-    def _save_manifest(self) -> None:
-        """Save manifest to disk atomically."""
-        self._manifest["variant_params"] = self.variant.params
-        self._manifest["family_name"] = self.variant.family.name
-
-        manifest_path = os.path.join(self.artifacts_dir, "manifest.json")
-        temp_path = manifest_path + ".tmp"
-
-        with open(temp_path, "w") as f:
-            json.dump(self._manifest, f, indent=2)
-
-        os.replace(temp_path, manifest_path)
-
-    def _load_manifest(self) -> dict:
-        """Load manifest from disk, or return empty dict."""
-        manifest_path = os.path.join(self.artifacts_dir, "manifest.json")
-
-        if os.path.exists(manifest_path):
-            with open(manifest_path) as f:
-                return json.load(f)
-
-        return {}
 
     def _build_summary_collectors(
         self, work_queue: list[tuple[Analyzer, list[int]]]
