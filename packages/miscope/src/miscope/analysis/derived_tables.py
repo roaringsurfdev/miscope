@@ -19,6 +19,13 @@ The neuron-frequency vertical slice (REQ_141 bucket-2): the cross-epoch
   whether it survives to the final epoch, and the homeless-neuron count.
 - ``transient_peak_members`` — the ragged peak-cohort membership, flattened to a
   ``(frequency, member_neuron)`` long table (the fork-2 / 2B decision).
+
+REQ_144 adds the variant-outcome layer's conformed inputs and rollups as further
+derived tables (declared below their own header):
+
+- ``participation_ratios`` — per ``(epoch, site, head)`` weight-matrix participation
+  ratio ``(Σσ)²/Σσ²`` over the ``weight_spectra`` singular values, so the summary
+  engine reads ``pr_W_*`` as a queryable fact instead of an analyzer summary npz.
 """
 
 from __future__ import annotations
@@ -198,6 +205,48 @@ TRANSIENT_PEAK_MEMBERS_TABLE = register_derived_table(
                 "int64",
                 (Coord.VARIANT, Coord.FREQUENCY),
                 "Neuron in a transient frequency's peak-epoch committed cohort (one row each).",
+            ),
+        ),
+        materialized=True,
+    )
+)
+
+
+# ===========================================================================
+# REQ_144 — variant-outcome layer conformed inputs
+# ===========================================================================
+
+WEIGHT_SPECTRA = "weight_spectra"
+
+
+# ---------------------------------------------------------------------------
+# participation_ratios — per (epoch, site, head) weight-matrix participation ratio.
+#
+# PR = (Σσ)²/Σσ² over a matrix's singular values (``compute_participation_ratio``),
+# expressed as a reduction over the ``weight_spectra`` ``sv`` rows. This replaces the
+# summary engine's ``load_summary("weight_spectra")`` read of ``pr_W_*`` with a
+# conformed warehouse fact (REQ_144 CoS #3). Computed for every site/head; the
+# non-attention matrices the engine consumes (W_E/W_in/W_out) sit at head=0.
+# ---------------------------------------------------------------------------
+
+PARTICIPATION_RATIOS_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="participation_ratios",
+        query=f"""
+            SELECT epoch, site, head,
+                   pow(sum(sv), 2) / sum(sv * sv) AS participation_ratio
+            FROM {WEIGHT_SPECTRA}
+            GROUP BY epoch, site, head
+            ORDER BY epoch, site, head
+        """,
+        input_tables=(WEIGHT_SPECTRA,),
+        outputs=(
+            F.columnar(
+                "participation_ratio",
+                "float64",
+                (Coord.VARIANT, Coord.EPOCH, Coord.SITE, Coord.HEAD),
+                "Participation ratio (Σσ)²/Σσ² of a weight matrix's singular values "
+                "per epoch (head = attention head; head=0 for non-attention sites).",
             ),
         ),
         materialized=True,
