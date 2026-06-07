@@ -129,6 +129,7 @@ def build_index() -> RegistryIndex:
     # the registry off the warehouse's load path.
     import miscope.analysis.analyzers  # noqa: F401
     import miscope.analysis.derived_tables  # noqa: F401
+    import miscope.analysis.derived_tables_windows  # noqa: F401 — isolated window layer (REQ_144)
     import miscope.views.dataview_universal  # noqa: F401
 
     analyzers = tuple(sorted(AnalyzerRegistry.list_specs(), key=lambda s: s.name))

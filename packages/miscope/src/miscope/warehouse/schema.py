@@ -30,7 +30,17 @@ RESERVED_PROVENANCE = ("analyzer_version", "conditions_satisfied", "trust_tier")
 
 # Canonical coord-column order for a long table (after the variant columns).
 # `head` follows `site` — it is an attention-site sub-axis (REQ_136).
-_COORD_ORDER = ("epoch", "site", "head", "group", "frequency", "neuron", "row_id", "pc_index")
+_COORD_ORDER = (
+    "window",
+    "epoch",
+    "site",
+    "head",
+    "group",
+    "frequency",
+    "neuron",
+    "row_id",
+    "pc_index",
+)
 
 
 class GroupType(str, Enum):

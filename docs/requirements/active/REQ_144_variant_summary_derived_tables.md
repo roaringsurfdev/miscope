@@ -178,6 +178,30 @@ natural derived-table column or a small classifier over the outcomes row.
     definitions isn't worth chasing, and the mechanism is built to be replaced. The
     byte-parity gate binds the stable layer only.
 
+  **(f) Window keying — `WINDOW` as a first-class coordinate (user direction,
+  2026-06-07).** Refines (c)/(e) after the user clarified that the window
+  *vocabulary* is stable even though the boundary *method* is provisional: first
+  descent / plateau / second descent / final are established grokking phases;
+  `cascade` is an experimental pre-onset probe; `neural_collapse` is a likely future
+  member (the p109 end-of-training phase change). So windows are a closed, enumerable
+  analytical dimension — exactly what a coordinate is for — and the soft part is only
+  the epoch *values* and how they're computed. Therefore:
+  - Add **`Coord.WINDOW`** (a string coord like `SITE`); vocabulary
+    `first_descent, plateau, second_descent, final, cascade` (+ reserved
+    `neural_collapse`).
+  - The **boundary-derivation method is a swappable producer**: `window_ranges`
+    (proxy, now) and a future `dmd_window_ranges` (windowed DMD) emit the *same*
+    `(variant, WINDOW) → start/end` schema, so proxy and DMD boundaries are
+    comparable by a one-line join — the "cheap proxy as first-line predictor of
+    expensive DMD" workflow made first-class.
+  - `window_metrics` keys `(variant, WINDOW, EPOCH)` with a start/end boundary role,
+    metric columns mirroring the conformed facts at the boundary epoch (supersedes
+    (c)'s long-by-metric — WINDOW+boundary-epoch keying joins straight to the per-epoch
+    tables). `window_frequencies` keys `(variant, WINDOW, FREQUENCY)` with boundary +
+    role (learned/committed/gain/loss) + band.
+  - Lives in an isolated module (`analysis/derived_tables_windows.py`) imported by
+    `registry.build_index` — physical quarantine of the soft layer.
+
 ## Implementation Plan (staged, each stage parity-gated on the 3 baselines)
 
 1. **Conformed input facts (CoS #3 foundation).** `losses` columnar table (warehouse

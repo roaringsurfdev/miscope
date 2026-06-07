@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 # with VARIANT leading — it expands to variant_id + the family's param columns).
 _COORD_SIGNATURE_ORDER = (
     Coord.VARIANT,
+    Coord.WINDOW,
     Coord.EPOCH,
     Coord.SITE,
     Coord.HEAD,
