@@ -39,6 +39,12 @@ def load_transient_dict(variant: object) -> dict:
     try:
         return _assemble(variant)
     except FileNotFoundError:
+        # Self-heal only when the rebuild can succeed: materialize() WIPES the
+        # columnar tables and regenerates from artifacts, so triggering it on a
+        # variant without the attribution artifacts would destroy a stale-but-
+        # present attribution table it cannot rebuild. Guard on artifact presence.
+        if _ATTRIBUTION_TABLE not in variant.artifacts.get_available_analyzers():  # type: ignore[attr-defined]
+            raise
         variant.warehouse.materialize()  # type: ignore[attr-defined]
         return _assemble(variant)
 

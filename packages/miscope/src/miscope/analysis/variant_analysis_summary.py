@@ -740,21 +740,31 @@ class VariantAnalysisSummary:
         """
         from miscope.warehouse.reader import read_table
 
+        def _none() -> None:
+            self.summary_data["transient_frequencies"] = None
+            self.summary_data["transient_frequency_count"] = None
+            self.summary_data["homeless_neuron_count"] = None
+            self.summary_data["homeless_neuron_fraction"] = None
+            self.summary_data["transient_detection_threshold"] = None
+
         try:
             tf = read_table(self.variant, "transient_frequencies").df
         except FileNotFoundError:
-            # Self-heal (mirrors neuron_frequency.load): materialize the warehouse
-            # once and retry, so a summary run right after re-analysis builds the
-            # derived tables instead of recording None.
+            # Self-heal only when the rebuild can succeed. materialize() WIPES the
+            # columnar tables; triggering it on a variant without the attribution
+            # artifacts would destroy a stale-but-present attribution table it
+            # cannot rebuild (corrupting un-migrated variants during a batch refresh).
+            if (
+                "neuron_frequency_attribution"
+                not in self.variant.artifacts.get_available_analyzers()
+            ):
+                _none()
+                return
             try:
                 self.variant.warehouse.materialize()  # type: ignore[attr-defined]
                 tf = read_table(self.variant, "transient_frequencies").df
             except FileNotFoundError:
-                self.summary_data["transient_frequencies"] = None
-                self.summary_data["transient_frequency_count"] = None
-                self.summary_data["homeless_neuron_count"] = None
-                self.summary_data["homeless_neuron_fraction"] = None
-                self.summary_data["transient_detection_threshold"] = None
+                _none()
                 return
 
         not_final = tf[~tf["is_final"].astype(bool)]
