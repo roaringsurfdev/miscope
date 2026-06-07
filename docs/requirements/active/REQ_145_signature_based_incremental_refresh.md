@@ -270,3 +270,55 @@ not yet established — a short-lived doc, not a standing policy.
 - The "next already-sorted problem around the corner" hedge is the swappable-component
   boundary (Must-have): keep invalidation logic behind one seam so a future tool, if
   ever justified, maps onto it instead of requiring an unwind.
+
+---
+## Implementation guidance (carried from the REQ_141 implementation session, 2026-06-06)
+
+Concrete starting points from having just built REQ_141 and lived the gap this REQ
+closes. Verify against the code before relying on them.
+
+1. **REQ_141 already hands you a live multi-hop fixture — use it as the first
+   invalidation test.** Reshaping `neuron_dynamics` bumped its `AnalyzerSpec.version`
+   to **2** (see `analysis/analyzers/neuron_dynamics.py`), and introduced the real
+   3-hop chain `activation_basis_projection → neuron_frequency_attribution →
+   neuron_dynamics`. That is exactly the code-version-delta + transitive-propagation
+   case the predicate must catch — and the historical situation (neuron_dynamics
+   "fresh" by coverage despite the reshape) is the regression to reproduce. Pin the
+   invalidation-correctness validation to this chain.
+
+2. **Fork (b) checkpoint identity — strong lean to mtime+size (or a train-time
+   manifest id), NOT a content hash.** A single full materialize was measured to blow
+   past a 5-minute timeout under contention; re-hashing safetensors at *every plan*
+   would reintroduce the very cost this REQ removes. Read-cheap is the constraint.
+   Also stamp the **epoch set**, not just the count, so adding dense checkpoints
+   invalidates only the new epochs.
+
+3. **Per-epoch stamp granularity is where the win actually is — make it a CoS, not an
+   afterthought.** Per-epoch analyzers (e.g. the new `neuron_frequency_attribution`)
+   write one npz per epoch. If the signature/stamp is per-*analyzer*, adding one
+   checkpoint re-runs all N epochs — i.e. no better than the coverage check that
+   exists. Signature-incremental only beats coverage if per-epoch nodes are stamped
+   and compared per-`(analyzer, epoch)`. Per-epoch primaries are the bulk cost.
+
+4. **Name derived tables as a producer kind in `sig()`.** A `DerivedTableSpec`'s
+   "code" is its **SQL text**, so its signature is `hash(query) + spec.version +
+   sorted(input-table sigs)`. Changing the query must invalidate. The formula as
+   written keys on `code_version`; spell out that for derived tables that folds the
+   query text (or require a `version` bump on query change).
+
+5. **Two concrete reuse points already in the tree:**
+   - The dashboard's *dumb* full re-materialize added in REQ_141
+     (`apps/dashboard/src/dashboard/pages/analysis_run.py`, commit 9aea734 — the
+     `materialize_variant_columnar` + `materialize_variant_derived` calls after
+     `pipeline.run`) is the exact call site to make signature-scoped (CoS: re-materialize
+     only changed tables). `scripts/run_analysis.py` is the parity sibling to do the same.
+   - `apps/research/sketches/validate_req141_parity.py` (read-only, recompute-in-memory
+     vs. stored) is the template for the "signature-aware rebuild == `force` rebuild"
+     byte-parity validation.
+
+6. **Conservative-recompute is correct; it justifies deferring fork (c).** REQ_141
+   proved old vs new `neuron_dynamics` are *value-identical* despite the v1→v2 bump
+   (`validate_req141_parity.py`). So the predicate will recompute it on the version
+   delta even though values won't change — the honest signal beating a missed
+   optimization. This is precisely why the optional output data-version hash (fork c)
+   is genuinely deferrable: the input-derived code-version is the load-bearing trigger.
