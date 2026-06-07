@@ -623,3 +623,257 @@ COMPETITION_GEOMETRY_OUTCOMES_TABLE = register_derived_table(
         materialized=True,
     )
 )
+
+
+# ===========================================================================
+# REQ_144 — list-valued frequency-portfolio outcomes
+#
+# These reproduce the engine's attribution-based list fields. A neuron is
+# specialized at an epoch when frac_explained >= 0.70; committed_frequencies adds
+# a population floor (count >= floor * d_mlp). The attribution `frequency` is
+# 0-indexed, so the 1-indexed summary value is +1. Empty results are emitted as
+# empty lists (not NULL) to match the engine's `[]`.
+# ===========================================================================
+
+_CANONICAL_SPECIALIZATION_THRESHOLD = 0.10  # population floor for "learned" at the final epoch
+
+LOSS_OUTCOMES = "loss_outcomes"
+
+
+# ---------------------------------------------------------------------------
+# learned_frequencies_outcome — committed frequencies at the final epoch.
+# ---------------------------------------------------------------------------
+
+LEARNED_FREQUENCIES_OUTCOME_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="learned_frequencies_outcome",
+        query=f"""
+            WITH final_epoch AS (SELECT MAX(epoch) AS e FROM {ATTRIBUTION}),
+            d_mlp AS (SELECT COUNT(DISTINCT neuron) AS n FROM {ATTRIBUTION}),
+            counts AS (
+                SELECT frequency, COUNT(*) AS c
+                FROM {ATTRIBUTION}
+                WHERE epoch = (SELECT e FROM final_epoch)
+                  AND frac_explained >= {_NEURON_THRESHOLD}
+                GROUP BY frequency
+            ),
+            learned AS (
+                SELECT frequency + 1 AS f
+                FROM counts
+                WHERE c >= {_CANONICAL_SPECIALIZATION_THRESHOLD} * (SELECT n FROM d_mlp)
+            )
+            SELECT
+                COALESCE(
+                    (SELECT array_agg(f ORDER BY f) FROM learned), CAST([] AS BIGINT[])
+                ) AS learned_frequencies,
+                (SELECT COUNT(*) FROM learned) AS learned_frequency_count,
+                {_CANONICAL_SPECIALIZATION_THRESHOLD} AS canonical_specialization_threshold
+        """,
+        input_tables=(ATTRIBUTION,),
+        outputs=(
+            F.columnar(
+                "learned_frequencies",
+                "int64",
+                (Coord.VARIANT,),
+                "Sorted 1-indexed frequencies population-committed at the final epoch.",
+            ),
+            F.columnar(
+                "learned_frequency_count",
+                "int64",
+                (Coord.VARIANT,),
+                "Count of learned (final-epoch population-committed) frequencies.",
+            ),
+            F.columnar(
+                "canonical_specialization_threshold",
+                "float64",
+                (Coord.VARIANT,),
+                "Population floor (fraction of d_mlp) for a frequency to count as learned.",
+            ),
+        ),
+        materialized=True,
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+# onset_portfolio_outcome — committed/specialized frequency portfolio at the
+# second-descent onset + the handshake check. Derived-on-derived: the onset epoch
+# comes from `loss_outcomes`, the learned set from `learned_frequencies_outcome`.
+#
+# `epoch_index(onset)` is the nearest stored epoch at or after onset (clamped), so
+# the SQL takes MIN(epoch) >= onset (fallback MAX). committed adds the population
+# floor; the misnamed `second_descent_onset_committed_frequencies` is actually the
+# *specialized* set. Bands classify each specialized (1-indexed) frequency against
+# the prime. Every field is NULL when there is no second-descent onset (engine: None).
+# ---------------------------------------------------------------------------
+
+ONSET_PORTFOLIO_OUTCOME_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="onset_portfolio_outcome",
+        query=f"""
+            WITH onset AS (SELECT second_descent_onset_epoch AS oe FROM {LOSS_OUTCOMES}),
+            onset_epoch AS (
+                SELECT CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL
+                    ELSE COALESCE(
+                        (SELECT MIN(epoch) FROM {ATTRIBUTION}
+                         WHERE epoch >= (SELECT oe FROM onset)),
+                        (SELECT MAX(epoch) FROM {ATTRIBUTION})
+                    ) END AS e
+            ),
+            d_mlp AS (SELECT COUNT(DISTINCT neuron) AS n FROM {ATTRIBUTION}),
+            prime AS (SELECT MAX(prime) AS p FROM {ATTRIBUTION}),
+            at_onset AS (
+                SELECT frequency, COUNT(*) AS c
+                FROM {ATTRIBUTION}
+                WHERE epoch = (SELECT e FROM onset_epoch) AND frac_explained >= {_NEURON_THRESHOLD}
+                GROUP BY frequency
+            ),
+            committed AS (
+                SELECT frequency + 1 AS f FROM at_onset
+                WHERE c >= {_CANONICAL_SPECIALIZATION_THRESHOLD} * (SELECT n FROM d_mlp)
+            ),
+            specialized AS (SELECT frequency + 1 AS f FROM at_onset),
+            learned AS (SELECT UNNEST(learned_frequencies) AS f FROM learned_frequencies_outcome),
+            failures AS (SELECT f FROM committed WHERE f NOT IN (SELECT f FROM learned)),
+            banded AS (
+                SELECT f,
+                    CASE WHEN f <= (SELECT p FROM prime) // 4 THEN 'low'
+                         WHEN f > 3 * (SELECT p FROM prime) // 8 THEN 'high'
+                         ELSE 'mid' END AS band
+                FROM specialized
+            )
+            SELECT
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL ELSE COALESCE(
+                    (SELECT array_agg(f ORDER BY f) FROM committed), CAST([] AS BIGINT[])) END
+                    AS committed_frequencies_at_onset,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL ELSE COALESCE(
+                    (SELECT array_agg(f ORDER BY f) FROM failures), CAST([] AS BIGINT[])) END
+                    AS handshake_failures,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL
+                    ELSE (SELECT COUNT(*) FROM failures) = 0 END AS handshake_succeeded,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL ELSE COALESCE(
+                    (SELECT array_agg(f ORDER BY f) FROM specialized), CAST([] AS BIGINT[])) END
+                    AS second_descent_onset_committed_frequencies,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL ELSE COALESCE(
+                    (SELECT array_agg(band ORDER BY f) FROM banded), CAST([] AS VARCHAR[])) END
+                    AS second_descent_onset_frequency_bands,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL
+                    ELSE EXISTS (SELECT 1 FROM banded WHERE band = 'low') END
+                    AS second_descent_onset_has_low_band,
+                CASE WHEN (SELECT oe FROM onset) IS NULL THEN NULL
+                    ELSE (SELECT COUNT(DISTINCT band) FROM banded) END
+                    AS second_descent_onset_band_count
+        """,
+        input_tables=(ATTRIBUTION, LOSS_OUTCOMES, "learned_frequencies_outcome"),
+        outputs=(
+            F.columnar(
+                "committed_frequencies_at_onset",
+                "int64",
+                (Coord.VARIANT,),
+                "1-indexed frequencies population-committed at the onset epoch (null if no onset).",
+            ),
+            F.columnar(
+                "handshake_failures",
+                "int64",
+                (Coord.VARIANT,),
+                "Onset-committed frequencies not in the final learned set (null if no onset).",
+            ),
+            F.columnar(
+                "handshake_succeeded",
+                "bool",
+                (Coord.VARIANT,),
+                "Whether every onset-committed frequency survived into the learned set.",
+            ),
+            F.columnar(
+                "second_descent_onset_committed_frequencies",
+                "int64",
+                (Coord.VARIANT,),
+                "Specialized 1-indexed frequencies at the onset epoch (null if no onset).",
+            ),
+            F.columnar(
+                "second_descent_onset_frequency_bands",
+                "str",
+                (Coord.VARIANT,),
+                "Band (low/mid/high) of each onset specialized frequency (null if no onset).",
+            ),
+            F.columnar(
+                "second_descent_onset_has_low_band",
+                "bool",
+                (Coord.VARIANT,),
+                "Whether any onset specialized frequency falls in the low band.",
+            ),
+            F.columnar(
+                "second_descent_onset_band_count",
+                "int64",
+                (Coord.VARIANT,),
+                "Distinct band count across onset specialized frequencies (null if no onset).",
+            ),
+        ),
+        materialized=True,
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+# transient_outcome — the variant-level transient rollup over the per-frequency
+# `transient_frequencies` derived table (REQ_141). The not-final rows give the
+# transient frequencies (1-indexed for the summary) and the homeless-neuron total;
+# the homeless fraction divides by d_mlp; the detection threshold is the 0.05
+# fraction. Reproduces `_load_transient_metrics`.
+# ---------------------------------------------------------------------------
+
+TRANSIENT_FREQUENCIES = "transient_frequencies"
+
+TRANSIENT_OUTCOME_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="transient_outcome",
+        query=f"""
+            WITH nf AS (
+                SELECT frequency, homeless_count FROM {TRANSIENT_FREQUENCIES} WHERE NOT is_final
+            ),
+            d_mlp AS (SELECT COUNT(DISTINCT neuron) AS n FROM {ATTRIBUTION})
+            SELECT
+                COALESCE((SELECT array_agg(frequency + 1 ORDER BY frequency) FROM nf),
+                         CAST([] AS BIGINT[])) AS transient_frequencies,
+                (SELECT COUNT(*) FROM nf) AS transient_frequency_count,
+                COALESCE((SELECT SUM(homeless_count) FROM nf), 0) AS homeless_neuron_count,
+                CAST(COALESCE((SELECT SUM(homeless_count) FROM nf), 0) AS DOUBLE)
+                    / (SELECT n FROM d_mlp) AS homeless_neuron_fraction,
+                {_TRANSIENT_FRACTION} AS transient_detection_threshold
+        """,
+        input_tables=(TRANSIENT_FREQUENCIES, ATTRIBUTION),
+        outputs=(
+            F.columnar(
+                "transient_frequencies",
+                "int64",
+                (Coord.VARIANT,),
+                "1-indexed frequencies that peaked above the transient floor but did not survive.",
+            ),
+            F.columnar(
+                "transient_frequency_count",
+                "int64",
+                (Coord.VARIANT,),
+                "Count of transient frequencies.",
+            ),
+            F.columnar(
+                "homeless_neuron_count",
+                "int64",
+                (Coord.VARIANT,),
+                "Total peak-cohort neurons that abandoned a transient frequency without re-homing.",
+            ),
+            F.columnar(
+                "homeless_neuron_fraction",
+                "float64",
+                (Coord.VARIANT,),
+                "Homeless-neuron count as a fraction of d_mlp.",
+            ),
+            F.columnar(
+                "transient_detection_threshold",
+                "float64",
+                (Coord.VARIANT,),
+                "Fraction-of-d_mlp floor for a frequency to count as ever-qualified.",
+            ),
+        ),
+        materialized=True,
+    )
+)
