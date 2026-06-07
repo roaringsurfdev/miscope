@@ -25,10 +25,13 @@ from dataclasses import field as dc_field
 from typing import TYPE_CHECKING
 
 import miscope.registry as reg
+from miscope.analysis import signature as sig_mod
 from miscope.analysis.derived_table import DerivedTableRegistry, DerivedTableSpec
 from miscope.analysis.output_schema import Coord
 from miscope.warehouse import catalog as catalog_mod
 from miscope.warehouse import paths, schema
+from miscope.warehouse.signatures import read_table_signatures, write_table_signatures
+from miscope.warehouse.writer import _table_materialized, _wipe_table
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -63,28 +66,42 @@ class DerivedMaterializeReport:
 
 
 def materialize_variant_derived(
-    variant: Variant, run_set: str = paths.DEFAULT_RUN_SET
+    variant: Variant, run_set: str = paths.DEFAULT_RUN_SET, force: bool = False
 ) -> DerivedMaterializeReport:
-    """Materialize every registered derived table whose inputs exist for ``variant``.
+    """Materialize every registered derived table whose inputs exist (REQ_141/REQ_145).
 
-    Derived tables are universal instruments (constraint 1) — not family-owned — so
-    the scope is every registered spec, gated by whether its input tables are
-    present for this variant. Ordered so a derived table that reads another derived
-    table materializes after it.
+    Surgical by default: a derived table's **source signature** folds its version,
+    its query text, and its input tables' source signatures (read from the shared
+    warehouse manifest the columnar pass wrote). The expensive query runs only when
+    that signature changed (or the table's Parquet is absent). ``force=True`` ignores
+    signatures. Derived tables are universal instruments (constraint 1) — scope is
+    every registered spec, gated by input presence; ordered so a derived table reading
+    another materializes after it (and sees its freshly-computed signature).
     """
     report = DerivedMaterializeReport(variant_id=variant.name)
     specs = _ordered_specs(DerivedTableRegistry.list_specs())
     if not specs:
         return report
     variant_cols = _variant_columns(variant, run_set)
+    table_sigs = read_table_signatures(variant)
+    new_sigs = dict(table_sigs)
     for spec in specs:
         try:
             if not _inputs_present(variant, spec):
                 report.skipped.append(spec.name)
                 continue
+            src_sig = _derived_source_sig(spec, new_sigs)
+            new_sigs[spec.name] = src_sig
             if not spec.materialized:
                 report.views.append(spec.name)  # exposed live by miscope.query.open
                 continue
+            if (
+                not force
+                and table_sigs.get(spec.name) == src_sig
+                and _table_materialized(variant, spec.name)
+            ):
+                continue  # signature-fresh — skip the expensive query
+            _wipe_table(variant, spec.name)
             frame = _run_query(variant, spec, run_set)
             _write_derived(variant, spec, frame, variant_cols, report)
         except Exception as exc:  # noqa: BLE001 — quarantine one bad derived table (REQ_140)
@@ -96,7 +113,19 @@ def materialize_variant_derived(
                 type(exc).__name__,
                 exc,
             )
+    write_table_signatures(variant, new_sigs)
     return report
+
+
+def _derived_source_sig(spec: DerivedTableSpec, table_sigs: dict[str, str]) -> str:
+    """Source signature of a derived table: version + query text + input-table sigs.
+
+    Folding the SQL text means changing the query invalidates the table even at the
+    same version (REQ_145 guidance #4); folding input-table sigs propagates upstream
+    columnar/derived changes through the chain.
+    """
+    inputs = sorted(table_sigs.get(t, "") for t in spec.input_tables)
+    return sig_mod.compute_signature([f"v={spec.version}", spec.query, *inputs])
 
 
 def _ordered_specs(specs: list[DerivedTableSpec]) -> list[DerivedTableSpec]:
