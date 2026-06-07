@@ -743,12 +743,19 @@ class VariantAnalysisSummary:
         try:
             tf = read_table(self.variant, "transient_frequencies").df
         except FileNotFoundError:
-            self.summary_data["transient_frequencies"] = None
-            self.summary_data["transient_frequency_count"] = None
-            self.summary_data["homeless_neuron_count"] = None
-            self.summary_data["homeless_neuron_fraction"] = None
-            self.summary_data["transient_detection_threshold"] = None
-            return
+            # Self-heal (mirrors neuron_frequency.load): materialize the warehouse
+            # once and retry, so a summary run right after re-analysis builds the
+            # derived tables instead of recording None.
+            try:
+                self.variant.warehouse.materialize()  # type: ignore[attr-defined]
+                tf = read_table(self.variant, "transient_frequencies").df
+            except FileNotFoundError:
+                self.summary_data["transient_frequencies"] = None
+                self.summary_data["transient_frequency_count"] = None
+                self.summary_data["homeless_neuron_count"] = None
+                self.summary_data["homeless_neuron_fraction"] = None
+                self.summary_data["transient_detection_threshold"] = None
+                return
 
         not_final = tf[~tf["is_final"].astype(bool)]
         transient_freqs = sorted(int(f) + 1 for f in np.asarray(not_final["frequency"]))

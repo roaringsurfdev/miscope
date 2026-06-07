@@ -26,10 +26,21 @@ _ATTRIBUTION_TABLE = "neuron_frequency_attribution"
 def load_transient_dict(variant: object) -> dict:
     """Reassemble the legacy ``transient_frequency`` artifact dict from the warehouse.
 
-    Raises ``FileNotFoundError`` (via :func:`read_table`) if the derived tables are
-    not materialized — the same signal the old ``load_cross_epoch`` raised, so
-    callers' absence handling is unchanged.
+    Self-healing (mirrors :func:`miscope.analysis.neuron_frequency.load`): if the
+    derived tables are not materialized yet, materialize the warehouse once and
+    retry. If the inputs are genuinely absent (the variant was never analyzed with
+    the attribution analyzer), ``FileNotFoundError`` propagates — the same signal
+    the old ``load_cross_epoch`` raised, so callers' absence handling is unchanged.
     """
+    try:
+        return _assemble(variant)
+    except FileNotFoundError:
+        variant.warehouse.materialize()  # type: ignore[attr-defined]
+        return _assemble(variant)
+
+
+def _assemble(variant: object) -> dict:
+    """Read the three transient derived tables + attribution epochs into the dict."""
     summary = read_table(variant, _SUMMARY_TABLE).df.sort_values("frequency")
     committed = read_table(variant, _COMMITTED_TABLE).df
     members = read_table(variant, _MEMBERS_TABLE).df

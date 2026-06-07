@@ -1498,9 +1498,12 @@ def _register_all() -> None:
             data["transient"], data["w_in_by_epoch"], epoch, **kwargs
         )
 
-    _transient_req = [AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH)]
+    # REQ_141: the transient views are now built from the transient derived tables,
+    # which materialize from the per-epoch neuron_frequency_attribution analyzer
+    # (the loader self-heals the warehouse). Availability tracks that upstream.
+    _transient_req = [AnalyzerRequirement("neuron_frequency_attribution", ArtifactKind.EPOCH)]
     _transient_win_req = [
-        AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH),
+        AnalyzerRequirement("neuron_frequency_attribution", ArtifactKind.EPOCH),
         AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
     ]
 
