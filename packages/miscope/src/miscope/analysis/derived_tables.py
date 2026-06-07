@@ -252,3 +252,206 @@ PARTICIPATION_RATIOS_TABLE = register_derived_table(
         materialized=True,
     )
 )
+
+
+# ---------------------------------------------------------------------------
+# loss_outcomes — the stable loss-curve outcome scalars (one wide row per variant).
+#
+# A bucket-2 reduction over the dense `losses` table that reproduces the summary
+# engine's `_load_train_test_loss_metrics` value-for-value: loss extrema + their
+# (first-occurrence) argmin/argmax epochs, threshold-crossing epochs, finals, and
+# the second-descent onset (first epoch at/after the test-loss peak where the
+# descent fraction clears the onset threshold) + survival. `epoch` equals the dense
+# list index, so SQL argmin/argmax with an `epoch` tie-break matches numpy's
+# first-occurrence semantics exactly.
+# ---------------------------------------------------------------------------
+
+LOSSES = "losses"
+
+# Thresholds carried verbatim from variant_analysis_summary so the outputs match.
+_FIRST_DESCENT_TRAIN_LOSS_THRESHOLD = 1.0e-6
+_SECOND_DESCENT_TEST_LOSS_THRESHOLD = 1.0e-6
+_SECOND_DESCENT_ONSET_DIFF_THRESHOLD = 0.8
+_SUCCESSFUL_TEST_LOSS_THRESHOLD = 1.0e-5
+
+LOSS_OUTCOMES_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="loss_outcomes",
+        query=f"""
+            WITH bounds AS (
+                SELECT MAX(epoch) AS last_epoch,
+                       MIN(train_loss) AS train_loss_min,
+                       MIN(test_loss) AS test_loss_min,
+                       MAX(test_loss) AS test_loss_max
+                FROM {LOSSES}
+            ),
+            argmin_train AS (SELECT epoch AS e FROM {LOSSES} ORDER BY train_loss, epoch LIMIT 1),
+            argmin_test AS (SELECT epoch AS e FROM {LOSSES} ORDER BY test_loss, epoch LIMIT 1),
+            argmax_test AS (SELECT epoch AS e FROM {LOSSES} ORDER BY test_loss DESC, epoch LIMIT 1),
+            finals AS (
+                SELECT train_loss AS train_loss_final, test_loss AS test_loss_final
+                FROM {LOSSES} WHERE epoch = (SELECT last_epoch FROM bounds)
+            ),
+            onset AS (
+                SELECT MIN(l.epoch) AS onset_epoch
+                FROM {LOSSES} l, bounds b, argmax_test a
+                WHERE l.epoch >= a.e
+                  AND (b.test_loss_max - l.test_loss) / b.test_loss_max
+                      >= {_SECOND_DESCENT_ONSET_DIFF_THRESHOLD}
+            )
+            SELECT
+                b.train_loss_min,
+                (SELECT e FROM argmin_train) AS train_loss_min_epoch,
+                COALESCE(
+                    (SELECT MIN(epoch) FROM {LOSSES}
+                     WHERE train_loss <= {_FIRST_DESCENT_TRAIN_LOSS_THRESHOLD}), -1
+                ) AS train_loss_threshold_first_epoch,
+                f.train_loss_final,
+                b.test_loss_min,
+                (SELECT e FROM argmin_test) AS test_loss_min_epoch,
+                b.test_loss_max,
+                (SELECT e FROM argmax_test) AS test_loss_max_epoch,
+                (SELECT e FROM argmax_test) AS peak_test_loss_epoch,
+                COALESCE(
+                    (SELECT MIN(epoch) FROM {LOSSES}
+                     WHERE test_loss <= {_SECOND_DESCENT_TEST_LOSS_THRESHOLD}), -1
+                ) AS test_loss_threshold_first_epoch,
+                f.test_loss_final,
+                f.test_loss_final AS final_test_loss,
+                o.onset_epoch AS second_descent_onset_epoch,
+                CASE WHEN o.onset_epoch IS NOT NULL
+                     THEN (f.test_loss_final <= {_SUCCESSFUL_TEST_LOSS_THRESHOLD})
+                     ELSE NULL END AS second_descent_survived
+            FROM bounds b, finals f, onset o
+        """,
+        input_tables=(LOSSES,),
+        outputs=(
+            F.columnar("train_loss_min", "float64", (Coord.VARIANT,), "Minimum training loss."),
+            F.columnar(
+                "train_loss_min_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "Epoch (dense index) of minimum training loss (first occurrence).",
+            ),
+            F.columnar(
+                "train_loss_threshold_first_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch train loss crosses the first-descent threshold (-1 if never).",
+            ),
+            F.columnar(
+                "train_loss_final", "float64", (Coord.VARIANT,), "Final-epoch training loss."
+            ),
+            F.columnar("test_loss_min", "float64", (Coord.VARIANT,), "Minimum test loss."),
+            F.columnar(
+                "test_loss_min_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "Epoch of minimum test loss (first occurrence).",
+            ),
+            F.columnar("test_loss_max", "float64", (Coord.VARIANT,), "Maximum test loss."),
+            F.columnar(
+                "test_loss_max_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "Epoch of maximum (peak) test loss (first occurrence).",
+            ),
+            F.columnar(
+                "peak_test_loss_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "Alias of test_loss_max_epoch (the test-loss peak).",
+            ),
+            F.columnar(
+                "test_loss_threshold_first_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch test loss crosses the second-descent threshold (-1 if never).",
+            ),
+            F.columnar("test_loss_final", "float64", (Coord.VARIANT,), "Final-epoch test loss."),
+            F.columnar("final_test_loss", "float64", (Coord.VARIANT,), "Alias of test_loss_final."),
+            F.columnar(
+                "second_descent_onset_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch at/after the test-loss peak whose descent fraction clears the "
+                "onset threshold (null if no second descent).",
+            ),
+            F.columnar(
+                "second_descent_survived",
+                "bool",
+                (Coord.VARIANT,),
+                "Whether the final test loss stayed below the success threshold after onset "
+                "(null if no onset).",
+            ),
+        ),
+        materialized=True,
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+# dimensionality_outcomes — the W_out↘W_in effective-dimensionality crossover.
+#
+# Reproduces `_load_effective_dimensionality_key_epochs`: skip the random-init
+# period where W_out ≈ W_in, and only after W_out has first risen clearly above
+# W_in, report the first epoch it falls back to/below W_in (and W_E's PR there).
+# The "rose above first" gate is a running max over earlier epochs; defaults are
+# (-1, -1.0) when no crossover occurs. PR values come from `participation_ratios`
+# (the conformed fact), not the analyzer summary npz.
+# ---------------------------------------------------------------------------
+
+PARTICIPATION_RATIOS = "participation_ratios"
+
+DIMENSIONALITY_OUTCOMES_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="dimensionality_outcomes",
+        query=f"""
+            WITH pivoted AS (
+                SELECT epoch,
+                       MAX(participation_ratio) FILTER (WHERE site = 'W_E') AS pr_e,
+                       MAX(participation_ratio) FILTER (WHERE site = 'W_in') AS pr_in,
+                       MAX(participation_ratio) FILTER (WHERE site = 'W_out') AS pr_out
+                FROM {PARTICIPATION_RATIOS}
+                WHERE head = 0 AND site IN ('W_E', 'W_in', 'W_out')
+                GROUP BY epoch
+            ),
+            flagged AS (
+                SELECT epoch, pr_e, pr_in, pr_out,
+                       MAX(CASE WHEN pr_out > pr_in THEN 1 ELSE 0 END)
+                           OVER (ORDER BY epoch ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                           AS rose
+                FROM pivoted
+            ),
+            crossover AS (
+                SELECT epoch, pr_e
+                FROM flagged
+                WHERE rose = 1 AND pr_out <= pr_in
+                ORDER BY epoch
+                LIMIT 1
+            )
+            SELECT
+                COALESCE((SELECT epoch FROM crossover), -1)
+                    AS effective_dimensionality_cross_over_epoch,
+                COALESCE((SELECT pr_e FROM crossover), -1.0)
+                    AS effective_dimensionality_crossover_W_E_pr
+        """,
+        input_tables=(PARTICIPATION_RATIOS,),
+        outputs=(
+            F.columnar(
+                "effective_dimensionality_cross_over_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch W_out's participation ratio falls back to/below W_in's after "
+                "first rising above it (-1 if no crossover).",
+            ),
+            F.columnar(
+                "effective_dimensionality_crossover_W_E_pr",
+                "float64",
+                (Coord.VARIANT,),
+                "W_E participation ratio at the crossover epoch (-1.0 if no crossover).",
+            ),
+        ),
+        materialized=True,
+    )
+)
