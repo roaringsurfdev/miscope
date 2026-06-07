@@ -1,8 +1,10 @@
 # REQ_141: Derived Tables — a Declarative Cross-Epoch Aggregation Layer
 
-**Status:** Active (design surfaced in a 2026-06-06 data-model session).
+**Status:** Completed — merged to `develop` 2026-06-06 (merge of
+`feature/REQ_141_derived_tables`, 8 commits). Value-identical parity on the three
+baselines; validated on the dashboard across force + no-force paths.
 **Priority:** Medium — architectural; unlocks memory + provenance wins, not a defect.
-**Branch:** TBD (`feature/REQ_141_derived_tables`); lands **after REQ_110 merges to `develop`**.
+**Branch:** `feature/REQ_141_derived_tables` (merged to `develop`).
 **Parent:** REQ_110 (Lakehouse Surface) — builds the next layer on the columnar warehouse + query surface.
 **Dependencies:** 110-A (`warehouse` columnar tables), 110-C (`miscope.query`), REQ_107 (output-schema registry), REQ_133 (freshness DAG). Interacts with REQ_140 (materializer scope/isolation).
 **Attribution:** Engineering Claude (under user direction)
