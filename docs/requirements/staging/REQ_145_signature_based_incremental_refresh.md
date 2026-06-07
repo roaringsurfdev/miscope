@@ -1,7 +1,11 @@
 # REQ_145: Signature-Based Incremental Refresh — One Freshness Predicate for Artifacts and Tables
 
-**Status:** Active (design surfaced across a 2026-06-06 architecture session; promoted
-from the `platform_ideas.md` "Data Refresh" note).
+**Status:** Completed — merged to `develop` 2026-06-07 (in staging). Acceptance bar
+closed: the pinned baselines were rebuilt with `run_analysis.py` (FORCE=True then
+FORCE=False); the second pass reported **no changes** for each (byte-parity / no-op
+confirmed end-to-end) and the regression checksums were regenerated. (Design surfaced
+across a 2026-06-06 architecture session; promoted from the `platform_ideas.md` "Data
+Refresh" note.)
 **Priority:** High — a full dumb re-run + re-materialize of one variant is ~40 min,
 which currently quarantines all work to 3 pinned variants and blocks an affordable
 full rebuild (REQ_137). This is the lever that makes both cheap.
