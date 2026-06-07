@@ -538,3 +538,88 @@ NEURON_THRESHOLD_OUTCOMES_TABLE = register_derived_table(
         materialized=True,
     )
 )
+
+
+# ---------------------------------------------------------------------------
+# competition_geometry_outcomes — commitment-window span + peak circularity.
+#
+# Reproduces `_load_competition_and_geometry_summary_metrics`. The competition
+# window spans the per-neuron commitment epochs from `recompute_commitment_epochs`,
+# whose definition is NOT "first epoch committed" but the earliest epoch from which
+# a neuron stays specialized to its *final* dominant frequency continuously through
+# the end — and only neurons committed at the final epoch qualify. As a SQL
+# gaps-and-islands reduction: per qualifying neuron, the commitment epoch is the
+# first epoch *after the last epoch where (frac >= 0.70 AND freq = final freq)
+# fails* (or the first epoch, if it never fails). start/end = min/max over those;
+# duration = span. Peak circularity is MAX over conformed resid_post circularity.
+# All null when no neuron qualifies / no circularity rows (engine: None).
+# ---------------------------------------------------------------------------
+
+SHAPE_CHARACTERIZATIONS = "shape_characterizations"
+
+COMPETITION_GEOMETRY_OUTCOMES_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="competition_geometry_outcomes",
+        query=f"""
+            WITH final_epoch AS (SELECT MAX(epoch) AS e FROM {ATTRIBUTION}),
+            qualifying AS (
+                SELECT neuron, frequency AS final_freq
+                FROM {ATTRIBUTION}
+                WHERE epoch = (SELECT e FROM final_epoch)
+                  AND frac_explained >= {_NEURON_THRESHOLD}
+            ),
+            good AS (
+                SELECT a.neuron, a.epoch,
+                       (a.frac_explained >= {_NEURON_THRESHOLD} AND a.frequency = q.final_freq)
+                           AS is_good
+                FROM {ATTRIBUTION} a
+                JOIN qualifying q USING (neuron)
+            ),
+            last_bad AS (
+                SELECT neuron, MAX(epoch) AS lb FROM good WHERE NOT is_good GROUP BY neuron
+            ),
+            commit_epoch AS (
+                SELECT g.neuron, MIN(g.epoch) AS ce
+                FROM good g
+                LEFT JOIN last_bad lb USING (neuron)
+                WHERE lb.lb IS NULL OR g.epoch > lb.lb
+                GROUP BY g.neuron
+            )
+            SELECT
+                (SELECT MIN(ce) FROM commit_epoch) AS competition_window_start,
+                (SELECT MAX(ce) FROM commit_epoch) AS competition_window_end,
+                (SELECT MAX(ce) - MIN(ce) FROM commit_epoch) AS competition_window_duration,
+                (SELECT MAX(value) FROM {SHAPE_CHARACTERIZATIONS}
+                 WHERE site = 'resid_post' AND operation_type = 'circularity')
+                    AS max_resid_post_circularity
+        """,
+        input_tables=(ATTRIBUTION, SHAPE_CHARACTERIZATIONS),
+        outputs=(
+            F.columnar(
+                "competition_window_start",
+                "int64",
+                (Coord.VARIANT,),
+                "Earliest per-neuron first-commitment epoch (null if no neuron commits).",
+            ),
+            F.columnar(
+                "competition_window_end",
+                "int64",
+                (Coord.VARIANT,),
+                "Latest per-neuron first-commitment epoch (null if no neuron commits).",
+            ),
+            F.columnar(
+                "competition_window_duration",
+                "int64",
+                (Coord.VARIANT,),
+                "Span between the earliest and latest first-commitment epochs.",
+            ),
+            F.columnar(
+                "max_resid_post_circularity",
+                "float64",
+                (Coord.VARIANT,),
+                "Peak resid_post centroid circularity over training (null if absent).",
+            ),
+        ),
+        materialized=True,
+    )
+)
