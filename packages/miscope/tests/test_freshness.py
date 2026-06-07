@@ -65,6 +65,7 @@ def _stamp_fresh(variant, analyzers, checkpoints=None) -> None:
         merged.update(sigs)
         write_signature_manifest(variant.artifacts_dir, name, "", merged)
 
+
 # ---------------------------------------------------------------------------
 # PerEpochFreshness
 # ---------------------------------------------------------------------------
@@ -107,7 +108,9 @@ def test_cross_epoch_absent():
 
 def test_cross_epoch_stale_with_reason():
     """REQ_145: staleness is the planner's reason, not an epoch-count gap."""
-    ce = CrossEpochFreshness("neuron_dynamics", True, 10, 7, plan_reason="stale: upstream x changed")
+    ce = CrossEpochFreshness(
+        "neuron_dynamics", True, 10, 7, plan_reason="stale: upstream x changed"
+    )
     assert not ce.is_fresh
     assert "upstream x changed" in ce.status_label
 
@@ -304,6 +307,29 @@ def test_check_freshness_missing_per_epoch(tmp_path):
     pe = report.per_epoch[0]
     assert not pe.is_fresh
     assert set(pe.missing_epochs) == {200, 300}
+
+
+def test_intragroup_manifold_present_but_unstamped_is_stale(tmp_path):
+    """REQ_145 "free" fixture: the real ``intragroup_manifold`` analyzer.
+
+    Its stored cross-epoch artifacts on non-pinned variants are stale/wrong-shape yet
+    coverage-complete, so the old count-based predicate reported them fresh and they
+    errored on read. They predate signatures (no manifest), so the new predicate reads
+    them stale -> recompute — the turn-1 regression on a real, in-tree analyzer, no
+    artificial version bump. The upstream ``neuron_group_pca`` is present so the item
+    is stale (not blocked)."""
+    checkpoints = [0, 100, 200]
+    artifacts_dir = tmp_path / "artifacts"
+    _write_cross_epoch(artifacts_dir, "neuron_group_pca", 3)  # upstream satisfied
+    _write_cross_epoch(artifacts_dir, "intragroup_manifold", 3)  # present, full, unstamped
+
+    variant = _make_variant(tmp_path, checkpoints)
+    report = check_freshness(variant, cross_epoch_names=["intragroup_manifold"])
+
+    ce = report.cross_epoch[0]
+    assert ce.analyzer_name == "intragroup_manifold"
+    assert not ce.is_fresh
+    assert "stale" in ce.status_label
 
 
 def test_check_freshness_present_but_unstamped_is_stale(tmp_path):
