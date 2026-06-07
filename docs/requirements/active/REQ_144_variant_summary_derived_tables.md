@@ -1,12 +1,11 @@
 # REQ_144: Recast the Variant Summary Engine as Derived Tables
 
-**Status:** Draft — queued behind REQ_141 **and REQ_145** (sequencing decided in
-2026-06-06 sessions; REQ_145 lands the signature-based freshness predicate first so
-this REQ's new derived tables are born into a correct invalidation regime).
+**Status:** Active (2026-06-07) — both blockers cleared: REQ_141 and REQ_145 are in
+`staging/` (merged to `develop`), so this REQ's new derived tables are born into the
+signature-based invalidation regime as intended.
 **Priority:** Medium — architectural; pays down a large imperative aggregator and
 removes a warehouse-bypass, not a defect.
-**Branch:** TBD (`feature/REQ_144_variant_summary_derived_tables`); lands **after
-REQ_141 merges to `develop`**.
+**Branch:** `feature/REQ_144_variant_summary_derived_tables`.
 **Parent:** REQ_141 (Derived Tables). This is the "next aggregator" REQ_141's
 success criterion forecasts — the proof that converting one is a mechanical
 application of the litmus test, not a redesign.
@@ -113,10 +112,64 @@ natural derived-table column or a small classifier over the outcomes row.
   `miscope.query` / the warehouse reader; definitions in code, locations in config.
 
 ## Decision Authority
-- [x] Propose options for review — open forks: (a) whether `variant_registry.json`
-  survives as a file or becomes a pure derived view; (b) how much of the failure-mode
-  classifier becomes a declarative derived column vs. a thin Python classifier over
-  the outcomes row; (c) the keying of the window-metrics long table.
+- [x] Forks resolved by the user 2026-06-07 (activation session):
+
+  **(d) Reach-around scope — Add a losses table too (most thorough).** REQ_144
+  introduces a conformed `losses` columnar table (train/test per `(variant, epoch)`)
+  *and* brings weight-spectra participation ratios (`pr_W_E/in/out`) and
+  repr-geometry `fisher_mean` onto the query surface, so every summary input is a
+  queryable warehouse fact. CoS #3 is met in full, not partially. Largest blast
+  radius — touches the warehouse materializer surface. Losses have no analyzer
+  source (they are checkpoint metadata), so the `losses` table is a warehouse-level
+  co-emission seam mirroring `warehouse/outcomes.py` (sources from
+  `variant.metadata`, not an analyzer), carrying its own REQ_145 source signature.
+
+  **(a) Registry fate — Pure derived view.** `variant_registry.json` stops being a
+  written file; the registry becomes a query/derived view over `variant_outcomes`.
+  Every registry consumer (dashboard pages, scripts, family accessors) migrates to
+  the query surface in this REQ. Pre-v1.0.0 → no back-compat shim (the JSON↔Parquet↔JSON
+  round-trip dissolves entirely).
+
+  **(c) Window keying — Long `(variant, window, boundary, metric)`.** Per-window
+  start/end scalar metrics become a fully long-format derived table
+  (`window_metrics`), one row per `(window, boundary∈{start,end}, metric_name)→value`,
+  matching warehouse long-canonical. Renderers reassemble the legacy nested dicts via
+  an accessor (the REQ_141 `transient_frequency_dim` precedent). List-valued window
+  fields (learned/committed frequencies, gains/losses, bands) do **not** fit a scalar
+  long table → they get a sibling membership table `window_frequencies` keyed
+  `(variant, window, boundary, role, frequency)` (the REQ_141 `transient_peak_members`
+  ragged-flatten precedent).
+
+  **(b) Classifier — Thin Python classifier over the outcomes row.** Failure-mode /
+  performance classification stays a small auditable Python function
+  (`classify_failure_mode` already lives in `views/cross_variant`) consuming the
+  materialized `variant_outcomes` row. Derived tables stay pure SQL reductions; the
+  rule-with-reasons audit trail stays readable; no SQL-CASE parity risk on the
+  `reasons` list.
+
+## Implementation Plan (staged, each stage parity-gated on the 3 baselines)
+
+1. **Conformed input facts (CoS #3 foundation).** `losses` columnar table (warehouse
+   co-emission from `variant.metadata`, `(variant, epoch)` → train_loss/test_loss,
+   REQ_145 signature); bring `weight_spectra` PRs + `repr_geometry` `fisher_mean` onto
+   the query surface (semantic mapping or confirmed generic-fallback queryability).
+2. **Derived tables (bucket-2 reductions).** `variant_outcomes` as a real
+   `DerivedTableSpec` (schema/version/provenance) over the conformed facts, replacing
+   the JSON-flatten in `warehouse/outcomes.py`; `window_ranges` (threshold-crossing
+   window boundaries); `window_metrics` (long) + `window_frequencies` (membership).
+3. **Engine decomposition.** Break the 814-line `VariantAnalysisSummary` along the
+   bucket boundary: bucket-2 reductions move into derived-table SQL; a thin imperative
+   tail remains for genuine bucket-3 reads + the Python failure-mode classifier over
+   the outcomes row.
+4. **Registry as pure derived view.** Drop `variant_registry.json`; expose the
+   registry as a view over `variant_outcomes`; migrate consumers (dashboard
+   `variant_table`, `viability_certificate`, `initialization_sweep`, `analysis_run`,
+   `variant_context_bar`, `transient_frequency`; scripts; `base_model_family` /
+   `variant` / `protocols` accessors).
+5. **Freshness + parity + tests.** Thread new tables through the REQ_133/145 DAG;
+   byte-parity on the three baselines; regression net green
+   (`test_variant_summary`, `test_warehouse`, `test_freshness`, `test_families`,
+   dashboard `test_variant_table`).
 
 ## Notes
 - Sequencing rationale (2026-06-06 session): kept out of REQ_141 to preserve its
