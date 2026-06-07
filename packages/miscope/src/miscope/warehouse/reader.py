@@ -22,6 +22,7 @@ from miscope.warehouse import paths, schema
 
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
+    from miscope.warehouse.derived import DerivedMaterializeReport
     from miscope.warehouse.writer import MaterializeReport
 
 
@@ -58,10 +59,31 @@ class WarehouseAccessor:
         self._variant = variant
 
     def materialize(self) -> MaterializeReport:
-        """(Re)materialize this variant's columnar warehouse from its npz artifacts."""
+        """(Re)materialize this variant's warehouse: columnar tables, then derived.
+
+        Derived tables (REQ_141) query the columnar tables, so they materialize
+        *after* the columnar pass in the same call — the warehouse is complete after
+        one ``materialize()``. Derived materialization is isolated (REQ_140): a
+        failing derived table is logged in its own report, never fatal to the
+        columnar result returned here. Use :meth:`materialize_derived` for the
+        derived report.
+        """
+        from miscope.warehouse.derived import materialize_variant_derived
         from miscope.warehouse.writer import materialize_variant_columnar
 
-        return materialize_variant_columnar(self._variant)
+        report = materialize_variant_columnar(self._variant)
+        materialize_variant_derived(self._variant)
+        return report
+
+    def materialize_derived(self) -> DerivedMaterializeReport:
+        """(Re)materialize only this variant's derived tables (REQ_141).
+
+        Assumes the columnar tables the derived queries read are already present
+        (run :meth:`materialize` for the full warehouse).
+        """
+        from miscope.warehouse.derived import materialize_variant_derived
+
+        return materialize_variant_derived(self._variant)
 
     def tables(self) -> list[str]:
         """Materialized table names under the warehouse root."""

@@ -1448,17 +1448,22 @@ def _register_all() -> None:
     # --- Transient frequency views ---
 
     def _load_transient(variant: Variant, epoch: int | None) -> dict:
-        return variant.artifacts.load_cross_epoch("transient_frequency")
+        # REQ_141 (bucket-2): reassembled from the transient derived tables.
+        from miscope.analysis.transient_frequency_dim import load_transient_dict
+
+        return load_transient_dict(variant)
 
     def _load_transient_with_win(variant: Variant, epoch: int | None) -> dict:
-        """Load transient artifact plus W_in for all snapshot epochs.
+        """Load transient data plus W_in for all snapshot epochs.
 
         Loads W_in at every available snapshot epoch so that both peak_scatter
         (needs only peak epoch) and pc1_cohesion (needs every epoch) can share
         this loader.  The full set is typically 50-150 epochs — similar cost to
         loading a cross-epoch parameter_snapshot artifact.
         """
-        tf = variant.artifacts.load_cross_epoch("transient_frequency")
+        from miscope.analysis.transient_frequency_dim import load_transient_dict
+
+        tf = load_transient_dict(variant)
         snap_epochs = variant.artifacts.get_epochs("parameter_snapshot")
         w_in_by_epoch = {}
         for ep in snap_epochs:
@@ -1493,9 +1498,12 @@ def _register_all() -> None:
             data["transient"], data["w_in_by_epoch"], epoch, **kwargs
         )
 
-    _transient_req = [AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH)]
+    # REQ_141: the transient views are now built from the transient derived tables,
+    # which materialize from the per-epoch neuron_frequency_attribution analyzer
+    # (the loader self-heals the warehouse). Availability tracks that upstream.
+    _transient_req = [AnalyzerRequirement("neuron_frequency_attribution", ArtifactKind.EPOCH)]
     _transient_win_req = [
-        AnalyzerRequirement("transient_frequency", ArtifactKind.CROSS_EPOCH),
+        AnalyzerRequirement("neuron_frequency_attribution", ArtifactKind.EPOCH),
         AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
     ]
 

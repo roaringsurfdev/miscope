@@ -76,8 +76,12 @@ def load_transient_cohort_centroids(variant):
         peak_count  (n_transient,)
         homeless_count (n_transient,)
     """
+    # REQ_141 (bucket-2): transient_frequency is now the transient derived tables;
+    # reassemble the legacy dict from the warehouse.
+    from miscope.analysis.transient_frequency_dim import load_transient_dict
+
     loader = ArtifactLoader(str(variant.variant_dir / "artifacts"))
-    tf = loader.load_cross_epoch("transient_frequency")
+    tf = load_transient_dict(variant)
     freqs = tf["ever_qualified_freqs"]
     if len(freqs) == 0:
         return None

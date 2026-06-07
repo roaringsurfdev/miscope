@@ -18,7 +18,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 import miscope
-from miscope.warehouse import materialize_variant_columnar
+from miscope.warehouse import materialize_variant_columnar, materialize_variant_derived
 
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
@@ -31,6 +31,15 @@ def _report(variant: Variant) -> None:
         print(f"    {table:34} {rows:>10,} rows")
     if rep.skipped_analyzers:
         print(f"    skipped (no columnar artifacts): {', '.join(rep.skipped_analyzers)}")
+
+    # Derived tables (REQ_141) query the columnar tables just written.
+    drep = materialize_variant_derived(variant)
+    if drep.tables or drep.views or drep.failed:
+        print(f"    derived: {len(drep.tables)} materialized, {len(drep.views)} views")
+        for table, rows in sorted(drep.tables.items()):
+            print(f"    {table:34} {rows:>10,} rows (derived)")
+        for name, err in sorted(drep.failed.items()):
+            print(f"    derived FAILED {name}: {err}")
 
 
 def main() -> None:

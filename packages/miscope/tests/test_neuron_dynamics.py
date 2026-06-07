@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import plotly.graph_objects as go
 import pytest
-from _deps_fakes import abp_artifact_from_norm_matrix, store_inputs
+from _deps_fakes import store_inputs
 
 from miscope.analysis.analyzers import AnalyzerRegistry
 from miscope.analysis.analyzers.neuron_dynamics import (
@@ -50,15 +50,15 @@ PRIME = 23  # marginals are zeroed in the fixture, so the value is immaterial
 
 @pytest.fixture
 def artifacts_with_activation_basis_projection():
-    """Create temp artifacts dir with activation_basis_projection epoch files.
+    """Create temp artifacts dir with per-epoch neuron_frequency_attribution files.
 
-    REQ_131: neuron_dynamics now reconstructs norm_matrix from the generic
-    activation_basis_projection artifact, so the fixture writes that artifact
-    (norm on the joint-power diagonal, zero marginals).
+    REQ_141: neuron_dynamics now streams the per-epoch neuron_frequency_attribution
+    analyzer (dominant_freq / max_frac per neuron), reducing it to switch counts +
+    commitment epochs. The fixture writes that per-epoch artifact directly; every
+    neuron is committed (max_frac well above the 3/n_freq threshold).
     """
-    n_freq = 10
     d_mlp = 8
-    # Epochs: neurons start random, then specialize, then some switch
+    # Epochs: neurons start specialized, then some switch their dominant frequency.
     epoch_assignments = {
         0: [0, 1, 2, 3, 4, 5, 6, 7],  # initial assignment
         100: [0, 1, 2, 3, 4, 5, 6, 7],  # same
@@ -69,15 +69,16 @@ def artifacts_with_activation_basis_projection():
     epochs = sorted(epoch_assignments.keys())
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        analyzer_dir = os.path.join(tmpdir, "activation_basis_projection")
+        analyzer_dir = os.path.join(tmpdir, "neuron_frequency_attribution")
         os.makedirs(analyzer_dir)
 
         for epoch in epochs:
-            assignments = epoch_assignments[epoch]
-            norm_matrix = _make_specialized_norm_matrix(n_freq, d_mlp, assignments)
-            artifact = abp_artifact_from_norm_matrix(norm_matrix)
             path = os.path.join(analyzer_dir, f"epoch_{epoch:05d}.npz")
-            np.savez_compressed(path, **artifact)  # pyright: ignore[reportArgumentType]
+            np.savez_compressed(
+                path,
+                dominant_freq=np.array(epoch_assignments[epoch], dtype=np.int64),
+                max_frac=np.full(d_mlp, 0.95, dtype=np.float64),
+            )
 
         yield tmpdir, epochs, epoch_assignments
 
@@ -166,7 +167,7 @@ class TestNeuronDynamicsAnalyzer:
             context={"params": {"prime": PRIME}},
         )
         np.testing.assert_array_equal(result["epochs"], subset)
-        assert result["max_frac"].shape[0] == len(subset)
+        assert result["switch_counts"].shape == (8,)
 
     def test_analyze_across_epochs(
         self,
@@ -181,18 +182,17 @@ class TestNeuronDynamicsAnalyzer:
         )
 
         assert "epochs" in result
-        assert "dominant_freq" in result
-        assert "max_frac" in result
         assert "switch_counts" in result
         assert "commitment_epochs" in result
         assert "threshold" in result
+        # REQ_141: dominant_freq/max_frac moved to neuron_frequency_attribution.
+        assert "dominant_freq" not in result
+        assert "max_frac" not in result
 
         n_epochs = len(epochs)
         d_mlp = 8
 
         assert result["epochs"].shape == (n_epochs,)
-        assert result["dominant_freq"].shape == (n_epochs, d_mlp)
-        assert result["max_frac"].shape == (n_epochs, d_mlp)
         assert result["switch_counts"].shape == (d_mlp,)
         assert result["commitment_epochs"].shape == (d_mlp,)
 

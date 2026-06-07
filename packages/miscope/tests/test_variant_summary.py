@@ -188,15 +188,25 @@ def test_vas_transient_metrics_none_without_artifact():
     assert vas.summary_data["homeless_neuron_count"] is None
 
 
-def test_vas_transient_metrics_populated():
-    tf = {
-        "ever_qualified_freqs": np.array([13, 39], dtype=np.int32),
-        "is_final": np.array([True, False], dtype=bool),
-        "homeless_count": np.array([0, 30], dtype=np.int32),
-        "_transient_canonical_threshold": np.float32(0.05),
-    }
+def test_vas_transient_metrics_populated(monkeypatch):
+    # REQ_141 (bucket-2): _load_transient_metrics reads the transient_frequencies
+    # derived table (frequency / is_final / homeless_count), not the old artifact.
+    from types import SimpleNamespace
+
+    import pandas as pd
+
+    tf_df = pd.DataFrame(
+        {"frequency": [13, 39], "is_final": [True, False], "homeless_count": [0, 30]}
+    )
+
+    def fake_read_table(variant, name, *args, **kwargs):
+        if name == "transient_frequencies":
+            return SimpleNamespace(df=tf_df)
+        raise FileNotFoundError(name)
+
+    monkeypatch.setattr("miscope.warehouse.reader.read_table", fake_read_table)
     nd = _make_nd_data()
-    variant = _make_vas_variant(nd_data=nd, tf_data=tf)
+    variant = _make_vas_variant(nd_data=nd)
     vas = _make_vas(variant)
     vas._load_transient_metrics()
     assert vas.summary_data["transient_frequencies"] == [40]  # 0-indexed 39 → 1-indexed 40

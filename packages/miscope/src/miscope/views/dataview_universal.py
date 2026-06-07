@@ -255,10 +255,13 @@ def _register_all(catalog: DataViewCatalog = _dataview_catalog) -> None:
             schema=_neuron_dynamics_schema,
             epoch_source_analyzer=None,
             required_analyzers=[AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH)],
+            # REQ_141: dominant_freq/max_frac now come from the per-epoch
+            # neuron_frequency_attribution analyzer; epochs/threshold remain the
+            # cross-epoch neuron_dynamics tail. The loader is unchanged (it reads the
+            # conformed dimension, which joins both).
             sources=(
-                DataViewSource(
-                    "neuron_dynamics", ("epochs", "dominant_freq", "max_frac", "threshold")
-                ),
+                DataViewSource("neuron_dynamics", ("epochs", "threshold")),
+                DataViewSource("neuron_frequency_attribution", ("dominant_freq", "max_frac")),
             ),
         )
     )

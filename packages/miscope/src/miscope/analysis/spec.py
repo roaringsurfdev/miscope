@@ -20,7 +20,7 @@ for and hands the analyzer a uniform
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 from miscope.analysis.inputs import (
     InputSpec,
@@ -32,6 +32,33 @@ from miscope.analysis.output_schema import OutputField
 from miscope.analysis.parameters import ParameterSpec
 
 OutputScope = Literal["per_epoch", "cross_epoch"]
+
+
+@runtime_checkable
+class SchemaProducer(Protocol):
+    """The narrow contract shared by :class:`AnalyzerSpec` and ``DerivedTableSpec``.
+
+    REQ_141 introduces derived tables as a second kind of output producer. Both
+    declare a ``name``, a schema ``version``, and an ``outputs`` tuple of
+    :class:`~miscope.analysis.output_schema.OutputField` — that is the *only* thing
+    they share (analyzers also have inputs/parameters/scope; derived tables have a
+    query and input tables). This protocol is the seam that lets the registry's
+    enumeration and reverse-lookup (``field()``, ``search()``, the output-schema
+    half of ``validate()``) treat both kinds uniformly **without** collapsing the
+    two concrete spec types into one lossy record.
+
+    Members are declared read-only so frozen dataclasses (both concrete specs are
+    ``@dataclass(frozen=True)``) satisfy the protocol.
+    """
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def version(self) -> int: ...
+
+    @property
+    def outputs(self) -> tuple[OutputField, ...]: ...
 
 
 @dataclass(frozen=True)
