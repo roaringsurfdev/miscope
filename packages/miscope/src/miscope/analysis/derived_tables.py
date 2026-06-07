@@ -455,3 +455,86 @@ DIMENSIONALITY_OUTCOMES_TABLE = register_derived_table(
         materialized=True,
     )
 )
+
+
+# ---------------------------------------------------------------------------
+# neuron_threshold_outcomes — first-mover + population-threshold key epochs.
+#
+# Reproduces `_load_neuron_threshold_key_epochs` over the conformed attribution
+# table. A neuron is "committed" at an epoch when frac_explained >= 0.70. The
+# first-mover is the lowest committed (1-indexed) frequency at the earliest epoch
+# any neuron commits; its count-threshold epoch is the first epoch that frequency's
+# committed cohort reaches _FIRST_MOVER_COUNT; the specialization epoch is the first
+# epoch the total committed count reaches _TOTAL_NEURON_COUNT_OVER_THRESHOLD. The
+# attribution `frequency` is 0-indexed, so the 1-indexed summary value is +1
+# (matching the NeuronFrequencyAttribution helper). Defaults are -1.
+# ---------------------------------------------------------------------------
+
+_FIRST_MOVER_COUNT = 40
+_TOTAL_NEURON_COUNT_OVER_THRESHOLD = 100
+
+NEURON_THRESHOLD_OUTCOMES_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name="neuron_threshold_outcomes",
+        query=f"""
+            WITH committed AS (
+                SELECT epoch, neuron, frequency
+                FROM {ATTRIBUTION}
+                WHERE frac_explained >= {_NEURON_THRESHOLD}
+            ),
+            fm_epoch AS (SELECT MIN(epoch) AS e FROM committed),
+            fm_freq AS (
+                SELECT MIN(frequency) + 1 AS f
+                FROM committed
+                WHERE epoch = (SELECT e FROM fm_epoch)
+            ),
+            fm_count_epoch AS (
+                SELECT MIN(epoch) AS e FROM (
+                    SELECT epoch, COUNT(*) AS c FROM committed
+                    WHERE frequency = (SELECT f FROM fm_freq) - 1
+                    GROUP BY epoch
+                ) WHERE c >= {_FIRST_MOVER_COUNT}
+            ),
+            total_epoch AS (
+                SELECT MIN(epoch) AS e FROM (
+                    SELECT epoch, COUNT(*) AS c FROM committed GROUP BY epoch
+                ) WHERE c >= {_TOTAL_NEURON_COUNT_OVER_THRESHOLD}
+            )
+            SELECT
+                COALESCE((SELECT e FROM fm_epoch), -1) AS first_mover_epoch,
+                COALESCE((SELECT f FROM fm_freq), -1) AS first_mover_frequency,
+                COALESCE((SELECT e FROM fm_count_epoch), -1)
+                    AS first_mover_frequency_count_threshold_epoch,
+                COALESCE((SELECT e FROM total_epoch), -1)
+                    AS total_neurons_over_specialization_threshold_epoch
+        """,
+        input_tables=(ATTRIBUTION,),
+        outputs=(
+            F.columnar(
+                "first_mover_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "Earliest epoch any neuron commits (frac_explained >= 0.70); -1 if never.",
+            ),
+            F.columnar(
+                "first_mover_frequency",
+                "int64",
+                (Coord.VARIANT,),
+                "Lowest committed (1-indexed) frequency at the first-mover epoch; -1 if never.",
+            ),
+            F.columnar(
+                "first_mover_frequency_count_threshold_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch the first-mover frequency's committed cohort reaches 40; -1 if never.",
+            ),
+            F.columnar(
+                "total_neurons_over_specialization_threshold_epoch",
+                "int64",
+                (Coord.VARIANT,),
+                "First epoch the total committed-neuron count reaches 100; -1 if never.",
+            ),
+        ),
+        materialized=True,
+    )
+)
