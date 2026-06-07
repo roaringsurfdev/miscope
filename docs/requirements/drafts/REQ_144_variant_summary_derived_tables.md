@@ -1,6 +1,8 @@
 # REQ_144: Recast the Variant Summary Engine as Derived Tables
 
-**Status:** Draft — queued behind REQ_141 (sequencing decided in a 2026-06-06 session).
+**Status:** Draft — queued behind REQ_141 **and REQ_145** (sequencing decided in
+2026-06-06 sessions; REQ_145 lands the signature-based freshness predicate first so
+this REQ's new derived tables are born into a correct invalidation regime).
 **Priority:** Medium — architectural; pays down a large imperative aggregator and
 removes a warehouse-bypass, not a defect.
 **Branch:** TBD (`feature/REQ_144_variant_summary_derived_tables`); lands **after
