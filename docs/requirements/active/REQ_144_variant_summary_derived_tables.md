@@ -90,11 +90,16 @@ natural derived-table column or a small classifier over the outcomes row.
 
 ## Validation
 
-- [ ] **Byte-parity on the three baselines** (p113/s999/ds598, p109/s485/ds598,
-  p101/s999/ds598; never `find | head`). `variant_summary.json` /
-  `variant_registry.json` / `variant_outcomes` are value-identical before vs.
-  after (`rtol=1e-3` per REQ_126 only where a float recompute is unavoidable;
+- [ ] **Byte-parity on the three baselines — stable layer** (p113/s999/ds598,
+  p109/s485/ds598, p101/s999/ds598; never `find | head`). The intrinsically-meaningful
+  outcome fields (`variant_outcomes`, the registry's stable columns) are value-identical
+  before vs. after (`rtol=1e-3` per REQ_126 only where a float recompute is unavoidable;
   integer counts/epochs exact). A shape-of-behavior change is a finding, not noise.
+- [ ] **Window layer — faithfulness, not gated** (fork (e)). The translated window
+  boundaries/metrics match the old engine's proxy output where the translation is
+  mechanical (so dashboard vertical lines don't shift), but a divergence is recorded
+  as a note, not a blocker — the proxy definitions are provisional and the boundary
+  seam is built to be swapped for a DMD-peak source.
 - [ ] **Memory/cost demonstrated, not asserted** (REQ_141's frictionless test):
   expensive derived computation is materialized; interactive registry/outcomes
   queries read bytes.
@@ -147,16 +152,50 @@ natural derived-table column or a small classifier over the outcomes row.
   rule-with-reasons audit trail stays readable; no SQL-CASE parity risk on the
   `reasons` list.
 
+  **(e) Stable/provisional split — isolate the window layer (user direction,
+  2026-06-07).** The summary's fields are not one tier. The *intrinsically-meaningful*
+  facts (loss extrema, geometric measures, participation ratios, first-mover,
+  learned/committed frequencies, handshake, transient counts, failure mode) derive
+  directly from solid analysis and exist in their own right — these are the parity
+  gate. The *window* layer (`first_descent / plateau / cascade / second_descent /
+  final` boundaries + metrics sampled at them) is a **provisional proxy** for regime
+  demarcation, currently reporting-only (timeseries vertical lines, "dominant
+  frequencies change here") and a foundation for *nothing*. Its long-term boundary
+  source is likely **DMD peaks**, which are not even a single timeline (per activation
+  site, per parameter-space frequency group — close but not identical; averageable
+  only with intent). Design consequences:
+  - **Quarantine** the window data in its own derived-table module, structurally
+    separate from `variant_outcomes` (CLAUDE.md "contain the poorly-defined area" so
+    it cannot infect the stable layer).
+  - **DAG points one way:** windows depend on the stable boundary epochs; nothing
+    stable depends on windows. So a future DMD-sourced `window_ranges` swaps in
+    without touching the outcomes layer, and the two can coexist for comparison.
+  - **Model the boundary as a pluggable input seam** (proxy today, DMD-derived
+    later) rather than inlining threshold-proxy logic into the window table.
+  - **Parity relaxed for windows:** translate the existing proxy logic faithfully so
+    dashboard vertical lines don't silently shift, but a window-value divergence is a
+    *note, not a blocker* — exact parity on numbers built on admittedly-soft
+    definitions isn't worth chasing, and the mechanism is built to be replaced. The
+    byte-parity gate binds the stable layer only.
+
 ## Implementation Plan (staged, each stage parity-gated on the 3 baselines)
 
 1. **Conformed input facts (CoS #3 foundation).** `losses` columnar table (warehouse
    co-emission from `variant.metadata`, `(variant, epoch)` → train_loss/test_loss,
    REQ_145 signature); bring `weight_spectra` PRs + `repr_geometry` `fisher_mean` onto
    the query surface (semantic mapping or confirmed generic-fallback queryability).
-2. **Derived tables (bucket-2 reductions).** `variant_outcomes` as a real
+2. **Stable outcomes layer (parity-gated).** `variant_outcomes` as a real
    `DerivedTableSpec` (schema/version/provenance) over the conformed facts, replacing
-   the JSON-flatten in `warehouse/outcomes.py`; `window_ranges` (threshold-crossing
-   window boundaries); `window_metrics` (long) + `window_frequencies` (membership).
+   the JSON-flatten in `warehouse/outcomes.py`. This carries the intrinsically-meaningful
+   fields only; **no window dependency**. Byte-parity on the three baselines.
+   *(Stage 1 already landed its inputs: `losses`, `participation_ratios`, plus the
+   already-conformed `fisher_mean`/`circularity`.)*
+2b. **Provisional window layer (isolated, parity-relaxed).** A *separate* derived-table
+   module: `window_ranges` (boundaries from a **pluggable boundary seam** — threshold
+   proxies today, DMD peaks later), then `window_metrics` (long) + `window_frequencies`
+   (membership) sampling the conformed facts at those boundaries. Depends on the stable
+   layer's boundary epochs; nothing stable depends on it. Translate the proxy logic
+   faithfully (dashboard lines unchanged) but parity is a note, not a gate (fork (e)).
 3. **Engine decomposition.** Break the 814-line `VariantAnalysisSummary` along the
    bucket boundary: bucket-2 reductions move into derived-table SQL; a thin imperative
    tail remains for genuine bucket-3 reads + the Python failure-mode classifier over
