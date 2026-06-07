@@ -175,6 +175,24 @@ class Variant:
             raise FileNotFoundError(f"No checkpoint found for epoch {epoch} at {checkpoint_path}")
         return load_file(checkpoint_path)
 
+    def checkpoint_fingerprint(self, epoch: int) -> str:
+        """Read-cheap identity of a checkpoint file (REQ_145).
+
+        ``f"{epoch}:{size}:{mtime_ns}"`` from a single ``stat()`` — no content
+        hash (fork b: re-hashing safetensors at every plan would reintroduce the
+        very cost incremental refresh removes). This is what makes a model-driven
+        primary skippable: unchanged file + unchanged code/recipe → unchanged
+        signature → no recompute. Path composition stays in this storage primitive
+        (storage-encapsulation invariant 3). Returns ``f"{epoch}:absent"`` when the
+        checkpoint is missing, so a vanished checkpoint reads as a changed identity.
+        """
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_epoch_{epoch:05d}.safetensors"
+        try:
+            st = checkpoint_path.stat()
+        except OSError:
+            return f"{epoch}:absent"
+        return f"{epoch}:{st.st_size}:{st.st_mtime_ns}"
+
     def load_model_at_checkpoint(self, epoch: int) -> HookedModel:
         """Load a ``HookedModel`` with weights from a specific checkpoint.
 

@@ -14,11 +14,18 @@ Also supports summary statistics (REQ_022) stored as a single file:
     artifacts/{analyzer_name}/summary.npz
 """
 
+import json
 import os
+from typing import Any
 
 import numpy as np
 
 RECIPE_DIR_PREFIX = "__rs_"
+
+# Per-analyzer signature manifest (REQ_145): one small JSON in the analyzer's
+# recipe-scoped dir mapping ``{str(epoch) | CROSS_EPOCH_KEY -> SigRecord-as-dict}``.
+# One read per analyzer at plan time — the cheapest of the stamp-location options.
+SIGNATURES_FILENAME = "_signatures.json"
 
 
 def analyzer_dir(artifacts_dir: str, analyzer: str, recipe_sig: str = "") -> str:
@@ -57,6 +64,54 @@ def iter_recipe_dirs(artifacts_dir: str):
         for child in sorted(os.listdir(adir)):
             if child.startswith(RECIPE_DIR_PREFIX):
                 yield analyzer, child[len(RECIPE_DIR_PREFIX) :], os.path.join(adir, child)
+
+
+def signatures_path(artifacts_dir: str, analyzer: str, recipe_sig: str = "") -> str:
+    """Path to an analyzer's signature manifest (REQ_145), recipe-scoped.
+
+    Composed through :func:`analyzer_dir` so the recipe path segment is owned in
+    one place (storage-encapsulation invariant 3).
+    """
+    return os.path.join(analyzer_dir(artifacts_dir, analyzer, recipe_sig), SIGNATURES_FILENAME)
+
+
+def read_signature_manifest(
+    artifacts_dir: str, analyzer: str, recipe_sig: str = ""
+) -> dict[str, Any]:
+    """Read an analyzer's signature manifest, or ``{}`` when absent/unreadable.
+
+    Returns raw JSON records (``{key: SigRecord-as-dict}``); the caller rehydrates
+    via :meth:`miscope.analysis.signature.SigRecord.from_json`. A missing manifest
+    (legacy artifacts predating REQ_145) yields ``{}`` so every entry reads as
+    stale — the conservative, correct default.
+    """
+    path = signatures_path(artifacts_dir, analyzer, recipe_sig)
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_signature_manifest(
+    artifacts_dir: str, analyzer: str, recipe_sig: str, records: dict[str, Any]
+) -> None:
+    """Atomically write an analyzer's signature manifest (REQ_145).
+
+    Overwrites with the full record set the caller assembled (merge-with-existing
+    is the caller's concern, mirroring the summary writer). Atomic via temp+replace
+    so a crash never leaves a half-written manifest.
+    """
+    out_dir = analyzer_dir(artifacts_dir, analyzer, recipe_sig)
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, SIGNATURES_FILENAME)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(records, fh, indent=2, sort_keys=True)
+    os.replace(tmp, path)
 
 
 def _validate_fields(

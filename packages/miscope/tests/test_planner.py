@@ -17,12 +17,14 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from miscope.analysis.artifact_loader import read_signature_manifest, write_signature_manifest
 from miscope.analysis.planner import (
     Plan,
     PlanItem,
     plan_analysis,
     scan_epoch_files,
 )
+from miscope.analysis.signature import CROSS_EPOCH_KEY
 
 # ---------------------------------------------------------------------------
 # Synthetic analyzers — minimal protocol stand-ins (no real work)
@@ -63,6 +65,7 @@ def _make_variant(tmp_path: Path, checkpoints: list[int], name: str = "test") ->
     variant.name = name
     variant.artifacts_dir = str(tmp_path / "artifacts")
     variant.get_available_checkpoints.return_value = list(checkpoints)
+    variant.checkpoint_fingerprint.side_effect = lambda e: f"ckpt-{e}"
     return variant
 
 
@@ -71,6 +74,38 @@ def _write_epochs(artifacts_dir: Path, name: str, epochs: list[int]) -> None:
     d.mkdir(parents=True, exist_ok=True)
     for e in epochs:
         np.savez(d / f"epoch_{e:05d}.npz", data=np.zeros(1))
+
+
+def _apply_plan(variant: MagicMock, analyzers: list[Any], checkpoints: list[int] | None = None):
+    """Simulate a pipeline run: plan, write the planned artifacts, stamp their
+    signatures (REQ_145). After this, a re-plan over the same disk state is a no-op.
+
+    Returns the plan that was applied. Mirrors ``AnalysisPipeline``: only planned
+    (non-blocked) nodes are written + stamped.
+    """
+    artifacts_dir = Path(variant.artifacts_dir)
+    plan = plan_analysis(variant, analyzers, checkpoints=checkpoints)
+    for item in plan.per_epoch:
+        if item.blocked_by or not item.epochs:
+            continue
+        _write_epochs(artifacts_dir, item.analyzer_name, list(item.epochs))
+        _stamp(variant, plan, item.analyzer_name, [str(e) for e in item.epochs])
+    for item in plan.cross_epoch:
+        if item.blocked_by:
+            continue
+        _write_cross_epoch(artifacts_dir, item.analyzer_name, len(item.epochs))
+        _stamp(variant, plan, item.analyzer_name, [CROSS_EPOCH_KEY])
+    return plan
+
+
+def _stamp(variant: MagicMock, plan: Plan, name: str, keys: list[str]) -> None:
+    """Write the planner's post-run signatures for ``name`` to its manifest."""
+    sigs = plan.signatures.get(name, {})
+    merged = read_signature_manifest(variant.artifacts_dir, name, "")
+    for key in keys:
+        if key in sigs:
+            merged[key] = sigs[key]
+    write_signature_manifest(variant.artifacts_dir, name, "", merged)
 
 
 def _per_epoch(plan: Plan, name: str) -> PlanItem:
@@ -160,9 +195,10 @@ def test_plan_to_dict_serializable():
 
 
 def test_plan_all_computed_empty_plan(tmp_path):
+    """REQ_145: after a run stamps signatures, a re-plan over the same state is a no-op."""
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
+    _apply_plan(variant, [_PrimaryStub("prim")])
 
     plan = plan_analysis(variant, [_PrimaryStub("prim")])
     assert plan.per_epoch == []
@@ -170,15 +206,48 @@ def test_plan_all_computed_empty_plan(tmp_path):
 
 
 def test_plan_some_epochs_missing(tmp_path):
+    """REQ_145: per-(analyzer,epoch) granularity — only the new checkpoints replan."""
     checkpoints = [0, 100, 200, 300]
     variant = _make_variant(tmp_path, checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "prim", [0, 100])
+    # 0, 100 analyzed + stamped; 200, 300 are new checkpoints.
+    _apply_plan(variant, [_PrimaryStub("prim")], checkpoints=[0, 100])
 
     plan = plan_analysis(variant, [_PrimaryStub("prim")])
     assert len(plan.per_epoch) == 1
     item = plan.per_epoch[0]
     assert item.analyzer_name == "prim"
     assert list(item.epochs) == [200, 300]
+    assert item.reason == "stale: new epoch"
+
+
+def test_plan_present_but_unstamped_recomputes(tmp_path):
+    """REQ_145 turn-1 regression: artifacts present on disk but never stamped
+    (legacy, predating signatures) are stale and fully recomputed."""
+    checkpoints = [0, 100, 200]
+    variant = _make_variant(tmp_path, checkpoints)
+    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)  # no manifest
+
+    plan = plan_analysis(variant, [_PrimaryStub("prim")])
+    assert list(plan.per_epoch[0].epochs) == checkpoints
+    assert plan.per_epoch[0].reason == "missing"
+
+
+def test_plan_code_version_bump_recomputes(tmp_path):
+    """REQ_145 invalidation: a producer version bump restages every covered epoch."""
+    checkpoints = [0, 100, 200]
+    variant = _make_variant(tmp_path, checkpoints)
+
+    class _V1(_PrimaryStub):
+        version = 1
+
+    class _V2(_PrimaryStub):
+        version = 2
+
+    _apply_plan(variant, [_V1("prim")])
+    assert plan_analysis(variant, [_V1("prim")]).is_empty  # stable at v1
+    plan = plan_analysis(variant, [_V2("prim")])
+    assert list(plan.per_epoch[0].epochs) == checkpoints
+    assert plan.per_epoch[0].reason == "stale: code v1->v2"
 
 
 def test_plan_no_artifacts_yet(tmp_path):
@@ -242,8 +311,12 @@ def test_plan_secondary_blocked_when_dep_empty(tmp_path):
 def test_plan_secondary_resumes_only_missing(tmp_path):
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "sec", [0])  # secondary done for epoch 0
+    _apply_plan(variant, [_PrimaryStub("prim")])  # prim all done + stamped
+    # secondary done + stamped for epoch 0 only (an artifact-derived analyzer
+    # follows its upstream's epochs, so restrict by stamping one key).
+    sec_plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
+    _write_epochs(Path(variant.artifacts_dir), "sec", [0])
+    _stamp(variant, sec_plan, "sec", ["0"])
 
     plan = plan_analysis(variant, [_SecondaryStub("sec", depends_on="prim")])
     assert list(_per_epoch(plan, "sec").epochs) == [100, 200]
@@ -315,11 +388,12 @@ def test_plan_cross_epoch_stale_when_dep_grows(tmp_path):
 def test_plan_cross_epoch_fresh_when_caught_up(tmp_path):
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
-    _write_cross_epoch(Path(variant.artifacts_dir), "ce", n_epochs=3)
+    analyzers = [_PrimaryStub("prim"), _CrossEpochStub("ce", requires=("prim",))]
+    _apply_plan(variant, analyzers)  # prim + ce computed and stamped
 
-    plan = plan_analysis(variant, [_CrossEpochStub("ce", requires=("prim",))])
+    plan = plan_analysis(variant, analyzers)
     assert plan.cross_epoch == []
+    assert plan.per_epoch == []
 
 
 def test_plan_cross_epoch_blocked_when_dep_empty(tmp_path):
@@ -472,18 +546,15 @@ def test_transitive_staleness_two_hop_per_epoch(tmp_path):
     transitively includes the new epoch."""
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
-    artifacts_dir = Path(variant.artifacts_dir)
-    _write_epochs(artifacts_dir, "prim", checkpoints)  # root has all 3
-    _write_epochs(artifacts_dir, "mid", [0, 100])  # missing 200
-    _write_epochs(artifacts_dir, "leaf", [0, 100])  # missing 200
-
     analyzers = [
         _PrimaryStub("prim"),
         _SecondaryStub("mid", depends_on="prim"),
         _SecondaryStub("leaf", depends_on="mid"),
     ]
-    plan = plan_analysis(variant, analyzers)
+    # Whole chain computed + stamped for [0, 100]; 200 is a new checkpoint.
+    _apply_plan(variant, analyzers, checkpoints=[0, 100])
 
+    plan = plan_analysis(variant, analyzers)
     assert list(_per_epoch(plan, "mid").epochs) == [200]
     assert list(_per_epoch(plan, "leaf").epochs) == [200]
 
@@ -501,15 +572,15 @@ def test_parity_with_pre_req_work_queue(tmp_path):
     missing-epoch lists for the same disk state."""
     checkpoints = [0, 100, 200, 300, 400]
     variant = _make_variant(tmp_path, checkpoints)
-    artifacts_dir = Path(variant.artifacts_dir)
-    _write_epochs(artifacts_dir, "prim_a", [0, 100, 200])  # missing 300, 400
-    _write_epochs(artifacts_dir, "prim_b", checkpoints)  # all done
+    # prim_a stamped for [0,100,200] (missing 300,400); prim_b stamped for all.
+    _apply_plan(variant, [_PrimaryStub("prim_a")], checkpoints=[0, 100, 200])
+    _apply_plan(variant, [_PrimaryStub("prim_b")])
 
     plan = plan_analysis(
         variant,
         [_PrimaryStub("prim_a"), _PrimaryStub("prim_b")],
     )
-    # Pre-REQ work_queue: [(prim_a, [300, 400])] (prim_b absent because nothing missing)
+    # Only prim_a's two new checkpoints replan; prim_b is signature-fresh.
     by_name = {item.analyzer_name: list(item.epochs) for item in plan.per_epoch}
     assert by_name == {"prim_a": [300, 400]}
 
@@ -518,11 +589,12 @@ def test_parity_with_pre_req_work_queue(tmp_path):
 def test_parity_force_flag(tmp_path, force):
     checkpoints = [0, 100, 200]
     variant = _make_variant(tmp_path, checkpoints)
-    _write_epochs(Path(variant.artifacts_dir), "prim", checkpoints)
+    _apply_plan(variant, [_PrimaryStub("prim")])  # computed + stamped fresh
 
     plan = plan_analysis(variant, [_PrimaryStub("prim")], force=force)
     if force:
         assert list(plan.per_epoch[0].epochs) == checkpoints
+        assert plan.per_epoch[0].reason == "forced"
     else:
         assert plan.per_epoch == []
 

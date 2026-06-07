@@ -68,31 +68,29 @@ class PerEpochFreshness:
 
 @dataclass
 class CrossEpochFreshness:
-    """Freshness status for a single cross-epoch analyzer."""
+    """Freshness status for a single cross-epoch analyzer.
+
+    REQ_145: freshness follows the planner's signature predicate, not an epoch
+    count. ``plan_reason`` is the planner's reason for (re)computing this analyzer
+    (``None`` when fresh) — so a present-but-stale artifact (changed upstream, or
+    one predating signatures) reports stale, which a count-based check missed.
+    """
 
     analyzer_name: str
     artifact_exists: bool
     available_checkpoints: int
-    covered_epoch_count: int  # epochs stored in artifact; -1 if unknown (no epochs key)
+    covered_epoch_count: int  # epochs stored in artifact; -1 if unknown (informational)
+    plan_reason: str | None = None  # planner stale/missing/blocked reason, if any
 
     @property
     def is_fresh(self) -> bool:
-        if not self.artifact_exists:
-            return False
-        if self.covered_epoch_count < 0:
-            return False  # conservative: treat missing metadata as stale
-        return self.covered_epoch_count >= self.available_checkpoints
+        return self.artifact_exists and self.plan_reason is None
 
     @property
     def status_label(self) -> str:
         if not self.artifact_exists:
             return "absent"
-        if self.covered_epoch_count < 0:
-            return "stale (no epoch metadata)"
-        if self.is_fresh:
-            return "fresh"
-        gap = self.available_checkpoints - self.covered_epoch_count
-        return f"stale ({gap} new epoch(s))"
+        return self.plan_reason if self.plan_reason is not None else "fresh"
 
 
 @dataclass
@@ -457,9 +455,9 @@ def _build_cross_epoch_freshness(
     artifacts_dir: Path,
     name: str,
     n_checkpoints: int,
-    plan_item: Any,  # noqa: ARG001 — kept for future Plan-derived fields
+    plan_item: Any,
 ) -> CrossEpochFreshness:
-    """Compose a CrossEpochFreshness entry from disk state."""
+    """Compose a CrossEpochFreshness entry from disk state + the planner predicate."""
     cross_epoch_path = artifacts_dir / name / "cross_epoch.npz"
     if not cross_epoch_path.exists():
         return CrossEpochFreshness(
@@ -467,14 +465,24 @@ def _build_cross_epoch_freshness(
             artifact_exists=False,
             available_checkpoints=n_checkpoints,
             covered_epoch_count=0,
+            plan_reason=_plan_reason(plan_item),
         )
-    covered = read_covered_epoch_count(cross_epoch_path)
     return CrossEpochFreshness(
         analyzer_name=name,
         artifact_exists=True,
         available_checkpoints=n_checkpoints,
-        covered_epoch_count=covered,
+        covered_epoch_count=read_covered_epoch_count(cross_epoch_path),
+        plan_reason=_plan_reason(plan_item),
     )
+
+
+def _plan_reason(plan_item: Any) -> str | None:
+    """The planner's reason for a cross-epoch item, or ``None`` when none was emitted."""
+    if plan_item is None:
+        return None
+    if plan_item.blocked_by:
+        return "blocked: " + ", ".join(plan_item.blocked_by)
+    return plan_item.reason or "needs rebuild"
 
 
 def _check_summary_stale(variant: Variant) -> bool:
