@@ -20,10 +20,20 @@ import miscope.analysis.analyzers  # noqa: E402, F401
 from miscope import load_family  # noqa: E402
 from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
 from miscope.analysis.registry import AnalyzerRegistry  # noqa: E402
+from miscope.analysis.variant_analysis_summary import (  # noqa: E402
+    VariantAnalysisSummary,
+    build_variant_registry,
+)
+from miscope.warehouse import (  # noqa: E402
+    materialize_variant_columnar,
+    materialize_variant_derived,
+)
 
 # %% configuration
 FAMILY_NAME = "modulo_addition_1layer"
-FORCE = True  # Re-run even if artifacts exist (needed for new summary keys)
+# REQ_145: signature-aware by default — only stale (changed code/recipe/checkpoint
+# /upstream) work runs. Set FORCE=True for the explicit "rebuild everything" override.
+FORCE = False
 COOLING_NEEDED = False
 COOLING_PERIOD = 1 * 20  # timer to allow machine to cool between runs
 
@@ -81,6 +91,15 @@ for i, variant in enumerate(variants):
 
         pipeline = AnalysisPipeline(variant)
         pipeline.run(force=FORCE, progress_callback=progress_callback, plan=plan)
+
+        # REQ_145 parity with the dashboard path: analyze -> materialize -> summarize
+        # as one signature-aware flow. Surgical by default (force propagates the
+        # "rebuild everything" override) — only stale tables/summaries are rebuilt.
+        print("\n  Materializing warehouse (columnar + derived)...")
+        materialize_variant_columnar(variant, force=FORCE)
+        materialize_variant_derived(variant, force=FORCE)
+        VariantAnalysisSummary(variant).analyze()
+
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")
         results.append((variant.name, "success", elapsed))
@@ -92,6 +111,9 @@ for i, variant in enumerate(variants):
         elapsed = time.time() - start
         print(f"\n  FAILED after {elapsed:.1f}s: {e}")
         results.append((variant.name, "failed", elapsed))
+
+# %% compile cross-variant registry (parity with the dashboard's post-run step)
+build_variant_registry(family)
 
 # %% summary
 print(f"\n{'=' * 60}")

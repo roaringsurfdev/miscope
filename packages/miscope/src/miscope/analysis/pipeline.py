@@ -11,7 +11,11 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from miscope.analysis.artifact_loader import analyzer_dir
+from miscope.analysis.artifact_loader import (
+    analyzer_dir,
+    read_signature_manifest,
+    write_signature_manifest,
+)
 from miscope.analysis.inputs import ResolvedInputs
 from miscope.analysis.parameters import EMPTY_PARAMETERIZATION, Parameterization
 from miscope.analysis.planner import Plan, PlanItem, plan_analysis
@@ -19,6 +23,7 @@ from miscope.analysis.protocols import (
     AnalysisRunConfig,
     Analyzer,
 )
+from miscope.analysis.signature import CROSS_EPOCH_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +161,13 @@ class AnalysisPipeline:
         if plan is None:
             plan = self._build_plan(force)
 
+        # REQ_145: the planner computed each written node's post-run provenance
+        # signature; stamp exactly those after a successful write so the planner's
+        # recompute decision and the on-disk stamp share one source. ``_sig_accum``
+        # collects only what is actually written (a runtime hook-skip never stamps).
+        self._plan_signatures: dict[str, dict[str, Any]] = plan.signatures
+        self._sig_accum: dict[str, dict[str, Any]] = {}
+
         # When the caller hands in a Spec-built Plan, the pipeline may need
         # to instantiate analyzers from the Registry that were never passed
         # to register_*. Do so up front so phase loops can look them up.
@@ -235,6 +247,7 @@ class AnalysisPipeline:
         if self._cross_epoch_analyzers and plan.cross_epoch:
             self._run_cross_epoch_from_plan(plan.cross_epoch, context, progress_callback)
 
+        self._flush_signature_manifests()
         self._record_run_set()
 
         if progress_callback:
@@ -541,6 +554,7 @@ class AnalysisPipeline:
         np.savez_compressed(temp_base, **result)  # type: ignore[arg-type]
         temp_path = temp_base + ".npz"
         os.replace(temp_path, artifact_path)
+        self._record_signature(analyzer_name, str(epoch))
 
     def _build_summary_collectors(
         self, work_queue: list[tuple[Analyzer, list[int]]]
@@ -708,3 +722,32 @@ class AnalysisPipeline:
         temp_base = os.path.join(out_dir, ".cross_epoch_tmp")
         np.savez_compressed(temp_base, **result)  # type: ignore[arg-type]
         os.replace(temp_base + ".npz", cross_epoch_path)
+        self._record_signature(analyzer_name, CROSS_EPOCH_KEY)
+
+    # ------------------------------------------------------------------
+    # Signature stamping (REQ_145)
+    # ------------------------------------------------------------------
+
+    def _record_signature(self, analyzer_name: str, key: str) -> None:
+        """Stage the planner-computed signature for one written artifact.
+
+        Looks up the post-run :class:`SigRecord` the planner placed on the Plan and
+        accumulates it in memory; flushed to the per-analyzer manifest at the end of
+        the run. Only artifacts that were actually written reach here, so a runtime
+        hook-skip never produces a misleading "fresh" stamp.
+        """
+        record = self._plan_signatures.get(analyzer_name, {}).get(key)
+        if record is not None:
+            self._sig_accum.setdefault(analyzer_name, {})[key] = record
+
+    def _flush_signature_manifests(self) -> None:
+        """Merge staged signatures into each analyzer's manifest and write (REQ_145).
+
+        Merge-with-stored preserves entries for epochs outside this run's scope
+        (e.g. a checkpoint filter) and the fresh epochs of a partial recompute.
+        """
+        for analyzer_name, records in self._sig_accum.items():
+            recipe_sig = self._recipe_map.get(analyzer_name, "")
+            merged = read_signature_manifest(self.artifacts_dir, analyzer_name, recipe_sig)
+            merged.update(records)
+            write_signature_manifest(self.artifacts_dir, analyzer_name, recipe_sig, merged)

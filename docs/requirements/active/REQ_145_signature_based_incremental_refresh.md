@@ -112,35 +112,49 @@ Two load-bearing notes carried from the design discussion:
   non-circular only because the recompute *decision* signature is input-derived (it
   never depends on the node's own output).
 
+## Implementation status (2026-06-06 — on `feature/REQ_145_signature_based_incremental_refresh`)
+
+Implementation complete and gates-green (ruff + `ruff format` + pyright clean; 1601
+tests pass). Forks settled: (a) manual `spec.version`, (b) epoch+mtime/size checkpoint
+fingerprint, (c) output data-version hash deferred, (d) reverse-edge/impact-preview
+deferred, (e) per-analyzer-dir artifact manifest + warehouse-level table manifest.
+Selectivity + no-op + transitive-invalidation **proven on all three baselines**
+(read-only harness `apps/research/sketches/validate_req145_refresh.py selectivity`:
+bumping `activation_basis_projection` restages exactly its two transitive chains, a
+re-plan after stamping is a no-op). The remaining bar is the **measured byte-parity of
+a full signature rebuild vs. a `force` rebuild** — the ~40-min×3 run driven via
+`scripts/run_analysis.py` (FORCE=True then FORCE=False) — deferred to the user/REQ_137.
+
 ## Conditions of Satisfaction
 
-- [ ] **Every produced artifact and materialized table carries a stamped provenance
+- [x] **Every produced artifact and materialized table carries a stamped provenance
   signature**, written through the storage primitives and readable through an accessor
-  (no consumer composes a path).
-- [ ] **The planner recomputes a node iff its signature changed** — replacing the
+  (no consumer composes a path). *(artifact `_signatures.json` via `artifact_loader`;
+  warehouse `_signatures.json` via `warehouse/signatures.py` + `paths`.)*
+- [x] **The planner recomputes a node iff its signature changed** — replacing the
   count-based coverage check as the freshness predicate. A node that is merely
   coverage-complete but whose code/recipe/upstreams changed **is recomputed**; a node
   that is coverage-complete *and* signature-equal **is skipped**.
-- [ ] **A single-analyzer change recomputes that analyzer and its transitive dependents
-  only** — demonstrated end-to-end: change one analyzer, observe the others skip.
-- [ ] **Model-driven primaries are skippable** when checkpoints and code/recipe are
-  unchanged (i.e. `checkpoint_set_identity` participates in the signature). A re-run
-  with no changes is a no-op, not a 40-minute rebuild.
-- [ ] **The warehouse re-materializes only tables whose source signature changed**
+- [x] **A single-analyzer change recomputes that analyzer and its transitive dependents
+  only** — demonstrated end-to-end on the three baselines (selectivity harness) + the
+  code-version-bump planner test.
+- [x] **Model-driven primaries are skippable** when checkpoints and code/recipe are
+  unchanged (`Variant.checkpoint_fingerprint` participates in the signature). A re-run
+  with no changes is a no-op (proven: no-op re-plan on baselines).
+- [x] **The warehouse re-materializes only tables whose source signature changed**
   (surgical re-materialize), replacing the destructive full wipe as the default. The
-  absent-only self-heal's destructive-wipe hazard is removed.
-- [ ] **`force` becomes an explicit "ignore signatures" override**, not the primary
-  refresh path — one predicate, one override.
-- [ ] **Skip transparency** — the plan/event surface reports *why* each node was
-  skipped or recomputed ("fresh: signature unchanged" / "stale: upstream `X` changed"
-  / "stale: code v2→v3"), answering the "why didn't X re-run?" question from the
-  Pipeline Observability note.
-- [ ] **`scripts/run_analysis.py` reaches refresh parity with the dashboard path** —
-  analyze → materialize → summarize as one signature-aware flow (the (b) item from the
-  Data Refresh note); no lingering explicit two-step that leaves tables stale.
-- [ ] **No second staleness mechanism** — the signature *is* the freshness DAG's
-  predicate (REQ_133 evolved in place); REQ_141/REQ_144 derived tables defer to it,
-  not to a parallel check.
+  absent-only self-heal's destructive-wipe hazard is removed (`test_warehouse` surgical
+  cases).
+- [x] **`force` becomes an explicit "ignore signatures" override**, not the primary
+  refresh path — one predicate, one override (planner + both materializers).
+- [x] **Skip transparency** — the plan surface reports *why* each node was recomputed
+  ("missing" / "stale: code v2→v3" / "stale: upstream `X` changed" / "forced") via
+  `PlanItem.reason` and `signature.explain_change`.
+- [x] **`scripts/run_analysis.py` reaches refresh parity with the dashboard path** —
+  analyze → materialize → summarize → registry as one signature-aware flow (FORCE
+  defaults to False).
+- [x] **No second staleness mechanism** — the signature *is* the freshness DAG's
+  predicate (REQ_133 evolved in place); the warehouse + derived tables defer to it.
 
 ## Validation
 

@@ -159,16 +159,16 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
         pipeline.run(progress_callback=progress_callback, force=force_refresh, plan=plan)
 
         # The warehouse (columnar + derived tables) is a separate materialization
-        # from the npz artifacts the pipeline just wrote, so any analysis run — full
-        # or incremental — leaves it stale. Re-materialize it here so the summary
-        # below and every dashboard view read fresh tables, not stale ones. This is
-        # a full (deterministic) rebuild for now; a surgical/incremental pass is the
-        # data-refresh follow-up. Runs before the summary, which reads these tables.
+        # from the npz artifacts the pipeline just wrote, so an analysis run leaves it
+        # stale. Re-materialize so the summary below and every dashboard view read
+        # fresh tables. REQ_145: surgical by default — only tables whose source
+        # signature changed are rebuilt; ``force`` propagates as the "rebuild
+        # everything" override so the checkbox still does a full rebuild.
         analysis_progress.update(0.93, "Materializing warehouse (columnar + derived)...")
         from miscope.warehouse import materialize_variant_columnar, materialize_variant_derived
 
-        materialize_variant_columnar(variant)
-        materialize_variant_derived(variant)
+        materialize_variant_columnar(variant, force=force_refresh)
+        materialize_variant_derived(variant, force=force_refresh)
 
         # Regenerate variant_summary.json and variant_registry.json
         # VariantAnalysisSummary is transformer-specific; skip for other families.

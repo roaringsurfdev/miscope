@@ -8,13 +8,14 @@ table population, catalog co-emission, ``to_wide``, and cross-variant ``concat``
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.artifact_loader import ArtifactLoader, write_signature_manifest
 from miscope.warehouse import paths, read_table
 from miscope.warehouse.reader import WarehouseAccessor
 from miscope.warehouse.writer import materialize_variant_columnar
@@ -133,6 +134,77 @@ def test_tensor_fields_are_not_emitted(variant):
     materialize_variant_columnar(variant)
     df = read_table(variant, "neuron_dynamics", "by__variant_neuron").df
     assert {"switch_counts", "commitment_epochs"} <= set(df.columns)
+
+
+# ---------------------------------------------------------------------------
+# REQ_145: surgical re-materialize — skip fresh, rebuild only changed feeders
+# ---------------------------------------------------------------------------
+
+
+def _parquets(variant: _FakeVariant, table: str) -> list[Path]:
+    return list(paths.table_dir(variant, table).glob("*.parquet"))
+
+
+def _freeze_mtime(files: list[Path], t: float = 1.0) -> None:
+    for p in files:
+        os.utime(p, (t, t))
+
+
+def test_surgical_skips_unchanged_tables(variant):
+    """A re-materialize with no signature change rewrites nothing (REQ_145)."""
+    materialize_variant_columnar(variant)
+    frozen = _parquets(variant, "fourier_frequency_quality")
+    assert frozen
+    _freeze_mtime(frozen)
+
+    materialize_variant_columnar(variant)  # nothing changed
+    assert all(p.stat().st_mtime == 1.0 for p in frozen)  # not rewritten
+
+
+def test_surgical_rebuilds_only_changed_feeder(variant):
+    """Changing one analyzer's signature rebuilds only its table; others are
+    left untouched — no destructive full wipe (REQ_145)."""
+    materialize_variant_columnar(variant)
+    changed = _parquets(variant, "fourier_frequency_quality")
+    untouched = _parquets(variant, "neuron_frequency_attribution")
+    _freeze_mtime(changed + untouched)
+
+    # A recompute stamps a new signature for the fourier analyzer (its source moved).
+    write_signature_manifest(
+        str(variant.variant_dir / "artifacts"),
+        "fourier_frequency_quality",
+        "",
+        {"0": {"sig": "changed", "code_version": 1}},
+    )
+    materialize_variant_columnar(variant)
+
+    assert any(p.stat().st_mtime != 1.0 for p in changed)  # rebuilt
+    assert all(p.stat().st_mtime == 1.0 for p in untouched)  # preserved
+
+
+def test_force_rebuilds_all_tables(variant):
+    """force=True ignores signatures and rebuilds every table (the override)."""
+    materialize_variant_columnar(variant)
+    frozen = _parquets(variant, "fourier_frequency_quality")
+    _freeze_mtime(frozen)
+
+    materialize_variant_columnar(variant, force=True)
+    assert all(p.stat().st_mtime != 1.0 for p in frozen)
+
+
+def test_absent_table_self_heals_without_wiping_others(variant):
+    """A missing Parquet rebuilds just that table; the rest are not wiped (REQ_145
+    removes the destructive absent-table self-heal)."""
+    materialize_variant_columnar(variant)
+    deleted = _parquets(variant, "fourier_frequency_quality")
+    untouched = _parquets(variant, "neuron_frequency_attribution")
+    _freeze_mtime(untouched)
+    for p in deleted:
+        p.unlink()
+
+    materialize_variant_columnar(variant)
+    assert _parquets(variant, "fourier_frequency_quality")  # restored
+    assert all(p.stat().st_mtime == 1.0 for p in untouched)  # not wiped
 
 
 def test_semantic_claim_populates_neuron_frequency_attribution(variant):

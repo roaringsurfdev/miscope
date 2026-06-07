@@ -40,6 +40,7 @@ TENSOR_CATALOG_DIRNAME = "_tensor_catalog"
 RUN_SETS_DIRNAME = "_run_sets"
 SEMANTIC_TOKEN = "long"  # single-file stem for a conformed semantic table
 DEFAULT_RUN_SET = "__default__"  # the empty/all-defaults parameterization (REQ_138)
+SIGNATURES_FILENAME = "_signatures.json"  # per-table source-signature manifest (REQ_145)
 
 
 def warehouse_dir(variant: Variant) -> Path:
@@ -70,6 +71,17 @@ def table_parquet_path(variant: Variant, table: str, coords: tuple[Coord, ...]) 
 def semantic_parquet_path(variant: Variant, table: str) -> Path:
     """Single-file path for a conformed semantic table (row-union of feeders)."""
     return table_dir(variant, table) / f"{SEMANTIC_TOKEN}.parquet"
+
+
+def warehouse_signatures_path(variant: Variant) -> Path:
+    """Path to the per-variant warehouse signature manifest (REQ_145).
+
+    A sidecar mapping ``{table -> source_sig}`` under the warehouse root. Symmetric
+    with the per-analyzer artifact manifest; leaves the catalog Parquet byte-identical
+    (lower parity risk than stamping a new catalog column). Read once per
+    re-materialize to decide which tables are stale.
+    """
+    return warehouse_dir(variant) / SIGNATURES_FILENAME
 
 
 def catalog_dir(variant: Variant) -> Path:

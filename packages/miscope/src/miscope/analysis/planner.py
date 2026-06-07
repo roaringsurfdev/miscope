@@ -27,6 +27,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from miscope.analysis import signature as sig_mod
+from miscope.analysis.artifact_loader import read_signature_manifest
+from miscope.analysis.signature import CROSS_EPOCH_KEY, SigRecord
+
 if TYPE_CHECKING:
     from miscope.families.variant import Variant
 
@@ -110,6 +114,14 @@ class Plan:
     """REQ_120: cross-epoch items' missing dependencies that have a known
     Spec in the Registry. Suggested upstream analyzers to enqueue. Empty
     when nothing is blocked or no Specs are registered for the blockers."""
+
+    signatures: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
+    """REQ_145: the post-run provenance signatures the pipeline stamps after a
+    successful write. Keyed ``{analyzer_name: {epoch_str | CROSS_EPOCH_KEY ->
+    SigRecord-as-json}}`` for every *planned* node (one entry per covered epoch).
+    Computed once here so the planner's recompute decision and the pipeline's
+    write-time stamp use one source — they cannot diverge. Internal execution
+    detail: omitted from ``format()`` / ``to_dict()``."""
 
     @property
     def is_empty(self) -> bool:
@@ -257,29 +269,40 @@ def plan_analysis(
     per_epoch_descs = _topo_order([d for d in descriptors if d.output_scope == "per_epoch"])
     cross_epoch_descs = _topo_order([d for d in descriptors if d.output_scope == "cross_epoch"])
 
+    # REQ_145: signature predicate state. ``projected`` carries each node's
+    # post-run SigRecord per epoch so a downstream folds in its upstreams'
+    # (projected-if-recomputed, else stored) signatures — forward propagation
+    # does the invalidation. Checkpoint fingerprints are read once.
+    ctx = _SigContext(
+        artifacts_dir=artifacts_dir,
+        recipe_map=recipe_map or {},
+        checkpoint_fps={e: variant.checkpoint_fingerprint(e) for e in target_epochs},
+        force=force,
+    )
+    plan_signatures: dict[str, dict[str, dict[str, Any]]] = {}
+
     projected_completed: dict[str, list[int]] = {}
     for desc in per_epoch_descs:
         covered, blocked = _per_epoch_target_epochs(
             desc, target_epochs, projected_completed, artifacts_dir, recipe_map
         )
-        item = _plan_per_epoch_item(desc, artifacts_dir, covered, blocked, force, recipe_map)
+        node_proj, recompute, reason = _signature_plan_per_epoch(ctx, desc, covered, blocked)
+        ctx.projected[desc.name] = node_proj
+        item = _plan_per_epoch_item(desc, recompute, blocked, reason)
         if item is not None:
             per_epoch_items.append(item)
+            plan_signatures[desc.name] = {k: r.to_json() for k, r in node_proj.items()}
         current = set(scan_epoch_files(_scoped_dir(artifacts_dir, desc.name, recipe_map)))
         projected_completed[desc.name] = sorted(current | set(covered))
 
     for desc in cross_epoch_descs:
-        item = _plan_cross_epoch_item(
-            name=desc.name,
-            requires=desc.requires,
-            artifacts_dir=artifacts_dir,
-            available_epochs=available,
-            force=force,
-            projected_completed=projected_completed,
-            recipe_map=recipe_map,
-        )
+        item = _plan_cross_epoch_item(ctx, desc, available, projected_completed)
         if item is not None:
             cross_epoch_items.append(item)
+            if not item.blocked_by and desc.name in ctx.projected:
+                plan_signatures[desc.name] = {
+                    k: r.to_json() for k, r in ctx.projected[desc.name].items()
+                }
         # Finding 2 fix: a cross-epoch analyzer, once present or planned,
         # covers every available epoch — seed that so a downstream cross-epoch
         # analyzer reading it (cross→cross edge) is not falsely blocked in the
@@ -301,6 +324,7 @@ def plan_analysis(
         per_epoch=per_epoch_items,
         cross_epoch=cross_epoch_items,
         transitive_prerequisites=transitive,
+        signatures=plan_signatures,
     )
 
 
@@ -328,6 +352,7 @@ class _AnalyzerDescriptor:
     requires_model_weights: bool | None = None
     requires_activation_cache: bool | None = None
     required_hooks: tuple[str, ...] = ()
+    version: int = 1  # REQ_145: AnalyzerSpec.version (code-version signature component)
 
 
 def _describe(item: Any) -> _AnalyzerDescriptor:
@@ -366,6 +391,7 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
             requires_model_weights=item.requires_model_weights,
             requires_activation_cache=item.requires_activation_cache,
             required_hooks=tuple(item.required_hooks),
+            version=item.version,
         )
 
     # Analyzer instance — prefer the registered Spec when one exists.
@@ -381,12 +407,16 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
         pass
 
     # Fallback: classify by protocol attribute presence (legacy analyzers).
+    # ``version`` defaults to 1 but is read off the instance when present so a
+    # version-bearing legacy analyzer participates in the signature predicate.
+    version = int(getattr(item, "version", 1))
     if _is_cross_epoch(item):
         return _AnalyzerDescriptor(
             name=item.name,
             output_scope="cross_epoch",
             requires=tuple(item.requires),
             required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
+            version=version,
         )
     if _is_secondary(item):
         return _AnalyzerDescriptor(
@@ -395,12 +425,14 @@ def _describe(item: Any) -> _AnalyzerDescriptor:
             has_model_input=False,
             requires=(item.depends_on,),
             depends_on=item.depends_on,
+            version=version,
         )
     return _AnalyzerDescriptor(
         name=item.name,
         output_scope="per_epoch",
         has_model_input=True,
         required_hooks=tuple(getattr(item, "required_hooks", ()) or ()),
+        version=version,
     )
 
 
@@ -430,6 +462,157 @@ def _collect_transitive_prerequisites(
                 suggestions.append(blocker)
                 seen.add(blocker)
     return tuple(suggestions)
+
+
+# ---------------------------------------------------------------------------
+# Signature predicate (REQ_145) — recompute iff the input-derived signature changed
+# ---------------------------------------------------------------------------
+
+
+class _SigContext:
+    """Carries the signature predicate's state across the planner's topo pass.
+
+    ``projected`` holds each node's post-run :class:`SigRecord`s keyed by epoch
+    (``str(epoch)`` or ``CROSS_EPOCH_KEY``) — the forward-propagation channel: a
+    downstream reads its upstreams' projected (if recomputed) or stored (if fresh)
+    signatures, so a changed upstream flows into a changed downstream signature.
+    ``stored`` reads (and caches) each analyzer's on-disk signature manifest;
+    ``checkpoint_fps`` is the per-epoch checkpoint fingerprint read once up front.
+    """
+
+    def __init__(
+        self,
+        artifacts_dir: Path,
+        recipe_map: dict[str, str],
+        checkpoint_fps: dict[int, str],
+        force: bool,
+    ) -> None:
+        self.artifacts_dir = artifacts_dir
+        self.recipe_map = recipe_map
+        self.checkpoint_fps = checkpoint_fps
+        self.force = force
+        self.projected: dict[str, dict[str, SigRecord]] = {}
+        self._manifest_cache: dict[str, dict[str, SigRecord]] = {}
+
+    def recipe_sig(self, name: str) -> str:
+        return self.recipe_map.get(name, "")
+
+    def stored(self, name: str) -> dict[str, SigRecord]:
+        """Rehydrated on-disk signature manifest for ``name`` (cached, ``{}`` if absent)."""
+        if name not in self._manifest_cache:
+            raw = read_signature_manifest(str(self.artifacts_dir), name, self.recipe_sig(name))
+            self._manifest_cache[name] = {
+                key: rec
+                for key, value in raw.items()
+                if (rec := SigRecord.from_json(value)) is not None
+            }
+        return self._manifest_cache[name]
+
+    def upstream_sig(self, upstream: str, key: str) -> str:
+        """Projected (if planned) else stored signature for one upstream at one epoch."""
+        proj = self.projected.get(upstream)
+        if proj is not None and key in proj:
+            return proj[key].sig
+        rec = self.stored(upstream).get(key)
+        return rec.sig if rec is not None else ""
+
+
+def _would_per_epoch(ctx: _SigContext, desc: _AnalyzerDescriptor, epoch: int) -> SigRecord:
+    """The signature a per-epoch node's artifact *would* carry after this run.
+
+    Model-driven primary → keyed by the checkpoint fingerprint (skippable when the
+    checkpoint and code/recipe are unchanged). Artifact-derived → keyed by its
+    upstreams' signatures at this epoch. No-input → code/recipe only.
+    """
+    recipe = ctx.recipe_sig(desc.name)
+    if desc.has_model_input:
+        checkpoint = ctx.checkpoint_fps.get(epoch, f"{epoch}:absent")
+        return sig_mod.build_record(code_version=desc.version, recipe=recipe, checkpoint=checkpoint)
+    if not desc.requires:
+        return sig_mod.build_record(code_version=desc.version, recipe=recipe)
+    upstream = [ctx.upstream_sig(u, str(epoch)) for u in desc.requires]
+    return sig_mod.build_record(code_version=desc.version, recipe=recipe, upstream_sigs=upstream)
+
+
+def _signature_plan_per_epoch(
+    ctx: _SigContext,
+    desc: _AnalyzerDescriptor,
+    covered: list[int],
+    blocked: tuple[str, ...],
+) -> tuple[dict[str, SigRecord], list[int], str | None]:
+    """Decide which covered epochs to recompute by signature, and why.
+
+    Returns ``(node_proj, recompute_epochs, reason)``. ``node_proj`` is the
+    post-run signature for *every* covered epoch (fresh ones keep their value),
+    so a downstream folds in the correct projection regardless of what reruns.
+    """
+    if blocked:
+        return {}, [], None
+    stored = ctx.stored(desc.name)
+    node_proj: dict[str, SigRecord] = {}
+    recompute: list[int] = []
+    for epoch in covered:
+        would = _would_per_epoch(ctx, desc, epoch)
+        node_proj[str(epoch)] = would
+        old = stored.get(str(epoch))
+        if ctx.force or old is None or old.sig != would.sig:
+            recompute.append(epoch)
+    return node_proj, recompute, _per_epoch_reason(ctx, desc, recompute, stored, node_proj)
+
+
+def _per_epoch_reason(
+    ctx: _SigContext,
+    desc: _AnalyzerDescriptor,
+    recompute: list[int],
+    stored: dict[str, SigRecord],
+    node_proj: dict[str, SigRecord],
+) -> str | None:
+    """A short, honest reason for recomputing a per-epoch node (skip transparency)."""
+    if not recompute:
+        return None
+    if ctx.force:
+        return "forced"
+    first = str(recompute[0])
+    old = stored.get(first)
+    if old is None:
+        return "missing" if not stored else "stale: new epoch"
+    changed = _changed_upstreams(ctx, desc.requires)
+    if changed:
+        return f"stale: upstream {changed[0]} changed"
+    return sig_mod.explain_change(old, node_proj[first])
+
+
+def _changed_upstreams(ctx: _SigContext, requires: tuple[str, ...]) -> list[str]:
+    """Upstreams whose projected signature differs from what is stored (any epoch)."""
+    out: list[str] = []
+    for upstream in requires:
+        proj = ctx.projected.get(upstream, {})
+        stored = ctx.stored(upstream)
+        if any(stored.get(key) is None or stored[key].sig != rec.sig for key, rec in proj.items()):
+            out.append(upstream)
+    return out
+
+
+def _cross_upstream_sigs(ctx: _SigContext, requires: tuple[str, ...]) -> list[str]:
+    """Every projected (if planned) else stored signature of a cross-epoch node's upstreams."""
+    sigs: list[str] = []
+    for upstream in requires:
+        proj = ctx.projected.get(upstream)
+        recs = proj if proj is not None else ctx.stored(upstream)
+        sigs.extend(rec.sig for rec in recs.values())
+    return sigs
+
+
+def _cross_reason(
+    ctx: _SigContext, desc: _AnalyzerDescriptor, stored: SigRecord | None, would: SigRecord
+) -> str:
+    """Reason a present cross-epoch artifact is stale (legacy/no-manifest → ``"stale"``)."""
+    if stored is None:
+        return "stale"
+    changed = _changed_upstreams(ctx, desc.requires)
+    if changed:
+        return f"stale: upstream {changed[0]} changed"
+    return sig_mod.explain_change(stored, would)
 
 
 # ---------------------------------------------------------------------------
@@ -544,18 +727,16 @@ def _per_epoch_target_epochs(
 
 def _plan_per_epoch_item(
     desc: _AnalyzerDescriptor,
-    artifacts_dir: Path,
-    covered: list[int],
+    recompute: list[int],
     blocked: tuple[str, ...],
-    force: bool,
-    recipe_map: dict[str, str] | None = None,
+    reason: str | None,
 ) -> PlanItem | None:
-    """Build a per-epoch PlanItem from its computed coverage, or ``None``.
+    """Build a per-epoch PlanItem from the signature-derived recompute set, or ``None``.
 
-    ``covered``/``blocked`` come from :func:`_per_epoch_target_epochs`. A
-    blocked analyzer yields an item with empty ``epochs`` and a non-empty
-    ``blocked_by``. Otherwise the item carries the covered epochs still missing
-    on disk (all of them under ``force``); ``None`` when nothing is missing.
+    ``recompute`` is the subset of covered epochs whose provenance signature
+    changed (all of them under ``force``), from :func:`_signature_plan_per_epoch`.
+    A blocked analyzer yields an item with empty ``epochs`` and a non-empty
+    ``blocked_by``; ``None`` when nothing is stale.
     """
     if blocked:
         return PlanItem(
@@ -567,18 +748,14 @@ def _plan_per_epoch_item(
             requires_activation_cache=desc.requires_activation_cache,
             required_hooks=desc.required_hooks,
         )
-    if force:
-        missing = tuple(covered)
-    else:
-        completed = set(scan_epoch_files(_scoped_dir(artifacts_dir, desc.name, recipe_map)))
-        missing = tuple(e for e in covered if e not in completed)
-    if not missing:
+    if not recompute:
         return None
     return PlanItem(
         analyzer_name=desc.name,
-        epochs=missing,
+        epochs=tuple(recompute),
         requires=desc.requires,
         depends_on=desc.depends_on,
+        reason=reason,
         requires_model_weights=desc.requires_model_weights,
         requires_activation_cache=desc.requires_activation_cache,
         required_hooks=desc.required_hooks,
@@ -586,85 +763,81 @@ def _plan_per_epoch_item(
 
 
 def _plan_cross_epoch_item(
-    name: str,
-    requires: tuple[str, ...],
-    artifacts_dir: Path,
+    ctx: _SigContext,
+    desc: _AnalyzerDescriptor,
     available_epochs: tuple[int, ...],
-    force: bool,
-    projected_completed: dict[str, list[int]] | None = None,
-    recipe_map: dict[str, str] | None = None,
+    projected_completed: dict[str, list[int]],
 ) -> PlanItem | None:
-    """Decide whether a cross-epoch analyzer should run.
+    """Decide whether a cross-epoch analyzer should run, by signature (REQ_145).
 
     Returns:
-        None: artifact is fresh — no item emitted.
-        PlanItem with non-empty ``blocked_by``: required dependency has no
+        None: artifact is fresh — signature unchanged.
+        PlanItem with non-empty ``blocked_by``: a required dependency has no
             completed epochs (per-epoch or cross-epoch).
-        PlanItem with ``reason="missing"``: artifact absent.
-        PlanItem with ``reason="stale"``: artifact exists but is older than
-            its dependencies or available checkpoints.
+        PlanItem with ``reason="missing"``: ``cross_epoch.npz`` absent.
+        PlanItem with ``reason="forced"``: ``force`` override.
+        PlanItem with a ``"stale: …"`` reason: artifact present but its
+            input-derived signature changed (or it predates signatures).
 
-    ``projected_completed`` lets the planner treat earlier-phase analyzers
-    in the same plan as if they had already run — so a cross-epoch is not
-    flagged as blocked just because its primary dependency hasn't started.
+    ``projected_completed`` lets the planner treat earlier-phase analyzers in the
+    same plan as if they had run — so a cross-epoch is not blocked just because
+    its dependency hasn't started.
     """
-    projected_completed = projected_completed or {}
-    # Blocked-by check: any required analyzer with zero completed epochs.
-    # Mirrors AnalysisPipeline.get_completed_epochs semantics: per-epoch
-    # files first, falling back to cross_epoch.npz with available_epochs.
+    name = desc.name
+    blocked = _cross_blocked(ctx, desc.requires, available_epochs, projected_completed)
+    if blocked:
+        ctx.projected[name] = {}
+        return PlanItem(analyzer_name=name, requires=desc.requires, blocked_by=tuple(blocked))
+
+    would = sig_mod.build_record(
+        code_version=desc.version,
+        recipe=ctx.recipe_sig(name),
+        upstream_sigs=_cross_upstream_sigs(ctx, desc.requires),
+    )
+    ctx.projected[name] = {CROSS_EPOCH_KEY: would}
+
+    cross_epoch_path = _scoped_dir(ctx.artifacts_dir, name, ctx.recipe_map) / "cross_epoch.npz"
+    if not cross_epoch_path.exists():
+        return PlanItem(
+            analyzer_name=name, epochs=available_epochs, requires=desc.requires, reason="missing"
+        )
+    if ctx.force:
+        return PlanItem(
+            analyzer_name=name, epochs=available_epochs, requires=desc.requires, reason="forced"
+        )
+    stored = ctx.stored(name).get(CROSS_EPOCH_KEY)
+    if stored is None or stored.sig != would.sig:
+        return PlanItem(
+            analyzer_name=name,
+            epochs=available_epochs,
+            requires=desc.requires,
+            reason=_cross_reason(ctx, desc, stored, would),
+        )
+    return None
+
+
+def _cross_blocked(
+    ctx: _SigContext,
+    requires: tuple[str, ...],
+    available_epochs: tuple[int, ...],
+    projected_completed: dict[str, list[int]],
+) -> list[str]:
+    """Required analyzers with zero completed epochs (the blocked-by set).
+
+    Mirrors ``AnalysisPipeline.get_completed_epochs``: per-epoch files first,
+    falling back to ``cross_epoch.npz`` with ``available_epochs``.
+    """
     blocked: list[str] = []
-    dep_epoch_counts: list[int] = []
     for required in requires:
         if required in projected_completed:
             completed = projected_completed[required]
         else:
-            completed = get_completed_epochs(artifacts_dir, required, available_epochs, recipe_map)
+            completed = get_completed_epochs(
+                ctx.artifacts_dir, required, available_epochs, ctx.recipe_map
+            )
         if not completed:
             blocked.append(required)
-        else:
-            dep_epoch_counts.append(len(completed))
-
-    if blocked:
-        return PlanItem(
-            analyzer_name=name,
-            requires=requires,
-            blocked_by=tuple(blocked),
-        )
-
-    cross_epoch_path = _scoped_dir(artifacts_dir, name, recipe_map) / "cross_epoch.npz"
-
-    if force or not cross_epoch_path.exists():
-        reason = "missing" if not cross_epoch_path.exists() else "forced"
-        return PlanItem(
-            analyzer_name=name,
-            epochs=available_epochs,
-            requires=requires,
-            reason=reason,
-        )
-
-    covered = read_covered_epoch_count(cross_epoch_path)
-    if covered < 0:
-        # No epoch metadata — conservative rerun.
-        return PlanItem(
-            analyzer_name=name,
-            epochs=available_epochs,
-            requires=requires,
-            reason="stale",
-        )
-
-    # Stale if dependency artifacts cover more epochs than the artifact does,
-    # or if available checkpoints exceed what the artifact covers.
-    max_dep_epochs = max(dep_epoch_counts) if dep_epoch_counts else 0
-    threshold = max(max_dep_epochs, len(available_epochs))
-    if threshold > covered:
-        return PlanItem(
-            analyzer_name=name,
-            epochs=available_epochs,
-            requires=requires,
-            reason="stale",
-        )
-
-    return None
+    return blocked
 
 
 # ---------------------------------------------------------------------------

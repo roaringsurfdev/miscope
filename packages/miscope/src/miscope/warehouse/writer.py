@@ -29,12 +29,20 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 import miscope.registry as reg
+from miscope.analysis import signature as sig_mod
+from miscope.analysis.artifact_loader import read_signature_manifest
 from miscope.analysis.output_schema import Coord, FieldKind, OutputField
 from miscope.analysis.registry import AnalyzerRegistry
 from miscope.warehouse import catalog as catalog_mod
 from miscope.warehouse import mapping, mapping_semantic, paths, schema
 from miscope.warehouse.decompose import KeyMatch, assign_keys, get_decomp
 from miscope.warehouse.flatten import flatten_field
+from miscope.warehouse.signatures import read_table_signatures, write_table_signatures
+
+# Bump when the columnar mapping/flattening logic changes in a way that alters
+# output bytes for unchanged artifacts — folds into every table's source signature
+# so a materializer change invalidates the warehouse without an artifact change.
+MATERIALIZER_VERSION = 1
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -67,31 +75,38 @@ class _FieldFrame:
 
 
 def materialize_variant_columnar(
-    variant: Variant, run_set: str = paths.DEFAULT_RUN_SET
+    variant: Variant, run_set: str = paths.DEFAULT_RUN_SET, force: bool = False
 ) -> MaterializeReport:
-    """Materialize a variant's columnar analyzer outputs to Parquet (REQ_110A).
+    """Materialize a variant's columnar analyzer outputs to Parquet (REQ_110A/REQ_145).
+
+    Surgical by default: each table's **source signature** folds the materializer
+    version and its feeder analyzers' signatures; a table is rebuilt only when its
+    source signature changed (or its Parquet is absent), and only the analyzers
+    feeding a stale table are read. ``force=True`` ignores signatures and rebuilds
+    every table — the explicit "rebuild regardless" override that replaces the old
+    blanket wipe-and-rebuild.
 
     Every long-format row and catalog row carries a ``run_set`` coordinate column
-    (REQ_138) so the query surface gains the parameterization dimension once. The
-    default materializes the unparameterized plane (``run_set='__default__'`` over
-    today's empty-recipe artifacts); the column reconciles by name with any future
-    parameterized plane in the cross-variant union.
+    (REQ_138) so the query surface gains the parameterization dimension once.
     """
     report = MaterializeReport(variant_id=variant.name)
-    # Deterministic regeneration: wipe the prior columnar outputs so a field that
-    # moved tables (generic <-> semantic) leaves no stale Parquet behind. The wipe
-    # is selective — it preserves the 110-B tensor catalog so the two halves of
-    # the shared catalog relation materialize independently (either order).
-    _wipe_columnar_outputs(variant)
+    specs = _scoped_specs(variant)
+    columnar_specs = [s for s in specs if any(f.kind is FieldKind.COLUMNAR for f in s.outputs)]
+
+    analyzer_sigs = {s.name: _analyzer_signature(variant, s.name) for s in columnar_specs}
+    feeders = _table_feeders(columnar_specs)
+    new_sigs = {t: _table_source_sig(analyzer_sigs, fs) for t, fs in feeders.items()}
+    stored_sigs = read_table_signatures(variant)
+    stale = _stale_tables(variant, new_sigs, stored_sigs, force)
+    _wipe_stale_and_removed(variant, stale, set(new_sigs))
+
+    needed = {a for t in stale for a in feeders[t]}
     variant_cols = _variant_columns(variant, run_set)
     semantic: dict[str, _SemanticAcc] = defaultdict(_SemanticAcc)
 
-    for spec in _scoped_specs(variant):
-        if not any(f.kind is FieldKind.COLUMNAR for f in spec.outputs):
+    for spec in columnar_specs:
+        if spec.name not in needed:
             continue
-        # Availability is decided per scope inside _build_field_frames (per-epoch
-        # checks get_epochs; cross-epoch checks cross_epoch.npz) — the loader's
-        # get_available_analyzers only counts epoch_* dirs, missing cross-epoch ones.
         # Per-analyzer isolation (REQ_140): one malformed on-disk artifact is
         # recorded and skipped, never fatal to the whole columnar pass.
         try:
@@ -101,7 +116,7 @@ def materialize_variant_columnar(
                 continue
             claimed = _collect_semantic(spec.name, field_frames, semantic)
             generic = [ff for ff in field_frames if ff.field.name not in claimed]
-            _emit_generic(variant, spec.name, generic, variant_cols, report)
+            _emit_generic(variant, spec.name, generic, variant_cols, report, stale)
         except Exception as exc:  # noqa: BLE001 — quarantine one bad artifact
             report.failed_analyzers[spec.name] = f"{type(exc).__name__}: {exc}"
             logger.warning(
@@ -112,9 +127,102 @@ def materialize_variant_columnar(
                 exc,
             )
 
-    _emit_semantic(variant, semantic, variant_cols, report)
+    _emit_semantic(variant, semantic, variant_cols, report, stale)
     _emit_outcomes(variant, run_set, report)
+    write_table_signatures(variant, new_sigs)
     return report
+
+
+# ---------------------------------------------------------------------------
+# Surgical re-materialize: per-table source signatures (REQ_145)
+# ---------------------------------------------------------------------------
+
+
+def _analyzer_signature(variant: Variant, name: str) -> str:
+    """Order-independent digest of an analyzer's stamped per-epoch/cross signatures.
+
+    Reads the default-plane signature manifest (the plane the columnar warehouse
+    materializes). An unstamped (legacy) or absent manifest yields ``""`` — so the
+    table reads stale until the artifacts are signature-stamped (the one-time rebuild).
+    """
+    raw = read_signature_manifest(variant.artifacts.artifacts_dir, name, "")
+    sigs = [v["sig"] for v in raw.values() if isinstance(v, dict) and "sig" in v]
+    return sig_mod.digest(sigs) if sigs else ""
+
+
+def _table_feeders(columnar_specs: list[AnalyzerSpec]) -> dict[str, set[str]]:
+    """Map each materialized table to the analyzers that feed it.
+
+    A semantic table is fed by every analyzer whose claim targets it; the generic
+    fallback table (named for the analyzer) is fed by that analyzer iff it has a
+    columnar field not claimed by any semantic table.
+    """
+    feeders: dict[str, set[str]] = defaultdict(set)
+    for spec in columnar_specs:
+        columnar_fields = {f.name for f in spec.outputs if f.kind is FieldKind.COLUMNAR}
+        claimed: set[str] = set()
+        for claim in mapping_semantic.claims_for(spec.name):
+            feeders[claim.table].add(spec.name)
+            claimed |= set(claim.fields)
+        if columnar_fields - claimed:
+            feeders[spec.name].add(spec.name)
+    return feeders
+
+
+def _table_source_sig(analyzer_sigs: dict[str, str], feeder_set: set[str]) -> str:
+    """A table's source signature: materializer version + its feeders' signatures."""
+    components = [f"mat={MATERIALIZER_VERSION}"]
+    components.extend(sorted(analyzer_sigs.get(a, "") for a in feeder_set))
+    return sig_mod.compute_signature(components)
+
+
+def _table_materialized(variant: Variant, table: str) -> bool:
+    """Whether a table has at least one Parquet on disk."""
+    tdir = paths.table_dir(variant, table)
+    return tdir.is_dir() and any(tdir.glob("*.parquet"))
+
+
+def _stale_tables(
+    variant: Variant, new_sigs: dict[str, str], stored_sigs: dict[str, str], force: bool
+) -> set[str]:
+    """Tables to rebuild: signature changed, or Parquet missing (all under ``force``)."""
+    if force:
+        return set(new_sigs)
+    return {
+        table
+        for table, sig in new_sigs.items()
+        if stored_sigs.get(table) != sig or not _table_materialized(variant, table)
+    }
+
+
+def _wipe_table(variant: Variant, table: str) -> None:
+    """Remove one table's Parquet dir and its co-emitted columnar catalog rows."""
+    tdir = paths.table_dir(variant, table)
+    if tdir.exists():
+        shutil.rmtree(tdir, ignore_errors=True)
+    catalog_path = paths.catalog_parquet_path(variant, table)
+    if catalog_path.exists():
+        catalog_path.unlink()
+
+
+def _wipe_stale_and_removed(variant: Variant, stale: set[str], current_tables: set[str]) -> None:
+    """Clear stale tables and any on-disk table no longer produced (feeders gone)."""
+    from miscope.warehouse.outcomes import OUTCOMES_TABLE
+
+    for table in stale:
+        _wipe_table(variant, table)
+    wdir = paths.warehouse_dir(variant)
+    if not wdir.exists():
+        return
+    reserved = {
+        paths.CATALOG_DIRNAME,
+        paths.TENSOR_CATALOG_DIRNAME,
+        paths.RUN_SETS_DIRNAME,
+    }
+    keep = current_tables | {OUTCOMES_TABLE}
+    for child in wdir.iterdir():
+        if child.is_dir() and child.name not in reserved and child.name not in keep:
+            _wipe_table(variant, child.name)
 
 
 def _scoped_specs(variant: Variant) -> list[AnalyzerSpec]:
@@ -290,8 +398,15 @@ def _emit_generic(
     field_frames: list[_FieldFrame],
     variant_cols: dict[str, object],
     report: MaterializeReport,
+    stale: set[str],
 ) -> None:
-    """Write the unclaimed fields as generic tables: one Parquet per coord signature."""
+    """Write the unclaimed fields as generic tables: one Parquet per coord signature.
+
+    Skipped when the analyzer's generic table is signature-fresh (REQ_145) — it is
+    only built here because the analyzer also feeds a *stale* table.
+    """
+    if analyzer_name not in stale:
+        return
     groups: dict[tuple[Coord, ...], list[_FieldFrame]] = defaultdict(list)
     for ff in field_frames:
         groups[ff.field.coords].append(ff)
@@ -318,9 +433,16 @@ def _emit_semantic(
     semantic: dict[str, _SemanticAcc],
     variant_cols: dict[str, object],
     report: MaterializeReport,
+    stale: set[str],
 ) -> None:
-    """Row-union each semantic table's feeder frames and write one Parquet per table."""
+    """Row-union each stale semantic table's feeder frames and write one Parquet per table.
+
+    Only stale tables are emitted (REQ_145); a fresh semantic table whose feeders
+    were read incidentally (because they also feed a stale table) is left untouched.
+    """
     for table, acc in semantic.items():
+        if table not in stale:
+            continue
         big = pd.concat(acc.frames, ignore_index=True)
         _normalize_label_columns(big)
         out = schema.assemble_table(big, variant_cols, (), {})
@@ -396,17 +518,6 @@ def _write_table(
         value_columns,
         variant.name,
     )
-
-
-def _wipe_columnar_outputs(variant: Variant) -> None:
-    """Remove the columnar warehouse children, preserving the tensor catalog (110-B)."""
-    wdir = paths.warehouse_dir(variant)
-    if not wdir.exists():
-        return
-    for child in wdir.iterdir():
-        if child.name == paths.TENSOR_CATALOG_DIRNAME:
-            continue
-        shutil.rmtree(child, ignore_errors=True) if child.is_dir() else child.unlink()
 
 
 def _variant_columns(variant: Variant, run_set: str) -> dict[str, object]:

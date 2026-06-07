@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
+from miscope.analysis.artifact_loader import read_signature_manifest, write_signature_manifest
 from miscope.analysis.freshness import (
     CrossEpochFreshness,
     FreshnessReport,
@@ -29,6 +30,41 @@ from miscope.analysis.freshness import (
     _scan_epoch_files,
     check_freshness,
 )
+from miscope.analysis.planner import plan_analysis
+
+
+class _PrimaryStub:
+    """Per-epoch model-driven analyzer stub (no registered Spec → version 1)."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def analyze(self, inputs, context):  # pragma: no cover - never executed
+        return {}
+
+
+class _CrossEpochStub:
+    def __init__(self, name: str, requires: tuple[str, ...] = ()) -> None:
+        self.name = name
+        self.requires = requires
+
+    def analyze_across_epochs(self, *a, **k):  # pragma: no cover - never executed
+        return {}
+
+
+def _stamp_fresh(variant, analyzers, checkpoints=None) -> None:
+    """Stamp signature manifests for ``analyzers`` so their artifacts read fresh.
+
+    Mirrors the pipeline: build a plan, then write each planned node's post-run
+    signatures to its manifest. After this, a re-plan over the same disk state is a
+    no-op — the REQ_145 freshness contract.
+    """
+    plan = plan_analysis(variant, analyzers, checkpoints=checkpoints)
+    for name, sigs in plan.signatures.items():
+        merged = read_signature_manifest(variant.artifacts_dir, name, "")
+        merged.update(sigs)
+        write_signature_manifest(variant.artifacts_dir, name, "", merged)
+
 
 # ---------------------------------------------------------------------------
 # PerEpochFreshness
@@ -70,27 +106,20 @@ def test_cross_epoch_absent():
     assert ce.status_label == "absent"
 
 
-def test_cross_epoch_stale_gap():
+def test_cross_epoch_stale_with_reason():
+    """REQ_145: staleness is the planner's reason, not an epoch-count gap."""
+    ce = CrossEpochFreshness(
+        "neuron_dynamics", True, 10, 7, plan_reason="stale: upstream x changed"
+    )
+    assert not ce.is_fresh
+    assert "upstream x changed" in ce.status_label
+
+
+def test_cross_epoch_fresh_ignores_count():
+    """A present artifact with no planner reason is fresh regardless of covered count."""
     ce = CrossEpochFreshness("neuron_dynamics", True, 10, 7)
-    assert not ce.is_fresh
-    assert "3 new epoch(s)" in ce.status_label
-
-
-def test_cross_epoch_stale_no_metadata():
-    ce = CrossEpochFreshness("neuron_dynamics", True, 10, -1)
-    assert not ce.is_fresh
-    assert "no epoch metadata" in ce.status_label
-
-
-def test_cross_epoch_covered_equals_available():
-    ce = CrossEpochFreshness("neuron_dynamics", True, 5, 5)
     assert ce.is_fresh
-
-
-def test_cross_epoch_covered_exceeds_available():
-    # More epochs in artifact than available checkpoints — treat as fresh.
-    ce = CrossEpochFreshness("neuron_dynamics", True, 5, 7)
-    assert ce.is_fresh
+    assert ce.status_label == "fresh"
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +129,9 @@ def test_cross_epoch_covered_exceeds_available():
 
 def _make_report(per_fresh=True, cross_fresh=True, summary_stale=False) -> FreshnessReport:
     pe = PerEpochFreshness("a", 5, 5 if per_fresh else 3, [] if per_fresh else [4, 5])
-    ce = CrossEpochFreshness("b", True, 5, 5 if cross_fresh else 3)
+    ce = CrossEpochFreshness(
+        "b", True, 5, 5 if cross_fresh else 3, plan_reason=None if cross_fresh else "stale"
+    )
     return FreshnessReport(
         variant_name="test_variant",
         checked_at="2026-01-01T00:00:00Z",
@@ -212,6 +243,7 @@ def _make_variant(tmp_path: Path, checkpoints: list[int]) -> MagicMock:
     variant.variant_dir = tmp_path
     variant.summary_path = tmp_path / "variant_summary.json"
     variant.get_available_checkpoints.return_value = checkpoints
+    variant.checkpoint_fingerprint.side_effect = lambda e: f"ckpt-{e}"
     return variant
 
 
@@ -236,13 +268,16 @@ def test_check_freshness_fully_fresh(tmp_path):
     checkpoints = [0, 100, 200]
     artifacts_dir = tmp_path / "artifacts"
     _write_per_epoch(artifacts_dir, "attn_freq", checkpoints)
-    _write_cross_epoch(artifacts_dir, "neuron_dynamics", len(checkpoints))
+    _write_cross_epoch(artifacts_dir, "cross_demo", len(checkpoints))
+
+    variant = _make_variant(tmp_path, checkpoints)
+    # Stamp signatures so the artifacts read fresh under the REQ_145 predicate.
+    _stamp_fresh(variant, [_PrimaryStub("attn_freq"), _CrossEpochStub("cross_demo")])
 
     # summary must be newer than artifacts — write it last
     summary = tmp_path / "variant_summary.json"
     summary.write_text(json.dumps({}))
 
-    variant = _make_variant(tmp_path, checkpoints)
     report = check_freshness(variant)
 
     assert report.total_checkpoints == 3
@@ -250,7 +285,7 @@ def test_check_freshness_fully_fresh(tmp_path):
     assert pe is not None
     assert pe.is_fresh
 
-    ce = next((ce for ce in report.cross_epoch if ce.analyzer_name == "neuron_dynamics"), None)
+    ce = next((ce for ce in report.cross_epoch if ce.analyzer_name == "cross_demo"), None)
     assert ce is not None
     assert ce.is_fresh
 
@@ -261,9 +296,12 @@ def test_check_freshness_fully_fresh(tmp_path):
 def test_check_freshness_missing_per_epoch(tmp_path):
     checkpoints = [0, 100, 200, 300]
     artifacts_dir = tmp_path / "artifacts"
-    _write_per_epoch(artifacts_dir, "attn_freq", [0, 100])  # missing 200, 300
+    _write_per_epoch(artifacts_dir, "attn_freq", [0, 100])  # done 0, 100
 
     variant = _make_variant(tmp_path, checkpoints)
+    # 0, 100 stamped fresh; 200, 300 are genuinely new checkpoints.
+    _stamp_fresh(variant, [_PrimaryStub("attn_freq")], checkpoints=[0, 100])
+
     report = check_freshness(variant, per_epoch_names=["attn_freq"])
 
     pe = report.per_epoch[0]
@@ -271,17 +309,43 @@ def test_check_freshness_missing_per_epoch(tmp_path):
     assert set(pe.missing_epochs) == {200, 300}
 
 
-def test_check_freshness_stale_cross_epoch(tmp_path):
-    checkpoints = [0, 100, 200, 300, 400]
+def test_intragroup_manifold_present_but_unstamped_is_stale(tmp_path):
+    """REQ_145 "free" fixture: the real ``intragroup_manifold`` analyzer.
+
+    Its stored cross-epoch artifacts on non-pinned variants are stale/wrong-shape yet
+    coverage-complete, so the old count-based predicate reported them fresh and they
+    errored on read. They predate signatures (no manifest), so the new predicate reads
+    them stale -> recompute — the turn-1 regression on a real, in-tree analyzer, no
+    artificial version bump. The upstream ``neuron_group_pca`` is present so the item
+    is stale (not blocked)."""
+    checkpoints = [0, 100, 200]
     artifacts_dir = tmp_path / "artifacts"
-    _write_cross_epoch(artifacts_dir, "neuron_dynamics", 3)  # only covered 3 of 5
+    _write_cross_epoch(artifacts_dir, "neuron_group_pca", 3)  # upstream satisfied
+    _write_cross_epoch(artifacts_dir, "intragroup_manifold", 3)  # present, full, unstamped
 
     variant = _make_variant(tmp_path, checkpoints)
-    report = check_freshness(variant, cross_epoch_names=["neuron_dynamics"])
+    report = check_freshness(variant, cross_epoch_names=["intragroup_manifold"])
+
+    ce = report.cross_epoch[0]
+    assert ce.analyzer_name == "intragroup_manifold"
+    assert not ce.is_fresh
+    assert "stale" in ce.status_label
+
+
+def test_check_freshness_present_but_unstamped_is_stale(tmp_path):
+    """REQ_145 turn-1 regression: a present, coverage-complete cross-epoch artifact
+    with no signature manifest (a legacy artifact predating REQ_145) reads stale —
+    the case the old count-based predicate reported as fresh."""
+    checkpoints = [0, 100, 200, 300, 400]
+    artifacts_dir = tmp_path / "artifacts"
+    _write_cross_epoch(artifacts_dir, "cross_demo", 5)  # full coverage, but no manifest
+
+    variant = _make_variant(tmp_path, checkpoints)
+    report = check_freshness(variant, cross_epoch_names=["cross_demo"])
 
     ce = report.cross_epoch[0]
     assert not ce.is_fresh
-    assert "2 new epoch(s)" in ce.status_label
+    assert "stale" in ce.status_label
 
 
 def test_check_freshness_summary_stale(tmp_path):

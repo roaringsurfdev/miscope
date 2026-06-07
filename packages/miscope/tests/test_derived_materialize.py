@@ -17,7 +17,7 @@ import pytest
 
 import miscope.analysis.derived_table as dt_mod
 import miscope.query as query
-from miscope.analysis.artifact_loader import ArtifactLoader
+from miscope.analysis.artifact_loader import ArtifactLoader, write_signature_manifest
 from miscope.analysis.derived_table import DerivedTableSpec, register_derived_table
 from miscope.analysis.output_schema import Coord, OutputField
 from miscope.warehouse import (
@@ -297,28 +297,46 @@ def test_transient_dim_reassembles_full_legacy_dict_and_renders(tmp_path: Path):
     assert fig is not None
 
 
-def test_derived_rematerializes_when_input_recomputed(tmp_path: Path):
-    """REQ_141 freshness: recomputing an input table rebuilds its derived tables.
+def _stamp_attribution(v: _FakeVariant, epoch_sigs: dict[int, str]) -> None:
+    """Write a signature manifest for the attribution artifact (REQ_145).
 
-    Derived tables join the materialize DAG downstream of their inputs (no separate
-    staleness mechanism): re-running the columnar+derived pass after the attribution
-    artifact changes yields updated derived tables.
+    The warehouse's surgical re-materialize keys on these stamped signatures, not on
+    artifact mtime/content — mirroring the pipeline, which recomputes an artifact only
+    when its input-derived signature changes. So an incremental rebuild is driven by
+    *changing the stamped signature*, exactly as a real recompute would.
+    """
+    records = {str(e): {"sig": s, "code_version": 1} for e, s in epoch_sigs.items()}
+    write_signature_manifest(
+        str(v.variant_dir / "artifacts"), "neuron_frequency_attribution", "", records
+    )
+
+
+def test_derived_rematerializes_when_input_recomputed(tmp_path: Path):
+    """REQ_145 freshness: a changed input signature rebuilds its derived tables.
+
+    Derived tables join the materialize DAG downstream of their inputs via the one
+    signature predicate (no separate staleness mechanism): re-running the
+    columnar+derived pass after the attribution artifact's signature changes yields
+    updated derived tables; an unchanged signature is a skip.
     """
     v = _FakeVariant(tmp_path, "p23_seed9_dseed9", {"prime": 23, "seed": 9, "data_seed": 9})
     _seed_transient_pattern(v)
+    _stamp_attribution(v, {0: "s0", 100: "s100", 200: "s200"})
     materialize_variant_columnar(v)
     materialize_variant_derived(v)
     before = read_table(v, "committed_counts").df
     final7 = before[(before.epoch == 200) & (before.frequency == 7)]["committed_counts"]
     assert int(final7.iloc[0]) == 5
 
-    # Recompute the input: at the final epoch, freq 7's cohort abandons too.
+    # Recompute the input: at the final epoch, freq 7's cohort abandons too — and the
+    # recompute stamps a new signature for that epoch (what the pipeline does).
     art = v.variant_dir / "artifacts" / "neuron_frequency_attribution"
     np.savez_compressed(
         art / "epoch_00200",
         dominant_freq=np.array([3] * 5 + [7] * 5 + [0] * 10, dtype=np.int64),
         max_frac=np.array([0.5] * 20, dtype=np.float64),  # nobody committed at final
     )
+    _stamp_attribution(v, {0: "s0", 100: "s100", 200: "s200-v2"})
     materialize_variant_columnar(v)
     materialize_variant_derived(v)
     after = read_table(v, "committed_counts").df
