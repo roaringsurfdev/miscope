@@ -19,11 +19,27 @@ def run(family_name: str) -> None:
         print(f"Family directory not found: {family.family_dir}")
         sys.exit(1)
 
+    # Per-variant isolation: a variant that can't summarize (e.g. not yet
+    # re-analyzed for the REQ_141 neuron_frequency_attribution analyzer, so its
+    # conformed dimension has no source) is skipped and reported, not fatal to the
+    # batch — mirrors the warehouse materializer's quarantine discipline (REQ_140).
+    failed: dict[str, str] = {}
     for variant in family.variants:
-        summary = VariantAnalysisSummary(variant)
-        summary.analyze()
+        try:
+            VariantAnalysisSummary(variant).analyze()
+        except Exception as exc:  # noqa: BLE001 — quarantine one variant, keep the batch going
+            failed[variant.name] = f"{type(exc).__name__}: {exc}"
+            print(f"  skipped {variant.name}: {type(exc).__name__}: {exc}")
 
     build_variant_registry(family)
+
+    if failed:
+        print(
+            f"\n{len(failed)} variant(s) skipped (commonly: not yet re-analyzed for the "
+            f"neuron_frequency_attribution analyzer — re-run analysis on them):"
+        )
+        for name in sorted(failed):
+            print(f"  - {name}")
 
 
 def main() -> None:

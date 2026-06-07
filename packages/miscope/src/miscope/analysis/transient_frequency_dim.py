@@ -14,8 +14,12 @@ import numpy as np
 
 from miscope.warehouse.reader import read_table
 
-# The transient detection fraction (0.05 * d_mlp) carried over from the analyzer.
+# Thresholds carried over from the retired transient_frequency analyzer, so the
+# reassembled dict matches the legacy artifact the renderers read (the per-neuron
+# max_frac gate is shown in the committed-counts subtitle).
+NEURON_THRESHOLD = 0.70
 TRANSIENT_DETECTION_FRACTION = 0.05
+FINAL_CANONICAL_FRACTION = 0.10
 
 _SUMMARY_TABLE = "transient_frequencies"
 _COMMITTED_TABLE = "committed_counts"
@@ -60,7 +64,9 @@ def _assemble(variant: object) -> dict:
         "peak_members_flat": flat,
         "peak_members_offsets": offsets,
         "epochs": epochs.astype(np.int32),
+        "_neuron_threshold": np.array(NEURON_THRESHOLD),
         "_transient_canonical_threshold": np.array(TRANSIENT_DETECTION_FRACTION),
+        "_final_canonical_threshold": np.array(FINAL_CANONICAL_FRACTION),
     }
 
 

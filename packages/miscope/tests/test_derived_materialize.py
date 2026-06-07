@@ -261,6 +261,42 @@ def test_transient_derived_tables_reproduce_analyzer(tmp_path: Path):
     assert freq7_members == [5, 6, 7, 8, 9]
 
 
+def test_transient_dim_reassembles_full_legacy_dict_and_renders(tmp_path: Path):
+    """The reassembled dict carries every key the renderers read, and renders.
+
+    Regression: a missing ``_neuron_threshold`` key (dropped in the bucket-2
+    migration) raised ``KeyError`` inside the committed-counts renderer, breaking
+    the dashboard transient page. This guards the loader↔renderer key contract.
+    """
+    from miscope.analysis.transient_frequency_dim import load_transient_dict
+    from miscope.visualization.renderers.transient_frequency import (
+        render_transient_committed_counts,
+    )
+
+    v = _FakeVariant(tmp_path, "p23_seedr_dseedr", {"prime": 23, "seed": 7, "data_seed": 7})
+    _seed_transient_pattern(v)
+    materialize_variant_columnar(v)
+    materialize_variant_derived(v)
+
+    d = load_transient_dict(v)
+    for key in (
+        "ever_qualified_freqs",
+        "is_final",
+        "peak_epoch",
+        "peak_count",
+        "committed_counts",
+        "epochs",
+        "peak_members_flat",
+        "peak_members_offsets",
+        "_neuron_threshold",
+        "_transient_canonical_threshold",
+    ):
+        assert key in d, f"reassembled transient dict missing {key!r}"
+
+    fig = render_transient_committed_counts(d, None)  # must not raise
+    assert fig is not None
+
+
 def test_derived_rematerializes_when_input_recomputed(tmp_path: Path):
     """REQ_141 freshness: recomputing an input table rebuilds its derived tables.
 
