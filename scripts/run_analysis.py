@@ -21,8 +21,8 @@ from miscope import load_family  # noqa: E402
 from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
 from miscope.analysis.registry import AnalyzerRegistry  # noqa: E402
 from miscope.analysis.variant_analysis_summary import (  # noqa: E402
-    VariantAnalysisSummary,
     build_variant_registry,
+    write_variant_summary,
 )
 from miscope.warehouse import (  # noqa: E402
     materialize_variant_columnar,
@@ -98,7 +98,7 @@ for i, variant in enumerate(variants):
         print("\n  Materializing warehouse (columnar + derived)...")
         materialize_variant_columnar(variant, force=FORCE)
         materialize_variant_derived(variant, force=FORCE)
-        VariantAnalysisSummary(variant).analyze()
+        write_variant_summary(variant)
 
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")

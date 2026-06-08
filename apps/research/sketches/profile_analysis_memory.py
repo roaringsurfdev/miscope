@@ -111,13 +111,13 @@ def main() -> None:
     # Stage 2: nf.load now that the table exists (the steady-state read cost).
     stage("neuron_frequency.load()", do_nf_load)
 
-    # Stage 3: the full summary build (calls nf.load + reads several summaries).
+    # Stage 3: the full summary build (now a warehouse-table read + roll-up).
     from miscope.analysis.variant_analysis_summary import (
-        VariantAnalysisSummary,
         build_variant_registry,
+        write_variant_summary,
     )
 
-    stage("VariantAnalysisSummary.analyze()", lambda: VariantAnalysisSummary(variant).analyze())
+    stage("write_variant_summary(variant)", lambda: str(write_variant_summary(variant)) and "ok")
     stage("build_variant_registry(family)", lambda: str(build_variant_registry(family)) and "ok")
 
     print(f"\n  Final RSS: {rss_mb():.0f} MB")

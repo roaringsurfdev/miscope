@@ -10,7 +10,7 @@ import argparse
 import sys
 
 from miscope import load_family
-from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary, build_variant_registry
+from miscope.analysis.variant_analysis_summary import build_variant_registry, write_variant_summary
 
 
 def run(family_name: str) -> None:
@@ -26,7 +26,7 @@ def run(family_name: str) -> None:
     failed: dict[str, str] = {}
     for variant in family.variants:
         try:
-            VariantAnalysisSummary(variant).analyze()
+            write_variant_summary(variant)
         except Exception as exc:  # noqa: BLE001 — quarantine one variant, keep the batch going
             failed[variant.name] = f"{type(exc).__name__}: {exc}"
             print(f"  skipped {variant.name}: {type(exc).__name__}: {exc}")
