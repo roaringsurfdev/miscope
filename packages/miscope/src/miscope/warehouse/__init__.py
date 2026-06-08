@@ -25,7 +25,6 @@ Entry points::
 from __future__ import annotations
 
 from miscope.warehouse.derived import DerivedMaterializeReport, materialize_variant_derived
-from miscope.warehouse.outcomes import OUTCOMES_TABLE, materialize_variant_outcomes
 from miscope.warehouse.reader import WarehouseTable, read_table
 from miscope.warehouse.run_sets import (
     OrphanRecipe,
@@ -52,8 +51,6 @@ __all__ = [
     "MaterializeReport",
     "materialize_variant_derived",
     "DerivedMaterializeReport",
-    "materialize_variant_outcomes",
-    "OUTCOMES_TABLE",
     "read_table",
     "WarehouseTable",
     "materialize_variant_tensors",

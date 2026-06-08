@@ -877,3 +877,102 @@ TRANSIENT_OUTCOME_TABLE = register_derived_table(
         materialized=True,
     )
 )
+
+
+# ===========================================================================
+# REQ_144 Stage 4 — variant_outcomes: the conformed per-variant outcome row.
+#
+# A pure DerivedTableSpec (CoS #1) joining the seven stable clusters into one wide
+# row per variant — the queryable surface that replaces the JSON-flatten co-emission
+# (warehouse/outcomes.py). Cross-variant questions ("variants with
+# homeless_neuron_fraction > 0.2") are one-line SQL over the family glob; the
+# registry (fork a) is its cross-variant view. The two classifications (Python,
+# fork b) live alongside in variant_classification, not here.
+# ===========================================================================
+
+VARIANT_OUTCOMES = "variant_outcomes"
+
+# (table alias, column, dtype) for every stable field, in summary order. The list is
+# the single source for both the SELECT and the declared output schema (no drift).
+_VARIANT_OUTCOME_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("lo", "train_loss_min", "float64"),
+    ("lo", "train_loss_min_epoch", "int64"),
+    ("lo", "train_loss_threshold_first_epoch", "int64"),
+    ("lo", "train_loss_final", "float64"),
+    ("lo", "test_loss_min", "float64"),
+    ("lo", "test_loss_min_epoch", "int64"),
+    ("lo", "test_loss_max", "float64"),
+    ("lo", "test_loss_max_epoch", "int64"),
+    ("lo", "peak_test_loss_epoch", "int64"),
+    ("lo", "test_loss_threshold_first_epoch", "int64"),
+    ("lo", "test_loss_final", "float64"),
+    ("lo", "final_test_loss", "float64"),
+    ("lo", "second_descent_onset_epoch", "int64"),
+    ("lo", "second_descent_survived", "bool"),
+    ("dm", "effective_dimensionality_cross_over_epoch", "int64"),
+    ("dm", "effective_dimensionality_crossover_W_E_pr", "float64"),
+    ("nt", "first_mover_epoch", "int64"),
+    ("nt", "first_mover_frequency", "int64"),
+    ("nt", "first_mover_frequency_count_threshold_epoch", "int64"),
+    ("nt", "total_neurons_over_specialization_threshold_epoch", "int64"),
+    ("cg", "competition_window_start", "int64"),
+    ("cg", "competition_window_end", "int64"),
+    ("cg", "competition_window_duration", "int64"),
+    ("cg", "max_resid_post_circularity", "float64"),
+    ("lf", "learned_frequencies", "int64"),
+    ("lf", "learned_frequency_count", "int64"),
+    ("lf", "canonical_specialization_threshold", "float64"),
+    ("op", "committed_frequencies_at_onset", "int64"),
+    ("op", "handshake_failures", "int64"),
+    ("op", "handshake_succeeded", "bool"),
+    ("op", "second_descent_onset_committed_frequencies", "int64"),
+    ("op", "second_descent_onset_frequency_bands", "str"),
+    ("op", "second_descent_onset_has_low_band", "bool"),
+    ("op", "second_descent_onset_band_count", "int64"),
+    ("tr", "transient_frequencies", "int64"),
+    ("tr", "transient_frequency_count", "int64"),
+    ("tr", "homeless_neuron_count", "int64"),
+    ("tr", "homeless_neuron_fraction", "float64"),
+    ("tr", "transient_detection_threshold", "float64"),
+)
+
+_VARIANT_OUTCOME_INPUTS = (
+    "loss_outcomes",
+    "dimensionality_outcomes",
+    "neuron_threshold_outcomes",
+    "competition_geometry_outcomes",
+    "learned_frequencies_outcome",
+    "onset_portfolio_outcome",
+    "transient_outcome",
+)
+
+_VARIANT_OUTCOMES_SELECT = ",\n                   ".join(
+    f"{alias}.{column}" for alias, column, _ in _VARIANT_OUTCOME_COLUMNS
+)
+
+VARIANT_OUTCOMES_TABLE = register_derived_table(
+    DerivedTableSpec(
+        name=VARIANT_OUTCOMES,
+        query=f"""
+            SELECT {_VARIANT_OUTCOMES_SELECT}
+            FROM loss_outcomes lo
+            JOIN dimensionality_outcomes dm USING (variant_id, run_set)
+            JOIN neuron_threshold_outcomes nt USING (variant_id, run_set)
+            JOIN competition_geometry_outcomes cg USING (variant_id, run_set)
+            JOIN learned_frequencies_outcome lf USING (variant_id, run_set)
+            JOIN onset_portfolio_outcome op USING (variant_id, run_set)
+            JOIN transient_outcome tr USING (variant_id, run_set)
+        """,
+        input_tables=_VARIANT_OUTCOME_INPUTS,
+        outputs=tuple(
+            F.columnar(
+                column,
+                dtype,
+                (Coord.VARIANT,),
+                f"{column} (conformed per-variant outcome, rolled up from the stable clusters).",
+            )
+            for _, column, dtype in _VARIANT_OUTCOME_COLUMNS
+        ),
+        materialized=True,
+    )
+)

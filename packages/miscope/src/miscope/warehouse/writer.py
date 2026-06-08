@@ -135,7 +135,6 @@ def materialize_variant_columnar(
 
     _emit_semantic(variant, semantic, variant_cols, report, stale)
     _emit_losses(variant, run_set, report, stale)
-    _emit_outcomes(variant, run_set, report)
     write_table_signatures(variant, new_sigs)
     return report
 
@@ -214,8 +213,6 @@ def _wipe_table(variant: Variant, table: str) -> None:
 
 def _wipe_stale_and_removed(variant: Variant, stale: set[str], current_tables: set[str]) -> None:
     """Clear stale tables and any on-disk table no longer produced (feeders gone)."""
-    from miscope.warehouse.outcomes import OUTCOMES_TABLE
-
     for table in stale:
         _wipe_table(variant, table)
     wdir = paths.warehouse_dir(variant)
@@ -226,7 +223,10 @@ def _wipe_stale_and_removed(variant: Variant, stale: set[str], current_tables: s
         paths.TENSOR_CATALOG_DIRNAME,
         paths.RUN_SETS_DIRNAME,
     }
-    keep = current_tables | {OUTCOMES_TABLE}
+    # ``variant_outcomes`` is now a derived table (REQ_144) owned by the surgical
+    # derived pass; protect it from the columnar pass's removed-table sweep exactly
+    # as the old co-emitted outcomes table was protected.
+    keep = current_tables | {"variant_outcomes"}
     for child in wdir.iterdir():
         if child.is_dir() and child.name not in reserved and child.name not in keep:
             _wipe_table(variant, child.name)
@@ -264,21 +264,6 @@ def _emit_losses(
     if rows:
         report.tables[LOSSES_TABLE] = rows
         report.files_written.append(str(paths.semantic_parquet_path(variant, LOSSES_TABLE)))
-
-
-def _emit_outcomes(variant: Variant, run_set: str, report: MaterializeReport) -> None:
-    """Co-emit the per-variant outcome rollup (REQ_110D), if the summary exists.
-
-    A cross-analyzer rollup, not an analyzer output — sourced from
-    ``variant_summary.json`` and written here so it survives ``_wipe_columnar_outputs``
-    (which runs at the top of this pass) and stays atomic with the rest.
-    """
-    from miscope.warehouse.outcomes import OUTCOMES_TABLE, materialize_variant_outcomes
-
-    rows = materialize_variant_outcomes(variant, run_set)
-    if rows:
-        report.tables[OUTCOMES_TABLE] = rows
-        report.files_written.append(str(paths.semantic_parquet_path(variant, OUTCOMES_TABLE)))
 
 
 # ---------------------------------------------------------------------------
