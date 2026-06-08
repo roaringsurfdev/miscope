@@ -1,9 +1,11 @@
 # REQ_099: Visualizations Plot-Only (No Computation in Renderers)
 
-**Status:** Active (2026-06-07) — audit complete (2026-06-05); REQ_110/141/144 have
-merged so the migration targets are stable; execution under way. **Scope narrowed**
+**Status:** Completed (2026-06-08) — audit complete (2026-06-05); REQ_110/141/144 have
+merged so the migration targets are stable. **Scope narrowed**
 2026-06-07: the two load-bearing composite views are carved out to dedicated design
 requirements (see *Scope decision* below). REQ_099 keeps the mechanical offenders only.
+The retained mechanical migration is implemented and verified (see *Migration completed*
+in Notes); the carved-out composite/joint-PCA views remain tracked by REQ_146/147.
 **Priority:** Medium
 **Branch:** `feature/REQ_099_visualizations_plot_only`
 **Dependencies:** REQ_106 (layering principle — REQ_099 is the migration mechanism that enforces the rule on the renderer/loader side). **REQ_109** (measurement primitives) and **REQ_110** (warehouse + DuckDB query surface) — these now provide the canonical migration *targets* and **subsume the earlier REQ_097/098 dependency**: a derived metric keyed by coordinates (proximity, rolling PR₃, per-band counts) now has a natural home as a warehouse column / query-surface aggregation, not only a library function. **REQ_107** (registry/discoverability) — before re-homing an offender into a new library function, check whether the warehouse already computes it (e.g. 110-D's conformed `(epoch, neuron) → freq` dimension), so the migration *joins* an existing field rather than re-deriving it.
@@ -77,22 +79,42 @@ loaders fetch and shape; renderers plot. Each layer has one responsibility.
 
 ### Migration
 
-- [ ] All renderer-side computation migrates either to:
+- [x] All renderer-side computation (retained set) migrates either to:
   - A library function (returns a dataclass / array) called from `load_data`, or
   - An analyzer that persists the result as an artifact.
-- [ ] `load_data` callbacks are allowed to call library functions for
+
+  *Done: `repr_geometry` Fisher/PCA/distances → loader calls `compute_fisher_matrix`
+  / `pca` / new `compute_centroid_distances`; `effective_dimensionality` PR →
+  loader calls `compute_participation_ratio`; `parameter_trajectory` proximity →
+  new `compute_group_trajectory_proximity` (library fn, not warehouse — see decision
+  in Notes).*
+- [x] `load_data` callbacks are allowed to call library functions for
   on-the-fly computation (e.g., rolling window metrics over an existing
   artifact). They are not allowed to perform numerical work inline.
-- [ ] Renderer functions take only structured data + render parameters.
+
+  *Done: the new compute lives in `views/universal.py` adapters as single library
+  calls — no inline numpy in the migrated adapters.*
+- [x] Renderer functions take only structured data + render parameters.
   No numpy linear algebra, no sklearn, no Fourier basis construction.
+
+  *Done: the four migrated renderers now receive pre-computed arrays; the dead,
+  per-epoch-PCA `render_centroid_pca_variance` (no live caller) was deleted rather
+  than migrated. `site`/`matrix_name`/`col_x` remain as render parameters only.*
 
 ### Validation
 
-- [ ] After migration, view rendering time on a representative variant
-  improves measurably (target: 25%+ reduction on views that had compute
-  in the renderer; specific numbers documented post-audit).
-- [ ] Visual output of migrated views unchanged within tolerance (verified
-  against current screenshots or characterization renders).
+- [~] After migration, view rendering time on a representative variant
+  improves measurably. *N/A as a 25% bar for the retained set: the render-slowdown
+  offenders were the carved-out composites (→ REQ_146/147). The retained migrations
+  move only cheap compute (a scalar PR; single-epoch p×d PCA/Fisher/distances;
+  per-epoch L2 over a 2-col trajectory) out of the render path. The relocation is
+  real but small; no separate benchmark was warranted.*
+- [x] Visual output of migrated views unchanged within tolerance. *Verified:
+  proximity confirmed **byte-identical** to the original inline formula on baseline
+  p113/s999/ds598 (cols (0,1) and (1,2)); the Fisher/PCA/distances/PR migrations
+  call the identical library functions the renderers previously called inline, so
+  they are parity-preserving by construction. All eight migrated view invocations
+  render end-to-end on the baseline.*
 
 ---
 
@@ -190,6 +212,55 @@ compliant (loader → library). `dataview_universal.py` showed no inline-numpy h
 The earlier pre-audit guess (`render_weight_geometry_centroid_pca` calling
 `compute_global_centroid_pca` inline) was **not** found in the current renderers —
 appears already migrated; verify no residual in notebooks before closing.
+
+### Migration completed (2026-06-08)
+
+Executed on `feature/REQ_099_visualizations_plot_only`. The renderer/loader boundary
+is now enforced for the retained mechanical set.
+
+**Library functions added (the canonical compute homes):**
+- `analysis/library/geometry.py::compute_centroid_distances(centroids)` — pairwise
+  Euclidean distance matrix (was inline in `render_centroid_distances`).
+- `analysis/library/trajectory.py::normalize_trajectory_pair(pc_x, pc_y)` +
+  `compute_group_trajectory_proximity(cross_epoch_data, col_x, col_y)` — the
+  sign-corrected per-pair proximity (was inline in `render_trajectory_proximity`).
+- (`compute_fisher_matrix`, `pca`, `compute_participation_ratio` already existed; the
+  renderers now call them via the loader, not directly.)
+
+**Renderers made plot-only** (`visualization/renderers/`):
+- `effective_dimensionality.py::render_singular_value_spectrum` — reads pre-computed
+  `pr_{name}` from the loaded data; dropped the `compute_participation_ratio` import.
+- `repr_geometry.py` — dropped the `pca` + `compute_fisher_matrix` imports;
+  `render_centroid_pca` takes `{projections, explained_variance_ratio}`,
+  `render_centroid_distances` takes the distance matrix, `render_fisher_heatmap` takes
+  the Fisher matrix. The unused, per-epoch-recomputing `render_centroid_pca_variance`
+  (its *summary* sibling `render_centroid_pca_variance_summary` is the live view) was
+  **deleted** (no caller anywhere in repo/notebooks; v1.0.0 no-back-compat).
+- `parameter_trajectory.py::render_trajectory_proximity` takes the pre-computed
+  per-pair distance dict. The overlay renderer's private `_normalize_trajectory`
+  stays (overlay is not in scope; its normalization is display scaling).
+
+**Loaders/adapters** (`views/universal.py`) now do the single library call:
+`parameters.singular_value_spectrum` gained a dedicated loader that attaches
+`pr_{name}` per `sv_{name}`; the three `geometry.*` per-epoch adapters and the two
+`parameters.pca.proximity*` adapters call the library functions and pass results in.
+
+**Decision — proximity is a library fn, not a warehouse table.** The audit floated a
+`(epoch, group-pair)` warehouse column. Proximity depends on render parameters
+(`col_x`/`col_y` = which PC pair) and is cheap, so per the REQ's "Flexible" clause it
+is an on-demand library call, not a materialized table. This also avoids coupling the
+cleanup to a warehouse refresh.
+
+**Loader-side `np.linalg.norm` — confirmed shaping, left in place.** The two sites
+(`_adapt_attention_fourier_legacy` v-band norm; `_adapt_embedding_coefficients_legacy`
+cos/sin norms) are REQ_127 legacy-format adapters: the norm reconstructs the magnitude
+the *legacy artifact itself stored* from the new analyzer's raw coefficients. That is
+shape/format translation, not a new analytical derivation (the basis projection already
+happened in the analyzer). Acceptable per the "loaders may shape" rule; no change.
+
+**Verification:** package suite 1554 passed / 29 skipped; ruff + pyright clean on all
+touched files; `test_repr_geometry` Fisher fixture updated to pass a pre-computed
+matrix; proximity output byte-identical to the prior inline formula on the baseline.
 
 ### Sequencing recommendation
 

@@ -9,9 +9,6 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from miscope.analysis.library.geometry import compute_fisher_matrix
-from miscope.analysis.library.pca import pca
-
 # Colors for activation sites
 _SITE_COLORS = {
     "resid_pre": "rgba(31, 119, 180, 1.0)",
@@ -398,7 +395,7 @@ def render_geometry_timeseries(
 
 
 def render_centroid_pca(
-    epoch_data: dict[str, np.ndarray],
+    pca_data: dict[str, np.ndarray],
     epoch: int,
     site: str = "resid_post",
     p: int | None = None,
@@ -410,24 +407,22 @@ def render_centroid_pca(
     Colors by residue class using a cyclic colormap.
 
     Args:
-        epoch_data: From ArtifactLoader.load_epoch("repr_geometry", epoch).
+        pca_data: Pre-computed PCA of the site's class centroids (the loader
+            runs ``library.pca.pca``). Contains "projections"
+            ``(n_classes, n_components)`` and "explained_variance_ratio".
         epoch: Epoch number (for title).
-        site: Activation site to display.
-        p: Number of classes (inferred from centroid shape if None).
+        site: Activation site to display (label only).
+        p: Number of classes (inferred from projection shape if None).
         height: Figure height in pixels.
 
     Returns:
         Plotly Figure with centroid PCA subplots.
     """
-    centroid_key = f"{site}_centroids"
-    centroids = epoch_data[centroid_key]
+    projected = pca_data["projections"]
+    var_fracs = pca_data["explained_variance_ratio"]
     if p is None:
-        p = int(centroids.shape[0])
+        p = int(projected.shape[0])
 
-    n_components = min(3, centroids.shape[0], centroids.shape[1])
-    centroid_pca = pca(centroids, n_components=n_components)
-    projected = centroid_pca.projections
-    var_fracs = centroid_pca.explained_variance_ratio
     residues = np.arange(p)
     labels = [str(r) for r in residues]
     total_var = float(var_fracs.sum())
@@ -529,7 +524,7 @@ def render_centroid_pca(
 
 
 def render_centroid_distances(
-    epoch_data: dict[str, np.ndarray],
+    distances: np.ndarray,
     epoch: int,
     site: str = "resid_post",
     p: int | None = None,
@@ -541,23 +536,18 @@ def render_centroid_distances(
     where distance depends on |r - s| mod p.
 
     Args:
-        epoch_data: From ArtifactLoader.load_epoch("repr_geometry", epoch).
+        distances: Pre-computed ``(p, p)`` pairwise distance matrix (the
+            loader runs ``library.geometry.compute_centroid_distances``).
         epoch: Epoch number (for title).
-        site: Activation site to display.
-        p: Number of classes (inferred from centroid shape if None).
+        site: Activation site to display (label only).
+        p: Number of classes (inferred from matrix shape if None).
         height: Figure height in pixels.
 
     Returns:
         Plotly Figure with p×p distance heatmap.
     """
-    centroid_key = f"{site}_centroids"
-    centroids = epoch_data[centroid_key]
     if p is None:
-        p = int(centroids.shape[0])
-
-    # Compute pairwise distances
-    diffs = centroids[:, np.newaxis, :] - centroids[np.newaxis, :, :]
-    distances = np.sqrt(np.sum(diffs**2, axis=2))
+        p = int(distances.shape[0])
 
     fig = go.Figure()
     fig.add_trace(
@@ -674,111 +664,8 @@ def render_centroid_pca_variance_summary(
     return fig
 
 
-def render_centroid_pca_variance(
-    stacked_data: dict[str, np.ndarray],
-    current_epoch: int | None = None,
-    site: str | None = None,
-    height: int = 600,
-) -> go.Figure:
-    """Time-series of centroid class PCA variance explained per PC over training.
-
-    Three panels (PC1, PC2, PC3), one line per activation site. Shows how the
-    model's representational geometry redistributes across principal components
-    as training progresses — e.g., the expansion into higher dimensions during
-    grokking.
-
-    Args:
-        stacked_data: From ArtifactLoader.load_epochs("repr_geometry").
-            Contains "epochs" and stacked "{site}_centroids" arrays (N, p, d).
-        current_epoch: Current epoch for vertical indicator.
-        site: Single activation site to display. None = show all sites.
-        height: Total figure height in pixels.
-
-    Returns:
-        Plotly Figure with 3 vertically stacked subplots.
-    """
-    epochs = stacked_data["epochs"]
-    sites = [site] if site else _ALL_SITES
-
-    site_var_fracs: dict[str, np.ndarray] = {}
-    for s in sites:
-        centroid_key = f"{s}_centroids"
-        if centroid_key not in stacked_data:
-            continue
-        all_centroids = stacked_data[centroid_key]  # (n_epochs, p, d)
-        n_epochs = len(epochs)
-        var_fracs = np.zeros((n_epochs, 3))
-        for i in range(n_epochs):
-            centroids_i = all_centroids[i]
-            n_components = min(3, centroids_i.shape[0], centroids_i.shape[1])
-            fracs = pca(centroids_i, n_components=n_components).explained_variance_ratio
-            var_fracs[i, : fracs.shape[0]] = fracs
-        site_var_fracs[s] = var_fracs
-
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.04,
-        subplot_titles=[
-            "PC1 Variance Explained",
-            "PC2 Variance Explained",
-            "PC3 Variance Explained",
-        ],
-    )
-
-    for s in sites:
-        if s not in site_var_fracs:
-            continue
-        color = _SITE_COLORS.get(s, "gray")
-        label = _SITE_LABELS.get(s, s)
-        var_fracs = site_var_fracs[s]
-
-        for pc_idx in range(3):
-            fig.add_trace(
-                go.Scatter(
-                    x=epochs,
-                    y=var_fracs[:, pc_idx] * 100,
-                    mode="lines",
-                    name=label,
-                    legendgroup=s,
-                    showlegend=(pc_idx == 0),
-                    line=dict(color=color, width=2),
-                    hovertemplate=(
-                        f"{label}<br>Epoch %{{x}}<br>PC{pc_idx + 1}: %{{y:.1f}}%<extra></extra>"
-                    ),
-                ),
-                row=pc_idx + 1,
-                col=1,
-            )
-
-    if current_epoch is not None:
-        for row in range(1, 4):
-            fig.add_vline(
-                x=current_epoch,
-                line_dash="solid",
-                line_color="red",
-                line_width=1,
-                row=row,  # type: ignore[reportArgumentType]
-                col=1,  # type: ignore[reportArgumentType]
-            )
-
-    for row in range(1, 4):
-        fig.update_yaxes(range=[0, 105], ticksuffix="%", row=row, col=1)
-
-    fig.update_xaxes(title_text="Epoch", row=3, col=1)
-    fig.update_layout(
-        template="plotly_white",
-        height=height,
-        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1),
-        margin=dict(l=60, r=20, t=40, b=40),
-    )
-
-    return fig
-
-
 def render_fisher_heatmap(
-    epoch_data: dict[str, np.ndarray],
+    fisher_mat: np.ndarray,
     epoch: int,
     site: str = "resid_post",
     p: int | None = None,
@@ -786,28 +673,23 @@ def render_fisher_heatmap(
 ) -> go.Figure:
     """Pairwise Fisher discriminant heatmap at a single epoch.
 
-    Recomputes J(r,s) = ||mu_r - mu_s||^2 / (radius_r^2 + radius_s^2)
-    from stored centroids and radii. Low values (cold spots) indicate
-    the hardest-to-separate class pairs — the model's vulnerability.
+    Plots J(r,s) = ||mu_r - mu_s||^2 / (radius_r^2 + radius_s^2). Low values
+    (cold spots) indicate the hardest-to-separate class pairs — the model's
+    vulnerability.
 
     Args:
-        epoch_data: From ArtifactLoader.load_epoch("repr_geometry", epoch).
+        fisher_mat: Pre-computed ``(p, p)`` Fisher discriminant matrix (the
+            loader runs ``library.geometry.compute_fisher_matrix``).
         epoch: Epoch number (for title).
-        site: Activation site to display.
-        p: Number of classes (inferred from centroid shape if None).
+        site: Activation site to display (label only).
+        p: Number of classes (inferred from matrix shape if None).
         height: Figure height in pixels.
 
     Returns:
         Plotly Figure with p x p Fisher discriminant heatmap.
     """
-    centroid_key = f"{site}_centroids"
-    radii_key = f"{site}_radii"
-    centroids = epoch_data[centroid_key]
-    radii = epoch_data[radii_key]
     if p is None:
-        p = int(centroids.shape[0])
-
-    fisher_mat = compute_fisher_matrix(centroids, radii)
+        p = int(fisher_mat.shape[0])
 
     # Find argmin pair for annotation
     r_idx, s_idx = np.triu_indices(p, k=1)

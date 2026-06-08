@@ -10,7 +10,6 @@ import plotly.graph_objects as go
 from miscope.analysis.library.weights import (
     ATTENTION_MATRICES,
     WEIGHT_MATRIX_NAMES,
-    compute_participation_ratio,
 )
 
 # Colors for consistent matrix identification
@@ -126,8 +125,10 @@ def render_singular_value_spectrum(
     annotated with the participation ratio.
 
     Args:
-        epoch_data: From ArtifactLoader.load_epoch(). Contains
-            "sv_{name}" arrays.
+        epoch_data: From the singular-value-spectrum loader. Contains
+            "sv_{name}" singular-value arrays and matching "pr_{name}"
+            participation ratios (pre-computed by the loader; scalar for
+            non-attention matrices, per-head 1D array for attention).
         epoch: Epoch number (for title display).
         matrix_name: Weight matrix to display (e.g., "W_in").
         head_idx: For attention matrices, which head to show.
@@ -140,15 +141,17 @@ def render_singular_value_spectrum(
     """
     sv_key = f"sv_{matrix_name}"
     sv = epoch_data[sv_key]
+    pr_all = epoch_data[f"pr_{matrix_name}"]
 
     # Handle per-head attention matrices
     head_label = ""
     if sv.ndim == 2:
         idx = head_idx if head_idx is not None else 0
         sv = sv[idx]
+        pr = float(pr_all[idx])
         head_label = f" Head {idx}"
-
-    pr = compute_participation_ratio(sv)
+    else:
+        pr = float(pr_all)
     indices = list(range(len(sv)))
 
     fig = go.Figure()
