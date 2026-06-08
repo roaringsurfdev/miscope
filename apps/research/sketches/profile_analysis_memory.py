@@ -113,12 +113,12 @@ def main() -> None:
 
     # Stage 3: the full summary build (now a warehouse-table read + roll-up).
     from miscope.analysis.variant_analysis_summary import (
-        build_variant_registry,
+        assemble_variant_registry,
         write_variant_summary,
     )
 
     stage("write_variant_summary(variant)", lambda: str(write_variant_summary(variant)) and "ok")
-    stage("build_variant_registry(family)", lambda: str(build_variant_registry(family)) and "ok")
+    stage("assemble_variant_registry(family)", lambda: str(len(assemble_variant_registry(family))))
 
     print(f"\n  Final RSS: {rss_mb():.0f} MB")
 

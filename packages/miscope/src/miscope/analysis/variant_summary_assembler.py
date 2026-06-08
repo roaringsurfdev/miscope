@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import pandas as pd
 
 import miscope.query
 from miscope.views.cross_variant import ClassificationRules, classify_failure_mode
@@ -181,20 +182,33 @@ def _band_set(freqs: Any, name: str, boundary: str) -> list[str]:
     return list({str(b) for b in sel["band"]})
 
 
-def _apply_classifications(summary: dict[str, Any]) -> None:
-    """Add failure_mode/reasons and performance_classification over the assembled row (fork b)."""
+def classify_outcomes(row: dict[str, Any]) -> dict[str, Any]:
+    """Failure-mode + performance classification over a stable outcomes row (fork b).
+
+    A pure function of the stable outcome fields, returning the three classification
+    keys. Shared by the per-variant summary assembler and the cross-variant registry
+    view (:func:`miscope.analysis.variant_analysis_summary.assemble_variant_registry`)
+    so the two classify identically and cannot drift.
+    """
     failure_mode, reasons = classify_failure_mode(
         {
-            "second_descent_onset_epoch": summary.get("second_descent_onset_epoch"),
-            "final_test_loss": summary.get("test_loss_final"),
-            "post_descent_test_loss_increase": summary.get("post_descent_test_loss_increase"),
+            "second_descent_onset_epoch": row.get("second_descent_onset_epoch"),
+            "final_test_loss": row.get("test_loss_final"),
+            "post_descent_test_loss_increase": row.get("post_descent_test_loss_increase"),
             "frequency_band_count": None,
         },
         ClassificationRules(),
     )
-    summary["failure_mode"] = failure_mode
-    summary["failure_mode_reasons"] = reasons
-    summary["performance_classification"] = _classify_performance(summary)
+    return {
+        "failure_mode": failure_mode,
+        "failure_mode_reasons": reasons,
+        "performance_classification": _classify_performance(row),
+    }
+
+
+def _apply_classifications(summary: dict[str, Any]) -> None:
+    """Add failure_mode/reasons and performance_classification over the assembled row (fork b)."""
+    summary.update(classify_outcomes(summary))
 
 
 def _classify_performance(summary: dict[str, Any]) -> tuple[str, list[str]]:
@@ -229,14 +243,18 @@ def _classify_performance(summary: dict[str, Any]) -> tuple[str, list[str]]:
 
 def _scalarize(value: Any) -> Any:
     """Coerce a pandas/numpy cell to a JSON-friendly Python scalar or list."""
-    if value is None:
-        return None
     if isinstance(value, (list, np.ndarray)):
         return [_scalarize(v) for v in value]
+    if value is None:
+        return None
     if isinstance(value, (np.integer,)):
         return int(value)
     if isinstance(value, (np.floating,)):
         return None if np.isnan(value) else float(value)
     if isinstance(value, (np.bool_,)):
         return bool(value)
+    # pandas nullable scalars (pd.NA) surface from cross-variant nullable columns;
+    # normalize them to None so downstream classifiers see a plain Python scalar.
+    if pd.api.types.is_scalar(value) and pd.isna(value):
+        return None
     return value

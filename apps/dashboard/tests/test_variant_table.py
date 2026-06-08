@@ -1,8 +1,8 @@
 """Tests for REQ_082: Variant Table page.
 
 CoS coverage:
-- Unit: table data loads from variant_registry.json and produces the correct
-  number of rows and expected column values for a known variant.
+- Unit: table data loads from the variant registry (a view over variant_outcomes,
+  REQ_144) and produces the correct number of rows and expected column values.
 - Integration: clicking a row updates the variant-selector-store
   (tested via callback invocation with mock server state).
 """
@@ -19,10 +19,12 @@ from miscope.config import get_config
 # Helpers
 # ---------------------------------------------------------------------------
 
-_REGISTRY_PATH = get_config().data_root / "modulo_addition_1layer" / "variant_registry.json"
+# REQ_144: the registry is no longer a file — gate the data-backed tests on whether
+# any variant has the variant_outcomes table the registry view reads.
+_DATA_FAMILY = get_config().data_root / "modulo_addition_1layer"
 
 _requires_data = pytest.mark.skipif(
-    not _REGISTRY_PATH.exists(),
+    not any(_DATA_FAMILY.glob("variants/*/dataviews/variant_outcomes")),
     reason="requires local data tree (not available in CI)",
 )
 

@@ -167,28 +167,21 @@ class BaseModelFamily:
         return self.family_dir / "variants"
 
     @property
-    def variant_registry_path(self) -> Path:
-        """Path to the compiled aggregate ``variant_registry.json``."""
-        return self.family_dir / "variant_registry.json"
-
-    @property
     def variant_registry(self) -> list[dict[str, Any]]:
-        """Parsed variant_registry.json — list of per-variant summary entries.
+        """Per-variant summary entries — a cross-variant view over ``variant_outcomes``.
 
-        Reads on each access. Assign to a variable to avoid repeated disk reads.
+        REQ_144 (fork a): no longer a ``variant_registry.json`` file. Computed on each
+        access from the warehouse (the ``variant_outcomes`` derived table projected
+        across this family's variants, plus the two Python classifications). Assign to
+        a variable to avoid recomputation.
 
         Raises:
-            FileNotFoundError: If the registry has not been built yet.
+            FileNotFoundError: If no variant has materialized outcomes yet (preserved
+                so existing consumers' ``except FileNotFoundError`` still applies).
         """
-        if not self.variant_registry_path.exists():
-            raise FileNotFoundError(
-                f"No variant_registry.json for family {self.name!r} at "
-                f"{self.variant_registry_path}. "
-                "Build it via build_variant_registry(family) or the dashboard's "
-                "analysis run."
-            )
-        with open(self.variant_registry_path) as f:
-            return json.load(f)
+        from miscope.analysis.variant_analysis_summary import assemble_variant_registry
+
+        return assemble_variant_registry(self)
 
     # --- Variant lookup ------------------------------------------------
 

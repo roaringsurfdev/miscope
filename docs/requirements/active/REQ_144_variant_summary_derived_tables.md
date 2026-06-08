@@ -64,29 +64,33 @@ natural derived-table column or a small classifier over the outcomes row.
 
 ## Conditions of Satisfaction (draft — refine against REQ_141's final shape)
 
-- [ ] **`variant_outcomes` becomes a derived table**, not a JSON-flatten of a
+- [x] **`variant_outcomes` becomes a derived table** (Stage 4a), not a JSON-flatten of a
   separately-written `variant_summary.json`. It declares its output schema +
   version + provenance like any REQ_141 derived table; `registry.field(...)`
   reports it as producer.
-- [ ] **Window metrics get a queryable home.** The per-window start/end metric
-  dicts currently trapped in `summary_json` become a long-format columnar /
-  derived table keyed by `(variant, window, …)`, reachable through
+- [x] **Window metrics get a queryable home** (Stage 2b). The per-window start/end metric
+  dicts currently trapped in `summary_json` become long-format columnar /
+  derived tables keyed by `(variant, WINDOW, …)`, reachable through
   `miscope.query` — no consumer composes a path (constraint 3).
-- [ ] **The engine stops reaching around the warehouse.** Inputs are read as
+- [x] **The engine stops reaching around the warehouse** (Stage 3). Inputs are read as
   conformed warehouse facts (losses, weight-spectra participation ratios,
   repr-geometry circularity/fisher, neuron-frequency attribution, the REQ_141
   `transient_frequency` derived table), not via `load_summary` / `load_cross_epoch`
   / `variant.metadata`.
-- [ ] **`build_variant_registry` is unaffected at its interface** (or the registry
-  is itself reframed as a derived view) — consumers (dashboard `variant_table`,
-  `viability_certificate`, `initialization_sweep`, `analysis_run`; the freshness
-  DAG; scripts) read identical values.
+- [x] **The registry is reframed as a pure derived view** (Stage 4c, fork a).
+  `variant_registry.json` is gone; `family.variant_registry` is a cross-variant
+  projection of `variant_outcomes` + the two Python classifications. Consumers
+  (dashboard `variant_table`, `viability_certificate`, `initialization_sweep`,
+  `analysis_run`; scripts) read identical values; the final-window degeneracy the
+  `committed_freqs` display needs is read by the consumer from `window_ranges`, never
+  folded into the pure registry (fork e one-way DAG).
 - [ ] **Freshness threads through the DAG** — the outcomes/window derived tables
   are downstream nodes; recomputing an input restages them (REQ_133, no second
   mechanism).
-- [ ] **The god-object is decomposed.** The 814-line engine is broken along the
-  bucket boundaries; bucket-2 reductions move into derived-table definitions,
-  leaving a thin imperative tail for genuine bucket-3 reads.
+- [x] **The god-object is decomposed** (Stage 3). The 814-line engine is broken along the
+  bucket boundaries; bucket-2 reductions moved into derived-table definitions,
+  leaving a thin imperative tail (`variant_summary_assembler`) for the window
+  reassembly + the two Python classifiers.
 
 ## Validation
 
@@ -224,11 +228,14 @@ natural derived-table column or a small classifier over the outcomes row.
    bucket boundary: bucket-2 reductions move into derived-table SQL; a thin imperative
    tail remains for genuine bucket-3 reads + the Python failure-mode classifier over
    the outcomes row.
-4. **Registry as pure derived view.** Drop `variant_registry.json`; expose the
-   registry as a view over `variant_outcomes`; migrate consumers (dashboard
-   `variant_table`, `viability_certificate`, `initialization_sweep`, `analysis_run`,
-   `variant_context_bar`, `transient_frequency`; scripts; `base_model_family` /
-   `variant` / `protocols` accessors).
+4. **Registry as pure derived view.** *(4a DONE: `variant_outcomes` is a
+   `DerivedTableSpec`. 4c DONE: `variant_registry.json` dropped; `family.variant_registry`
+   is `assemble_variant_registry()` — a cross-variant projection of `variant_outcomes`
+   + the two Python classifications via the shared `classify_outcomes`; the three
+   `build_variant_registry` call sites removed; `variant_table`'s committed-freqs read
+   migrated to `learned_frequencies` with a `window_ranges`-sourced degenerate-final
+   guard; baseline parity value-identical.)* 4b dissolved (classification is a pure fn
+   of the outcomes row, computed at read time — no separate table).
 5. **Freshness + parity + tests.** Thread new tables through the REQ_133/145 DAG;
    byte-parity on the three baselines; regression net green
    (`test_variant_summary`, `test_warehouse`, `test_freshness`, `test_families`,

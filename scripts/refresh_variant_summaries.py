@@ -10,7 +10,7 @@ import argparse
 import sys
 
 from miscope import load_family
-from miscope.analysis.variant_analysis_summary import build_variant_registry, write_variant_summary
+from miscope.analysis.variant_analysis_summary import write_variant_summary
 
 
 def run(family_name: str) -> None:
@@ -31,7 +31,8 @@ def run(family_name: str) -> None:
             failed[variant.name] = f"{type(exc).__name__}: {exc}"
             print(f"  skipped {variant.name}: {type(exc).__name__}: {exc}")
 
-    build_variant_registry(family)
+    # The variant registry is a live view over variant_outcomes now (REQ_144 fork a);
+    # writing the per-variant summaries above is all this refresh needs to do.
 
     if failed:
         print(

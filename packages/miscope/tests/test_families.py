@@ -129,20 +129,24 @@ class TestBaseModelFamily:
         with pytest.raises(NotImplementedError):
             family.create_model({"prime": 113, "seed": 42})
 
-    def test_variant_registry_returns_parsed_list(self, temp_data_root, sample_family_config):
-        family = _family_from(temp_data_root, sample_family_config)
-        registry = [
-            {"prime": 113, "model_seed": 42, "variant_id": "p113_seed42"},
-            {"prime": 97, "model_seed": 42, "variant_id": "p97_seed42"},
-        ]
-        family.variant_registry_path.write_text(json.dumps(registry))
+    def test_variant_registry_delegates_to_view(
+        self, temp_data_root, sample_family_config, monkeypatch
+    ):
+        # REQ_144 (fork a): the registry is no longer a file — the property is a thin
+        # delegate to the cross-variant variant_outcomes view.
+        from miscope.analysis import variant_analysis_summary as vas
 
-        loaded = family.variant_registry
-        assert loaded == registry
+        family = _family_from(temp_data_root, sample_family_config)
+        expected = [{"variant_id": "p113_seed42", "prime": 113, "model_seed": 42}]
+        monkeypatch.setattr(vas, "assemble_variant_registry", lambda f: expected)
+
+        assert family.variant_registry == expected
 
     def test_variant_registry_missing_raises(self, temp_data_root, sample_family_config):
+        # No variant has materialized outcomes -> the view raises FileNotFoundError,
+        # preserving the contract consumers catch.
         family = _family_from(temp_data_root, sample_family_config)
-        with pytest.raises(FileNotFoundError, match="variant_registry.json"):
+        with pytest.raises(FileNotFoundError, match="variant_outcomes"):
             _ = family.variant_registry
 
 
