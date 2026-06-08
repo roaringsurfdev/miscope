@@ -11,12 +11,23 @@ Functions:
 - flatten_snapshot: concatenate selected weight matrices into a parameter vector.
 - compute_parameter_velocity: per-step displacement, optionally normalized by epoch gap.
 - normalize_per_group: z-score each group's trajectory independently.
+- normalize_trajectory_pair: center + aspect-preserving scale of a 2D PC-pair trajectory.
+- compute_group_trajectory_proximity: sign-corrected pairwise L2 distance between
+  normalized group trajectories, keyed by component-group pair.
 """
 
 import numpy as np
 
 from miscope.analysis.library.dynamics import compute_velocity
 from miscope.analysis.library.weights import WEIGHT_MATRIX_NAMES
+
+# Component-group pairs compared by the proximity instrument, in display order.
+# Each entry is (pair_key, group_a, group_b).
+_PROXIMITY_PAIRS = (
+    ("emb_attn", "embedding", "attention"),
+    ("emb_mlp", "embedding", "mlp"),
+    ("attn_mlp", "attention", "mlp"),
+)
 
 
 def flatten_snapshot(
@@ -69,6 +80,74 @@ def compute_parameter_velocity(
         safe_gaps = np.where(gaps > 0, gaps, 1)
         displacements = np.where(gaps > 0, displacements / safe_gaps, 0.0)
     return displacements
+
+
+def normalize_trajectory_pair(
+    pc_x: np.ndarray,
+    pc_y: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Center and scale a 2D PC-pair trajectory so its widest axis spans [-0.5, 0.5].
+
+    Preserves aspect ratio (shape and loop structure) within the trajectory.
+    Used as the shared normalization for group-overlay and group-proximity
+    instruments so distances are comparable across groups of different scale.
+
+    Args:
+        pc_x: Per-epoch coordinate along the first PC axis.
+        pc_y: Per-epoch coordinate along the second PC axis.
+
+    Returns:
+        ``(nx, ny)`` centered, aspect-preserving normalized coordinates.
+    """
+    cx, cy = pc_x.mean(), pc_y.mean()
+    nx, ny = pc_x - cx, pc_y - cy
+    scale = max(nx.max() - nx.min(), ny.max() - ny.min())
+    if scale > 1e-12:
+        nx, ny = nx / scale, ny / scale
+    return nx, ny
+
+
+def compute_group_trajectory_proximity(
+    cross_epoch_data: dict[str, np.ndarray],
+    col_x: int = 0,
+    col_y: int = 1,
+) -> dict[str, np.ndarray]:
+    """Sign-corrected pairwise L2 distance between normalized group trajectories.
+
+    For each component-group pair, normalizes both groups' PC-pair trajectories
+    (aspect-preserving) and computes the per-epoch L2 distance, taking the
+    sign-flip-corrected minimum ``min(‖a−b‖, ‖a+b‖)`` since PCA sign gauge is
+    arbitrary. Distance near zero means the two groups occupy the same region
+    of their respective normalized parameter spaces at that epoch.
+
+    Args:
+        cross_epoch_data: From ``ArtifactLoader.load_cross_epoch("parameter_trajectory")``.
+            Reads ``{group}__projections`` for embedding/attention/mlp.
+        col_x: PC column for the x-axis (0=PC1, 1=PC2).
+        col_y: PC column for the y-axis (1=PC2, 2=PC3).
+
+    Returns:
+        Dict mapping pair key (``"emb_attn"``, ``"emb_mlp"``, ``"attn_mlp"``) to
+        a per-epoch distance array. Pairs whose groups are absent are omitted.
+    """
+    groups: dict[str, np.ndarray] = {}
+    for name in ("embedding", "attention", "mlp"):
+        proj_key = f"{name}__projections"
+        if proj_key not in cross_epoch_data:
+            continue
+        proj = cross_epoch_data[proj_key]
+        nx, ny = normalize_trajectory_pair(proj[:, col_x], proj[:, col_y])
+        groups[name] = np.stack([nx, ny], axis=1)
+
+    proximity: dict[str, np.ndarray] = {}
+    for key, a, b in _PROXIMITY_PAIRS:
+        if a not in groups or b not in groups:
+            continue
+        proximity[key] = np.minimum(
+            np.linalg.norm(groups[a] - groups[b], axis=1),
+            np.linalg.norm(groups[a] + groups[b], axis=1),
+        )
+    return proximity
 
 
 def normalize_per_group(coords: np.ndarray) -> np.ndarray:

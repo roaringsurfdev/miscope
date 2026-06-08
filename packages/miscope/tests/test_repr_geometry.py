@@ -450,32 +450,31 @@ class TestComputeFisherMatrix:
 
 class TestRenderFisherHeatmap:
     @pytest.fixture
-    def epoch_data(self):
-        """Create mock per-epoch data with centroids and radii."""
+    def fisher_mat(self):
+        """Pre-computed Fisher matrix the plot-only renderer now expects (REQ_099)."""
         rng = np.random.default_rng(42)
         p = 11
         d = 8
-        return {
-            "resid_post_centroids": rng.standard_normal((p, d)) * 5,
-            "resid_post_radii": np.abs(rng.standard_normal(p)) + 0.1,
-        }
+        centroids = rng.standard_normal((p, d)) * 5
+        radii = np.abs(rng.standard_normal(p)) + 0.1
+        return compute_fisher_matrix(centroids, radii)
 
-    def test_returns_figure(self, epoch_data):
-        fig = render_fisher_heatmap(epoch_data, epoch=100, site="resid_post")
+    def test_returns_figure(self, fisher_mat):
+        fig = render_fisher_heatmap(fisher_mat, epoch=100, site="resid_post")
         assert isinstance(fig, go.Figure)
 
-    def test_has_heatmap_trace(self, epoch_data):
-        fig = render_fisher_heatmap(epoch_data, epoch=100, site="resid_post")
+    def test_has_heatmap_trace(self, fisher_mat):
+        fig = render_fisher_heatmap(fisher_mat, epoch=100, site="resid_post")
         heatmap_traces = [t for t in fig.data if isinstance(t, go.Heatmap)]
         assert len(heatmap_traces) == 1
 
-    def test_has_argmin_marker(self, epoch_data):
-        fig = render_fisher_heatmap(epoch_data, epoch=100, site="resid_post")
+    def test_has_argmin_marker(self, fisher_mat):
+        fig = render_fisher_heatmap(fisher_mat, epoch=100, site="resid_post")
         scatter_traces = [t for t in fig.data if isinstance(t, go.Scatter)]
         assert len(scatter_traces) == 1  # argmin marker
 
-    def test_title_contains_min_pair(self, epoch_data):
-        fig = render_fisher_heatmap(epoch_data, epoch=100, site="resid_post")
+    def test_title_contains_min_pair(self, fisher_mat):
+        fig = render_fisher_heatmap(fisher_mat, epoch=100, site="resid_post")
         assert "Min pair" in fig.layout.title.text  # type: ignore[attr-defined]
 
 

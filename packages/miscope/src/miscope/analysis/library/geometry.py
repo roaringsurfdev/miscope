@@ -10,10 +10,30 @@ re-deriving anything.
 
 Functions:
 - compute_fisher_matrix: Full pairwise Fisher discriminant matrix from stored data.
+- compute_centroid_distances: Full pairwise Euclidean distance matrix from stored centroids.
 - find_circularity_crossovers: Detect epochs where attention circularity rises above / falls below reference sites.
 """
 
 import numpy as np
+
+
+def compute_centroid_distances(centroids: np.ndarray) -> np.ndarray:
+    """Compute the full pairwise Euclidean distance matrix between centroids.
+
+    Operates on pre-computed centroids (as stored in per-epoch artifacts),
+    enabling render-time consumption without re-deriving anything in the
+    renderer. For learned modular structure the result is circulant —
+    distance depends on ``|r - s| mod p``.
+
+    Args:
+        centroids: Class centroid matrix, shape ``(n_classes, d)``.
+
+    Returns:
+        Distance matrix, shape ``(n_classes, n_classes)``. Symmetric with
+        zero diagonal.
+    """
+    diffs = centroids[:, np.newaxis, :] - centroids[np.newaxis, :, :]
+    return np.sqrt(np.sum(diffs**2, axis=2))
 
 
 def compute_fisher_matrix(

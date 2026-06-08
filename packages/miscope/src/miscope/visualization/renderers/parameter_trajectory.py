@@ -726,7 +726,7 @@ def _normalize_trajectory(
 
 
 def render_trajectory_proximity(
-    cross_epoch_data: dict[str, np.ndarray],
+    proximity: dict[str, np.ndarray],
     epochs: list[int],
     current_epoch: int,
     col_x: int = 0,
@@ -736,46 +736,34 @@ def render_trajectory_proximity(
 ) -> go.Figure:
     """Pairwise L2 distance between normalized group trajectories over training.
 
-    At each epoch, computes the distance between each pair of groups in
-    normalized PC space (same normalization as the group overlay). Distance
-    near zero means the two groups are occupying the same region of their
-    respective parameter spaces at that moment.
+    Distance near zero means the two groups are occupying the same region of
+    their respective normalized parameter spaces at that moment.
 
     Args:
-        cross_epoch_data: From ArtifactLoader.load_cross_epoch("parameter_trajectory").
+        proximity: Pre-computed per-pair distance arrays keyed by pair
+            (``"emb_attn"``, ``"emb_mlp"``, ``"attn_mlp"``) \u2014 the loader runs
+            ``library.trajectory.compute_group_trajectory_proximity``.
         epochs: Epoch numbers.
         current_epoch: Current epoch for vertical cursor.
-        col_x: PC column for x-axis (0=PC1, 1=PC2).
-        col_y: PC column for y-axis (1=PC2, 2=PC3).
+        col_x: PC column for x-axis (0=PC1, 1=PC2) \u2014 title annotation only.
+        col_y: PC column for y-axis (1=PC2, 2=PC3) \u2014 title annotation only.
         title: Custom title.
         height: Figure height in pixels.
     """
     pc_x, pc_y = col_x + 1, col_y + 1
 
-    groups: dict[str, np.ndarray] = {}
-    for name in ("embedding", "attention", "mlp"):
-        proj_key = f"{name}__projections"
-        if proj_key not in cross_epoch_data:
-            continue
-        proj = cross_epoch_data[proj_key]
-        nx, ny = _normalize_trajectory(proj[:, col_x], proj[:, col_y])
-        groups[name] = np.stack([nx, ny], axis=1)
-
     pairs = [
-        ("emb_attn", "embedding", "attention", "royalblue", "Embedding \u2194 Attention"),
-        ("emb_mlp", "embedding", "mlp", "darkorange", "Embedding \u2194 MLP"),
-        ("attn_mlp", "attention", "mlp", "seagreen", "Attention \u2194 MLP"),
+        ("emb_attn", "royalblue", "Embedding \u2194 Attention"),
+        ("emb_mlp", "darkorange", "Embedding \u2194 MLP"),
+        ("attn_mlp", "seagreen", "Attention \u2194 MLP"),
     ]
 
     fig = go.Figure()
 
-    for _key, a, b, color, label in pairs:
-        if a not in groups or b not in groups:
+    for key, color, label in pairs:
+        if key not in proximity:
             continue
-        dists = np.minimum(
-            np.linalg.norm(groups[a] - groups[b], axis=1),
-            np.linalg.norm(groups[a] + groups[b], axis=1),
-        )
+        dists = proximity[key]
         fig.add_trace(
             go.Scatter(
                 x=epochs,

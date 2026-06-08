@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING, Any
 import plotly.graph_objects as go
 
 from miscope.analysis import neuron_frequency as nf
+from miscope.analysis.library.geometry import compute_centroid_distances, compute_fisher_matrix
+from miscope.analysis.library.pca import pca
+from miscope.analysis.library.trajectory import compute_group_trajectory_proximity
+from miscope.analysis.library.weights import compute_participation_ratio
 from miscope.views.catalog import AnalyzerRequirement, ArtifactKind, ViewDefinition, _catalog
 
 if TYPE_CHECKING:
@@ -184,17 +188,37 @@ def _register_all() -> None:
         ("activations.mlp.neuron_heatmap", "neuron_activations", "render_neuron_heatmap"),
         ("activations.attention.head_heatmap", "attention_patterns", "render_attention_heads"),
         (
-            "parameters.singular_value_spectrum",
-            "weight_spectra",
-            "render_singular_value_spectrum",
-        ),
-        (
             "loss_landscape.perturbation_distribution",
             "landscape_flatness",
             "render_perturbation_distribution",
         ),
     ]:
         _catalog.register(_make_per_epoch(name, analyzer, getattr(viz, renderer_name)))
+
+    # --- Singular value spectrum (per-epoch) ---
+    # Loader attaches participation ratios so the renderer stays plot-only
+    # (REQ_099). PR is computed per sv array via the canonical library fn —
+    # scalar for non-attention matrices, per-head 1D array for attention.
+
+    def _load_singular_value_spectrum(variant: Variant, epoch: int | None) -> dict:
+        loaded = variant.artifacts.load_epoch("weight_spectra", epoch)  # type: ignore[arg-type]
+        data: dict[str, Any] = dict(loaded)
+        for key in [k for k in loaded if k.startswith("sv_")]:
+            data[f"pr_{key[3:]}"] = compute_participation_ratio(loaded[key])
+        return data
+
+    def _render_singular_value_spectrum(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_singular_value_spectrum(data, epoch or 0, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="parameters.singular_value_spectrum",
+            load_data=_load_singular_value_spectrum,
+            renderer=_render_singular_value_spectrum,
+            epoch_source_analyzer="weight_spectra",
+            required_analyzers=[AnalyzerRequirement("weight_spectra", ArtifactKind.EPOCH)],
+        )
+    )
 
     # --- MLP + attention activation Fourier views (REQ_127 re-point) ---
     # Re-pointed from neuron_freq_norm / attention_freq to
@@ -411,8 +435,9 @@ def _register_all() -> None:
         def renderer(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
             epochs_arr = data["epochs"].tolist()
             current_epoch = epoch if epoch is not None else epochs_arr[-1]
+            proximity = compute_group_trajectory_proximity(data, col_x, col_y)
             return viz.render_trajectory_proximity(
-                data, epochs_arr, current_epoch, col_x=col_x, col_y=col_y, **kwargs
+                proximity, epochs_arr, current_epoch, col_x=col_x, col_y=col_y, **kwargs
             )
 
         return renderer
@@ -705,17 +730,25 @@ def _register_all() -> None:
 
     def _render_centroid_pca(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", "resid_post")
-        return viz.render_centroid_pca(data["epoch_data"], epoch or 0, site=site, p=data["prime"])
+        centroids = data["epoch_data"][f"{site}_centroids"]
+        n_components = min(3, centroids.shape[0], centroids.shape[1])
+        result = pca(centroids, n_components=n_components)
+        pca_data = {
+            "projections": result.projections,
+            "explained_variance_ratio": result.explained_variance_ratio,
+        }
+        return viz.render_centroid_pca(pca_data, epoch or 0, site=site, p=data["prime"])
 
     def _render_centroid_distances(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", "resid_post")
-        return viz.render_centroid_distances(
-            data["epoch_data"], epoch or 0, site=site, p=data["prime"]
-        )
+        distances = compute_centroid_distances(data["epoch_data"][f"{site}_centroids"])
+        return viz.render_centroid_distances(distances, epoch or 0, site=site, p=data["prime"])
 
     def _render_fisher_heatmap(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         site = kwargs.pop("site", "resid_post")
-        return viz.render_fisher_heatmap(data["epoch_data"], epoch or 0, site=site, p=data["prime"])
+        ed = data["epoch_data"]
+        fisher_mat = compute_fisher_matrix(ed[f"{site}_centroids"], ed[f"{site}_radii"])
+        return viz.render_fisher_heatmap(fisher_mat, epoch or 0, site=site, p=data["prime"])
 
     for name, renderer in [
         ("geometry.centroid_pca", _render_centroid_pca),

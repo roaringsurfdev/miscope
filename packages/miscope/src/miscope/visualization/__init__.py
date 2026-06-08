@@ -150,7 +150,6 @@ from miscope.visualization.renderers.repr_geometry import (
     render_centroid_distances,
     render_centroid_global_pca,
     render_centroid_pca,
-    render_centroid_pca_variance,
     render_centroid_pca_variance_summary,
     render_fisher_heatmap,
     render_geometry_timeseries,
@@ -226,7 +225,6 @@ __all__ = [
     # REQ_044/045: Representational geometry
     "render_geometry_timeseries",
     "render_centroid_pca",
-    "render_centroid_pca_variance",
     "render_centroid_pca_variance_summary",
     "render_centroid_distances",
     "render_fisher_heatmap",
