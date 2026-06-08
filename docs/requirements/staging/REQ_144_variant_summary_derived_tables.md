@@ -1,8 +1,9 @@
 # REQ_144: Recast the Variant Summary Engine as Derived Tables
 
-**Status:** Active (2026-06-07) — both blockers cleared: REQ_141 and REQ_145 are in
-`staging/` (merged to `develop`), so this REQ's new derived tables are born into the
-signature-based invalidation regime as intended.
+**Status:** Completed (2026-06-07) — all five stages landed; every CoS + Validation
+item met. Both blockers (REQ_141, REQ_145) cleared in `staging/`, so this REQ's
+derived tables are born into the signature-based invalidation regime as intended.
+Moved to `staging/` behind the ruff/format/pyright gate.
 **Priority:** Medium — architectural; pays down a large imperative aggregator and
 removes a warehouse-bypass, not a defect.
 **Branch:** `feature/REQ_144_variant_summary_derived_tables`.
@@ -84,8 +85,12 @@ natural derived-table column or a small classifier over the outcomes row.
   `analysis_run`; scripts) read identical values; the final-window degeneracy the
   `committed_freqs` display needs is read by the consumer from `window_ranges`, never
   folded into the pure registry (fork e one-way DAG).
-- [ ] **Freshness threads through the DAG** — the outcomes/window derived tables
-  are downstream nodes; recomputing an input restages them (REQ_133, no second
+- [x] **Freshness threads through the DAG** (Stage 5) — the seven outcome clusters,
+  `variant_outcomes`, and the three window tables are all registered
+  `materialized=True` derived tables, so `materialize_variant_derived` folds each
+  one's source signature (version + query text + input-table sigs, REQ_145) and a
+  signature-fresh re-run rebuilds nothing. The registry view and the `committed_freqs`
+  degeneracy guard are pure on-read queries (no materialization, no second
   mechanism).
 - [x] **The god-object is decomposed** (Stage 3). The 814-line engine is broken along the
   bucket boundaries; bucket-2 reductions moved into derived-table definitions,
@@ -94,22 +99,29 @@ natural derived-table column or a small classifier over the outcomes row.
 
 ## Validation
 
-- [ ] **Byte-parity on the three baselines — stable layer** (p113/s999/ds598,
-  p109/s485/ds598, p101/s999/ds598; never `find | head`). The intrinsically-meaningful
-  outcome fields (`variant_outcomes`, the registry's stable columns) are value-identical
-  before vs. after (`rtol=1e-3` per REQ_126 only where a float recompute is unavoidable;
-  integer counts/epochs exact). A shape-of-behavior change is a finding, not noise.
-- [ ] **Window layer — faithfulness, not gated** (fork (e)). The translated window
-  boundaries/metrics match the old engine's proxy output where the translation is
-  mechanical (so dashboard vertical lines don't shift), but a divergence is recorded
-  as a note, not a blocker — the proxy definitions are provisional and the boundary
-  seam is built to be swapped for a DMD-peak source.
-- [ ] **Memory/cost demonstrated, not asserted** (REQ_141's frictionless test):
-  expensive derived computation is materialized; interactive registry/outcomes
-  queries read bytes.
-- [ ] **Consumer regression net stays green** — `test_variant_summary.py`,
+- [x] **Byte-parity on the three baselines — stable layer** (p113/s999/ds598,
+  p109/s485/ds598, p101/s999/ds598). Stable-layer parity vs. the live engine was gated
+  per-cluster at Stages 2a/3 (engine since deleted). Stage 5 re-confirms the three
+  surfaces that replaced it — the per-variant assembler (`open_variant`), the
+  cross-variant registry view (`open(family)` glob), and the materialized
+  `variant_outcomes` row — agree on all 39 stable fields + the classifications
+  (`apps/research/sketches/validate_req144_parity.py`; `rtol=1e-3` per REQ_126 on
+  floats, integer counts/epochs exact). The cross-variant glob vs. per-variant scan are
+  different DuckDB paths, so their agreement is the real regression surface (it caught a
+  `pd.NA` promotion bug in 4c).
+- [x] **Window layer — faithfulness, not gated** (fork (e)). The proxy window boundaries
+  are translated faithfully (dashboard overlays unchanged); the one consumer-visible
+  window read — `variant_table`'s `committed_freqs` — reproduces the engine's
+  degenerate-final behavior (p101 → 0, healthy variants → learned-set size) via a
+  `window_ranges`-sourced guard. Divergence remains a note, not a blocker.
+- [x] **Memory/cost demonstrated, not asserted** (REQ_141's frictionless test): a
+  signature-fresh `materialize_variant_derived` rebuilds **0** tables (the expensive
+  cluster/window queries are materialized once and skipped thereafter); the registry
+  and the degeneracy guard are pure on-read queries that materialize nothing.
+- [x] **Consumer regression net stays green** — `test_variant_summary.py`,
   `test_warehouse.py`, `test_freshness.py`, `test_families.py`, dashboard
-  `test_variant_table.py`.
+  `test_variant_table.py` (93 passed); full suite 1599 passed / 29 skipped; ruff +
+  ruff-format + pyright clean (staging gate).
 
 ## Constraints
 
