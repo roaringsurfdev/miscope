@@ -1,10 +1,44 @@
 # REQ_099: Visualizations Plot-Only (No Computation in Renderers)
 
-**Status:** Draft — **audit complete (2026-06-05)**, findings in Notes. Execution (migration) recommended **after REQ_110 merges to `develop`**, so the migration targets are stable. Not bundled into the REQ_110 branch (keeps that branch's smoke-test surface frozen, and several targets only stabilize once 110 lands).
+**Status:** Active (2026-06-07) — audit complete (2026-06-05); REQ_110/141/144 have
+merged so the migration targets are stable; execution under way. **Scope narrowed**
+2026-06-07: the two load-bearing composite views are carved out to dedicated design
+requirements (see *Scope decision* below). REQ_099 keeps the mechanical offenders only.
 **Priority:** Medium
-**Branch:** TBD
+**Branch:** `feature/REQ_099_visualizations_plot_only`
 **Dependencies:** REQ_106 (layering principle — REQ_099 is the migration mechanism that enforces the rule on the renderer/loader side). **REQ_109** (measurement primitives) and **REQ_110** (warehouse + DuckDB query surface) — these now provide the canonical migration *targets* and **subsume the earlier REQ_097/098 dependency**: a derived metric keyed by coordinates (proximity, rolling PR₃, per-band counts) now has a natural home as a warehouse column / query-surface aggregation, not only a library function. **REQ_107** (registry/discoverability) — before re-homing an offender into a new library function, check whether the warehouse already computes it (e.g. 110-D's conformed `(epoch, neuron) → freq` dimension), so the migration *joins* an existing field rather than re-deriving it.
 **Attribution:** Engineering Claude
+
+---
+
+## Scope decision (2026-06-07): carve out the load-bearing composite views
+
+The audit's offenders are not one kind of thing. Most are mechanical — the quantity
+already exists as a warehouse table (or is a trivial formula), and the migration is a
+loader-reads-and-shapes / renderer-plots subtraction. But two of them are **composite
+coordination views** — `multi_stream_specialization` (4-panel) and
+`dimensionality_dynamics` (3-panel + state-space) — whose value *is* the alignment of
+several streams in one figure. Their compute lives in the renderer precisely because
+**no conformed source feeds an at-a-glance multi-stream view today**; migrating them is
+a *data-source design problem*, not a cleanup, and forcing it through this REQ would
+either rush the design or stall the cleanup.
+
+So they are carved out to dedicated requirements, and REQ_099 stays mechanical:
+
+- **→ REQ_146 (composite coordination views):** `multi_stream_specialization` and
+  `dimensionality_dynamics`. Designs the conformed per-stream specialization surface so
+  the views become plot-only joins. *(The DMD composite is the deferred third instance
+  of this pattern, not part of REQ_146.)*
+- **→ REQ_147 (joint / multi-variant trajectory PCA):** `parameter_trajectory`'s PCA
+  views — migrate their inline compute *and* add the cross-variant joint-PCA instrument,
+  now feasible on the `open(family)` query surface.
+
+**REQ_099 retains (mechanical):** `effective_dimensionality` (→ `participation_ratios`),
+`repr_geometry` Fisher heatmap + PCA reads (→ stored `repr_geometry` / `pca_results`),
+`parameter_trajectory` **proximity** (simple new `(epoch, group-pair)` derived table),
+and the two loader-side `np.linalg.norm` confirm-and-likely-leave sites. The Migration
+CoS below bind only this retained set; the carved-out views are explicitly out of scope
+and tracked by REQ_146/147.
 
 ---
 
@@ -127,7 +161,11 @@ Grep across `visualization/renderers/*.py` (30 files) and the two loader modules
 (`views/universal.py`, `views/dataview_universal.py`) for `np.linalg.*`, `sklearn`,
 SVD/eig, FFT, and `miscope.analysis.library` imports that return analytical results.
 
-**Renderer-side compute (true offenders — renderers must be plot-only):**
+**Renderer-side compute (true offenders — renderers must be plot-only).** *Post-carve-out
+(2026-06-07): the `multi_stream_specialization` and `dimensionality_dynamics` rows below,
+plus `parameter_trajectory`'s PCA-variance view, moved to REQ_146/147. The rows remain
+here as the audit record; REQ_099 now executes only the `effective_dimensionality`,
+`repr_geometry`, and `parameter_trajectory` **proximity** rows.*
 
 | Site | What it computes inline | Migration target (REQ_110-aware) |
 |---|---|---|
@@ -155,12 +193,12 @@ appears already migrated; verify no residual in notebooks before closing.
 
 ### Sequencing recommendation
 
-Execute **after REQ_110 merges to `develop`** (audit is captured above; migration is
-deferred), because: (1) it keeps REQ_110's pre-merge smoke test — which exercises the
-visualization layer heavily — from validating a moving target; (2) it respects branch
-atomicity (110 = build the surface; 099 = migrate compute off renderers); (3) the
-preferred targets (warehouse columns, the 110-D conformed dimension, the query
-surface) are only stable once 110 lands. Prioritize the renderer offenders
-(largest first: `multi_stream` and `dimensionality_dynamics`, both of which most
-benefit from the 110-D / warehouse home); the loader-side norms are a confirm-and-
-maybe-leave pass.
+REQ_110/141/144 have merged, so the targets are stable and execution is under way.
+Post-carve-out, the order is: (1) the join-existing offenders first —
+`effective_dimensionality` → `participation_ratios`, `repr_geometry` Fisher/PCA reads —
+establishing the loader-reads-warehouse / renderer-plots pattern; (2) the
+`parameter_trajectory` **proximity** new derived table (`(epoch, group-pair)`, simple,
+born into the post-099 non-pinned refresh); (3) the loader-side `np.linalg.norm`
+confirm-and-likely-leave pass. The heavy composite views and the joint-PCA instrument
+are out of scope (REQ_146/147). Each migrated view is validated against the baselines
+before it counts as done.
