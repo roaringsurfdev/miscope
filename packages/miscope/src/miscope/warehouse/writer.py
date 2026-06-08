@@ -37,6 +37,7 @@ from miscope.warehouse import catalog as catalog_mod
 from miscope.warehouse import mapping, mapping_semantic, paths, schema
 from miscope.warehouse.decompose import KeyMatch, assign_keys, get_decomp
 from miscope.warehouse.flatten import flatten_field
+from miscope.warehouse.losses import LOSSES_TABLE, losses_source_signature
 from miscope.warehouse.signatures import read_table_signatures, write_table_signatures
 
 # Bump when the columnar mapping/flattening logic changes in a way that alters
@@ -96,6 +97,11 @@ def materialize_variant_columnar(
     analyzer_sigs = {s.name: _analyzer_signature(variant, s.name) for s in columnar_specs}
     feeders = _table_feeders(columnar_specs)
     new_sigs = {t: _table_source_sig(analyzer_sigs, fs) for t, fs in feeders.items()}
+    # The losses table (REQ_144) is a warehouse-level co-emission, not a columnar
+    # analyzer table — its source signature is the loss series' content (REQ_145).
+    losses_sig = losses_source_signature(variant)
+    if losses_sig:
+        new_sigs[LOSSES_TABLE] = losses_sig
     stored_sigs = read_table_signatures(variant)
     stale = _stale_tables(variant, new_sigs, stored_sigs, force)
     _wipe_stale_and_removed(variant, stale, set(new_sigs))
@@ -128,7 +134,7 @@ def materialize_variant_columnar(
             )
 
     _emit_semantic(variant, semantic, variant_cols, report, stale)
-    _emit_outcomes(variant, run_set, report)
+    _emit_losses(variant, run_set, report, stale)
     write_table_signatures(variant, new_sigs)
     return report
 
@@ -207,8 +213,6 @@ def _wipe_table(variant: Variant, table: str) -> None:
 
 def _wipe_stale_and_removed(variant: Variant, stale: set[str], current_tables: set[str]) -> None:
     """Clear stale tables and any on-disk table no longer produced (feeders gone)."""
-    from miscope.warehouse.outcomes import OUTCOMES_TABLE
-
     for table in stale:
         _wipe_table(variant, table)
     wdir = paths.warehouse_dir(variant)
@@ -219,7 +223,10 @@ def _wipe_stale_and_removed(variant: Variant, stale: set[str], current_tables: s
         paths.TENSOR_CATALOG_DIRNAME,
         paths.RUN_SETS_DIRNAME,
     }
-    keep = current_tables | {OUTCOMES_TABLE}
+    # ``variant_outcomes`` is now a derived table (REQ_144) owned by the surgical
+    # derived pass; protect it from the columnar pass's removed-table sweep exactly
+    # as the old co-emitted outcomes table was protected.
+    keep = current_tables | {"variant_outcomes"}
     for child in wdir.iterdir():
         if child.is_dir() and child.name not in reserved and child.name not in keep:
             _wipe_table(variant, child.name)
@@ -239,19 +246,24 @@ def _scoped_specs(variant: Variant) -> list[AnalyzerSpec]:
     return sorted(specs, key=lambda s: s.name)
 
 
-def _emit_outcomes(variant: Variant, run_set: str, report: MaterializeReport) -> None:
-    """Co-emit the per-variant outcome rollup (REQ_110D), if the summary exists.
+def _emit_losses(
+    variant: Variant, run_set: str, report: MaterializeReport, stale: set[str]
+) -> None:
+    """Co-emit the dense per-epoch losses table (REQ_144), if stale this pass.
 
-    A cross-analyzer rollup, not an analyzer output — sourced from
-    ``variant_summary.json`` and written here so it survives ``_wipe_columnar_outputs``
-    (which runs at the top of this pass) and stays atomic with the rest.
+    A warehouse-level co-emission sourced from checkpoint metadata, not an analyzer
+    output — written here so it lives in the same per-variant warehouse and shares
+    the signature manifest. Surgical (REQ_145): rebuilt only when its loss-series
+    source signature changed, never on every pass like the 1-row outcomes table.
     """
-    from miscope.warehouse.outcomes import OUTCOMES_TABLE, materialize_variant_outcomes
+    from miscope.warehouse.losses import materialize_variant_losses
 
-    rows = materialize_variant_outcomes(variant, run_set)
+    if LOSSES_TABLE not in stale:
+        return
+    rows = materialize_variant_losses(variant, run_set)
     if rows:
-        report.tables[OUTCOMES_TABLE] = rows
-        report.files_written.append(str(paths.semantic_parquet_path(variant, OUTCOMES_TABLE)))
+        report.tables[LOSSES_TABLE] = rows
+        report.files_written.append(str(paths.semantic_parquet_path(variant, LOSSES_TABLE)))
 
 
 # ---------------------------------------------------------------------------

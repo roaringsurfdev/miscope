@@ -83,6 +83,14 @@ class Coord(str, Enum):
     FREQUENCY = "frequency"
     """Fourier frequency index."""
 
+    WINDOW = "window"
+    """Named training-phase window (e.g. ``first_descent``, ``second_descent``).
+
+    A stable analytical vocabulary of grokking phases — the *boundaries* are
+    provisional (proxy now, windowed DMD later) but the phases themselves are
+    first-class, so a window-keyed table from one boundary method joins directly to
+    one from another (REQ_144 fork (f))."""
+
 
 @dataclass(frozen=True)
 class OutputField:

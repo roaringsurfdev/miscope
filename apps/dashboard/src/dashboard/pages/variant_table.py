@@ -28,8 +28,31 @@ _CLASSIFICATION_COLORS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+def _degenerate_final_windows(family) -> set[str]:
+    """Variant ids whose proxy ``final`` window is degenerate (start >= end).
+
+    REQ_144: the committed-frequency display reads the stable ``learned_frequencies``
+    but must reproduce the engine's empty ``committed_frequencies_end`` for variants
+    whose final window collapsed (e.g. p101, start==end==last checkpoint). That
+    degeneracy is a window-layer fact (fork e), so it is read here, by the consumer,
+    from ``window_ranges`` — never folded into the pure ``variant_outcomes`` registry.
+    Absent window data → no variant flagged (the count falls back to the full set).
+    """
+    import miscope.query
+
+    try:
+        with miscope.query.open(family=family) as con:
+            frame = con.df(
+                "SELECT variant_id FROM window_ranges "
+                "WHERE \"window\" = 'final' AND start_epoch >= end_epoch"
+            )
+    except Exception:
+        return set()
+    return {str(v) for v in frame["variant_id"]}
+
+
 def _load_table_rows() -> list[dict]:
-    """Load all variants from available variant_registry.json files.
+    """Load all variants from each family's variant registry (a variant_outcomes view).
 
     Returns a flat list of row dicts ready for DataTable.
     """
@@ -41,6 +64,8 @@ def _load_table_rows() -> list[dict]:
             records = family.variant_registry
         except FileNotFoundError:
             continue
+
+        degenerate_finals = _degenerate_final_windows(family)
 
         for rec in records:
             prime = rec.get("prime")
@@ -54,9 +79,10 @@ def _load_table_rows() -> list[dict]:
 
             grokking_epoch = rec.get("second_descent_onset_epoch")
 
-            final_window = rec.get("final_window") or {}
-            committed = final_window.get("committed_frequencies_end") or []
-            committed_count = len(committed)
+            # The engine's committed_frequencies_end equals the learned set when the
+            # final window is non-degenerate, else [] (REQ_144 Stage 4c gotcha).
+            learned = rec.get("learned_frequencies") or []
+            committed_count = 0 if rec.get("variant_id") in degenerate_finals else len(learned)
 
             test_loss_final = rec.get("test_loss_final")
             loss_display = f"{test_loss_final:.2e}" if test_loss_final is not None else "—"

@@ -170,17 +170,16 @@ def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: boo
         materialize_variant_columnar(variant, force=force_refresh)
         materialize_variant_derived(variant, force=force_refresh)
 
-        # Regenerate variant_summary.json and variant_registry.json
-        # VariantAnalysisSummary is transformer-specific; skip for other families.
-        analysis_progress.update(0.97, "Regenerating variant summary...")
-        from miscope.analysis.variant_analysis_summary import build_variant_registry
-
+        # Regenerate variant_summary.json from the warehouse tables. The summary
+        # assembler is transformer-specific (it reads the modulo-addition outcome
+        # clusters); skip it for other families. The variant registry is no longer a
+        # file (REQ_144 fork a) — it is a live view over the variant_outcomes table
+        # the warehouse pass above just materialized, so there is nothing to rebuild.
         if family_name == "modulo_addition_1layer":
-            from miscope.analysis.variant_analysis_summary import VariantAnalysisSummary
+            analysis_progress.update(0.97, "Regenerating variant summary...")
+            from miscope.analysis.variant_analysis_summary import write_variant_summary
 
-            VariantAnalysisSummary(variant).analyze()
-
-        build_variant_registry(family)
+            write_variant_summary(variant)
 
         refresh_families()
         analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")

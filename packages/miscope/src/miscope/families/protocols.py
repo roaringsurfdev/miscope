@@ -115,9 +115,10 @@ class ModelFamily(Protocol):
 
     @property
     def variant_registry(self) -> list[dict[str, Any]]:
-        """Parsed ``variant_registry.json`` — list of per-variant summary entries.
+        """Per-variant summary entries — a cross-variant view over ``variant_outcomes``.
 
-        Raises ``FileNotFoundError`` if the registry has not been built yet.
+        REQ_144 (fork a): a computed view over the warehouse, not a file. Raises
+        ``FileNotFoundError`` if no variant has materialized outcomes yet.
         """
         ...
 

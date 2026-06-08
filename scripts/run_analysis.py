@@ -20,10 +20,7 @@ import miscope.analysis.analyzers  # noqa: E402, F401
 from miscope import load_family  # noqa: E402
 from miscope.analysis import AnalysisPipeline, plan_analysis  # noqa: E402
 from miscope.analysis.registry import AnalyzerRegistry  # noqa: E402
-from miscope.analysis.variant_analysis_summary import (  # noqa: E402
-    VariantAnalysisSummary,
-    build_variant_registry,
-)
+from miscope.analysis.variant_analysis_summary import write_variant_summary  # noqa: E402
 from miscope.warehouse import (  # noqa: E402
     materialize_variant_columnar,
     materialize_variant_derived,
@@ -98,7 +95,7 @@ for i, variant in enumerate(variants):
         print("\n  Materializing warehouse (columnar + derived)...")
         materialize_variant_columnar(variant, force=FORCE)
         materialize_variant_derived(variant, force=FORCE)
-        VariantAnalysisSummary(variant).analyze()
+        write_variant_summary(variant)
 
         elapsed = time.time() - start
         print(f"\n  DONE in {elapsed:.1f}s")
@@ -112,8 +109,8 @@ for i, variant in enumerate(variants):
         print(f"\n  FAILED after {elapsed:.1f}s: {e}")
         results.append((variant.name, "failed", elapsed))
 
-# %% compile cross-variant registry (parity with the dashboard's post-run step)
-build_variant_registry(family)
+# The variant registry is no longer a compiled file (REQ_144 fork a) — it is a live
+# view over the variant_outcomes table materialized per variant above.
 
 # %% summary
 print(f"\n{'=' * 60}")
