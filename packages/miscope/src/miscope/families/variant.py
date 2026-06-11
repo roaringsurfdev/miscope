@@ -592,6 +592,7 @@ class Variant:
         device: str | torch.device | None = None,
         progress_callback: Callable[[float, str], None] | None = None,
         training_hook: Callable[[int], list[tuple[str, Callable[..., Any]]]] | None = None,
+        overwrite_all: bool = False,
     ) -> TrainingResult:
         """Train this variant's model.
 
@@ -615,9 +616,16 @@ class Variant:
                           ``model.run_with_hooks()``. Return [] outside the
                           intervention window for a no-op epoch. When None,
                           the standard model(train_data) forward pass is used.
+            overwrite_all: REQ_149. When False (default), checkpoints whose files
+                          already exist are skipped, never overwritten — an
+                          insert/extend run thus writes only genuinely-new epochs
+                          and leaves existing snapshots (bytes + mtime) intact. Set
+                          True only for a deliberate full variant redo.
 
         Returns:
-            TrainingResult with losses and checkpoint info
+            TrainingResult whose ``checkpoint_epochs`` lists the epochs *written by
+            this run* (skipped pre-existing epochs are excluded). The variant's full
+            checkpoint set — existing plus newly written — is recorded in metadata.
         """
         # Auto-detect device
         if device is None:
@@ -682,9 +690,10 @@ class Variant:
                 test_loss = self._family.compute_loss(test_logits, test_labels)
                 test_losses.append(test_loss.item())
 
-            # Save checkpoint if scheduled
-            if epoch in checkpoint_epochs_set:
-                self._save_checkpoint(model.state_dict(), epoch)
+            # Save checkpoint if scheduled (skip-existing unless overwrite_all)
+            if epoch in checkpoint_epochs_set and self._save_checkpoint(
+                model.state_dict(), epoch, overwrite=overwrite_all
+            ):
                 saved_checkpoint_epochs.append(epoch)
 
             # Progress callback
@@ -694,22 +703,28 @@ class Variant:
                     f"Epoch {epoch}/{num_epochs} - Train: {train_loss.item():.6f}, Test: {test_loss.item():.6f}",
                 )
 
-        # Save final model as latest checkpoint
+        # Save final model as latest checkpoint (skip-existing unless overwrite_all)
         final_epoch = num_epochs - 1
-        if final_epoch not in saved_checkpoint_epochs:
-            self._save_checkpoint(model.state_dict(), final_epoch)
+        if final_epoch not in saved_checkpoint_epochs and self._save_checkpoint(
+            model.state_dict(), final_epoch, overwrite=overwrite_all
+        ):
             saved_checkpoint_epochs.append(final_epoch)
 
         # Save config
         self._save_config(model, self._params["data_seed"], training_fraction)
 
-        # Save metadata
+        # Save metadata. ``checkpoint_epochs`` records the variant's full checkpoint
+        # set after this run (existing-on-disk ∪ newly written), not just this run's
+        # writes — so consumers like the loss-curve rug see every checkpoint after a
+        # non-destructive insert/extend. ``saved_checkpoint_epochs`` (run-scoped) is
+        # what the TrainingResult reports.
+        present_checkpoint_epochs = sorted(self.get_available_checkpoints())
         self._save_metadata(
             train_losses=train_losses,
             test_losses=test_losses,
             train_indices=train_indices.tolist(),
             test_indices=test_indices.tolist(),
-            checkpoint_epochs=saved_checkpoint_epochs,
+            checkpoint_epochs=present_checkpoint_epochs,
             num_epochs=num_epochs,
         )
 
@@ -725,15 +740,32 @@ class Variant:
             variant_dir=self.variant_dir,
         )
 
-    def _save_checkpoint(self, state_dict: dict[str, Any], epoch: int) -> None:
-        """Save a checkpoint to disk as safetensors.
+    def _save_checkpoint(
+        self, state_dict: dict[str, Any], epoch: int, *, overwrite: bool = False
+    ) -> bool:
+        """Save a checkpoint to disk as safetensors — non-destructive by default.
+
+        REQ_149: the single enforcement point for "training never silently
+        overwrites an existing snapshot". When a checkpoint for ``epoch`` already
+        exists and ``overwrite`` is False, the write is skipped, leaving the file's
+        bytes *and* mtime untouched. That is what keeps the checkpoint fingerprint
+        (and every downstream artifact signature) fresh on an insert/extend run, so
+        only genuinely-new epochs get re-analyzed. ``overwrite=True`` is the explicit
+        opt-in for a deliberate variant redo.
 
         Args:
             state_dict: Model state dict to save
             epoch: Epoch number for filename
+            overwrite: Re-write even if a checkpoint for this epoch already exists.
+
+        Returns:
+            True if a file was written; False if an existing checkpoint was skipped.
         """
         checkpoint_path = self.checkpoints_dir / f"checkpoint_epoch_{epoch:05d}.safetensors"
+        if checkpoint_path.exists() and not overwrite:
+            return False
         save_file(state_dict, str(checkpoint_path))
+        return True
 
     def _save_config(
         self,

@@ -1,6 +1,6 @@
 # REQ_149: Training-Extension Invalidation & Checkpoint Provenance
 
-**Status:** Draft (stub — for discussion)
+**Status:** Scoped (2026-06-10) — ready for implementation
 **Priority:** Medium-High — blocks trustworthy incremental refresh; surfaced a live over-invalidation during REQ_137-adjacent work.
 **Branch:** authored directly on `develop` (per user direction); implementation branch TBD.
 **Attribution:** Engineering Claude (under user direction)
@@ -64,6 +64,47 @@ arguably the right asymmetry: leaves are content-addressed, derived nodes are
 input-signature-addressed. This is the "awkward mixed file-validation strategy"
 to accept explicitly, with a clear rationale, rather than avoid.
 
+## Decision (scoped 2026-06-10)
+
+The three forks above are resolved as follows. The deciding observation: the
+checkpoint-schedule page's insert/extend path re-trains **from scratch**
+(`variant.train(num_epochs=total_epochs, checkpoint_epochs=merged_checkpoint_epochs)`,
+`pages/checkpoint_schedule.py`), and "Existing checkpoints are always included" in
+the merged schedule — so every existing epoch is re-saved and overwritten today.
+
+**1. No resume-mode.** Building resume-from-checkpoint training logic is explicitly
+out of scope. The non-destructive guarantee comes from *not writing* over existing
+files, not from resuming.
+
+**2. Skip-existing writes + an `overwrite_all` flag — the load-bearing fix.**
+`Variant._save_checkpoint` becomes non-destructive by default: it skips the write
+when the checkpoint file already exists, unless an explicit `overwrite=True` is
+passed. `Variant.train()` gains `overwrite_all: bool = False`, threaded to
+`_save_checkpoint`. The schedule page keeps calling `train()` with the default, so
+inserting density / extending becomes a no-op for existing epochs (bytes *and*
+mtime preserved) and writes only the genuinely-new epochs — exactly what the
+incremental planner needs. A deliberate "redo this variant" is the only caller that
+passes `overwrite_all=True`. **Single enforcement point** in `_save_checkpoint`, not
+per-script convention. No error-on-existing (which would stall a densification run);
+skip is silent, overwrite is opt-in.
+
+*Why skip-existing over content-hashing the fingerprint, for this workflow:* because
+the page re-trains from scratch, a content-addressed fingerprint would only keep
+0–25K fresh **if** the retrain reproduced bit-identical weights — which the
+determinism caveat (below) says it may not. Skip-existing sidesteps the gamble
+entirely: the original bytes are never touched, so there is nothing to re-hash and
+nothing to invalidate.
+
+**3. Content-addressed fingerprint — deferred to a robustness sub-item.** A
+checkpoint-only `epoch:size:blake2b(bytes)` fingerprint with an mtime-keyed hash
+cache (git-index strategy) is the right robustness layer for file operations that
+bypass `_save_checkpoint` (backup/restore, machine migration, rsync). `git checkout`
+is *not* a vector — checkpoints are gitignored. Those remaining vectors are real but
+rare, and skip-existing already covers the training workflow, so this is carved out
+as a deferred sub-item (REQ_149-A or a follow-up stub), picked up when that risk
+becomes concrete. It stays checkpoints-only — REQ_145 "fork c" artifact
+output-hashing remains separately deferred.
+
 ## Relationship to other requirements
 
 - **REQ_145** owns the signature mechanism; this is a refinement at the
@@ -78,17 +119,26 @@ to accept explicitly, with a clear rationale, rather than avoid.
   it out — otherwise the densification pass would re-invalidate every variant's
   artifacts (the very thing observed here, at corpus scale).
 
-## Conditions of Satisfaction (to flesh out at scoping — discussion needed)
+## Conditions of Satisfaction
 
-- [ ] Decide and implement the canonical non-destructive "extend training" path
-      (resume + append; existing snapshots never silently overwritten).
-- [ ] Establish a single "training never overwrites existing snapshots" guard
-      (one enforcement point, not per-script convention).
-- [ ] Decide whether to content-address the checkpoint fingerprint; if yes,
-      define the hash, the mtime-keyed cache, and the checkpoint-hash /
-      artifact-signature validation boundary.
-- [ ] Re-extending a test variant processes **only** new epochs; pre-existing
-      artifacts stay fresh (acceptance against a re-run of the p109 scenario).
+- [ ] `Variant._save_checkpoint` skips the write when the checkpoint file already
+      exists, unless `overwrite=True` is passed — the single non-destructive
+      enforcement point.
+- [ ] `Variant.train()` exposes `overwrite_all: bool = False`, threaded to
+      `_save_checkpoint`. Default (`False`) preserves existing snapshots; `True`
+      is the only path that re-writes them.
+- [ ] `_save_checkpoint` reports written-vs-skipped so `train()`'s
+      `saved_checkpoint_epochs` (and the schedule page's "Checkpoints saved: N")
+      reflects epochs actually written, not merely intended.
+- [ ] Re-running the p109 25K→30K scenario through the schedule page (default
+      `overwrite_all=False`) leaves the 0–25K checkpoint files byte- *and*
+      mtime-identical, and a subsequent `pipeline.run(force=False)` plans
+      **only** the new epochs — pre-existing per-epoch artifacts stay fresh.
+      Acceptance test asserts this directly.
+
+**Deferred (sub-item, not this requirement):** content-addressed checkpoint
+fingerprint (`epoch:size:blake2b`, mtime-keyed cache) for fs-operation robustness —
+see Decision §3.
 
 ## Notes / open questions
 
@@ -101,8 +151,21 @@ to accept explicitly, with a clear rationale, rather than avoid.
   substitute.
 - Confirmed during triage: no no-overwrite guard exists in the main training
   path; only `fill_checkpoints.py` enforces it.
+- **`fill_checkpoints.py` carries a separate, still-unfixed off-by-one** (user-
+  flagged 2026-06-10): `FILL_WINDOW_START = RESUME_FROM_EPOCH + 1` then
+  `range(FILL_WINDOW_START, …, 100)` shifts the grid off the round hundreds
+  (resume @1200 → 1201/1301/1401 instead of 1300/1400). Orthogonal to this REQ —
+  the chosen `train()` + skip-existing path takes round-number epochs from the
+  schedule builder, not this `range`. fill_checkpoints remains the compute-efficient
+  true-resume path but is left with this latent bug; fix is a small separate
+  follow-up, not bundled here unless explicitly scoped in.
 
 ## Out of scope
 
+- **Resume-from-checkpoint training logic** — the non-destructive guarantee comes
+  from skip-existing writes, not from resuming a trajectory. Explicitly not built.
+- **Content-addressed checkpoint fingerprint** — deferred robustness sub-item
+  (Decision §3); not required to fix the observed over-invalidation or to unblock
+  the REQ_137 densification fan-out.
 - REQ_145 "fork c" output-hashing for *artifacts* — a separate, still-deferred
   decision.
