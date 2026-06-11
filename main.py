@@ -1,5 +1,5 @@
 def main():
-    print("Hello from training-dynamics-workbench!")
+    print("Hello from miscope!")
 
 
 if __name__ == "__main__":
