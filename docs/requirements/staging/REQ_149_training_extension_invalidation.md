@@ -1,6 +1,7 @@
 # REQ_149: Training-Extension Invalidation & Checkpoint Provenance
 
-**Status:** Scoped (2026-06-10) — ready for implementation
+**Status:** Completed (2026-06-11) — merged to `develop`, in staging. Smoke-tested:
+p109 +5K extension and p109/s485/ds42 plateau densification both behaved as expected.
 **Priority:** Medium-High — blocks trustworthy incremental refresh; surfaced a live over-invalidation during REQ_137-adjacent work.
 **Branch:** authored directly on `develop` (per user direction); implementation branch TBD.
 **Attribution:** Engineering Claude (under user direction)
