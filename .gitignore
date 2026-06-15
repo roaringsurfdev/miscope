@@ -233,6 +233,21 @@ __marimo__/
 # */manifest-*.json) ARE committed; only the build output is ignored.
 /apps/fieldnotes/bundles/_dist/
 
+# Node / Astro (apps/site, apps/fieldnotes): dependencies and build output.
+# Source (src/, config, package.json, lockfile) IS committed; these are generated.
+node_modules/
+.astro/
+.output/
+.vercel/
+.netlify/
+
+# npm / yarn / pnpm debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
 # Unified data root (REQ_123): ignore everything except the tracked family configs.
 /data/*
 !/data/*/
