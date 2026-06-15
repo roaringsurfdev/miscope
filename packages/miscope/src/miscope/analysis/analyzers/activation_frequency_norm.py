@@ -16,7 +16,8 @@ the raw coefficient cubes, ``magnitudes``, ``fractional_power``, or
 ``dominant_frequency_pair``. Under dense checkpointing those cubes were the
 dominant on-disk cost (and were materialized a second time in the warehouse).
 The analyzer now performs the K×K→K reduction in-memory and persists only the
-``(n_freq, n_units)`` result — ~50× smaller per epoch per site.
+``(n_freq, n_units)`` result. Measured on canon p113/s999/ds598: the per-variant
+artifact dir dropped from 21 GB to 54 MB (~400×; epoch_00000 63 MB → 161 KB).
 
 Reduced fields it descends from:
     - ``neuron_freq_norm`` (a.k.a. ``neuron_freq_clusters``) ← site ``mlp_out``
