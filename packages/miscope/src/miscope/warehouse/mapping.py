@@ -18,7 +18,7 @@ _GENERIC_GROUP_TYPE: dict[str, GroupType] = {
     "weight_spectra": GroupType.WEIGHT_MATRIX,
     "repr_geometry": GroupType.ACTIVATION_SITE,
     "centroid_fourier_alignment": GroupType.ACTIVATION_SITE,
-    "activation_basis_projection": GroupType.ACTIVATION_SITE,
+    "activation_frequency_norm": GroupType.ACTIVATION_SITE,
     "activation_dmd": GroupType.ACTIVATION_SITE,
     "weight_basis_projection": GroupType.WEIGHT_MATRIX,
     "neuron_group_pca": GroupType.FREQUENCY_GROUP,

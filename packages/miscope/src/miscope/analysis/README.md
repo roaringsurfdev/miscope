@@ -16,7 +16,7 @@ flowchart TB
         AP[AnalysisPipeline]
         AN1[WeightBasisProjectionAnalyzer]
         AN2[NeuronActivationsAnalyzer]
-        AN3[ActivationBasisProjectionAnalyzer]
+        AN3[ActivationFrequencyNormAnalyzer]
 
         AP -->|register| AN1
         AP -->|register| AN2
@@ -77,7 +77,7 @@ The pipeline tracks completed epochs in `manifest.json`. Re-running analysis ski
 ```python
 from analysis import AnalysisPipeline
 from analysis.analyzers import (
-    ActivationBasisProjectionAnalyzer,
+    ActivationFrequencyNormAnalyzer,
     NeuronActivationsAnalyzer,
     WeightBasisProjectionAnalyzer,
 )
@@ -88,7 +88,7 @@ pipeline = AnalysisPipeline(model_spec)
 # Register analyzers
 pipeline.register(WeightBasisProjectionAnalyzer())
 pipeline.register(NeuronActivationsAnalyzer())
-pipeline.register(ActivationBasisProjectionAnalyzer())
+pipeline.register(ActivationFrequencyNormAnalyzer())
 
 # Run analysis (skips existing artifacts)
 pipeline.run()
@@ -116,7 +116,7 @@ variant = family.get_variant(prime=113, seed=999, data_seed=598)
 
 # List available analyzers
 print(variant.artifacts.get_available_analyzers())
-# ['activation_basis_projection', 'neuron_activations', 'weight_basis_projection', ...]
+# ['activation_frequency_norm', 'neuron_activations', 'weight_basis_projection', ...]
 
 # Per-epoch load
 epoch_data = variant.artifacts.load_epoch("weight_basis_projection", epoch=1000)
@@ -140,7 +140,7 @@ analysis/
     __init__.py
     weight_basis_projection.py      # Per-site weight Fourier projections
     neuron_activations.py           # MLP activation heatmaps
-    activation_basis_projection.py  # Per-site activation Fourier projections
+    activation_frequency_norm.py    # Per-site activation per-frequency energy norm
     ...                             # (24 analyzers total — see registry.py)
 ```
 
@@ -153,7 +153,7 @@ A representative sample:
 |----------|-------|-------------|
 | `weight_basis_projection/epoch_*.npz` | per-site cos/sin coeffs | Weight Fourier projections (embedding, mlp_in/out, attn sites) |
 | `neuron_activations/epoch_*.npz` | (d_mlp, p, p) | MLP activations reshaped to input space |
-| `activation_basis_projection/epoch_*.npz` | per-site magnitudes | Activation Fourier projections (incl. legacy `neuron_freq_norm` content) |
+| `activation_frequency_norm/epoch_*.npz` | per-site `freq_norm` (n_freq, n_units) | Per-frequency activation energy norm (reduced; legacy `neuron_freq_norm` content) |
 | `manifest.json` | - | Completion tracking and metadata |
 
 See `analyzers/registry.py` for the full set of 24 analyzers.

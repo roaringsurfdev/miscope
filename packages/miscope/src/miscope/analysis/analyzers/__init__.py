@@ -7,8 +7,8 @@ with the AnalyzerRegistry for discovery.
 
 # Analyzer Registry
 # Per-epoch Analyzers with no dependences
-from miscope.analysis.analyzers.activation_basis_projection import (  # noqa: I001
-    ActivationBasisProjectionAnalyzer,
+from miscope.analysis.analyzers.activation_frequency_norm import (  # noqa: I001
+    ActivationFrequencyNormAnalyzer,
 )
 from miscope.analysis.analyzers.attention_patterns import AttentionPatternsAnalyzer  # noqa: I001
 from miscope.analysis.analyzers.centroid_fourier_alignment import (
@@ -47,7 +47,7 @@ from miscope.analysis.analyzers.weight_spectra import WeightSpectraAnalyzer
 
 
 __all__ = [
-    "ActivationBasisProjectionAnalyzer",
+    "ActivationFrequencyNormAnalyzer",
     "ActivationDMD",
     "AnalyzerRegistry",
     "FourierFrequencyQualityAnalyzer",

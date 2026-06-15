@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from _deps_fakes import abp_artifact_from_norm_matrix
+from _deps_fakes import afn_artifact_from_norm_matrix
 
 from miscope.analysis.analyzers.freq_group_weight_geometry import (
     FreqGroupWeightGeometryAnalyzer,
@@ -116,7 +116,7 @@ def _make_loader(norm_matrix):
     from unittest.mock import MagicMock
 
     loader = MagicMock()
-    loader.load_epoch.return_value = abp_artifact_from_norm_matrix(norm_matrix)
+    loader.load_epoch.return_value = afn_artifact_from_norm_matrix(norm_matrix)
     return loader
 
 
@@ -132,7 +132,7 @@ def test_build_group_labels_basic():
     """Two groups of 4 neurons each → 2 groups with contiguous indices."""
     norm = _make_norm(4, 8, [0, 0, 0, 0, 2, 2, 2, 2])
     loader = _make_loader(norm)
-    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0, prime=PRIME)
+    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0)
     assert len(freqs) == 2
     assert set(freqs) == {0, 2}
     assert sum(sizes) == 8
@@ -142,7 +142,7 @@ def test_build_group_labels_singleton_excluded():
     """Groups with only 1 neuron are excluded."""
     norm = _make_norm(4, 6, [0, 0, 0, 1, 2, 3])  # freq 1,2,3 have 1 neuron each
     loader = _make_loader(norm)
-    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0, prime=PRIME)
+    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0)
     assert freqs == [0]
     assert sizes == [3]
 
@@ -151,7 +151,7 @@ def test_build_group_labels_contiguous_indices():
     """Group labels are contiguous 0..n_groups-1 (not sparse frequency indices)."""
     norm = _make_norm(10, 8, [0, 0, 5, 5, 9, 9, 0, 5])
     loader = _make_loader(norm)
-    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0, prime=PRIME)
+    freqs, sizes, labels = _build_group_labels(loader, reference_epoch=0)
     grouped = labels[labels >= 0]
     assert set(grouped.tolist()) == set(range(len(freqs)))
 
@@ -160,7 +160,7 @@ def test_build_group_labels_ungrouped_are_negative_one():
     """Neurons in excluded singleton groups have label -1."""
     norm = _make_norm(4, 5, [0, 0, 0, 1, 2])  # freqs 1 and 2 singleton
     loader = _make_loader(norm)
-    _, _, labels = _build_group_labels(loader, reference_epoch=0, prime=PRIME)
+    _, _, labels = _build_group_labels(loader, reference_epoch=0)
     assert np.sum(labels == -1) == 2  # neurons 3 and 4
 
 
@@ -168,7 +168,7 @@ def test_build_group_labels_ungrouped_are_negative_one():
 
 
 class _MockLoader:
-    """Mock deps that serves both activation_basis_projection and parameter_snapshot."""
+    """Mock deps that serves both activation_frequency_norm and parameter_snapshot."""
 
     def __init__(self, norm_matrix, W_in_by_epoch, W_out_by_epoch=None):
         self._norm = norm_matrix
@@ -176,8 +176,8 @@ class _MockLoader:
         self._W_out = W_out_by_epoch
 
     def load_epoch(self, name: str, epoch: int, *, fields=None):
-        if name == "activation_basis_projection":
-            return abp_artifact_from_norm_matrix(self._norm)
+        if name == "activation_frequency_norm":
+            return afn_artifact_from_norm_matrix(self._norm)
         if name == "parameter_snapshot":
             # Include a dummy W_E so the analyzer recognises the transformer
             # convention: W_in shape is (d_model, d_mlp), W_out is (d_mlp, d_vocab).

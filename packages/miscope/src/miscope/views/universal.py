@@ -89,39 +89,6 @@ def _make_summary(
 # ---------------------------------------------------------------------------
 
 
-def _adapt_activation_freq_legacy(
-    art: dict[str, Any], site: str, output_key: str
-) -> dict[str, Any]:
-    """Reconstruct legacy ``neuron_freq_norm`` / ``attention_freq`` shape
-    ``(n_freq, d_unit)`` (per-frequency fraction matrix) from
-    ``activation_basis_projection`` per-site outputs (REQ_127).
-
-    Computes ``(power_diag + axis_a_marginal_power + axis_b_marginal_power)``
-    per ``(unit, freq)`` and normalizes across the frequency axis. The
-    aggregation is structurally equivalent to the old 3x3-block-summation
-    formula but uses a different basis normalization, so per-column scaling
-    differs from the legacy artifact (Pearson ~0.99 on canon, Spearman
-    ~0.83 — heatmap visuals are functionally identical under the
-    renderer's ``zmin=0, zmax=1`` normalization; absolute values shift
-    per neuron).
-
-    Works on per-epoch ``(d_unit, n_freq, n_freq)`` and stacked
-    ``(n_epochs, d_unit, n_freq, n_freq)`` shapes.
-    """
-    import numpy as _np
-
-    power = art[f"{site}_power"]
-    p_a = art[f"{site}_axis_a_marginal_power"]
-    p_b = art[f"{site}_axis_b_marginal_power"]
-    diag = _np.diagonal(power, axis1=-2, axis2=-1)
-    block = diag + p_a + p_b
-    block_sum = block.sum(axis=-1, keepdims=True)
-    fractions = (block / _np.maximum(block_sum, 1e-10)).astype(_np.float32)
-    # Swap to legacy (n_freq, d_unit) layout.
-    fractions = _np.moveaxis(fractions, -1, -2)
-    return {output_key: fractions}
-
-
 def _adapt_attention_fourier_legacy(art: dict[str, Any]) -> dict[str, Any]:
     """Reconstruct the legacy ``attention_fourier`` shape
     (``qk_freq_norms`` + ``v_freq_norms``, both per-head per-frequency fractions
@@ -220,20 +187,17 @@ def _register_all() -> None:
         )
     )
 
-    # --- MLP + attention activation Fourier views (REQ_127 re-point) ---
-    # Re-pointed from neuron_freq_norm / attention_freq to
-    # activation_basis_projection. The adapter shapes the new
-    # site-namespaced output back into the legacy norm_matrix /
-    # freq_matrix layout the renderers expect. Per-column scaling
-    # shifts (~0.99 Pearson) are absorbed by the renderer's
-    # 0-1 colorscale normalization.
+    # --- MLP + attention activation Fourier views ---
+    # Read activation_frequency_norm's per-site freq_norm directly. It already
+    # is the (n_freq, n_unit) legacy norm_matrix / freq_matrix the renderers
+    # expect (prime-scaled), so no adapter is needed.
 
-    _abp_per_epoch_req = [AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH)]
+    _afn_per_epoch_req = [AnalyzerRequirement("activation_frequency_norm", ArtifactKind.EPOCH)]
 
     def _make_activation_freq_loader(site: str, output_key: str) -> Any:
         def loader(variant: Variant, epoch: int | None) -> dict:
-            art = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # pyright: ignore[reportArgumentType]
-            return _adapt_activation_freq_legacy(art, site, output_key)
+            art = variant.artifacts.load_epoch("activation_frequency_norm", epoch)  # pyright: ignore[reportArgumentType]
+            return {output_key: art[f"{site}_freq_norm"]}
 
         return loader
 
@@ -271,8 +235,8 @@ def _register_all() -> None:
                 name=name,
                 load_data=_make_activation_freq_loader(site, output_key),
                 renderer=render_fn,
-                epoch_source_analyzer="activation_basis_projection",
-                required_analyzers=_abp_per_epoch_req,
+                epoch_source_analyzer="activation_frequency_norm",
+                required_analyzers=_afn_per_epoch_req,
             )
         )
 
@@ -321,28 +285,22 @@ def _register_all() -> None:
     ]:
         _catalog.register(_make_summary(name, analyzer, getattr(viz, renderer_name)))
 
-    # --- Attention frequency clusters summary (REQ_127 re-point) ---
+    # --- Attention frequency clusters summary ---
     # render_attention_specialization_trajectory expects per-epoch
     # (epochs, max_frac_per_head). Built on the fly from stacked
-    # activation_basis_projection by computing max-across-frequency of
-    # the legacy-shaped per-head fraction matrix.
+    # activation_frequency_norm by computing max-across-frequency of
+    # the per-head freq_norm matrix.
 
     def _load_attention_freq_clusters_summary(variant: Variant, epoch: int | None) -> dict:
-        # Selective load: only the attn_pattern power keys the adapter reads.
-        # Loading all keys would stack the (d_mlp, n_freq, n_freq) mlp_out
-        # cubes across every epoch — multi-GB, OOM (REQ_127).
+        # Selective load: only the attn_pattern freq_norm. The mlp_out_freq_norm
+        # is the only other field and is comparably small now, but stay explicit.
         art = variant.artifacts.load_epochs(
-            "activation_basis_projection",
-            fields=[
-                "attn_pattern_power",
-                "attn_pattern_axis_a_marginal_power",
-                "attn_pattern_axis_b_marginal_power",
-            ],
+            "activation_frequency_norm",
+            fields=["attn_pattern_freq_norm"],
         )
-        # _adapt_activation_freq_legacy returns (n_epochs, n_freq, n_heads)
-        # for stacked input.
-        adapted = _adapt_activation_freq_legacy(art, "attn_pattern", "freq_matrix")["freq_matrix"]
-        max_frac_per_head = adapted.max(axis=1)  # (n_epochs, n_heads)
+        # freq_norm is (n_epochs, n_freq, n_heads) for stacked input.
+        freq_norm = art["attn_pattern_freq_norm"]
+        max_frac_per_head = freq_norm.max(axis=1)  # (n_epochs, n_heads)
         return {
             "epochs": art["epochs"],
             "max_frac_per_head": max_frac_per_head,
@@ -361,7 +319,7 @@ def _register_all() -> None:
             load_data=_load_attention_freq_clusters_summary,
             renderer=_render_attention_specialization_trajectory,
             epoch_source_analyzer=None,
-            required_analyzers=_abp_per_epoch_req,
+            required_analyzers=_afn_per_epoch_req,
         )
     )
 
@@ -1290,15 +1248,13 @@ def _register_all() -> None:
 
     def _load_neuron_group_scatter(variant: Variant, epoch: int | None) -> dict:
         cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
-        abp = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # type: ignore[arg-type]
+        afn = variant.artifacts.load_epoch("activation_frequency_norm", epoch)  # type: ignore[arg-type]
         snap = variant.artifacts.load_epoch("parameter_snapshot", epoch)  # type: ignore[arg-type]
         return {
             "group_bases": cross["group_bases"],
             "group_freqs": cross["group_freqs"],
             "W_in": snap["W_in"],
-            "norm_matrix": _adapt_activation_freq_legacy(abp, "mlp_out", "norm_matrix")[
-                "norm_matrix"
-            ],
+            "norm_matrix": afn["mlp_out_freq_norm"],
         }
 
     def _render_group_scatter(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
@@ -1309,7 +1265,7 @@ def _register_all() -> None:
     _ngpca_req = [AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH)]
     _ngpca_scatter_req = [
         AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
-        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH),
+        AnalyzerRequirement("activation_frequency_norm", ArtifactKind.EPOCH),
         AnalyzerRequirement("parameter_snapshot", ArtifactKind.EPOCH),
     ]
 
@@ -1410,9 +1366,8 @@ def _register_all() -> None:
 
     def _load_neuron_group_with_purity(variant: Variant, epoch: int | None) -> dict:
         cross = variant.artifacts.load_cross_epoch("neuron_group_pca")
-        abp = variant.artifacts.load_epoch("activation_basis_projection", epoch)  # type: ignore[arg-type]
-        norm = _adapt_activation_freq_legacy(abp, "mlp_out", "norm_matrix")
-        return {**cross, "norm_matrix": norm["norm_matrix"]}
+        afn = variant.artifacts.load_epoch("activation_frequency_norm", epoch)  # type: ignore[arg-type]
+        return {**cross, "norm_matrix": afn["mlp_out_freq_norm"]}
 
     def _render_group_scatter_purity(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
         from miscope.visualization.renderers.neuron_group_pca import (
@@ -1428,7 +1383,7 @@ def _register_all() -> None:
 
     _ngpca_purity_req = [
         AnalyzerRequirement("neuron_group_pca", ArtifactKind.CROSS_EPOCH),
-        AnalyzerRequirement("activation_basis_projection", ArtifactKind.EPOCH),
+        AnalyzerRequirement("activation_frequency_norm", ArtifactKind.EPOCH),
     ]
 
     for name, renderer in [
@@ -1440,7 +1395,7 @@ def _register_all() -> None:
                 name=name,
                 load_data=_load_neuron_group_with_purity,
                 renderer=renderer,
-                epoch_source_analyzer="activation_basis_projection",
+                epoch_source_analyzer="activation_frequency_norm",
                 required_analyzers=_ngpca_purity_req,
             )
         )

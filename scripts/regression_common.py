@@ -55,6 +55,9 @@ DEPRECATED_ANALYZERS = frozenset(
         "neuron_fourier",
         "dominant_frequencies",
         "neuron_freq_norm",
+        # Renamed + narrowed to activation_frequency_norm (downsize); the old
+        # name is now a retired artifact dir, so the scan ignores any leftover.
+        "activation_basis_projection",
     }
 )
 

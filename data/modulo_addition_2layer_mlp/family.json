@@ -30,7 +30,7 @@
     "input_trace",
     "repr_geometry",
     "weight_basis_projection",
-    "activation_basis_projection",
+    "activation_frequency_norm",
     "weight_spectra",
     "centroid_fourier_alignment",
     "parameter_trajectory",

@@ -21,10 +21,6 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ALL, ArtifactInput, DepsAccessor, ResolvedInputs
-from miscope.analysis.library import (
-    NEURON_FREQ_NORM_FIELDS,
-    reconstruct_neuron_freq_norm,
-)
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -40,14 +36,12 @@ from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 # REQ_138: the group-defining reference epoch is a declared parameter (floating
-# ``max_epoch`` over activation_basis_projection), not a hardcoded ``sorted_epochs[-1]``.
+# ``max_epoch`` over activation_frequency_norm), not a hardcoded ``sorted_epochs[-1]``.
 _REFERENCE_EPOCH_PARAM = ParameterSpec(
     name="reference_epoch",
     dtype="int64",
     scope="analyzer",
-    default=ReferenceBinding(
-        "reference_epoch", "activation_basis_projection", Reducer("max_epoch")
-    ),
+    default=ReferenceBinding("reference_epoch", "activation_frequency_norm", Reducer("max_epoch")),
 )
 
 # GLUE geometry of frequency groups in W_in / W_out weight space. On-disk key is
@@ -73,7 +67,7 @@ SPEC = AnalyzerSpec(
     name="freq_group_weight_geometry",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("activation_basis_projection"),
+        ArtifactInput("activation_frequency_norm"),
         ArtifactInput("parameter_snapshot"),
     ),
     outputs=(
@@ -144,7 +138,7 @@ class FreqGroupWeightGeometryAnalyzer:
     """
 
     name = "freq_group_weight_geometry"
-    requires = ["activation_basis_projection", "parameter_snapshot"]
+    requires = ["activation_frequency_norm", "parameter_snapshot"]
 
     def analyze(
         self,
@@ -154,14 +148,11 @@ class FreqGroupWeightGeometryAnalyzer:
         """Compute frequency group geometry in weight space across all checkpoints."""
         assert inputs.deps is not None
         assert inputs.epochs is not None
-        prime = int(context["params"]["prime"])
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
         reference_epoch = int(inputs.parameters["reference_epoch"])
-        group_freqs, group_sizes, group_labels = _build_group_labels(
-            inputs.deps, reference_epoch, prime
-        )
+        group_freqs, group_sizes, group_labels = _build_group_labels(inputs.deps, reference_epoch)
 
         if not group_freqs:
             return _empty_result(sorted_epochs)
@@ -267,12 +258,11 @@ class FreqGroupWeightGeometryAnalyzer:
 def _build_group_labels(
     deps: DepsAccessor,
     reference_epoch: int,
-    prime: int,
 ) -> tuple[list[int], list[int], np.ndarray]:
     """Assign neurons to frequency groups from the reference epoch.
 
-    Group assignment by argmax of norm_matrix — no threshold, all neurons
-    assigned to exactly one group. Groups with fewer than 2 neurons excluded.
+    Group assignment by argmax of the activation freq_norm — no threshold, all
+    neurons assigned to exactly one group. Groups with fewer than 2 neurons excluded.
 
     Returns:
         (group_freqs, group_sizes, group_labels) where group_labels is a
@@ -280,9 +270,9 @@ def _build_group_labels(
         0..n_groups-1. Neurons in excluded groups are mapped to -1.
     """
     projection = deps.load_epoch(
-        "activation_basis_projection", reference_epoch, fields=NEURON_FREQ_NORM_FIELDS
+        "activation_frequency_norm", reference_epoch, fields=["mlp_out_freq_norm"]
     )
-    norm_matrix = reconstruct_neuron_freq_norm(projection, prime)  # (n_freq, d_mlp)
+    norm_matrix = projection["mlp_out_freq_norm"]  # (n_freq, d_mlp)
     d_mlp = norm_matrix.shape[1]
     dominant_freq = np.argmax(norm_matrix, axis=0)  # (d_mlp,)
 

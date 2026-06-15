@@ -45,11 +45,11 @@ def _make_specialized_norm_matrix(
     return matrix
 
 
-PRIME = 23  # marginals are zeroed in the fixture, so the value is immaterial
+PRIME = 23  # passed in context; neuron_dynamics no longer uses prime directly
 
 
 @pytest.fixture
-def artifacts_with_activation_basis_projection():
+def artifacts_with_neuron_attribution():
     """Create temp artifacts dir with per-epoch neuron_frequency_attribution files.
 
     REQ_141: neuron_dynamics now streams the per-epoch neuron_frequency_attribution
@@ -153,14 +153,14 @@ class TestNeuronDynamicsAnalyzer:
 
     def test_keys_to_inputs_epochs_not_all_available(
         self,
-        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
+        artifacts_with_neuron_attribution: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Regression (REQ_128/REQ_131): output is keyed to the run's analyzed
         epochs (``inputs.epochs``), not to whatever upstream files exist on
         disk. If it keyed to all-available, the epoch axis could diverge from
         other per-checkpoint analyzers and overrun downstream index lookups
         (the variant_analysis_summary IndexError on non-dense re-analysis)."""
-        artifacts_dir, epochs, _ = artifacts_with_activation_basis_projection
+        artifacts_dir, epochs, _ = artifacts_with_neuron_attribution
         subset = epochs[:3]  # analyze fewer epochs than exist on disk
         result = NeuronDynamicsAnalyzer().analyze(
             store_inputs(artifacts_dir, epochs=tuple(subset)),
@@ -171,10 +171,10 @@ class TestNeuronDynamicsAnalyzer:
 
     def test_analyze_across_epochs(
         self,
-        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
+        artifacts_with_neuron_attribution: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Analyzer produces expected output fields and shapes."""
-        artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection
+        artifacts_dir, epochs, assignments = artifacts_with_neuron_attribution
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
             store_inputs(artifacts_dir, epochs=tuple(epochs)),
@@ -198,10 +198,10 @@ class TestNeuronDynamicsAnalyzer:
 
     def test_switch_counts_correct(
         self,
-        artifacts_with_activation_basis_projection: tuple[str, list[int], dict[int, list[int]]],
+        artifacts_with_neuron_attribution: tuple[str, list[int], dict[int, list[int]]],
     ):
         """Switch counts match known assignments."""
-        artifacts_dir, epochs, assignments = artifacts_with_activation_basis_projection
+        artifacts_dir, epochs, assignments = artifacts_with_neuron_attribution
         analyzer = NeuronDynamicsAnalyzer()
         result = analyzer.analyze(
             store_inputs(artifacts_dir, epochs=tuple(epochs)),

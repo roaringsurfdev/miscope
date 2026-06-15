@@ -194,7 +194,7 @@ class TestModuloAddition2LMLPFamily:
         # provided by the universal basis-projection analyzers.
         assert "neuron_fourier" not in family.analyzers
         assert "weight_basis_projection" in family.analyzers
-        assert "activation_basis_projection" in family.analyzers
+        assert "activation_frequency_norm" in family.analyzers
 
     def test_cross_epoch_analyzers_includes_neuron_group_pca(self, family):
         assert "neuron_group_pca" in family.analyzers

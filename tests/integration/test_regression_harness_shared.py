@@ -90,7 +90,7 @@ def test_exclude_set_filters_known_nondeterministic() -> None:
 def test_selection_is_closed_under_dependencies() -> None:
     """Canonical selection includes every declared upstream (CoS 4).
 
-    The original failure was an omitted upstream (activation_basis_projection,
+    The original failure was an omitted upstream (activation_frequency_norm,
     neuron_grouping) aborting the run on a blocked_by. Because the set derives
     from list_for_family, every ArtifactInput dependency of a selected spec must
     itself be selected.

@@ -227,7 +227,7 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
             "labels": labels,
             # REQ_126: family-supplied sites for basis-projection analyzers.
             "weight_basis_projection_sites": self.weight_basis_projection_sites,
-            "activation_basis_projection_sites": self.activation_basis_projection_sites,
+            "activation_frequency_norm_sites": self.activation_frequency_norm_sites,
         }
 
     @property
@@ -254,8 +254,8 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
         )
 
     @property
-    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """REQ_126: activation-side sites for ``activation_basis_projection``.
+    def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_frequency_norm``.
 
         One site — ``neuron_freq_norm`` is the only activation Fourier
         analyzer this family registers.
