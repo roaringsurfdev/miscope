@@ -96,10 +96,10 @@ def selectivity() -> None:
 
         # 2. Bump one producer's version; it + its transitive dependents restage,
         #    and nothing else. Target the documented multi-hop chain root when present
-        #    (activation_basis_projection -> neuron_frequency_attribution ->
+        #    (activation_frequency_norm -> neuron_frequency_attribution ->
         #    neuron_dynamics) so forward propagation is visible.
         names = {s.name for s in specs}
-        root = "activation_basis_projection"
+        root = "activation_frequency_norm"
         target = root if root in names else next(s.name for s in specs if s.requires)
         bumped = [replace(s, version=s.version + 1) if s.name == target else s for s in specs]
         plan = _plan_with_overlay(v, bumped, overlay)

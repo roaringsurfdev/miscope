@@ -2,9 +2,9 @@
 
 A ``BasisProjectionSite`` describes one named site where a family-supplied
 composer produces a matrix ready for projection onto the family's basis.
-The ``weight_basis_projection`` and (future) ``activation_basis_projection``
-analyzers iterate over a family's declared sites and apply REQ_109's basis
-primitives to each composer's output.
+The ``weight_basis_projection`` and ``activation_frequency_norm`` analyzers
+iterate over a family's declared sites and apply REQ_109's basis primitives to
+each composer's output.
 
 This honors the architectural rule from ``PROJECT.md``: families are context
 providers; analyzers are universal instruments. The analyzer does not embed

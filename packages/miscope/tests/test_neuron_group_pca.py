@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from _deps_fakes import abp_artifact_from_norm_matrix
+from _deps_fakes import afn_artifact_from_norm_matrix
 
 from miscope.analysis.analyzers.neuron_group_pca import (
     NeuronGroupPCAAnalyzer,
@@ -106,8 +106,8 @@ class _MockArtifactLoader:
         self._W_in = W_in_by_epoch  # dict epoch -> W_in array
 
     def load_epoch(self, name: str, epoch: int, *, fields=None):
-        if name == "activation_basis_projection":
-            return abp_artifact_from_norm_matrix(self._norm)
+        if name == "activation_frequency_norm":
+            return afn_artifact_from_norm_matrix(self._norm)
         if name == "parameter_snapshot":
             # Include a dummy W_E so extract_neuron_weight_matrix recognises
             # the transformer convention: W_in shape is (d_model, d_mlp).

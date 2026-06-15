@@ -72,7 +72,7 @@ class AnalyzerDecomp:
 # decomposition map note.
 _DECOMP: dict[str, AnalyzerDecomp] = {
     # --- per-epoch, site in the key ---
-    "activation_basis_projection": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
+    "activation_frequency_norm": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "repr_geometry": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "centroid_fourier_alignment": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "weight_basis_projection": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),

@@ -1,6 +1,6 @@
 """REQ_141 parity check — the neuron-frequency slice vs. the baselines (read-only).
 
-Non-destructive: reads each baseline's existing ``activation_basis_projection`` +
+Non-destructive: reads each baseline's existing ``activation_frequency_norm`` +
 the legacy ``neuron_dynamics`` / ``transient_frequency`` artifacts, recomputes the
 new per-epoch attribution, the reshaped neuron_dynamics tail, and the three derived
 transient tables entirely in memory, and asserts value parity. Writes nothing.
@@ -23,7 +23,6 @@ from miscope.analysis.derived_tables import (
     TRANSIENT_FREQUENCIES_TABLE,
     TRANSIENT_PEAK_MEMBERS_TABLE,
 )
-from miscope.analysis.library import NEURON_FREQ_NORM_FIELDS, reconstruct_neuron_freq_norm
 from miscope.analysis.library.fourier_basis import get_fourier_basis
 
 BASELINES = [(113, 999, 598), (109, 485, 598), (101, 999, 598)]
@@ -34,9 +33,9 @@ def _new_attribution(variant, epochs, prime):
     doms, fracs = [], []
     for ep in epochs:
         proj = variant.artifacts.load_epoch(
-            "activation_basis_projection", ep, fields=NEURON_FREQ_NORM_FIELDS
+            "activation_frequency_norm", ep, fields=["mlp_out_freq_norm"]
         )
-        norm = reconstruct_neuron_freq_norm(proj, prime)
+        norm = proj["mlp_out_freq_norm"]
         doms.append(np.argmax(norm, axis=0))
         fracs.append(np.max(norm, axis=0))
     return np.stack(doms), np.stack(fracs)

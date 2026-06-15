@@ -16,26 +16,20 @@ from typing import Any
 import numpy as np
 
 from miscope.analysis.inputs import ALL, ArtifactInput, DepsAccessor, ResolvedInputs
-from miscope.analysis.library import (
-    NEURON_FREQ_NORM_FIELDS,
-    extract_neuron_weight_matrix,
-    reconstruct_neuron_freq_norm,
-)
+from miscope.analysis.library import extract_neuron_weight_matrix
 from miscope.analysis.output_schema import OutputField as F
 from miscope.analysis.parameters import ParameterSpec, Reducer, ReferenceBinding
 from miscope.analysis.registry import register_analyzer
 from miscope.analysis.spec import AnalyzerSpec
 
 # REQ_138: the group-defining reference epoch is a declared parameter, defaulting to
-# a floating ``max_epoch`` reference into activation_basis_projection (the artifact
+# a floating ``max_epoch`` reference into activation_frequency_norm (the artifact
 # read at the reference epoch) rather than a hardcoded ``sorted_epochs[-1]``.
 _REFERENCE_EPOCH_PARAM = ParameterSpec(
     name="reference_epoch",
     dtype="int64",
     scope="analyzer",
-    default=ReferenceBinding(
-        "reference_epoch", "activation_basis_projection", Reducer("max_epoch")
-    ),
+    default=ReferenceBinding("reference_epoch", "activation_frequency_norm", Reducer("max_epoch")),
 )
 
 # Keys are flat (no prefix): for columnar fields the group/neuron axes flatten to
@@ -45,7 +39,7 @@ SPEC = AnalyzerSpec(
     name="neuron_group_pca",
     output_scope="cross_epoch",
     inputs=(
-        ArtifactInput("activation_basis_projection"),
+        ArtifactInput("activation_frequency_norm"),
         ArtifactInput("parameter_snapshot"),
     ),
     outputs=(
@@ -154,7 +148,7 @@ class NeuronGroupPCAAnalyzer:
     """
 
     name = "neuron_group_pca"
-    requires = ["activation_basis_projection", "parameter_snapshot"]
+    requires = ["activation_frequency_norm", "parameter_snapshot"]
 
     def analyze(
         self,
@@ -164,12 +158,11 @@ class NeuronGroupPCAAnalyzer:
         """Compute group coordination metrics across all checkpoints."""
         assert inputs.deps is not None
         assert inputs.epochs is not None
-        prime = int(context["params"]["prime"])
         epochs = list(inputs.epochs)
         sorted_epochs = sorted(epochs)
 
         reference_epoch = int(inputs.parameters["reference_epoch"])
-        group_freqs, group_members = _assign_groups(inputs.deps, reference_epoch, prime)
+        group_freqs, group_members = _assign_groups(inputs.deps, reference_epoch)
 
         if not group_freqs:
             return _empty_result(sorted_epochs)
@@ -225,22 +218,21 @@ class NeuronGroupPCAAnalyzer:
 def _assign_groups(
     deps: DepsAccessor,
     reference_epoch: int,
-    prime: int,
 ) -> tuple[list[int], list[np.ndarray]]:
     """Assign neurons to frequency groups using the reference epoch.
 
     Returns only groups with at least 2 neurons (PCA requires >= 2).
-    Group assignment is by argmax of norm_matrix — no threshold applied,
-    so all neurons are assigned to exactly one group.
+    Group assignment is by argmax of the activation freq_norm — no threshold
+    applied, so all neurons are assigned to exactly one group.
 
     Returns:
         (group_freqs, group_members): parallel lists of frequency index
         and member neuron indices for each group.
     """
     projection = deps.load_epoch(
-        "activation_basis_projection", reference_epoch, fields=NEURON_FREQ_NORM_FIELDS
+        "activation_frequency_norm", reference_epoch, fields=["mlp_out_freq_norm"]
     )
-    norm_matrix = reconstruct_neuron_freq_norm(projection, prime)  # (n_freq, d_mlp)
+    norm_matrix = projection["mlp_out_freq_norm"]  # (n_freq, d_mlp)
     dominant_freq = np.argmax(norm_matrix, axis=0)  # (d_mlp,)
 
     group_freqs = []

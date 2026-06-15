@@ -261,7 +261,7 @@ class TestAnalyzerRegistry:
         """Test that default analyzers are registered on import."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        assert AnalyzerRegistry.is_registered("activation_basis_projection")
+        assert AnalyzerRegistry.is_registered("activation_frequency_norm")
         assert AnalyzerRegistry.is_registered("neuron_activations")
         assert AnalyzerRegistry.is_registered("weight_basis_projection")
 
@@ -269,8 +269,8 @@ class TestAnalyzerRegistry:
         """Test instantiating an analyzer by name."""
         from miscope.analysis.analyzers import AnalyzerRegistry
 
-        analyzer = AnalyzerRegistry.create("activation_basis_projection")
-        assert analyzer.name == "activation_basis_projection"
+        analyzer = AnalyzerRegistry.create("activation_frequency_norm")
+        assert analyzer.name == "activation_frequency_norm"
 
     def test_get_unknown_analyzer_raises(self):
         """Test error when instantiating an unknown analyzer."""
@@ -284,7 +284,7 @@ class TestAnalyzerRegistry:
         from miscope.analysis.analyzers import AnalyzerRegistry
 
         all_names = AnalyzerRegistry.list_all_names()
-        assert "activation_basis_projection" in all_names
+        assert "activation_frequency_norm" in all_names
         assert "neuron_activations" in all_names
         assert "weight_spectra" in all_names
 

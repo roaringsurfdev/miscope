@@ -54,7 +54,7 @@ def temp_data_root() -> Path:
             },
             "analyzers": [
                 "neuron_activations",
-                "activation_basis_projection",
+                "activation_frequency_norm",
                 "weight_spectra",
             ],
             "visualizations": ["dominant_frequencies_bar"],
@@ -244,7 +244,7 @@ class TestAnalyzerIntegration:
         assert len(specs) == 3
         analyzer_names = {s.name for s in specs}
         assert "neuron_activations" in analyzer_names
-        assert "activation_basis_projection" in analyzer_names
+        assert "activation_frequency_norm" in analyzer_names
         assert "weight_spectra" in analyzer_names
 
     def test_run_neuron_activations_analyzer(self, family):

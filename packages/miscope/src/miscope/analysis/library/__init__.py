@@ -18,10 +18,6 @@ from miscope.analysis.library.activations import (
     get_embedding_weights,
     reshape_to_grid,
 )
-from miscope.analysis.library.basis_reconstruction import (
-    NEURON_FREQ_NORM_FIELDS,
-    reconstruct_neuron_freq_norm,
-)
 from miscope.analysis.library.clustering import (
     compute_center_spread,
     compute_class_centroids,
@@ -144,7 +140,4 @@ __all__ = [
     "normalize_per_group",
     # Landscape flatness functions
     "compute_landscape_flatness",
-    # Basis-projection reconstruction (REQ_131)
-    "reconstruct_neuron_freq_norm",
-    "NEURON_FREQ_NORM_FIELDS",
 ]

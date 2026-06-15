@@ -75,8 +75,8 @@ class ModelFamily(Protocol):
         ...
 
     @property
-    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """Activation-side sites for ``activation_basis_projection`` (REQ_126).
+    def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """Activation-side sites for ``activation_frequency_norm`` (REQ_126).
 
         Parallel to ``weight_basis_projection_sites`` but the composer
         takes ``(activation_cache, context) -> ndarray`` and each site

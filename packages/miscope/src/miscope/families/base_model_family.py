@@ -133,8 +133,8 @@ class BaseModelFamily:
         return ()
 
     @property
-    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """REQ_126: activation-side sites for ``activation_basis_projection``.
+    def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_frequency_norm``.
 
         Default is empty — families that supply a basis override this in
         their subclass.

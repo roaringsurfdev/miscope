@@ -81,14 +81,14 @@ def test_loose_rescues_site_replicated_frequencies():
     # frequencies declared site-independent but written per-site on disk.
     fields = (
         F.columnar("frequencies", "int32", ("variant", "epoch", "frequency"), ""),
-        F.tensor("power", "float64", ("variant", "epoch", "site"), ""),
+        F.tensor("freq_norm", "float64", ("variant", "epoch", "site"), ""),
     )
-    keys = ("attn_pattern_frequencies", "mlp_out_frequencies", "attn_pattern_power")
-    matches = assign_keys("activation_basis_projection", fields, keys)
+    keys = ("attn_pattern_frequencies", "mlp_out_frequencies", "attn_pattern_freq_norm")
+    matches = assign_keys("activation_frequency_norm", fields, keys)
     m = _by_key(matches)
     # strict match for the site-keyed tensor field
-    assert m["attn_pattern_power"].field.name == "power"
-    assert not m["attn_pattern_power"].loose
+    assert m["attn_pattern_freq_norm"].field.name == "freq_norm"
+    assert not m["attn_pattern_freq_norm"].loose
     # loose rescue for the site-replicated columnar field — no declared site coord
     assert m["attn_pattern_frequencies"].field.name == "frequencies"
     assert m["attn_pattern_frequencies"].loose

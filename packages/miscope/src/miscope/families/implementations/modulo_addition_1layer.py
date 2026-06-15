@@ -263,7 +263,7 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             "neuron_grouping_override": self._neuron_grouping_override,
             # REQ_126: family-supplied sites for basis-projection analyzers.
             "weight_basis_projection_sites": self.weight_basis_projection_sites,
-            "activation_basis_projection_sites": self.activation_basis_projection_sites,
+            "activation_frequency_norm_sites": self.activation_frequency_norm_sites,
         }
 
     def _neuron_grouping_override(
@@ -362,8 +362,8 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
         )
 
     @property
-    def activation_basis_projection_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """REQ_126: activation-side sites for ``activation_basis_projection``.
+    def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_126: activation-side sites for ``activation_frequency_norm``.
 
         Two sites absorb the activation-side Fourier analyzers:
         - ``attn_pattern`` reproduces ``attention_freq`` (post-softmax
