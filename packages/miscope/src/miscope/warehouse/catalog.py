@@ -84,7 +84,7 @@ def _append_catalog(variant: object, table: str, rows: list[ColumnarCatalogRow])
     path.parent.mkdir(parents=True, exist_ok=True)
     new = pd.DataFrame([asdict(r) for r in rows])
     if path.exists():
-        existing = pd.read_parquet(path, engine="pyarrow")
+        existing = pd.read_parquet(path, engine="pyarrow")  # type: ignore
         combined = pd.concat([existing, new], ignore_index=True)
         combined = combined.drop_duplicates(subset=["id"], keep="last", ignore_index=True)
     else:
