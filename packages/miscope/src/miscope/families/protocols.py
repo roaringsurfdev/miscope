@@ -152,12 +152,16 @@ class ModelFamily(Protocol):
         self,
         params: dict[str, Any],
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> HookedModel:
         """Instantiate a model with the given domain parameters.
 
         Args:
             params: Domain parameter values (e.g., {"prime": 113, "seed": 42})
             device: Device to place the model on
+            dtype: Forward-pass dtype. ``None`` (default) keeps the framework
+                default (float32); ``torch.float64`` builds/casts the model to
+                double precision for the float64-instability experiment.
 
         Returns:
             A ``HookedModel`` configured for this family.

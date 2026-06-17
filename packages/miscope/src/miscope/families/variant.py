@@ -193,16 +193,21 @@ class Variant:
             return f"{epoch}:absent"
         return f"{epoch}:{st.st_size}:{st.st_mtime_ns}"
 
-    def load_model_at_checkpoint(self, epoch: int) -> HookedModel:
+    def load_model_at_checkpoint(self, epoch: int, dtype: torch.dtype | None = None) -> HookedModel:
         """Load a ``HookedModel`` with weights from a specific checkpoint.
 
         Args:
             epoch: The epoch number of the checkpoint to load
+            dtype: Forward-pass dtype for the loaded model. ``None`` (default)
+                keeps the framework default (float32). Pass ``torch.float64``
+                to run the forward pass in double precision — float32
+                checkpoint weights are upcast on ``load_state_dict``. This is
+                the single seam for the float64-instability experiment.
 
         Returns:
             ``HookedModel`` with checkpoint weights loaded
         """
-        model = self._family.create_model(self._params)
+        model = self._family.create_model(self._params, dtype=dtype)
         state_dict = self.load_checkpoint(epoch)
         model.load_state_dict(state_dict)
         return model
@@ -331,6 +336,7 @@ class Variant:
         probe: torch.Tensor,
         epoch: int,
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> tuple[torch.Tensor, ActivationCache]:
         """Load model at checkpoint and run a forward pass with activation cache.
 
@@ -338,11 +344,16 @@ class Variant:
             probe: Input tensor for the forward pass
             epoch: Checkpoint epoch to load
             device: Device for the model (default: auto-detect)
+            dtype: Forward-pass dtype. ``None`` (default) keeps the framework
+                default (float32); ``torch.float64`` runs the full forward pass
+                — and therefore the returned logits and every cached activation
+                — in double precision. The single seam for the float64
+                instability experiment.
 
         Returns:
             Tuple of (logits, cache) from ``HookedModel.run_with_cache``
         """
-        model = self.load_model_at_checkpoint(epoch)
+        model = self.load_model_at_checkpoint(epoch, dtype=dtype)
         if device is not None:
             model.to(device)  # in-place device move
         logits, cache = model.run_with_cache(probe)

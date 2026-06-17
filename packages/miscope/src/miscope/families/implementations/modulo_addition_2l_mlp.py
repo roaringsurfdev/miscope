@@ -49,12 +49,16 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
         self,
         params: dict[str, Any],
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> HookedOneHotMLP:
         """Create a ``HookedOneHotMLP`` for modular addition.
 
         Args:
             params: Domain parameters containing 'prime', 'seed'
             device: Device to place the model on
+            dtype: Forward-pass dtype. ``None`` keeps the framework default
+                (float32); a value such as ``torch.float64`` casts parameters
+                to that precision.
 
         Returns:
             ``HookedOneHotMLP`` configured for this prime
@@ -67,6 +71,8 @@ class ModuloAddition2LMLPFamily(BaseModelFamily):
 
         if device is not None:
             model = model.to(device)
+        if dtype is not None:
+            model = model.to(dtype)
 
         return model
 
