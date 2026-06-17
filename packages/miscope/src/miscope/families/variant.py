@@ -336,6 +336,7 @@ class Variant:
         probe: torch.Tensor,
         epoch: int,
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> tuple[torch.Tensor, ActivationCache]:
         """Load model at checkpoint and run a forward pass with activation cache.
 
@@ -343,11 +344,16 @@ class Variant:
             probe: Input tensor for the forward pass
             epoch: Checkpoint epoch to load
             device: Device for the model (default: auto-detect)
+            dtype: Forward-pass dtype. ``None`` (default) keeps the framework
+                default (float32); ``torch.float64`` runs the full forward pass
+                — and therefore the returned logits and every cached activation
+                — in double precision. The single seam for the float64
+                instability experiment.
 
         Returns:
             Tuple of (logits, cache) from ``HookedModel.run_with_cache``
         """
-        model = self.load_model_at_checkpoint(epoch)
+        model = self.load_model_at_checkpoint(epoch, dtype=dtype)
         if device is not None:
             model.to(device)  # in-place device move
         logits, cache = model.run_with_cache(probe)
