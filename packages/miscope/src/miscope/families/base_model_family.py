@@ -266,7 +266,12 @@ class BaseModelFamily:
         """
         return self._config.get("ui_trainable", True)
 
-    def create_model(self, params: dict[str, Any], device: str | torch.device | None = None) -> Any:
+    def create_model(
+        self,
+        params: dict[str, Any],
+        device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> Any:
         """Create a model instance.
 
         Note: This base implementation raises NotImplementedError.
@@ -274,6 +279,12 @@ class BaseModelFamily:
 
         Args:
             params: Domain parameter values
+            device: Device to place the model on (default: framework default)
+            dtype: Floating-point dtype for model parameters and the forward
+                pass. ``None`` (default) leaves the framework default
+                (float32) untouched. Pass ``torch.float64`` to run the forward
+                pass in double precision — the single seam for the float64
+                experiment; no float32 is hard-coded anywhere.
 
         Raises:
             NotImplementedError: Must be implemented by subclass

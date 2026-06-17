@@ -193,16 +193,21 @@ class Variant:
             return f"{epoch}:absent"
         return f"{epoch}:{st.st_size}:{st.st_mtime_ns}"
 
-    def load_model_at_checkpoint(self, epoch: int) -> HookedModel:
+    def load_model_at_checkpoint(self, epoch: int, dtype: torch.dtype | None = None) -> HookedModel:
         """Load a ``HookedModel`` with weights from a specific checkpoint.
 
         Args:
             epoch: The epoch number of the checkpoint to load
+            dtype: Forward-pass dtype for the loaded model. ``None`` (default)
+                keeps the framework default (float32). Pass ``torch.float64``
+                to run the forward pass in double precision — float32
+                checkpoint weights are upcast on ``load_state_dict``. This is
+                the single seam for the float64-instability experiment.
 
         Returns:
             ``HookedModel`` with checkpoint weights loaded
         """
-        model = self._family.create_model(self._params)
+        model = self._family.create_model(self._params, dtype=dtype)
         state_dict = self.load_checkpoint(epoch)
         model.load_state_dict(state_dict)
         return model

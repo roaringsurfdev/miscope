@@ -54,6 +54,7 @@ class ModuloAdditionEmbedMLPFamily(BaseModelFamily):
         self,
         params: dict[str, Any],
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> HookedEmbeddingMLP:
         p = params["prime"]
         seed = params.get("seed", self.get_default_params().get("seed", 999))
@@ -65,6 +66,8 @@ class ModuloAdditionEmbedMLPFamily(BaseModelFamily):
         )
         if device is not None:
             model = model.to(device)
+        if dtype is not None:
+            model = model.to(dtype)
         return model
 
     def generate_analysis_dataset(

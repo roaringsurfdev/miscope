@@ -57,6 +57,7 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
         self,
         params: dict[str, Any],
         device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
     ) -> HookedTransformer:
         """Create a miscope ``HookedTransformer`` for modular addition.
 
@@ -68,6 +69,9 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
         Args:
             params: Domain parameters containing 'prime' and optionally 'seed'
             device: Device to place the model on (default: None, uses default device)
+            dtype: Forward-pass dtype. ``None`` keeps TransformerLens' float32
+                default; ``torch.float64`` builds weights and runs the forward
+                pass in double precision (the float64-instability experiment).
 
         Returns:
             ``HookedTransformer`` configured for modular addition.
@@ -77,7 +81,7 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
 
         arch = self.architecture
 
-        cfg = HookedTransformerConfig(
+        cfg_kwargs: dict[str, Any] = dict(
             n_layers=arch.get("n_layers", 1),
             n_heads=arch.get("n_heads", 4),
             d_model=arch.get("d_model", 128),
@@ -92,7 +96,12 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             device=str(device) if device is not None else None,
             seed=seed,
         )
+        # Only override TransformerLens' own dtype default (float32) when a
+        # caller explicitly requests another precision (e.g. float64).
+        if dtype is not None:
+            cfg_kwargs["dtype"] = dtype
 
+        cfg = HookedTransformerConfig(**cfg_kwargs)
         model = HookedTransformer(cfg)
 
         # Disable biases (matches original experiment)
