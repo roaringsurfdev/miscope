@@ -273,6 +273,8 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
             # REQ_126: family-supplied sites for basis-projection analyzers.
             "weight_basis_projection_sites": self.weight_basis_projection_sites,
             "activation_frequency_norm_sites": self.activation_frequency_norm_sites,
+            # REQ_152: family-supplied composed-circuit sites for full_ov_circuit.
+            "circuit_spectra_sites": self.circuit_spectra_sites,
         }
 
     def _neuron_grouping_override(
@@ -368,7 +370,20 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
                 period_axes=(0,),
                 description="(W_out @ W_U)^T — composed neuron output weight: (p, d_mlp)",
             ),
+            # REQ_152: the full OV circuit as a 2D Fourier site → its task-conditional
+            # dominant_frequency comes from this universal instrument (CHEAP repoint),
+            # not re-derived in full_ov_circuit.
+            _FULL_OV_SITE,
         )
+
+    @property
+    def circuit_spectra_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_152: composed-circuit sites for the ``full_ov_circuit`` analyzer.
+
+        Currently the single ``full_ov`` path; sibling circuits (OV, QK, full QK,
+        direct path) are added here as the data model's Layer 4 buildout proceeds.
+        """
+        return (_FULL_OV_SITE,)
 
     @property
     def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:
@@ -501,6 +516,39 @@ def _compose_mlp_out(snapshot: dict[str, Any], context: dict[str, Any]) -> np.nd
     W_out = np.asarray(snapshot["W_out"])
     W_U = np.asarray(snapshot["W_U"])
     return (W_out @ W_U[:, :p]).T  # type: ignore[no-any-return]
+
+
+def _compose_full_ov(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``full_ov`` site: per-head end-to-end OV circuit in token space (REQ_152).
+
+    ``M[h] = W_E[:p] @ W_V[h] @ W_O[h] @ W_U[:, :p]`` — the source-token →
+    output-logit map through head ``h``'s OV path, restricted to the ``p`` task
+    tokens (excludes the equals token). ``M[h][src, out]`` is the logit that source
+    token ``src`` contributes to output token ``out`` via head ``h``. Result shape
+    ``(n_heads, p, p)``; period axes 1 and 2 (2D Fourier). Spectral invariants
+    (SVD, eigenvalues) are transpose-invariant, so the src/out orientation does not
+    affect ``full_ov_circuit``'s measurements.
+    """
+    p = int(context["params"]["prime"])
+    W_E = np.asarray(snapshot["W_E"])[:p]  # (p, d_model)
+    W_V = np.asarray(snapshot["W_V"])  # (n_heads, d_model, d_head)
+    W_O = np.asarray(snapshot["W_O"])  # (n_heads, d_head, d_model)
+    W_U = np.asarray(snapshot["W_U"])[:, :p]  # (d_model, p)
+    ev = np.einsum("td,hdk->htk", W_E, W_V)  # (n_heads, p, d_head)
+    evo = np.einsum("htk,hkm->htm", ev, W_O)  # (n_heads, p, d_model)
+    return np.einsum("htm,mo->hto", evo, W_U)  # (n_heads, p, p)
+
+
+# REQ_152: the full OV circuit, declared once and shared by the Fourier instrument
+# (weight_basis_projection_sites → dominant_frequency) and the spectral instrument
+# (circuit_spectra_sites → copying_score / effective_rank / operator_norm), so the
+# composition has a single source of truth.
+_FULL_OV_SITE = BasisProjectionSite(
+    name="full_ov",
+    compose=_compose_full_ov,
+    period_axes=(1, 2),
+    description="Full OV circuit W_E[:p] W_V[h] W_O[h] W_U[:,:p] per head: (n_heads, p, p)",
+)
 
 
 def _compose_attn_v(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:

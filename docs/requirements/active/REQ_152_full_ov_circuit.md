@@ -1,6 +1,6 @@
 # REQ_152: FullOVCircuit — the end-to-end OV path as a first-class object
 
-**Status:** Draft — not started.
+**Status:** Implemented on `feature/REQ_152_full_ov_circuit` (awaiting merge to `develop`).
 **Priority:** High — the data model's designated "build first" Layer 4 object
 (`data_model_master.md`, Part V build-readiness scan). First requirement built
 *against* the canonical data model.
@@ -159,3 +159,29 @@ Attribute homes (per `FullOVCircuit` in the data model):
 - **Depends on the Track 0 discriminator fix** (`fix/discriminator-group-type-stamp`,
   data model Part VI #1) being merged to `develop` first, so the L2 weight-side vs.
   activation-side discriminator is trustworthy when the conformed claim lands.
+
+### Implementation findings (build pass, 2026-06-28)
+
+- **Signature-scope gap (REQ_145).** Adding the `full_ov` *site* to a family's
+  `weight_basis_projection_sites` does **not** invalidate the consuming analyzer's
+  incremental-refresh signature — the site list is family *context*, not part of
+  `weight_basis_projection`'s provenance signature — so the "free" Fourier
+  `dominant_frequency` repoint did **not** auto-materialize; it required a forced
+  `weight_basis_projection` regeneration. The genuinely-new `full_ov_circuit`
+  analyzer ran fine (it had no prior artifacts). **Follow-up:** REQ_145's freshness
+  predicate should fold family composition-site config (or a site-set hash) into the
+  signature so a site addition invalidates its consumers. Until then, repointing a
+  universal site-driven instrument at a new operand needs a deliberate
+  force-rebuild of that instrument. (Bundle into the REQ_137 mass refresh.)
+- **`dominant_frequency` of the OV circuit is a 2D *pair*.** `full_ov` is a 2D site
+  (period axes 1, 2, like `attn_qk`), so the Fourier instrument emits the columnar
+  `dominant_frequency` only for 1D sites; the OV circuit's dominant frequency lands
+  as the `dominant_frequency_pair` **tensor** `(n_heads, 2)`. The data model's
+  scalar "dominant_frequency" attribute on FullOVCircuit is, concretely, this
+  `(k_a, k_b)` pair — worth reflecting when the conformed claim is written.
+- **Validated end-to-end on p113/s999/ds598 @ epoch 24999:** composed matrix +
+  `operator_norm` match an independent `W_E W_V W_O W_U` composition; `copying_score`
+  ∈ [0, 1] and differentiates heads (e.g. head 2 ≈ 0.86 copy-like vs head 1 ≈ 0.001
+  transform-like); both tensor fields (`circuit_matrix` `(4,113,113)` f64,
+  `eigenvalues` `(4,113)` c128) catalogue and resolve; columnar fields query via
+  `miscope.query`; `registry.field("copying_score")` resolves.
