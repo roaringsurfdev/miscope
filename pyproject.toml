@@ -48,6 +48,7 @@ line-length = 100
 target-version = "py311"
 extend-exclude = [
     "*.ipynb",
+    "apps/research/notebooks/*",
     "apps/research/sketches/*",
     "docs/*",
 ]
@@ -67,6 +68,7 @@ typeCheckingMode = "basic"
 extraPaths = ["scripts"]
 ignore = [
     "*.ipynb",
+    "apps/research/notebooks",
     "apps/research/sketches",
     "docs",
 ]
