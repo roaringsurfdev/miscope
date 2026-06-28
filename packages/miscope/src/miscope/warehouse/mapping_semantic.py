@@ -240,7 +240,12 @@ CLAIMS: dict[str, list[Claim]] = {
         Claim(
             "shape_characterizations",
             ("circularity",),
-            _shape_melt(GroupType.ACTIVATION_SITE, group_col="site"),
+            # Weight-side geometry (WeightMatrix in the data model, Part VI #1):
+            # this is intrinsic to the parameter tensors, NOT a probe-relative
+            # activation reading. Stamp WEIGHT_MATRIX so it never collides with
+            # repr_geometry's activation-side circularity (CENTROID_GROUP) in
+            # shape_characterizations.
+            _shape_melt(GroupType.WEIGHT_MATRIX, group_col="site"),
         ),
     ],
     "centroid_fourier_alignment": [
