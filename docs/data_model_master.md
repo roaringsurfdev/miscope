@@ -387,10 +387,12 @@ the whole layer is platform metadata.)
 > | --- | --- | --- | --- |
 > | **model side** | `Architecture` (depth/width/ctx) | train (seeds) | `Variant` (trained net) |
 > | **task side** | `TaskType` (basis + dataset logic) | resolve (`prime`) | `Task` (ModAdd mod 109) |
-> | **pairing** | `Family` = Architecture × TaskType | | a Variant bound to its Task |
+> | **pairing** | `Family` = Architecture × TaskType | instantiate Family | `Variant` (binds its `Task`) |
 >
-> Per-factor symmetry: **Architecture : Variant :: TaskType : Task** (instance-of-a-type on each side);
-> the Family is the type-pairing, the (Variant, Task) binding the instance-pairing. The factors are
+> Headline proportion (instance : type): **Variant : Family :: Task : TaskType** — a Variant is to its
+> Family what a Task is to its TaskType. Per-factor view: **Architecture : Variant :: TaskType : Task**
+> (each factor's own type → instance). The Family is the type-pairing; *its* instance is the `Variant`,
+> which binds the `Task` it trained on. The factors are
 > independent — different architectures train on one TaskType (**already true here**), one architecture
 > may (in future) train on a *set* of TaskTypes — so the Family owns no semantics of its own. This
 > resolves the old "family object-type ownership" tension (Part VI #2): semantic context — group
@@ -834,7 +836,7 @@ not a free body. See Part I / the DMD note.)*
 
 ---
 
-### Layer 7 — Events · `[E]` · `STABLE (structure) · thin · PLANNED` (new capability)
+## Layer 7 — Events · `[E]` · `STABLE (structure) · thin · PLANNED` (new capability)
 
 The **Events** mode of the observability lens (Part 0): a discrete state-change at a *point* in
 training time, derived from the Metric time series of Layers 2–6. Three properties fix what an Event
@@ -1190,4 +1192,10 @@ one. That distinction was invisible in the old single-tier column.*
   vs *parameters-only* signature, both in the key, the pair resolving via `MethodRecipe` (keeps "all
   events from detector X" cheap); **IrrepBasis vs invariant #1** — the Fourier transform is the
   universal instrument, the Task only supplies the basis *parameter*, so #1 and #2 are both honored.
+- **Cross-doc consistency fixes (2026-06-28):** corrected `CLAUDE.md`'s architectural constraint #2
+  (still credited "families" with the Fourier basis + task metrics) to match `PROJECT.md` — Tasks
+  provide context, Families own neither semantics nor views. Signposted the type/instance lattice
+  consistently: **Variant : Family :: Task : TaskType** is the headline proportion; *Architecture :
+  Variant :: TaskType : Task* is the per-factor view (both docs). Fixed the Layer 7 heading level
+  (`###` → `##`).
 - **Retired V1 + V2 files** — `data-domain-model.md` and `datamodel.md` deleted; this is canonical.
