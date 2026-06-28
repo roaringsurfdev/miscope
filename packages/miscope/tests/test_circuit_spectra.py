@@ -1,14 +1,14 @@
-"""REQ_152: FullOVCircuitAnalyzer tests.
+"""REQ_152 / REQ_154: CircuitSpectraAnalyzer tests.
 
 Two layers:
 
-1. Composition correctness — the family's ``full_ov`` composer reproduces an
-   independent hand-rolled ``W_E[:p] W_V[h] W_O[h] W_U[:,:p]`` per head.
+1. Composition correctness — the family's ``full_ov`` and ``full_qk`` composers
+   reproduce independent hand-rolled references per head.
 2. Spectral-instrument correctness on synthetic snapshots — the analyzer's
    ``operator_norm`` / ``effective_rank`` / ``eigenvalues`` match independent
    reference computations, and ``copying_score`` is bounded in ``[0, 1]``.
 
-No prior numbers exist for this object (it is new), so the oracle is an
+No prior numbers exist for these objects (they are new), so the oracle is an
 independent reference computation, not a parity baseline.
 """
 
@@ -17,14 +17,15 @@ from __future__ import annotations
 import numpy as np
 from _deps_fakes import deps_inputs
 
-from miscope.analysis.analyzers.full_ov_circuit import (
-    FullOVCircuitAnalyzer,
+from miscope.analysis.analyzers.circuit_spectra import (
+    CircuitSpectraAnalyzer,
     _circuit_spectra,
     _copying_score,
 )
 from miscope.analysis.library.weights import compute_participation_ratio
 from miscope.families.implementations.modulo_addition_1layer import (
     ModuloAddition1LayerFamily,
+    _compose_attn_qk,
     _compose_full_ov,
 )
 
@@ -40,6 +41,8 @@ def _synthetic_snapshot() -> dict[str, np.ndarray]:
     return {
         "W_E": rng.standard_normal((P + 1, D_MODEL)).astype(np.float32),
         "W_U": rng.standard_normal((D_MODEL, P + 1)).astype(np.float32),
+        "W_Q": rng.standard_normal((N_HEADS, D_MODEL, D_HEAD)).astype(np.float32),
+        "W_K": rng.standard_normal((N_HEADS, D_MODEL, D_HEAD)).astype(np.float32),
         "W_V": rng.standard_normal((N_HEADS, D_MODEL, D_HEAD)).astype(np.float32),
         "W_O": rng.standard_normal((N_HEADS, D_HEAD, D_MODEL)).astype(np.float32),
     }
@@ -56,14 +59,24 @@ def _context() -> dict:
 
 
 def test_compose_full_ov_matches_reference():
-    """The composer equals an independent per-head W_E W_V W_O W_U reference."""
+    """The OV composer equals an independent per-head W_E W_V W_O W_U reference."""
     snap = _synthetic_snapshot()
     matrix = _compose_full_ov(snap, {"params": {"prime": P}})
     assert matrix.shape == (N_HEADS, P, P)
-
     W_E, W_U = snap["W_E"][:P], snap["W_U"][:, :P]
     for h in range(N_HEADS):
         reference = W_E @ snap["W_V"][h] @ snap["W_O"][h] @ W_U
+        np.testing.assert_allclose(matrix[h], reference, rtol=1e-5, atol=1e-5)
+
+
+def test_compose_full_qk_matches_reference():
+    """The QK composer equals an independent per-head (W_E W_Q)(W_E W_K)^T reference."""
+    snap = _synthetic_snapshot()
+    matrix = _compose_attn_qk(snap, {"params": {"prime": P}})
+    assert matrix.shape == (N_HEADS, P, P)
+    W_E = snap["W_E"][:P]
+    for h in range(N_HEADS):
+        reference = (W_E @ snap["W_Q"][h]) @ (W_E @ snap["W_K"][h]).T
         np.testing.assert_allclose(matrix[h], reference, rtol=1e-5, atol=1e-5)
 
 
@@ -74,34 +87,27 @@ def test_compose_full_ov_matches_reference():
 
 def test_empty_sites_returns_empty():
     """No declared circuit sites → analyzer is a no-op."""
-    analyzer = FullOVCircuitAnalyzer()
+    analyzer = CircuitSpectraAnalyzer()
     inputs = deps_inputs({"parameter_snapshot": _synthetic_snapshot()})
     assert analyzer.analyze(inputs, {"params": {"prime": P}}) == {}
 
 
 def test_analyzer_keys_and_shapes():
-    """Site-prefixed keys; columnar fields per head, tensors carry full shape."""
-    analyzer = FullOVCircuitAnalyzer()
+    """Both circuit sites emit site-prefixed keys; columnar per head, tensors full shape."""
+    analyzer = CircuitSpectraAnalyzer()
     inputs = deps_inputs({"parameter_snapshot": _synthetic_snapshot()})
     result = analyzer.analyze(inputs, _context())
 
-    expected = {
-        f"full_ov_{k}"
-        for k in (
-            "copying_score",
-            "effective_rank",
-            "operator_norm",
-            "circuit_matrix",
-            "eigenvalues",
-        )
-    }
+    fields = ("copying_score", "effective_rank", "operator_norm", "circuit_matrix", "eigenvalues")
+    expected = {f"{site}_{f}" for site in ("full_ov", "full_qk") for f in fields}
     assert set(result) == expected
-    assert result["full_ov_copying_score"].shape == (N_HEADS,)
-    assert result["full_ov_effective_rank"].shape == (N_HEADS,)
-    assert result["full_ov_operator_norm"].shape == (N_HEADS,)
-    assert result["full_ov_circuit_matrix"].shape == (N_HEADS, P, P)
-    assert result["full_ov_eigenvalues"].shape == (N_HEADS, P)
-    assert result["full_ov_eigenvalues"].dtype == np.complex128
+    for site in ("full_ov", "full_qk"):
+        assert result[f"{site}_copying_score"].shape == (N_HEADS,)
+        assert result[f"{site}_effective_rank"].shape == (N_HEADS,)
+        assert result[f"{site}_operator_norm"].shape == (N_HEADS,)
+        assert result[f"{site}_circuit_matrix"].shape == (N_HEADS, P, P)
+        assert result[f"{site}_eigenvalues"].shape == (N_HEADS, P)
+        assert result[f"{site}_eigenvalues"].dtype == np.complex128
 
 
 def test_spectral_invariants_match_reference():

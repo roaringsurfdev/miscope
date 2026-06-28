@@ -378,12 +378,22 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
 
     @property
     def circuit_spectra_sites(self) -> tuple[BasisProjectionSite, ...]:
-        """REQ_152: composed-circuit sites for the ``full_ov_circuit`` analyzer.
+        """REQ_152 / REQ_154: composed-circuit sites for the ``circuit_spectra`` analyzer.
 
-        Currently the single ``full_ov`` path; sibling circuits (OV, QK, full QK,
-        direct path) are added here as the data model's Layer 4 buildout proceeds.
+        ``full_ov`` (W_U W_O W_V W_E) and ``full_qk`` (W_E^T W_Q^T W_K W_E — the same
+        square token-pair form the ``attn_qk`` composer already builds, reused here).
+        Remaining Layer 4 siblings (OV, QK, direct path) are added as one-line site
+        entries as the buildout proceeds.
         """
-        return (_FULL_OV_SITE,)
+        return (
+            _FULL_OV_SITE,
+            BasisProjectionSite(
+                name="full_qk",
+                compose=_compose_attn_qk,
+                period_axes=(1, 2),
+                description="Full QK circuit W_E^T W_Q^T W_K W_E per head (n_heads, p, p)",
+            ),
+        )
 
     @property
     def activation_frequency_norm_sites(self) -> tuple[BasisProjectionSite, ...]:

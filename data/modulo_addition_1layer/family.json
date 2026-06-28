@@ -39,7 +39,7 @@
     "fourier_nucleation",
     "input_trace",
     "weight_basis_projection",
-    "full_ov_circuit",
+    "circuit_spectra",
     "activation_frequency_norm",
     "weight_spectra",
     "fourier_frequency_quality",
