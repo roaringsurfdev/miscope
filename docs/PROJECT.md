@@ -20,7 +20,7 @@ The platform **accumulates analytical capability over time.** When a lens reveal
 
 **Scientific invariant:** For any analysis run, the only independent variable is the training checkpoint. The model variant and probe dataset are held constant. Confounds introduced by researcher error — different probes, accidental model variation — make visualizations misleading. The workbench systematizes this so comparisons are meaningful.
 
-**Architectural invariant (views & families):** Analytical views are universal instruments. A lens that reveals structure in one transformer applies to any transformer. The instrument does not change shape because of the model family. Families are context providers — they contribute probe construction, interpretive context (e.g., a prime-based Fourier basis for modulo addition), and task-specific performance metrics. They do not own analytical views.
+**Architectural invariant (views, tasks & families):** Analytical views are universal instruments. A lens that reveals structure in one transformer applies to any transformer. The instrument does not change shape because of the model family *or the task*. **The semantic context provider is the *Task*, not the Family.** A Family is a *junction* — a pairing of a model **Architecture** with a **TaskType** (the task-logic container) — and owns no semantics of its own. The **TaskType/Task** contributes probe construction, interpretive context (e.g., a prime-based Fourier basis for modulo addition — a property of the cyclic-group *task*, parameterized by the prime), the master dataset, and task-specific performance metrics. Neither Families nor Tasks own analytical views — those belong to the View Catalog and are universal. (See [data_model_master.md](data_model_master.md) for the full type/instance lattice: Architecture : Variant :: TaskType : Task.)
 
 **Architectural invariant (storage encapsulation):** The on-disk layout — where checkpoints, artifacts, family configs, and registry summaries live — is internal to the API. Consumers (notebooks, dashboard pages, scripts, sketches, and the library's own analyzers and views) reach data through `Variant`, `ModelFamily`, and the View Catalog. The invariant binds library code as well as app code: only the storage primitives themselves (the writers and accessor implementations) compose paths; everything else uses the accessors. No file-path literals (`Path("results/...")`, `Path("model_families")`) appear outside configuration; deployment-time values (data paths, server host/port, build paths) belong in per-app config files (`apps/dashboard/config.toml`, etc.), not in code. Storage primitives such as `ArtifactLoader` are implementation details, not public surface, and may be reshaped as the storage layer evolves. If an accessor doesn't exist for some piece of stored data, the right move is to add the accessor to the API rather than reach past it.
 
@@ -57,19 +57,25 @@ A mechanistic researcher can:
 
 ## Domain Concepts
 
-**Model Family:** A declared grouping of models sharing architecture and training protocol. The family contributes: probe construction logic, interpretive context (e.g., Fourier basis for modulo addition), task-specific performance metrics, and training configuration. The family does *not* own analytical views — those belong to the View Catalog and are universal. Families are explicitly registered because what constitutes "structurally similar" is learned over time by the researcher.
+**Model Family:** The *pairing* of a model **Architecture** with a **TaskType** — a declared grouping of models sharing both. The Family owns *no semantics of its own*; the contributions once attributed to it actually come from its two factors: the **TaskType/Task** provides probe construction logic, interpretive context (e.g., Fourier basis for modulo addition), the master dataset, and task-specific performance metrics; the **Architecture** provides structural config. The Family does *not* own analytical views — those belong to the View Catalog and are universal. Families are explicitly registered because which (Architecture, TaskType) pairings are worth grouping is learned over time by the researcher.
 
-**Model Variant:** A specific trained model within a family, differing in domain parameters (e.g., modulus, seed). Variants share architecture and analysis logic. Each variant has its own checkpoints and analysis artifacts. Variants are the unit of comparison.
+**TaskType:** The reusable logic for a kind of task (e.g., Modulo Addition) — it constructs the interpretive basis (the Fourier/irrep basis) and generates the master dataset, parameterized by task parameters (e.g., `prime`). The semantic-context provider.
+
+**Task:** A TaskType with its parameters resolved (e.g., Modulo Addition mod 109) — the concrete basis and master dataset a Variant trains on. Task is to TaskType what a Variant is to a Family.
+
+**Architecture:** The structural transformer spec (depth, context, width) shared by every Variant in a Family — the task-independent factor of the Family pairing.
+
+**Model Variant:** A specific trained model within a family — a training run, bound to a `Task`. Variants differ in **Model Parameters** (`model_seed`, `data_seed` — the per-run seeds) and in which `Task` they trained on (the **Task Parameter** `prime` identifies the Task, not the run). Variants share the Family's Architecture and the universal analysis logic. Each has its own checkpoints and artifacts. Variants are the unit of comparison.
 
 **Probe:** The input data used during analysis forward passes. For small toy models, one canonical dataset (e.g., the full (a, b) grid for modulo addition). For larger models, targeted probes that exercise specific behaviors. Probe design is part of the research for larger models.
 
 **Checkpoint:** A snapshot of model weights at a specific training epoch. Saved at configurable intervals to enable analysis of how behaviors emerge over training.
 
-**Analyzer:** A module that generates analysis artifacts from a model checkpoint and activation cache. Analyzers are generally applicable across families — they compute a single function and store numpy arrays as per-epoch `.npz` files. Some analyzers may require family-specific context (e.g., a Fourier basis), but the analyzer itself is not family-owned.
+**Analyzer:** A module that generates analysis artifacts from a model checkpoint and activation cache. Analyzers are generally applicable across families — they compute a single function and store numpy arrays as per-epoch `.npz` files. Some analyzers may require task-specific context (e.g., a Fourier basis supplied by the TaskType), but the analyzer itself is not task- or family-owned.
 
 **Analysis Run (AnalysisPipeline in code):** Orchestrates artifact generation across checkpoints. Loads each checkpoint, runs a forward pass with the probe, and passes output to each configured analyzer.
 
-**View Catalog:** The registry of named analytical views. Each view definition declares: its name, which analyzer artifact it requires, how to load that artifact, and which renderer to call. Views are available to all variants of any family. Families may contribute task-specific views (e.g., accuracy against ground truth), but the analytical catalog is universal. The catalog grows as new lenses are discovered and validated.
+**View Catalog:** The registry of named analytical views. Each view definition declares: its name, which analyzer artifact it requires, how to load that artifact, and which renderer to call. Views are available to all variants of any family. A Task may contribute task-specific views (e.g., accuracy against ground truth), but the analytical catalog is universal. The catalog grows as new lenses are discovered and validated.
 
 ---
 
@@ -134,5 +140,5 @@ variant.view("parameter_trajectory").figure()   # raw Plotly fig for dashboard
 
 ---
 
-**Last Updated:** 2026-05-26
+**Last Updated:** 2026-06-28
 *(For version history and recent changes, see [CHANGELOG.md](CHANGELOG.md))*
