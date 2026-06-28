@@ -142,6 +142,15 @@ class BaseModelFamily:
         return ()
 
     @property
+    def circuit_spectra_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """REQ_152: composed-circuit sites for the ``full_ov_circuit`` analyzer.
+
+        Default is empty — families that declare composed circuits (e.g. the full
+        OV path) override this in their subclass.
+        """
+        return ()
+
+    @property
     def analysis_dataset(self) -> AnalysisDatasetSpec:
         """Specification for the analysis dataset."""
         return self._config.get("analysis_dataset", {})
