@@ -38,8 +38,8 @@ families:
   primitives; the identity is true by construction.
 
 Given-realness needs no measurement: a theorem object is an object *whether or not anything has
-measured it* — which is why the Layer 4 circuits are objects while still `empty`. They enter
-`STABLE`: the definition isn't ours to defend.
+measured it* — which is why the Layer 4 circuits were committed as objects while still `empty`
+(now **built** — REQ_152/154/156). They enter `STABLE`: the definition isn't ours to defend.
 
 **Gate 2 — Earned-real → run the litmus (the side gate).** A thing whose realness is **not** given
 must earn its way in, and the litmus (decision-procedure step 3 + promotion criterion step 5)
@@ -655,16 +655,25 @@ A single neuron. Structural identity; behavior captured by attributes + a top-k 
 
 ---
 
-## Layer 4 — Derived / Virtual Objects · `STABLE (definition) · empty · PLANNED`
+## Layer 4 — Derived / Virtual Objects · `STABLE (definition) · populated · ACTIVE`
 
 Composed from intrinsic weights. **Not arch-gated** — a 1-layer model has within-head QK/OV
-circuits. Empty today only because the composed weight was never materialized. The high-value
-move: materialize composed `W_Q^T W_K` / `W_O W_V` and point existing instruments at them (mostly
-`CHEAP`). The **full** circuits (`W_U W_O W_V W_E`, `W_E^T W_Q^T W_K W_E`) and the **direct path**
-(`W_U W_E`) extend the residual-space pair end-to-end through the embeddings — added from the
-literature harvest ([canonical_object_harvest.md](canonical_object_harvest.md), Source 1). Their
-attributes are **gauge-invariant scalars of the operand** (Part I step 5), not probe-relative
-measurements.
+circuits. The high-value move — materialize the composed operands and point existing instruments at
+them — is **done**: the universal `circuit_spectra` analyzer (REQ_152 → REQ_154) composes all five
+sites (`ov`, `qk`, `full_ov`, `full_qk`, `direct_path`) and measures the gauge-invariant scalars;
+REQ_156 conformed its output into the single Layer 4 circuit object table keyed by `site`. All five
+objects below are **built and populated** on the baselines (each is a `site`-discriminated slice of
+one table). Their attributes are **gauge-invariant scalars of the operand** (Part I step 5), not
+probe-relative measurements.
+
+> **Build status (REQ_152/154/156).** Built per `(variant, epoch, head, site)`:
+> `copying_score`, `effective_rank`, `operator_norm` (from the REQ_109 SVD /
+> participation-ratio primitives + an eigenspectrum copying score), plus the composed matrix and
+> eigenvalues as **tensor refs**. Still **unbuilt**: `dominant_frequency` on these objects (the
+> per-head frequency needs a first-class home — **REQ_157**, not the Fourier-site
+> `weight_basis_projection`), and the research-`NEW` fields `operand_symmetry` (QKCircuit) and
+> `logit_attribution` (OVCircuit). `copying_score` is computed for every site but is
+> **OV-meaningful only** (degenerate/pinned ~0 on QK sites).
 
 > **Maturity nuance — "the QK circuit" is STABLE; "a circuit" is EVOLVING.** The *general*
 > mech-interp notions — `feature`, `circuit` (as a computational subgraph), `learned algorithm`,
@@ -674,63 +683,66 @@ measurements.
 > mathematically exact, so the *objects* are STABLE. What's interpretive is what their attributes
 > *mean* — which is the research, carried as attributes, not as object identity.
 
-### QKCircuit · `[S]` · `STABLE · empty · PLANNED` — composed `W_Q^T W_K` (*what to look at*)
+### QKCircuit · `[S]` · `STABLE · populated · ACTIVE` — composed `W_Q^T W_K` (*what to look at*) · site `qk`
 | Field | Type | Source | Status |
 | --- | --- | --- | --- |
 | variant_id, epoch, layer_index, head_index | — | Key (layer DEFAULT 0) | — |
-| dominant_frequency | int | weight_basis_projection (repointed) | CHEAP |
-| power | float | weight_basis_projection | CHEAP |
-| effective_rank | float | weight_spectra | CHEAP |
+| effective_rank | float | circuit_spectra | BUILT |
+| operator_norm | float | circuit_spectra | BUILT |
+| dominant_frequency | int | weight_basis_projection (repointed) | pending REQ_157 |
+| power | float | weight_basis_projection | pending REQ_157 |
 | operand_symmetry | float | NEW (task: a↔b commutativity) | NEW |
 
 **Key:** PK `(variant_id, epoch, layer_index, head_index)`; FK → AttentionHead.
 *HeadPair (heads sharing a frequency) is a **query** (self-join over a per-head frequency table),
 not an object — fails the litmus; promote only on cross-architecture evidence.*
 
-### OVCircuit · `[S]` · `STABLE · empty · PLANNED` — composed `W_O W_V` (*what to do with it*)
+### OVCircuit · `[S]` · `STABLE · populated · ACTIVE` — composed `W_O W_V` (*what to do with it*) · site `ov`
 | Field | Type | Source | Status |
 | --- | --- | --- | --- |
 | variant_id, epoch, layer_index, head_index | — | Key (layer DEFAULT 0) | — |
-| dominant_frequency | int | weight_basis_projection | CHEAP |
-| effective_rank | float | weight_spectra | CHEAP |
+| copying_score | float | circuit_spectra | BUILT |
+| effective_rank | float | circuit_spectra | BUILT |
+| operator_norm | float | circuit_spectra | BUILT |
+| dominant_frequency | int | weight_basis_projection | pending REQ_157 |
 | logit_attribution | float | output_logit_health (partial) | NEW |
 
 **Key:** PK `(variant_id, epoch, layer_index, head_index)`; FK → AttentionHead.
 
-### FullOVCircuit · `[S]` · `STABLE · empty · PLANNED` — composed `W_U W_O W_V W_E` (*source token → output-logit map*)
+### FullOVCircuit · `[S]` · `STABLE · populated · ACTIVE` — composed `W_U W_O W_V W_E` (*source token → output-logit map*) · site `full_ov`
 The square `[vocab, vocab]` end-to-end OV path. For modular arithmetic it exposes the additive
-structure directly. **Highest-value harvest target — build first.**
+structure directly. **Built first (REQ_152).**
 | Field | Type | Source | Status |
 | --- | --- | --- | --- |
 | variant_id, epoch, layer_index, head_index | — | Key (layer DEFAULT 0) | — |
-| copying_score | float | ov_eigenspectrum (Σ λ₊ / Σ\|λ\|) | NEW |
-| effective_rank | float | weight_spectra (repointed) | CHEAP |
-| operator_norm | float | weight_spectra | CHEAP |
-| dominant_frequency | int | weight_basis_projection (task-conditional) | CHEAP |
+| copying_score | float | circuit_spectra (Σ λ₊ / Σ\|λ\|) | BUILT |
+| effective_rank | float | circuit_spectra | BUILT |
+| operator_norm | float | circuit_spectra | BUILT |
+| dominant_frequency | int | weight_basis_projection (task-conditional) | pending REQ_157 |
 
 **Key:** PK `(variant_id, epoch, layer_index, head_index)`; FK → OVCircuit, AttentionHead ·
 **Tensors:** the `W_U W_O W_V W_E` matrix + eigenvalues via tensor ref.
 
-### FullQKCircuit · `[S]` · `STABLE · empty · PLANNED` — composed `W_E^T W_Q^T W_K W_E` (*which token-pairs the head binds*)
+### FullQKCircuit · `[S]` · `STABLE · populated · ACTIVE` — composed `W_E^T W_Q^T W_K W_E` (*which token-pairs the head binds*) · site `full_qk`
 The square `[vocab, vocab]` end-to-end QK bilinear form. Positional variants substitute `W_pos`.
 | Field | Type | Source | Status |
 | --- | --- | --- | --- |
 | variant_id, epoch, layer_index, head_index | — | Key (layer DEFAULT 0) | — |
-| effective_rank | float | weight_spectra (repointed) | CHEAP |
-| operator_norm | float | weight_spectra | CHEAP |
-| dominant_frequency | int | weight_basis_projection (task-conditional) | CHEAP |
+| effective_rank | float | circuit_spectra | BUILT |
+| operator_norm | float | circuit_spectra | BUILT |
+| dominant_frequency | int | weight_basis_projection (task-conditional) | pending REQ_157 |
 
 **Key:** PK `(variant_id, epoch, layer_index, head_index)`; FK → QKCircuit, AttentionHead ·
 **Tensors:** the `W_E^T W_Q^T W_K W_E` matrix + eigenvalues via tensor ref.
 
-### DirectPath · `[S]` · `STABLE · empty · PLANNED` — composed `W_U W_E` (*0-layer bigram logit term*)
+### DirectPath · `[S]` · `STABLE · populated · ACTIVE` — composed `W_U W_E` (*0-layer bigram logit term*) · site `direct_path`
 The embedding→unembedding path: the baseline against which head contributions are read in the logit
-decomposition. One per checkpoint (no head axis).
+decomposition. One per checkpoint (no head axis — `head` is uniform-rank, head=0).
 | Field | Type | Source | Status |
 | --- | --- | --- | --- |
 | variant_id, epoch | — | Key | — |
-| effective_rank | float | weight_spectra (repointed) | CHEAP |
-| operator_norm | float | weight_spectra | CHEAP |
+| effective_rank | float | circuit_spectra | BUILT |
+| operator_norm | float | circuit_spectra | BUILT |
 
 **Key:** PK `(variant_id, epoch)`; FK → Checkpoint · **Tensors:** the `W_U W_E` matrix via tensor ref.
 
@@ -1026,10 +1038,10 @@ build target, not a blocker).
 | MLP_Neuron (+ Frequency child) | 2 | S | STABLE | solid | ACTIVE | ✅ yes (rank-relax the child) |
 | AttentionHead | 2 | S | STABLE | near-empty | PLANNED | ✅ yes — coverage REQ (head-axis coord) |
 | Loss | 3 | S | STABLE | — | ACTIVE | ✅ yes |
-| QKCircuit / OVCircuit | 4 | S | STABLE | empty | PLANNED | ✅ yes — materialize composed weight |
-| FullOVCircuit | 4 | S | STABLE | empty | PLANNED | ✅ **build first** — additive structure + copying score |
-| FullQKCircuit | 4 | S | STABLE | empty | PLANNED | ✅ yes — token-pair binding |
-| DirectPath | 4 | S | STABLE | empty | PLANNED | ✅ yes — bigram baseline |
+| QKCircuit / OVCircuit | 4 | S | STABLE | populated | ACTIVE | ✅ **built** (REQ_154/156) — `qk`/`ov` sites |
+| FullOVCircuit | 4 | S | STABLE | populated | ACTIVE | ✅ **built** (REQ_152) — additive structure + copying score |
+| FullQKCircuit | 4 | S | STABLE | populated | ACTIVE | ✅ **built** (REQ_154) — token-pair binding |
+| DirectPath | 4 | S | STABLE | populated | ACTIVE | ✅ **built** (REQ_154) — bigram baseline |
 | FrequencyGroup | 5 | S | **EVOLVING** | solid | ACTIVE | ⚠️ study, but rigor on whether it's real |
 | FrequencyMode | 5 | S | **EVOLVING** | thin | ACTIVE | ⚠️ build the edges, not a leaf |
 | IrrepBasis (Task instrument) | 5 | — | STABLE | — | (instrument) | ✅ name it — Task-provided basis under FrequencyMode |
