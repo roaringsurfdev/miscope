@@ -144,6 +144,25 @@ def _adapt_embedding_coefficients_legacy(cos_coeffs: Any, sin_coeffs: Any) -> An
     return out
 
 
+def _grok_epoch(variant: Variant, threshold: float = 0.1) -> int | None:
+    """First checkpoint epoch where test loss crosses below ``threshold`` (grok marker).
+
+    Read from the warehouse ``losses`` table (data layer) so the renderer stays
+    plot-only (REQ_155). Returns None if losses are unavailable. Candidate to
+    migrate to a derived/summary field rather than recomputing per view.
+    """
+    try:
+        df = variant.warehouse.table("losses").df
+    except (FileNotFoundError, KeyError, ValueError):
+        return None
+    if "test_loss" not in df.columns or df.empty:
+        return None
+    crossed = [
+        int(e) for e, loss in zip(df["epoch"], df["test_loss"], strict=False) if loss < threshold
+    ]
+    return min(crossed) if crossed else None
+
+
 def _register_all() -> None:
     """Register all universal views into the module-level catalog."""
     import miscope.visualization as viz
@@ -915,6 +934,44 @@ def _register_all() -> None:
             renderer=_render_concentration_trajectory,
             epoch_source_analyzer=None,
             required_analyzers=[AnalyzerRequirement("neuron_dynamics", ArtifactKind.CROSS_EPOCH)],
+        )
+    )
+
+    # --- Circuit spectra trajectories (REQ_155) ---
+
+    _circuit_metrics = ("copying_score", "effective_rank", "operator_norm")
+
+    def _load_circuit_spectra_trajectory(variant: Variant, epoch: int | None) -> dict:
+        """Per-head spectral-metric trajectories for every declared circuit site.
+
+        All prep lives here (the renderer is plot-only): stack the columnar
+        ``circuit_spectra`` fields across epochs and resolve the grok marker from
+        the warehouse losses table. Site/metric selection is done at render time.
+        """
+        sites = [site.name for site in variant.family.circuit_spectra_sites]
+        fields = [f"{s}_{m}" for s in sites for m in _circuit_metrics]
+        art = variant.artifacts.load_epochs("circuit_spectra", fields=fields)
+        series = {(s, m): art[f"{s}_{m}"] for s in sites for m in _circuit_metrics}
+        return {
+            "epochs": art["epochs"],
+            "series": series,
+            "sites": sites,
+            "metrics": list(_circuit_metrics),
+            "grok_epoch": _grok_epoch(variant),
+        }
+
+    def _render_circuit_spectra_trajectory(
+        data: Any, epoch: int | None, **kwargs: Any
+    ) -> go.Figure:
+        return viz.render_circuit_spectra_trajectory(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="circuits.spectra.trajectory",
+            load_data=_load_circuit_spectra_trajectory,
+            renderer=_render_circuit_spectra_trajectory,
+            epoch_source_analyzer=None,
+            required_analyzers=[AnalyzerRequirement("circuit_spectra", ArtifactKind.EPOCH)],
         )
     )
 

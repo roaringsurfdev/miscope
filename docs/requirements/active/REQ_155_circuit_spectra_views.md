@@ -1,6 +1,12 @@
 # REQ_155: Dashboard views for circuit spectra (OV/QK copy-transform & rank dynamics)
 
-**Status:** Draft — not started.
+**Status:** MVP implemented on `feature/REQ_155_circuit_spectra_views` (awaiting
+merge). Done: the per-head circuit-spectra **trajectory view** (`circuits.spectra.trajectory`,
+plot-only, grok marker) parameterized by `site` + `metric` — which covers the
+trajectory CoS *and* the QK-vs-OV decoupling (switch site/metric) — plus the
+**Circuit Spectra dashboard page** (circuit + metric dropdowns). Deferred follow-ups:
+the dedicated copy/transform head-ranking bar, the circuit-matrix heatmap (tensor
+resolve), and cross-variant overlays.
 **Priority:** Medium — makes the new Layer 4 circuit data (REQ_152/154) explorable;
 the underlying findings (OV copy/transform split, QK→rank-1 sparsening, two-timescale
 decoupling) are currently only visible via ad-hoc queries.
@@ -82,3 +88,14 @@ should surface so the dynamics are explorable across variants without re-derivin
   dashboard page first.
 - Data is per-head; `direct_path` is head-less (single series) — the view must handle
   both (uniform-rank head axis, head=0).
+- **copying_score is OV-meaningful only.** For QK circuits it is degenerate (rank-1,
+  non-positive-real eigenvalues → pinned ~0). Resolved in the **view** (QK sites
+  default to `operator_norm`), NOT in the analyzer: a value-based NaN guard was
+  considered and **rejected** — its trigger (copying ≈ 0) is exactly a legitimate OV
+  *pure-transform* head (p113 h1 = 0.001, p109 h3 = 0.004, p101 h2 = 0.032), so it
+  would erase the transform end of the copy/transform finding. There is no
+  divide-by-zero in `_copying_score` (the earlier "spike" was a diagnostic CV
+  artifact, not the metric). The renderer is `connectgaps=False`, so a future
+  **per-site metric applicability** mechanism (mark copying_score N/A on QK sites —
+  the correct analyzer-level honesty fix, logged as a small future item, not built)
+  would surface as gaps without reopening this REQ.

@@ -14,6 +14,7 @@ from dashboard.pages.activation_dmd import register_activation_dmd_callbacks
 from dashboard.pages.activation_heatmaps import register_activation_heatmap_page_callbacks
 from dashboard.pages.analysis_run import register_analysis_run_page_callbacks
 from dashboard.pages.checkpoint_schedule import register_checkpoint_schedule_page_callbacks
+from dashboard.pages.circuit_spectra import register_circuit_spectra_page_callbacks
 from dashboard.pages.dimensionality import register_dimensionality_page_callbacks
 from dashboard.pages.dimensionality_dynamics import register_dimensionality_dynamics_page_callbacks
 from dashboard.pages.geometry_weights import register_weight_geometry_page_callbacks
@@ -61,6 +62,7 @@ def create_app() -> Dash:
     register_dimensionality_page_callbacks(app)
     register_loss_landscape_page_callbacks(app)
     register_dimensionality_dynamics_page_callbacks(app)
+    register_circuit_spectra_page_callbacks(app)
     register_multistream_page_callbacks(app)
     register_peer_comparison_page_callbacks(app)
     register_checkpoint_schedule_page_callbacks(app)
