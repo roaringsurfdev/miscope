@@ -86,6 +86,16 @@ class ModelFamily(Protocol):
         ...
 
     @property
+    def circuit_spectra_sites(self) -> tuple[BasisProjectionSite, ...]:
+        """Composed-circuit sites for the ``circuit_spectra`` analyzer (REQ_152/154).
+
+        Each site composes a square circuit (e.g. the full OV path
+        ``W_U W_O W_V W_E``) for spectral analysis. Empty for families that
+        declare no circuits.
+        """
+        ...
+
+    @property
     def analysis_dataset(self) -> AnalysisDatasetSpec:
         """Specification for the analysis dataset."""
         ...

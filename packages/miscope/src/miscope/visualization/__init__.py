@@ -46,6 +46,9 @@ from miscope.visualization.renderers.band_concentration import (
     render_concentration_trajectory,
     render_rank_alignment_trajectory,
 )
+from miscope.visualization.renderers.circuit_spectra import (
+    render_circuit_spectra_trajectory,
+)
 from miscope.visualization.renderers.data_compatibility import (
     render_data_compatibility_overlap,
     render_data_compatibility_spectrum,
@@ -188,6 +191,7 @@ __all__ = [
     "render_specialization_trajectory",
     "render_specialization_by_frequency",
     # REQ_058: Band concentration health
+    "render_circuit_spectra_trajectory",
     "render_concentration_trajectory",
     "render_rank_alignment_trajectory",
     "render_concentration_scatter",
