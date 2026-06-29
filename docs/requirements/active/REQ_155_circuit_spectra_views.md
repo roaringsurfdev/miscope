@@ -1,6 +1,12 @@
 # REQ_155: Dashboard views for circuit spectra (OV/QK copy-transform & rank dynamics)
 
-**Status:** Draft — not started.
+**Status:** MVP implemented on `feature/REQ_155_circuit_spectra_views` (awaiting
+merge). Done: the per-head circuit-spectra **trajectory view** (`circuits.spectra.trajectory`,
+plot-only, grok marker) parameterized by `site` + `metric` — which covers the
+trajectory CoS *and* the QK-vs-OV decoupling (switch site/metric) — plus the
+**Circuit Spectra dashboard page** (circuit + metric dropdowns). Deferred follow-ups:
+the dedicated copy/transform head-ranking bar, the circuit-matrix heatmap (tensor
+resolve), and cross-variant overlays.
 **Priority:** Medium — makes the new Layer 4 circuit data (REQ_152/154) explorable;
 the underlying findings (OV copy/transform split, QK→rank-1 sparsening, two-timescale
 decoupling) are currently only visible via ad-hoc queries.

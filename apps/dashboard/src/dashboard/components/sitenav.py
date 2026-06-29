@@ -33,6 +33,7 @@ def create_sitenav() -> dbc.NavbarSimple:
                     dbc.DropdownMenuItem(
                         "Dimensionality Dynamics", href="/dimensionality-dynamics"
                     ),
+                    dbc.DropdownMenuItem("Circuit Spectra", href="/circuit-spectra"),
                 ],
                 nav=True,
                 in_navbar=True,
@@ -94,6 +95,10 @@ def register_sitenav_callbacks(app: Dash) -> None:
     from dashboard.pages.checkpoint_schedule import (
         create_checkpoint_schedule_page_layout,
         create_checkpoint_schedule_page_nav,
+    )
+    from dashboard.pages.circuit_spectra import (
+        create_circuit_spectra_page_layout,
+        create_circuit_spectra_page_nav,
     )
     from dashboard.pages.dimensionality import (
         create_dimensionality_page_layout,
@@ -225,6 +230,11 @@ def register_sitenav_callbacks(app: Dash) -> None:
             return [
                 create_dimensionality_dynamics_page_nav(app),
                 create_dimensionality_dynamics_page_layout(app),
+            ]
+        elif pathname == "/circuit-spectra":
+            return [
+                create_circuit_spectra_page_nav(app),
+                create_circuit_spectra_page_layout(app),
             ]
         elif pathname == "/initialization-sweep":
             return [
