@@ -21,7 +21,8 @@ _GENERIC_GROUP_TYPE: dict[str, GroupType] = {
     "activation_frequency_norm": GroupType.ACTIVATION_SITE,
     "activation_dmd": GroupType.ACTIVATION_SITE,
     "weight_basis_projection": GroupType.WEIGHT_MATRIX,
-    "circuit_spectra": GroupType.WEIGHT_MATRIX,
+    # circuit_spectra is now fully claimed into the conformed circuit object table
+    # (REQ_156), which stamps group_type itself — no generic fallback to discriminate.
     "neuron_group_pca": GroupType.FREQUENCY_GROUP,
     "intragroup_manifold": GroupType.FREQUENCY_GROUP,
     "freq_group_weight_geometry": GroupType.FREQUENCY_GROUP,

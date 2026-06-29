@@ -174,6 +174,36 @@ def _frequency_spectrum_energy() -> Reshaper:
 
 
 # ---------------------------------------------------------------------------
+# circuit_spectra — Layer 4 circuit object table (REQ_156)
+# ---------------------------------------------------------------------------
+
+
+def _circuit_spectra_object() -> Reshaper:
+    """Conform per-head spectral metrics into the circuit object table.
+
+    The three metrics share the ``(epoch, site, head)`` key, so they horizontal-merge
+    into one row per circuit (``site`` is the circuit discriminator). Weight-derived →
+    ``group_type=weight_matrix``. Keeps the metrics as columns (the data model's
+    Layer 4 object shape), not melted.
+    """
+    metrics = ("copying_score", "effective_rank", "operator_norm")
+
+    def fn(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        merged = _merge_claimed(frames)
+        out = pd.DataFrame()
+        for coord in ("epoch", "site", "head"):
+            if coord in merged.columns:
+                out[coord] = merged[coord]
+        out[GROUP_TYPE] = GroupType.WEIGHT_MATRIX.value
+        for metric in metrics:
+            if metric in merged.columns:
+                out[metric] = merged[metric]
+        return out
+
+    return fn
+
+
+# ---------------------------------------------------------------------------
 # Claims registry: analyzer -> the semantic claims it satisfies.
 # ---------------------------------------------------------------------------
 
@@ -269,6 +299,17 @@ CLAIMS: dict[str, list[Claim]] = {
     ],
     "gradient_site": [
         Claim("frequency_spectrum", ("energy",), _frequency_spectrum_energy()),
+    ],
+    # REQ_156: drain the generic fallback — the three stable named spectral metrics
+    # become columns on the conformed circuit object table, keyed by the circuit
+    # `site` discriminator. Future per-circuit attributes (OVCircuit logit_attribution,
+    # QKCircuit operand_symmetry) claim into this same table.
+    "circuit_spectra": [
+        Claim(
+            "circuit_spectra",
+            ("copying_score", "effective_rank", "operator_norm"),
+            _circuit_spectra_object(),
+        ),
     ],
 }
 
