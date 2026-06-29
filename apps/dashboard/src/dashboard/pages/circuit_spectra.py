@@ -25,6 +25,17 @@ _METRIC_OPTIONS = [
     {"label": "Operator norm", "value": "operator_norm"},
 ]
 
+# Per-circuit default metric: copying_score is OV-meaningful only — for the QK
+# circuits it is degenerate (rank-1, non-positive-real eigenvalues → pinned ~0),
+# so they open on operator_norm where the dynamics (e.g. the late-instability
+# magnitude spike) are visible. The user can still pick any metric.
+_DEFAULT_METRIC = {"full_qk": "operator_norm", "qk": "operator_norm"}
+
+
+def _default_metric_for(site: str | None) -> str:
+    return _DEFAULT_METRIC.get(site or "full_ov", "copying_score")
+
+
 _VIEW_LIST = {
     "circuit-spectra-trajectory": {
         "view_name": "circuits.spectra.trajectory",
@@ -78,6 +89,14 @@ def create_circuit_spectra_page_layout(app: Dash) -> html.Div:
 def register_circuit_spectra_page_callbacks(app: Dash) -> None:
     """Register callbacks for the Circuit Spectra page."""
     app.server.logger.debug("register_circuit_spectra_page_callbacks")
+
+    @app.callback(
+        Output("circuit-metric-dropdown", "value"),
+        Input("circuit-site-dropdown", "value"),
+    )
+    def on_circuit_change_set_default_metric(site_value: str | None) -> str:
+        """Reset the metric to the circuit's sensible default when the circuit changes."""
+        return _default_metric_for(site_value)
 
     @app.callback(
         [Output(pid, "figure") for pid in _graph_manager.get_graph_output_list("circuit")],

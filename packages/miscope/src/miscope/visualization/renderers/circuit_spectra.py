@@ -55,7 +55,11 @@ def render_circuit_spectra_trajectory(
     n_heads = values.shape[1]
     for head in range(n_heads):
         name = f"head {head}" if n_heads > 1 else "circuit"
-        fig.add_trace(go.Scatter(x=epochs, y=values[:, head], mode="lines", name=name))
+        # connectgaps=False: NaN values (e.g. a metric undefined for this circuit)
+        # render as gaps rather than a misleading interpolated line.
+        fig.add_trace(
+            go.Scatter(x=epochs, y=values[:, head], mode="lines", name=name, connectgaps=False)
+        )
 
     grok = data.get("grok_epoch")
     if grok is not None:
