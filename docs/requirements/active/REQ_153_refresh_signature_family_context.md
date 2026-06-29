@@ -74,6 +74,17 @@ This silent no-op is dangerous: it reads as "covered" when it isn't.
   → `materialize_variant_columnar(v, force=True)` + `materialize_variant_tensors(v)`.
 - Surfaced in REQ_152 (see its Notes → "Implementation findings"); memory
   `finding-site-addition-not-in-refresh-signature`.
+- **Second concrete instance (REQ_155), different trigger — confirms the "Tensor
+  catalog included" CoS.** Renaming the analyzer `full_ov_circuit → circuit_spectra`
+  (REQ_154) refreshed the *columnar* warehouse for the baselines but left the
+  *tensor catalog* pinned at the old `full_ov_circuit` name, so the
+  `circuits.spectra.matrix` view resolved **0** descriptors until a manual
+  `variant.tensor_catalog.materialize()`. Root cause is exactly the two-step gap this
+  CoS names: the unified `warehouse.materialize()` (reader.py) runs columnar + derived
+  but **not** the tensor pass, and neither is keyed to the analyzer rename. The fix
+  has two halves — (a) drive the tensor pass from the same freshness decision /
+  unified `materialize()`, and (b) make a spec name/version change part of the
+  signature. Memory `finding-tensor-catalog-not-in-refresh-signature`.
 - Open question: should removing a site also *delete* its now-orphaned artifacts /
   catalog rows, or just stop reading them? Deletion is cleaner but riskier; a
   warehouse-health orphan scan (already contemplated in the data model Part VI #7) may
