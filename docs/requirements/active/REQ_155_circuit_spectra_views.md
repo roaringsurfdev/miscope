@@ -64,8 +64,13 @@ should surface so the dynamics are explorable across variants without re-derivin
 - **Grok marker is task/variant context.** The test-loss crossing used for the grok
   overlay comes from the `losses` table per variant — supplied as context, not
   hardcoded per prime.
-- **Plot-only renderers (REQ_099 line).** Renderers return figures from prepared
-  data; data prep stays in the view/query layer.
+- **Plot-only renderers (REQ_099 line) — load-bearing here.** Renderers return
+  figures from *already-prepared* data; **no data-processing logic hidden in the
+  view.** Aggregation, joins, the grok-epoch lookup, head-mean reductions, and any
+  derived metric live in the query / view-data layer (or a derived table), not inline
+  in the renderer. **When modeling a new view on an existing one, check how much
+  processing that reference does — a viz that does a lot of in-renderer processing is
+  NOT the right pattern to copy.** Prefer a thin renderer reading a conformed query.
 
 ## Notes
 
