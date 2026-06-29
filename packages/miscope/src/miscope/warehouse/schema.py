@@ -75,6 +75,8 @@ NATURAL_WIDE_INDEX: dict[str, tuple[str, ...]] = {
     "frequency_spectrum": ("variant_id", "epoch", "site", "frequency"),
     "neuron_frequency_attribution": ("variant_id", "epoch", "neuron", "frequency"),
     "shape_characterizations": ("variant_id", "epoch", "group", "operation_type"),
+    # REQ_156: Layer 4 circuit object table (site = circuit discriminator, per head).
+    "circuit_spectra": ("variant_id", "epoch", "site", "head"),
 }
 
 
