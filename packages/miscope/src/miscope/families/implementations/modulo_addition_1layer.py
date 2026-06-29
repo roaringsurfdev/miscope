@@ -380,10 +380,17 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
     def circuit_spectra_sites(self) -> tuple[BasisProjectionSite, ...]:
         """REQ_152 / REQ_154: composed-circuit sites for the ``circuit_spectra`` analyzer.
 
-        ``full_ov`` (W_U W_O W_V W_E) and ``full_qk`` (W_E^T W_Q^T W_K W_E — the same
-        square token-pair form the ``attn_qk`` composer already builds, reused here).
-        Remaining Layer 4 siblings (OV, QK, direct path) are added as one-line site
-        entries as the buildout proceeds.
+        The full data-model Layer 4 circuit set:
+        - ``full_ov``  — W_U W_O W_V W_E (token space, per head)
+        - ``full_qk``  — W_E^T W_Q^T W_K W_E (token space, per head; reuses the
+          ``attn_qk`` composer)
+        - ``ov``       — W_O W_V (residual space, per head)
+        - ``qk``       — W_Q^T W_K (residual space, per head)
+        - ``direct_path`` — W_U W_E (token space, head-less bigram baseline)
+
+        ``period_axes`` is unused by ``circuit_spectra`` (it does SVD/eig on the
+        trailing square axes); it is set to the matrix axes for documentation and so
+        token-space sites can also feed the Fourier instrument if added there.
         """
         return (
             _FULL_OV_SITE,
@@ -392,6 +399,24 @@ class ModuloAddition1LayerFamily(BaseModelFamily):
                 compose=_compose_attn_qk,
                 period_axes=(1, 2),
                 description="Full QK circuit W_E^T W_Q^T W_K W_E per head (n_heads, p, p)",
+            ),
+            BasisProjectionSite(
+                name="ov",
+                compose=_compose_ov,
+                period_axes=(1, 2),
+                description="Residual OV circuit W_O W_V per head (n_heads, d_model, d_model)",
+            ),
+            BasisProjectionSite(
+                name="qk",
+                compose=_compose_qk,
+                period_axes=(1, 2),
+                description="Residual QK circuit W_Q^T W_K per head (n_heads, d_model, d_model)",
+            ),
+            BasisProjectionSite(
+                name="direct_path",
+                compose=_compose_direct_path,
+                period_axes=(0, 1),
+                description="Direct path W_U W_E (token space, head-less): (p, p)",
             ),
         )
 
@@ -559,6 +584,41 @@ _FULL_OV_SITE = BasisProjectionSite(
     period_axes=(1, 2),
     description="Full OV circuit W_E[:p] W_V[h] W_O[h] W_U[:,:p] per head: (n_heads, p, p)",
 )
+
+
+def _compose_ov(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``ov`` site: per-head residual-space OV circuit ``W_O W_V`` (REQ_154).
+
+    ``W_V[h] @ W_O[h]`` → ``(n_heads, d_model, d_model)`` — the value→output map in
+    residual space (no embeddings). Square; spectral-only (residual axes are not
+    token-periodic, so no Fourier site).
+    """
+    W_V = np.asarray(snapshot["W_V"])  # (n_heads, d_model, d_head)
+    W_O = np.asarray(snapshot["W_O"])  # (n_heads, d_head, d_model)
+    return np.einsum("hdk,hkm->hdm", W_V, W_O)  # (n_heads, d_model, d_model)
+
+
+def _compose_qk(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``qk`` site: per-head residual-space QK circuit ``W_Q^T W_K`` (REQ_154).
+
+    ``W_Q[h] @ W_K[h]^T`` → ``(n_heads, d_model, d_model)`` — the query/key bilinear
+    form in residual space (no embeddings). Square; spectral-only.
+    """
+    W_Q = np.asarray(snapshot["W_Q"])  # (n_heads, d_model, d_head)
+    W_K = np.asarray(snapshot["W_K"])  # (n_heads, d_model, d_head)
+    return np.einsum("hdk,hek->hde", W_Q, W_K)  # (n_heads, d_model, d_model)
+
+
+def _compose_direct_path(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
+    """``direct_path`` site: the 0-layer bigram path ``W_U W_E`` (REQ_154).
+
+    ``W_E[:p] @ W_U[:, :p]`` → ``(p, p)`` token-space map, no head axis (one per
+    checkpoint). The baseline against which head contributions are read.
+    """
+    p = int(context["params"]["prime"])
+    W_E = np.asarray(snapshot["W_E"])[:p]  # (p, d_model)
+    W_U = np.asarray(snapshot["W_U"])[:, :p]  # (d_model, p)
+    return W_E @ W_U  # (p, p)
 
 
 def _compose_attn_v(snapshot: dict[str, Any], context: dict[str, Any]) -> np.ndarray:
