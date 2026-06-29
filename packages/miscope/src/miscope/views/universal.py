@@ -163,6 +163,16 @@ def _grok_epoch(variant: Variant, threshold: float = 0.1) -> int | None:
     return min(crossed) if crossed else None
 
 
+# The three spectral metrics every circuit_spectra site emits per head (REQ_152/154).
+# Module-level so cross-variant prep (views/circuit_spectra.py) shares one definition.
+_CIRCUIT_METRICS = ("copying_score", "effective_rank", "operator_norm")
+
+
+def _circuit_metric_names() -> tuple[str, ...]:
+    """The circuit_spectra spectral metric names (shared with cross-variant prep)."""
+    return _CIRCUIT_METRICS
+
+
 def _register_all() -> None:
     """Register all universal views into the module-level catalog."""
     import miscope.visualization as viz
@@ -939,7 +949,7 @@ def _register_all() -> None:
 
     # --- Circuit spectra trajectories (REQ_155) ---
 
-    _circuit_metrics = ("copying_score", "effective_rank", "operator_norm")
+    _circuit_metrics = _CIRCUIT_METRICS
 
     def _load_circuit_spectra_trajectory(variant: Variant, epoch: int | None) -> dict:
         """Per-head spectral-metric trajectories for every declared circuit site.
@@ -971,6 +981,74 @@ def _register_all() -> None:
             load_data=_load_circuit_spectra_trajectory,
             renderer=_render_circuit_spectra_trajectory,
             epoch_source_analyzer=None,
+            required_analyzers=[AnalyzerRequirement("circuit_spectra", ArtifactKind.EPOCH)],
+        )
+    )
+
+    def _load_circuit_spectra_ranking(variant: Variant, epoch: int | None) -> dict:
+        """Per-head spectral metrics at one epoch (for the sorted ranking bar).
+
+        Loads the single-epoch columnar slice for every site×metric; the renderer
+        picks one (site, metric) and sorts. Prep-only here (REQ_155 plot-only).
+        """
+        sites = [site.name for site in variant.family.circuit_spectra_sites]
+        fields = [f"{s}_{m}" for s in sites for m in _circuit_metrics]
+        art = variant.artifacts.load_epoch("circuit_spectra", epoch, fields=fields)  # type: ignore[arg-type]
+        values = {(s, m): art[f"{s}_{m}"] for s in sites for m in _circuit_metrics}
+        return {
+            "epoch": epoch,
+            "values": values,
+            "sites": sites,
+            "metrics": list(_circuit_metrics),
+        }
+
+    def _render_circuit_spectra_ranking(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_circuit_spectra_ranking(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="circuits.spectra.ranking",
+            load_data=_load_circuit_spectra_ranking,
+            renderer=_render_circuit_spectra_ranking,
+            epoch_source_analyzer="circuit_spectra",
+            required_analyzers=[AnalyzerRequirement("circuit_spectra", ArtifactKind.EPOCH)],
+        )
+    )
+
+    def _load_circuit_matrix(variant: Variant, epoch: int | None) -> dict:
+        """Composed ``(p, p)`` circuit matrices at one epoch, via the tensor catalog.
+
+        The columnar→blob hop (REQ_155 CoS): select the ``circuit_matrix`` tensor
+        descriptors for this epoch (no payload touched), then resolve only those to
+        ndarrays. Keyed back by site so the renderer can pick one. Reads through the
+        tensor-catalog accessor — no artifact-path literals (invariant 3).
+        """
+        tc = variant.tensor_catalog  # type: ignore[attr-defined]
+        df = tc.descriptors()
+        mask = (
+            (df["analyzer"] == "circuit_spectra")
+            & (df["field"] == "circuit_matrix")
+            & (df["epoch"] == epoch)
+        )
+        sel = df.loc[mask]
+        resolved = tc.resolve(sel) if not sel.empty else {}
+        id_to_site = dict(zip(sel["id"], sel["site"], strict=False))
+        matrices_by_site = {id_to_site[i]: arr for i, arr in resolved.items()}
+        return {
+            "epoch": epoch,
+            "matrices_by_site": matrices_by_site,
+            "sites": sorted(matrices_by_site),
+        }
+
+    def _render_circuit_matrix(data: Any, epoch: int | None, **kwargs: Any) -> go.Figure:
+        return viz.render_circuit_matrix_heatmap(data, epoch, **kwargs)
+
+    _catalog.register(
+        ViewDefinition(
+            name="circuits.spectra.matrix",
+            load_data=_load_circuit_matrix,
+            renderer=_render_circuit_matrix,
+            epoch_source_analyzer="circuit_spectra",
             required_analyzers=[AnalyzerRequirement("circuit_spectra", ArtifactKind.EPOCH)],
         )
     )

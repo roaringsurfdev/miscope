@@ -1,12 +1,21 @@
 # REQ_155: Dashboard views for circuit spectra (OV/QK copy-transform & rank dynamics)
 
-**Status:** MVP implemented on `feature/REQ_155_circuit_spectra_views` (awaiting
-merge). Done: the per-head circuit-spectra **trajectory view** (`circuits.spectra.trajectory`,
-plot-only, grok marker) parameterized by `site` + `metric` — which covers the
-trajectory CoS *and* the QK-vs-OV decoupling (switch site/metric) — plus the
-**Circuit Spectra dashboard page** (circuit + metric dropdowns). Deferred follow-ups:
-the dedicated copy/transform head-ranking bar, the circuit-matrix heatmap (tensor
-resolve), and cross-variant overlays.
+**Status:** Complete on `feature/REQ_155_deferred_views` (awaiting merge). The MVP
+(trajectory view + page) merged earlier; this branch finishes the three deferred
+follow-ups: the **copy/transform head-ranking bar** (`circuits.spectra.ranking`),
+the **circuit-matrix heatmap** (`circuits.spectra.matrix`, resolved through the
+tensor catalog), and the **cross-variant overlay** (`miscope.views.circuit_spectra`
+prep + `render_circuit_spectra_cross_variant`). All renderers are plot-only; the
+dashboard Circuit Spectra page now wires site / metric / matrix-head dropdowns plus
+a Load-Overlay control (data-seed / model-seed peers, event-relative on grok).
+
+One **OPEN** item from CoS line 50–53: the per-head dominant-frequency
+cross-reference (the 2+2 pairing) is **not** drawn on the ranking bar.
+`weight_basis_projection.dominant_frequency` is head-keyed but lives on the Fourier
+sites (resid_pre / attn_out / …), not the circuit sites — mapping "the head's
+dominant frequency" onto a circuit site is a semantic-coupling decision, deferred
+rather than guessed. The copy/transform split itself (the load-bearing CoS) is
+fully legible without it.
 **Priority:** Medium — makes the new Layer 4 circuit data (REQ_152/154) explorable;
 the underlying findings (OV copy/transform split, QK→rank-1 sparsening, two-timescale
 decoupling) are currently only visible via ad-hoc queries.
@@ -47,17 +56,24 @@ should surface so the dynamics are explorable across variants without re-derivin
   (head-mean or per-head) over training on shared axes, the headline two-timescale
   story (QK→1 early, OV stays diffuse). May be a parameterization of the trajectory
   view rather than a separate renderer.
-- [ ] **Copy/transform head ranking** at a selected epoch: per-head `copying_score`
+- [x] **Copy/transform head ranking** at a selected epoch: per-head `copying_score`
   for `full_ov` (bar / sorted), so the copy↔transform split at a checkpoint is
-  legible; cross-reference the head's dominant frequency (the 2+2 pairing) to show the
-  axes are orthogonal.
-- [ ] **Circuit-matrix heatmap** (optional within this REQ): the composed `(p, p)`
+  legible. **Done** (`circuits.spectra.ranking`, sorted descending, true head index
+  preserved on each bar). The dominant-frequency cross-reference is **OPEN** (see
+  Status — semantic-coupling deferral, not built).
+- [x] **Circuit-matrix heatmap** (optional within this REQ): the composed `(p, p)`
   `full_ov` / `full_qk` / `direct_path` matrix at an epoch, resolved via the tensor
-  catalog (demonstrates the columnar→blob hop in a consumer view).
-- [ ] **Dashboard page** surfacing the above with the standard left-nav controls
+  catalog (demonstrates the columnar→blob hop in a consumer view). **Done**
+  (`circuits.spectra.matrix`; `_load_circuit_matrix` selects descriptors then
+  resolves only those — no payload touched for the metadata filter).
+- [x] **Dashboard page** surfacing the above with the standard left-nav controls
   (variant, epoch, circuit site, metric, head selection), following the existing
-  analysis-page template. Respect `view_parameter` from the left nav on export
-  (don't repeat the REQ_150 export-default bug).
+  analysis-page template. **Done** — trajectory + ranking + matrix graphs + a
+  cross-variant overlay section. **Export caveat:** the per-graph export reuses the
+  shared `export_panel` (the REQ_150 stub) which exports BoundView defaults, not the
+  current left-nav `view_parameter`. This REQ does **not** add export logic, so it
+  inherits — does not re-introduce — the REQ_150 limitation; the proper fix is
+  REQ_150's (export must read live left-nav state).
 
 ## Constraints
 
@@ -88,6 +104,16 @@ should surface so the dynamics are explorable across variants without re-derivin
   dashboard page first.
 - Data is per-head; `direct_path` is head-less (single series) — the view must handle
   both (uniform-rank head axis, head=0).
+- **Tensor-catalog staleness found (and locally fixed).** The tensor catalog for
+  the baselines still indexed the **old REQ_152 analyzer name** `full_ov_circuit`,
+  not the renamed `circuit_spectra` — so `circuits.spectra.matrix` found **0**
+  `circuit_matrix` descriptors until the catalog was re-materialized. The columnar
+  warehouse was refreshed by REQ_154/156 but `tensor_catalog.materialize()` was not:
+  it is **not on the REQ_145 freshness signature** (same class as
+  `finding-site-addition-not-in-refresh-signature`). Cheap fix applied to the three
+  baselines (header reads only, no recompute); the **mass refresh is REQ_137's job**.
+  Worth folding tensor-catalog materialization into the REQ_145 signature so an
+  analyzer rename invalidates it automatically.
 - **copying_score is OV-meaningful only.** For QK circuits it is degenerate (rank-1,
   non-positive-real eigenvalues → pinned ~0). Resolved in the **view** (QK sites
   default to `operator_norm`), NOT in the analyzer: a value-based NaN guard was
