@@ -158,9 +158,7 @@ def _grok_epoch(variant: Variant, threshold: float = 0.1) -> int | None:
     if "test_loss" not in df.columns or df.empty:
         return None
     crossed = [
-        int(e)
-        for e, loss in zip(df["epoch"], df["test_loss"], strict=False)
-        if loss < threshold
+        int(e) for e, loss in zip(df["epoch"], df["test_loss"], strict=False) if loss < threshold
     ]
     return min(crossed) if crossed else None
 
