@@ -1,6 +1,6 @@
 # REQ_152: FullOVCircuit — the end-to-end OV path as a first-class object
 
-**Status:** Implemented on `feature/REQ_152_full_ov_circuit` (awaiting merge to `develop`).
+**Status:** Completed — merged to `develop` (merge `293d581`).
 **Priority:** High — the data model's designated "build first" Layer 4 object
 (`data_model_master.md`, Part V build-readiness scan). First requirement built
 *against* the canonical data model.

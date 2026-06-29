@@ -1,7 +1,7 @@
 # REQ_155: Dashboard views for circuit spectra (OV/QK copy-transform & rank dynamics)
 
-**Status:** Complete on `feature/REQ_155_deferred_views` (awaiting merge). The MVP
-(trajectory view + page) merged earlier; this branch finishes the three deferred
+**Status:** Completed — merged to `develop` (merge `952eb59`). The MVP
+(trajectory view + page) merged earlier; the deferred-views branch finished the three deferred
 follow-ups: the **copy/transform head-ranking bar** (`circuits.spectra.ranking`),
 the **circuit-matrix heatmap** (`circuits.spectra.matrix`, resolved through the
 tensor catalog), and the **cross-variant overlay** (`miscope.views.circuit_spectra`

@@ -1,6 +1,6 @@
 # REQ_154: Generalize to a `circuit_spectra` instrument; add FullQKCircuit
 
-**Status:** Implemented on `feature/REQ_154_circuit_spectra_siblings` (awaiting merge).
+**Status:** Completed — merged to `develop` (merges `63ba6ad`, `0cde064`).
 **Priority:** Medium — proves the Layer 4 buildout pattern (one universal spectral
 instrument, circuits as sites) and adds the second circuit object so QK binding can
 be compared head-for-head against the OV copy/transform split.

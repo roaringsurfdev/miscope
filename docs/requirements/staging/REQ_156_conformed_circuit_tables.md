@@ -1,6 +1,6 @@
 # REQ_156: Conformed Layer 4 circuit object table (drain the generic fallback)
 
-**Status:** Draft — not started.
+**Status:** Completed — merged to `develop` (merge `c2ee867`).
 **Priority:** Medium — Store-realization dial-tilt for the Layer 4 circuit objects
 (REQ_152/154). Moves `circuit_spectra`'s columnar metrics from the generic
 analyzer-named fallback into a **conformed semantic table** (the data model's Part IV
