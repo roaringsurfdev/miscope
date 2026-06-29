@@ -26,7 +26,10 @@ from miscope.analysis.library.weights import compute_participation_ratio
 from miscope.families.implementations.modulo_addition_1layer import (
     ModuloAddition1LayerFamily,
     _compose_attn_qk,
+    _compose_direct_path,
     _compose_full_ov,
+    _compose_ov,
+    _compose_qk,
 )
 
 P = 13
@@ -80,6 +83,21 @@ def test_compose_full_qk_matches_reference():
         np.testing.assert_allclose(matrix[h], reference, rtol=1e-5, atol=1e-5)
 
 
+def test_compose_residual_and_direct_path_references():
+    """Residual OV/QK and the head-less direct path equal independent references."""
+    snap = _synthetic_snapshot()
+    ov = _compose_ov(snap, {})
+    qk = _compose_qk(snap, {})
+    dp = _compose_direct_path(snap, {"params": {"prime": P}})
+    assert ov.shape == (N_HEADS, D_MODEL, D_MODEL)
+    assert qk.shape == (N_HEADS, D_MODEL, D_MODEL)
+    assert dp.shape == (P, P)
+    for h in range(N_HEADS):
+        np.testing.assert_allclose(ov[h], snap["W_V"][h] @ snap["W_O"][h], rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(qk[h], snap["W_Q"][h] @ snap["W_K"][h].T, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(dp, snap["W_E"][:P] @ snap["W_U"][:, :P], rtol=1e-5, atol=1e-5)
+
+
 # ---------------------------------------------------------------------------
 # 2. Spectral-instrument correctness
 # ---------------------------------------------------------------------------
@@ -93,20 +111,29 @@ def test_empty_sites_returns_empty():
 
 
 def test_analyzer_keys_and_shapes():
-    """Both circuit sites emit site-prefixed keys; columnar per head, tensors full shape."""
+    """All five circuit sites emit site-prefixed keys; columnar per head, tensors full shape."""
     analyzer = CircuitSpectraAnalyzer()
     inputs = deps_inputs({"parameter_snapshot": _synthetic_snapshot()})
     result = analyzer.analyze(inputs, _context())
 
     fields = ("copying_score", "effective_rank", "operator_norm", "circuit_matrix", "eigenvalues")
-    expected = {f"{site}_{f}" for site in ("full_ov", "full_qk") for f in fields}
-    assert set(result) == expected
-    for site in ("full_ov", "full_qk"):
-        assert result[f"{site}_copying_score"].shape == (N_HEADS,)
-        assert result[f"{site}_effective_rank"].shape == (N_HEADS,)
-        assert result[f"{site}_operator_norm"].shape == (N_HEADS,)
-        assert result[f"{site}_circuit_matrix"].shape == (N_HEADS, P, P)
-        assert result[f"{site}_eigenvalues"].shape == (N_HEADS, P)
+    sites = ("full_ov", "full_qk", "ov", "qk", "direct_path")
+    assert set(result) == {f"{site}_{f}" for site in sites for f in fields}
+
+    # (n_heads, matrix_dim); direct_path is head-less → uniform-rank singleton head.
+    expected = {
+        "full_ov": (N_HEADS, P),
+        "full_qk": (N_HEADS, P),
+        "ov": (N_HEADS, D_MODEL),
+        "qk": (N_HEADS, D_MODEL),
+        "direct_path": (1, P),
+    }
+    for site, (n_heads, dim) in expected.items():
+        assert result[f"{site}_copying_score"].shape == (n_heads,)
+        assert result[f"{site}_effective_rank"].shape == (n_heads,)
+        assert result[f"{site}_operator_norm"].shape == (n_heads,)
+        assert result[f"{site}_circuit_matrix"].shape == (n_heads, dim, dim)
+        assert result[f"{site}_eigenvalues"].shape == (n_heads, dim)
         assert result[f"{site}_eigenvalues"].dtype == np.complex128
 
 
