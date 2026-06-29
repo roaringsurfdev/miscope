@@ -1,13 +1,19 @@
-"""REQ_152: Full OV circuit spectral analyzer.
+"""REQ_152 / REQ_154: Circuit spectra analyzer.
 
 A *fresh* universal spectral instrument over family-declared **circuit
-composition sites**. For each site — a composed end-to-end weight circuit such as
-the full OV path ``W_U W_O W_V W_E`` (`data_model_master.md` Layer 4,
-``FullOVCircuit``) — it measures gauge-invariant invariants of the composed
-operand alone: the operator norm, the effective rank (participation ratio of the
-singular values), and the eigenspectrum **copying score**. The dense composed
-matrix and its eigenvalues are emitted as tensor refs (blob plane); only the
-scalar invariants flatten to columns.
+composition sites** (``circuit_spectra_sites``). For each site — a composed
+end-to-end weight circuit such as the full OV path ``W_U W_O W_V W_E`` or the full
+QK form ``W_E^T W_Q^T W_K W_E`` (`data_model_master.md` Layer 4) — it measures
+gauge-invariant invariants of the composed operand alone: the operator norm, the
+effective rank (participation ratio of the singular values), and the eigenspectrum
+**copying score**. The dense composed matrix and its eigenvalues are emitted as
+tensor refs (blob plane); only the scalar invariants flatten to columns. Each
+circuit is one ``site`` row, so the data model's distinct Layer 4 objects
+(FullOVCircuit, FullQKCircuit, …) are discriminator-keyed slices of one table.
+
+The copying score is OV-meaningful (a head's copy-vs-transform tendency); it is
+computed uniformly for every circuit site and simply not interpreted for non-OV
+circuits — cheap and harmless, since the consumer selects the columns it needs.
 
 Boundaries (REQ_152 constraints):
 
@@ -58,7 +64,7 @@ _COLUMNAR = (
 )
 
 SPEC = AnalyzerSpec(
-    name="full_ov_circuit",
+    name="circuit_spectra",
     output_scope="per_epoch",
     inputs=(ArtifactInput("parameter_snapshot"),),
     version=1,
@@ -84,8 +90,8 @@ SPEC = AnalyzerSpec(
 
 
 @register_analyzer(SPEC)
-class FullOVCircuitAnalyzer:
-    """Spectral invariants of family-declared composed circuits (REQ_152).
+class CircuitSpectraAnalyzer:
+    """Spectral invariants of family-declared composed circuits (REQ_152 / REQ_154).
 
     For each :class:`BasisProjectionSite` the family declares in
     ``context["circuit_spectra_sites"]``, runs the site's composer on the
@@ -94,7 +100,7 @@ class FullOVCircuitAnalyzer:
     (``{site_name}_*`` keys).
     """
 
-    name = "full_ov_circuit"
+    name = "circuit_spectra"
     description = "Spectral invariants + copying score of family-declared composed circuits"
     depends_on = "parameter_snapshot"
 

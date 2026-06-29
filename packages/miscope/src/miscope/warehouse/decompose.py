@@ -76,7 +76,7 @@ _DECOMP: dict[str, AnalyzerDecomp] = {
     "repr_geometry": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "centroid_fourier_alignment": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "weight_basis_projection": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
-    "full_ov_circuit": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
+    "circuit_spectra": AnalyzerDecomp(KeyStyle.PREFIX_US, (Coord.SITE,)),
     "weight_spectra": AnalyzerDecomp(KeyStyle.REVERSED_US, (Coord.SITE,)),
     # --- cross-epoch, site in the key (double underscore) ---
     "global_centroid_pca": AnalyzerDecomp(KeyStyle.PREFIX_DUS, (Coord.SITE,)),
