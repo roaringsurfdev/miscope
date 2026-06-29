@@ -1,7 +1,9 @@
 # Canonical Object Harvest — Mining the Literature for STABLE Objects
 
-**Status:** Build-queue companion to [data_model_master.md](data_model_master.md) (2026-06-27).
-Validate against the master doc's Part V scan before building any row.
+**Status:** Build-queue companion to [data_model_master.md](data_model_master.md) (updated
+2026-06-29). Build queue items 1–4 (all four Layer 4 circuits) are **BUILT** (REQ_152/154/156);
+item 5 (irrep basis) and the `dominant_frequency` column (REQ_157) remain. Validate against the
+master doc's Part V scan before building any row.
 
 ## Method — the algebra-vs-behavior test
 
@@ -46,10 +48,10 @@ The richest vein: nearly every primitive is defined as a matrix identity.
 
 | Measurement | On operand | Lands | Status |
 | --- | --- | --- | --- |
-| OV eigen-copying score | `W_U W_O W_V W_E` eigenvalues; Σ(positive)/Σ\|λ\| = copying tendency | column on FullOVCircuit | CHEAP (square, eig exists) |
-| QK eigenvalues | full QK circuit (square) | tensor ref + scalar tail | CHEAP |
-| Effective rank / SVD spectrum | any circuit operand | column (`weight_spectra` repoint) | CHEAP |
-| Dominant frequency / power | any circuit operand (`weight_basis_projection` repoint) | column | CHEAP |
+| OV eigen-copying score | `W_U W_O W_V W_E` eigenvalues; Σ(positive)/Σ\|λ\| = copying tendency | column on FullOVCircuit | ✅ BUILT (`circuit_spectra`) |
+| QK eigenvalues | full QK circuit (square) | tensor ref + scalar tail | ✅ BUILT (`circuit_spectra`) |
+| Effective rank / SVD spectrum | any circuit operand | column (`circuit_spectra`) | ✅ BUILT |
+| Dominant frequency / power | any circuit operand | column | ⏳ pending REQ_157 — *not* the clean `weight_basis_projection` repoint first assumed (Fourier site ≠ circuit site) |
 
 ### Arch-gated STABLE (record, don't build — 1-layer models don't instantiate)
 
@@ -132,20 +134,30 @@ field reaches consensus on a canonical decomposition (it has not).
 Ordered by value × cheapness. All are STABLE, none arch-gated, all are mostly `CHEAP` instrument
 repoints onto a composed operand.
 
-1. **Full OV circuit** `W_U W_O W_V W_E` — per `(variant, epoch, head)`, [vocab,vocab]. Directly
-   exposes the additive structure of modulo addition (source token → output-logit map). New L4
-   operand; matrix as tensor ref; columns = dominant frequency, effective rank, **copying score**
-   (CHEAP). *Highest value: known object, family-relevant, you don't have it.*
-2. **Full QK circuit** `W_E^T W_Q^T W_K W_E` — per `(variant, epoch, head)`, [vocab,vocab]. Which
-   token-pairs the head wants to bind. New L4 operand; same instrument repoint.
-3. **Direct path** `W_U W_E` — per `(variant, epoch)`, [vocab,vocab]. The 0-layer logit term; cheap
-   baseline against which head contributions are read. New L4 operand.
-4. **Residual-space QK / OV circuits** (`W_Q^T W_K`, `W_O W_V`) — the master doc's existing
-   `QKCircuit`/`OVCircuit` PLANNED rows; materialize the composed weight and repoint
-   `weight_basis_projection` + `weight_spectra` (CHEAP, already designed).
-5. **Irrep basis (family object)** — name the family's DFT/irrep basis as the STABLE instrument
-   underlying `FrequencyMode`. Mostly a *naming + provenance* move (the transform exists); it makes
-   explicit that the basis is given and the selected modes are the finding.
+> **Status (2026-06-29).** Items 1–4 are **BUILT** — all four circuit operands are materialized by
+> the universal `circuit_spectra` analyzer (REQ_152 → REQ_154) and conformed into one site-keyed
+> Layer 4 object table (REQ_156). The spectral columns (`copying_score`, `effective_rank`,
+> `operator_norm`) and the matrix/eigenvalue tensor refs are populated on the baselines. The one
+> column listed below that did **not** land is per-circuit `dominant_frequency` — it needs a
+> first-class per-head home (not the Fourier-site `weight_basis_projection`) and is now its own
+> queue item, **REQ_157**. Item 5 (irrep basis) is the remaining buildable-now harvest.
+
+1. ✅ **BUILT (REQ_152)** — **Full OV circuit** `W_U W_O W_V W_E` — per `(variant, epoch, head)`,
+   [vocab,vocab]. Directly exposes the additive structure of modulo addition (source token →
+   output-logit map). L4 operand; matrix as tensor ref; columns = effective rank, operator norm,
+   **copying score**. (`dominant_frequency` → REQ_157.) *Highest value: known object,
+   family-relevant — built first.*
+2. ✅ **BUILT (REQ_154)** — **Full QK circuit** `W_E^T W_Q^T W_K W_E` — per `(variant, epoch, head)`,
+   [vocab,vocab]. Which token-pairs the head wants to bind. Same instrument repoint (a sibling
+   `circuit_spectra` site). copying_score is degenerate here (OV-meaningful only).
+3. ✅ **BUILT (REQ_154)** — **Direct path** `W_U W_E` — per `(variant, epoch)`, [vocab,vocab]. The
+   0-layer logit term; baseline against which head contributions are read. Head-less site.
+4. ✅ **BUILT (REQ_154)** — **Residual-space QK / OV circuits** (`W_Q^T W_K`, `W_O W_V`) — the master
+   doc's `QKCircuit`/`OVCircuit` rows (sites `qk` / `ov`), now `populated · ACTIVE`. Built as
+   `circuit_spectra` sites rather than by repointing `weight_spectra`.
+5. **Irrep basis (family object)** — *remaining* — name the family's DFT/irrep basis as the STABLE
+   instrument underlying `FrequencyMode`. Mostly a *naming + provenance* move (the transform
+   exists); it makes explicit that the basis is given and the selected modes are the finding.
 
 ### Deferred (record only)
 - Composition terms (Q/K/V), virtual attention heads — STABLE, `arch`-gated (≥2 layers).
