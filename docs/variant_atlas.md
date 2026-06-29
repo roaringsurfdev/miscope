@@ -129,6 +129,7 @@ Loss curve drops at ~14–17k but stalls before reaching the canonical floor. Se
 
 - **MLP leads second descent in DMD residual** — across the dense-checkpoint anomaly variants (p101/s999/ds999, p113/s485/ds999, p89/s999/ds999) plus the four reference variants, MLP_out's residual peak precedes attn_out's by 500–1000 epochs at second descent. Selection-biased to dense-checkpoint variants; needs balanced validation. Connects to existing finding that MLP Fourier alignment commits in 1–6% of training while attn FA commits at 0.50–0.86 of grokking. ([notes/findings_mlp_leads_second_descent.md](notes/findings_mlp_leads_second_descent.md))
 - **W_in / W_out independent timelines** — the empirical justification for treating them as separate matrices in `parameter_dmd`. p109 group 3 (k=4) is the cleanest case: W_out drops to ~0 while W_in is at ~0.7. p113 canon, by contrast, has nearly-coordinated W_in / W_out — "canon is canon precisely because everything is coordinated." Disagreement between W_in and W_out is a feature of imperfect grokking.
+- **Group trajectory proximity signatures** — `parameters.pca.proximity` over weight-group PCA trajectories (sign-flip-invariant distance `min(dist(A,B), dist(A,-B))`) yields three cross-variant signatures: **tight-tracking** (p109), **two-bump** (p101), **smooth-divergence** (p89). Negative result: final attn↔MLP distance does **not** predict final loss — proximity is a process signature, not an outcome predictor.
 
 ### Universal patterns (across all studied variants)
 
@@ -143,6 +144,7 @@ Loss curve drops at ~14–17k but stalls before reaching the canonical floor. Se
 
 - **p113 has been tested across multiple data seeds**; only `ds598` produces a healthy training trajectory. `ds42` and `ds999` are catastrophic for `p113/s999`.
 - *(2026-03-21)* At epoch 0, data-seed differential pressure lands almost entirely on the MLP. Embedding and attention are near-uniform and data-seed-agnostic at init; MLP is already structured and spiky. Data seed selectively amplifies MLP's existing frequency preferences.
+- *(2026-06-29, hypothesis — untested)* Changing `data_seed` appears to **amplify the initial gradient magnitudes** without changing the **shape** of the initial gradient-energy profile — consistent with the split distributing the data in a way that scales magnitudes without reshaping the loss landscape. The train/test split *ratio* (a sibling Model Parameter) is hypothesized to behave similarly. Supports treating the split (ratio + `data_seed`) as a per-run **Model Parameter** (the master dataset is the Task's; how a run partitions it is the Variant's). Test: compare epoch-0 `gradient_site` energy profiles across `data_seed` at fixed (prime, seed) — expect amplitude scaling, shape invariance.
 - **Methodological note**: don't compare structural metrics directly across data seeds. Divergence between data seeds is immediate (visible at first descent) and the differences accumulate across training; like-for-like comparison should hold `data_seed` fixed.
 
 ---

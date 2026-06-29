@@ -500,8 +500,31 @@ samples of one. Binds the model-side instance (this trained net) to the task-sid
 > **Model Parameters** (`model_seed`, `data_seed`) live on the `Variant` — they identify *which
 > training run* of a fixed (Family, Task). Seeds are architecture-universal (every run has them) and
 > demonstrably consequential to outcomes, so they are standing Variant columns rather than a declared
-> set; other training hyperparameters (learning rate, weight decay) join this space *if/when* they
-> vary across Variants.
+> set; other training hyperparameters (learning rate, weight decay, a `freeze_attention` pass-through
+> flag) join this space *if/when* they vary across Variants.
+
+> **Build / realization decision — Layer 1 (REQ_158/159, settled 2026-06-29).** The Layer 1 objects
+> realize as **seed-backed warehouse dimension tables**: authored (given-real) source-of-truth rows,
+> CRUD-editable, **backed by a tracked version-controlled seed** and **never wiped by a `materialize()`
+> pass** (unlike the regeneratable derived tables of Layers 2–8). Four sequencing/scope decisions:
+> 1. **Commit the objects; defer the parameter-*value* (EAV) tables.** `Architecture`, `TaskType`,
+>    `Task` ship as objects; `TaskType_Parameter`/`Task_Parameter_Value` (and the symmetric
+>    model-side `Model_Parameter_Value`) are **deferred** — `prime` and the seeds are typed attributes
+>    encoded in identity. An EAV value table earns its place only when parameters go **heterogeneous**
+>    (a *second* TaskType with different params, or a fleet of varying hyperparameters). Same
+>    commit-object-defer-table pattern as `MethodRecipe`.
+> 2. **Declaration ≠ value.** The parameter *declaration* (`name`, `datatype`, **required/default**)
+>    is kept as authored, seed-tracked config (the evolution of `family.json` `domain_parameters`); it
+>    is what the Training flow reads to force population. Only the *resolved-value* normalization is
+>    deferred.
+> 3. **Required = "no default."** `prime` loses its default → **required** (you choose which mod-p; you
+>    don't train "the default task"). Seeds keep defaults.
+> 4. **Identity = overrides in the name, full set in provenance.** A Model Parameter is serialized into
+>    the `Variant` directory name **only when non-default** (so touching a hyperparameter renames
+>    nothing existing), while the **complete** resolved set — defaults included — is pinned in the
+>    seed/provenance. The name is the override-only collision key; provenance is the truth (so a future
+>    *default* change can't make implicit-default Variants ambiguous). `Family.name` and the `Task`
+>    name are likewise **derived** from their factors' short names, not stored independently.
 
 ### Checkpoint · `STABLE`
 A point in training time. Anchors every epoch-scoped object.
