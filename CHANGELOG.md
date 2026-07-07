@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_v1.0.0 clean-room rebaseline in progress — see `docs/design/`. Pre-rebaseline
+requirements are frozen; nothing is added here during the freeze._
+
+## [0.9.0] - 2026-07-07
+
+Last release before the **v1.0.0 clean-room rebaseline**. Consolidates the
+platform's maturation from a collection of analyzers into a lakehouse-backed,
+registry-driven, monorepo-packaged analysis platform, capped by Layer 4 circuit
+analysis. Per-requirement detail (REQ_055–REQ_156) is preserved in
+`docs/requirements/archive/v0.9.0-lakehouse-platform/`; the next release, v1.0.0, is
+designed in `docs/design/` (`PLATFORM.md`, `data_model.md`, `architecture.md`).
+
+### Highlights by arc
+
+- **Lakehouse data platform** (REQ_108, 110/110A/110B/110C) — columnar warehouse,
+  address-only tensor catalog, DuckDB query surface, publication bundles.
+- **Analysis-platform foundations** — hooked models (REQ_105, 112, 113),
+  discoverability registry (REQ_107), measurement primitives (REQ_109, 126),
+  analyzer spec/registry & I/O unification (REQ_119, 120, 121), fluid dependency
+  scheduler (REQ_133), attention-head coordinate (REQ_136).
+- **Monorepo & config** (REQ_115, 123, 124, 125) — uv workspace layout, unified data
+  root, per-app config.
+- **Derived tables & incremental refresh** (REQ_140, 141, 144, 145, 149) —
+  aggregation layer, signature-based freshness.
+- **Layer 4 circuits** (REQ_152, 154, 155, 156) — full OV circuit, circuit spectra
+  siblings/views, conformed circuit tables.
+- **Dynamics & geometry** (REQ_055, 073, 088, 089, 090, 092, 096, 117, 118) — DMD
+  reorganization, 2-layer MLP family, frequency-group weight geometry, intragroup
+  manifold, neuron grouping.
+- **Consolidation & migration** (REQ_097, 098, 102, 104, 114, 122, 127–132, 135) —
+  analyzer cleanup, deprecations, consumer migrations, dead-code cull.
+
 ### Added
 
 - **`weight_spectra` analyzer** (REQ_111) — successor to `effective_dimensionality`
