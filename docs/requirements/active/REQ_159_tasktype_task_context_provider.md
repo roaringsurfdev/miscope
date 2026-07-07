@@ -123,19 +123,23 @@ identity** so any parameter that varies a run is reflected in the run's identity
 - **Don't stand up a parallel store** (REQ_156 dial); **pre-v1.0.0 — no shims**
   (migrate forward; preserve baselines).
 
-## Open Questions (resolve during implementation)
+## Open Questions (resolved 2026-06-29 by user)
 
-1. **Basis / master-dataset ownership move — scope the blast radius.** Does this REQ
-   physically relocate the construction code out of `ModuloAddition1LayerFamily` into
-   a TaskType-owned surface, or commit the *objects + ownership* now and relocate the
-   *code* in a fast follow-up? The implementation class is load-bearing; recommend
-   phasing (objects + provenance + `prime` ownership before the code move).
-2. **`prime` read-path migration.** Every consumer reading
-   `variant.model_config["prime"]` / the `prime` variant column repoints to the Task
-   (or its allowed projection). The surface is broad (analyzers, views,
-   `cross_variant`); decide big-bang vs phased and enumerate it.
-3. **IrrepBasis (build-queue item 5).** Fold "name the basis as a STABLE Task
-   instrument under FrequencyMode" into this REQ once Task exists, or a thin follow-up?
+1. **Basis / master-dataset ownership move — scope the blast radius.** **Resolved:
+   separate REQ.** This REQ commits the *objects + ownership* (TaskType/Task,
+   `prime` ownership, FK repoint, identity rework); the physical relocation of the
+   basis / master-dataset construction code out of `ModuloAddition1LayerFamily` is a
+   distinct follow-up requirement. Keep REQ_159 scoped to the Store-level objects.
+2. **`prime` read-path migration.** **Resolved: likely no blast radius.** The current
+   aggregate accessor (`variant.params["prime"]`) is the right model+task parameter
+   surface and may not need changing — the Task becomes the *owner*, but the existing
+   aggregate read surface can keep resolving `prime` (sourced from the Task). Confirm
+   the accessor name against the code during implementation; if it already aggregates
+   model+task params, the downstream blast radius does not exist.
+3. **IrrepBasis (build-queue item 5).** **Resolved: separate, thin follow-up.** Not
+   every Task has an IrrepBasis (only Tasks with a clearly associated Group), so it is
+   *not* a requirement for standing up the Task infrastructure. Build Task first;
+   name the basis as a STABLE Task instrument afterward.
 
 ## Notes
 
