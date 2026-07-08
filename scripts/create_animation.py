@@ -1,0 +1,131 @@
+# %% imports
+import io
+import os
+import sys
+from pathlib import Path
+
+import plotly.graph_objects as go
+from PIL import Image
+
+parent_dir = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(parent_dir)
+
+from miscope import load_family  # noqa: E402
+from miscope.families import Variant  # noqa: E402
+
+# from miscope.visualization.export import export_animation
+
+# %% create animation method
+
+
+def _save_gif(frames: list[Image.Image], output_path: Path, fps: int) -> None:
+    """Save a list of PIL Images as an animated GIF."""
+    duration_ms = int(1000 / fps)
+    # Convert RGBA to P mode for GIF (GIF doesn't support RGBA)
+    rgb_frames = [frame.convert("RGB") for frame in frames]
+    rgb_frames[0].save(
+        str(output_path),
+        save_all=True,
+        append_images=rgb_frames[1:],
+        duration=duration_ms,
+        loop=0,
+    )
+
+
+def _fig_to_pil(fig: go.Figure, width: int, height: int, scale: int) -> Image.Image:
+    """Render a Plotly figure to a PIL Image (in memory, no temp files)."""
+    png_bytes = fig.to_image(format="png", width=width, height=height, scale=scale)
+    return Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+
+
+def export_animation(
+    variant: Variant,
+    view_name: str,
+    output_path: str | Path,
+    epochs: list[int] | None = None,
+    fps: int = 5,
+    width: int = 1200,
+    height: int = 800,
+    scale: int = 2,
+    **view_kwargs,
+) -> Path:
+    """Create an animated GIF from a per-epoch renderer.
+
+    Iterates over epochs, calls render_fn(epoch_data, epoch, **render_kwargs)
+    for each, renders each frame to PNG, and stitches into an animated GIF.
+
+    Args:
+        render_fn: A per-epoch renderer function with signature
+            (epoch_data: dict, epoch: int, **kwargs) -> go.Figure.
+        artifacts_dir: Path to variant's artifacts directory.
+        analyzer_name: Name of the analyzer whose artifacts to load.
+        output_path: Destination file (.gif extension).
+        epochs: Specific epochs to include. None = all available.
+        fps: Frames per second.
+        width: Frame width in pixels.
+        height: Frame height in pixels.
+        scale: Resolution multiplier.
+        **render_kwargs: Additional arguments passed to render_fn.
+
+    Returns:
+        Path to the written GIF file.
+
+    Raises:
+        FileNotFoundError: If no artifacts found for the analyzer.
+        ValueError: If fewer than 2 epochs available.
+    """
+    if epochs is None:
+        epochs = variant.get_available_checkpoints()
+    if len(epochs) < 2:
+        raise ValueError(f"Need at least 2 epochs for animation, got {len(epochs)}")
+
+    output_path = Path(output_path)
+    if not output_path.suffix:
+        output_path = output_path.with_suffix(".gif")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    frames: list[Image.Image] = []
+    for epoch in epochs:
+        ctx = variant.at(epoch)
+        fig = ctx.view(view_name).figure(**view_kwargs)
+        frame = _fig_to_pil(fig, width, height, scale)
+        frames.append(frame)
+        print(f"Frame added for epoch: {epoch}")
+
+    _save_gif(frames, output_path, fps)
+    return output_path
+
+
+# %% load model and list variants
+START_EPOCH = 0
+END_EPOCH = 25000
+
+family = load_family("modulo_addition_1layer")
+variant = family.get_variant(prime=113, seed=999, data_seed=999)
+all_checkpoints = variant.get_available_checkpoints()
+checkpoint_range = [
+    epoch for epoch in all_checkpoints if epoch >= START_EPOCH and epoch <= END_EPOCH
+]
+print(all_checkpoints)
+
+# site = "resid_post"
+# view_name = "geometry.centroid_pca_variance"
+# view_kwargs = {"site": site}
+matrix = "Wout"
+view_name = "weight_geometry.centroid_pca"
+view_kwargs = {"matrix": matrix}
+
+output_path = os.path.join(
+    "apps", "research", "animations", f"{variant.name}_{view_name}_{matrix}.gif"
+)
+
+export_animation(
+    variant,
+    view_name=view_name,
+    output_path=output_path,
+    fps=2,
+    epochs=checkpoint_range,
+    **view_kwargs,  # pyright: ignore[reportArgumentType]
+)
+
+# %%

@@ -1,0 +1,83 @@
+{
+  "name": "modulo_addition_1layer",
+  "display_name": "Modulo Addition (1 Layer)",
+  "description": "Single-layer transformer trained on modular arithmetic. Based on Neel Nanda's grokking experiment.",
+  "class_type": "miscope.families.implementations.modulo_addition_1layer.ModuloAddition1LayerFamily",
+  "architecture": {
+    "n_layers": 1,
+    "n_heads": 4,
+    "d_model": 128,
+    "d_head": 32,
+    "d_mlp": 512,
+    "act_fn": "relu",
+    "normalization_type": null,
+    "n_ctx": 3
+  },
+  "domain_parameters": {
+    "prime": {
+      "type": "int",
+      "description": "Modulus for the addition task",
+      "default": 113
+    },
+    "seed": {
+      "type": "int",
+      "description": "Random seed for model initialization",
+      "default": 999
+    },
+    "data_seed": {
+      "type": "int",
+      "description": "Random seed for train/test split of the (a, b) input grid",
+      "default": 598
+    }
+  },
+  "analyzers": [
+    "attention_patterns",
+    "neuron_activations",
+    "parameter_snapshot",
+    "landscape_flatness",
+    "repr_geometry",
+    "fourier_nucleation",
+    "input_trace",
+    "weight_basis_projection",
+    "circuit_spectra",
+    "activation_frequency_norm",
+    "weight_spectra",
+    "fourier_frequency_quality",
+    "neuron_grouping",
+    "centroid_fourier_alignment",
+    "parameter_trajectory",
+    "neuron_frequency_attribution",
+    "neuron_dynamics",
+    "global_centroid_pca",
+    "activation_dmd",
+    "parameter_dmd",
+    "input_trace_graduation",
+    "neuron_group_pca",
+    "intragroup_manifold",
+    "freq_group_weight_geometry"
+  ],
+  "analysis_dataset": {
+    "type": "modulo_addition_grid",
+    "description": "Full (a, b) input grid for modular arithmetic"
+  },
+  "probes": {
+    "probe": {
+      "name": "modulo_addition_grid",
+      "description": "Full (a, b) input grid for modular arithmetic",
+      "method": "get_default_probe"
+    }
+  },
+  "variants": {
+    "variant": {
+      "name": "",
+      "description": "",
+      "parameters": {
+        "prime": 113,
+        "seed": 999
+      },
+      "checkpoints": [],
+      "state": 0
+    }
+  },
+  "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}"
+}

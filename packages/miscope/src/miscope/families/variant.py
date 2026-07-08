@@ -1,0 +1,823 @@
+"""Variant class representing a specific trained model within a family."""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import torch
+from safetensors.torch import load_file, save_file
+from tqdm import tqdm
+
+from miscope.families.types import VariantState
+
+if TYPE_CHECKING:
+    from miscope.analysis.artifact_loader import ArtifactLoader
+    from miscope.architectures import ActivationCache, HookedModel
+    from miscope.families.intervention_variant import InterventionVariant
+    from miscope.families.parameterized_variant import ParameterizedVariant
+    from miscope.families.protocols import ModelFamily
+    from miscope.views.catalog import BoundView, EpochContext
+    from miscope.views.dataview_catalog import BoundDataView
+    from miscope.warehouse.reader import WarehouseAccessor
+    from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
+
+
+@dataclass
+class TrainingResult:
+    """Result of a training run."""
+
+    train_losses: list[float]
+    test_losses: list[float]
+    checkpoint_epochs: list[int]
+    final_train_loss: float
+    final_test_loss: float
+    variant_dir: Path
+
+
+class Variant:
+    """A specific trained model within a family.
+
+    Variants share the same architecture and analysis logic but differ
+    in domain-specific parameters (e.g., modulus, seed).
+
+    State is derived from filesystem presence:
+    - UNTRAINED: No checkpoints directory or empty
+    - TRAINED: Checkpoints exist but no artifacts
+    - ANALYZED: Both checkpoints and artifacts exist
+    """
+
+    def __init__(
+        self,
+        family: ModelFamily,
+        params: dict[str, Any],
+    ):
+        """Initialize a Variant.
+
+        Args:
+            family: The ModelFamily this variant belongs to. The family owns
+                the data root, so the variant's directory is derived as
+                ``family.variants_dir / self.name``.
+            params: Domain parameter values (e.g., {"prime": 113, "seed": 42})
+        """
+        self._family = family
+        self._params = params
+
+    @property
+    def family(self) -> ModelFamily:
+        """The ModelFamily this variant belongs to."""
+        return self._family
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Domain parameter values for this variant."""
+        return self._params.copy()
+
+    @property
+    def name(self) -> str:
+        """Variant directory name derived from family pattern."""
+        return self._family.variant_pattern.format(**self._params)
+
+    @property
+    def variant_dir(self) -> Path:
+        """Path to this variant's directory.
+
+        Structure: ``{data_root}/{family.name}/variants/{variant_name}/``
+        """
+        return self._family.variants_dir / self.name
+
+    @property
+    def dir(self) -> Path:
+        """Alias for variant_dir. Path to this variant's working directory."""
+        return self.variant_dir
+
+    @property
+    def checkpoints_dir(self) -> Path:
+        """Path to checkpoints subdirectory."""
+        return self.variant_dir / "checkpoints"
+
+    @property
+    def artifacts_dir(self) -> Path:
+        """Path to analysis artifacts subdirectory."""
+        return self.variant_dir / "artifacts"
+
+    @property
+    def metadata_path(self) -> Path:
+        """Path to training metadata JSON file."""
+        return self.variant_dir / "metadata.json"
+
+    @property
+    def config_path(self) -> Path:
+        """Path to model config JSON file."""
+        return self.variant_dir / "config.json"
+
+    @property
+    def state(self) -> VariantState:
+        """Current state based on filesystem presence."""
+        has_checkpoints = self._has_checkpoints()
+        has_artifacts = self._has_artifacts()
+
+        if has_checkpoints and has_artifacts:
+            return VariantState.ANALYZED
+        elif has_checkpoints:
+            return VariantState.TRAINED
+        else:
+            return VariantState.UNTRAINED
+
+    def _has_checkpoints(self) -> bool:
+        """Check if any checkpoint files exist."""
+        if not self.checkpoints_dir.exists():
+            return False
+        # Look for .safetensors files
+        return any(self.checkpoints_dir.glob("checkpoint_epoch_*.safetensors"))
+
+    def _has_artifacts(self) -> bool:
+        """Check if any artifact files exist."""
+        if not self.artifacts_dir.exists():
+            return False
+        # Look for any .npz files (analysis artifacts)
+        return any(self.artifacts_dir.glob("**/*.npz"))
+
+    def get_available_checkpoints(self) -> list[int]:
+        """List checkpoint epochs available on disk.
+
+        Returns:
+            Sorted list of epoch numbers with available checkpoints
+        """
+        epochs = []
+        if self.checkpoints_dir.exists():
+            for path in self.checkpoints_dir.glob("checkpoint_epoch_*.safetensors"):
+                # Extract epoch from filename: checkpoint_epoch_00100.safetensors
+                epoch_str = path.stem.replace("checkpoint_epoch_", "")
+                try:
+                    epochs.append(int(epoch_str))
+                except ValueError:
+                    continue
+        return sorted(epochs)
+
+    def load_checkpoint(self, epoch: int) -> dict[str, Any]:
+        """Load model state_dict from a specific checkpoint.
+
+        Args:
+            epoch: The epoch number of the checkpoint to load
+
+        Returns:
+            Model state_dict
+
+        Raises:
+            FileNotFoundError: If checkpoint doesn't exist
+        """
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_epoch_{epoch:05d}.safetensors"
+        if not checkpoint_path.exists():
+            raise FileNotFoundError(f"No checkpoint found for epoch {epoch} at {checkpoint_path}")
+        return load_file(checkpoint_path)
+
+    def checkpoint_fingerprint(self, epoch: int) -> str:
+        """Read-cheap identity of a checkpoint file (REQ_145).
+
+        ``f"{epoch}:{size}:{mtime_ns}"`` from a single ``stat()`` — no content
+        hash (fork b: re-hashing safetensors at every plan would reintroduce the
+        very cost incremental refresh removes). This is what makes a model-driven
+        primary skippable: unchanged file + unchanged code/recipe → unchanged
+        signature → no recompute. Path composition stays in this storage primitive
+        (storage-encapsulation invariant 3). Returns ``f"{epoch}:absent"`` when the
+        checkpoint is missing, so a vanished checkpoint reads as a changed identity.
+        """
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_epoch_{epoch:05d}.safetensors"
+        try:
+            st = checkpoint_path.stat()
+        except OSError:
+            return f"{epoch}:absent"
+        return f"{epoch}:{st.st_size}:{st.st_mtime_ns}"
+
+    def load_model_at_checkpoint(self, epoch: int, dtype: torch.dtype | None = None) -> HookedModel:
+        """Load a ``HookedModel`` with weights from a specific checkpoint.
+
+        Args:
+            epoch: The epoch number of the checkpoint to load
+            dtype: Forward-pass dtype for the loaded model. ``None`` (default)
+                keeps the framework default (float32). Pass ``torch.float64``
+                to run the forward pass in double precision — float32
+                checkpoint weights are upcast on ``load_state_dict``. This is
+                the single seam for the float64-instability experiment.
+
+        Returns:
+            ``HookedModel`` with checkpoint weights loaded
+        """
+        model = self._family.create_model(self._params, dtype=dtype)
+        state_dict = self.load_checkpoint(epoch)
+        model.load_state_dict(state_dict)
+        return model
+
+    # --- Notebook convenience properties (REQ_037) ---
+
+    @property
+    def artifacts(self) -> ArtifactLoader:
+        """Configured loader for this variant's analysis artifacts.
+
+        This is the canonical consumer-facing surface for loading artifacts.
+        Provides ``load_epoch``, ``load_summary``, ``load_cross_epoch``,
+        ``load_epochs``, plus introspection helpers such as
+        ``get_available_analyzers`` and ``get_epochs``.
+
+        Returns a new loader each call (no caching). Assign to a variable
+        if loading multiple artifacts in sequence.
+
+        Note (REQ_125): ``ArtifactLoader`` is an internal storage primitive
+        and is not re-exported from ``miscope.analysis``. Reach it through
+        this property rather than importing the class directly.
+        """
+        from miscope.analysis.artifact_loader import ArtifactLoader
+
+        return ArtifactLoader(str(self.artifacts_dir))
+
+    def get_artifact_loader(self) -> ArtifactLoader:
+        """Return an ArtifactLoader for this variant's analysis artifacts.
+
+        Use when you need to interact with the loader as an object — e.g.,
+        to query available epochs for a specific analyzer before loading:
+
+            loader = variant.get_artifact_loader()
+            epochs = loader.get_epochs("neuron_freq_norm")
+
+        Equivalent to ``variant.artifacts`` but named as a verb to signal
+        intent: you're acquiring a reusable loader, not loading data.
+        """
+        from miscope.analysis.artifact_loader import ArtifactLoader
+
+        return ArtifactLoader(str(self.artifacts_dir))
+
+    @property
+    def warehouse(self) -> WarehouseAccessor:
+        """Columnar warehouse surface for this variant (REQ_110A).
+
+        Mirrors :attr:`artifacts`: ``variant.warehouse.materialize()`` writes the
+        long-format Parquet tables from the ``.npz`` artifacts;
+        ``variant.warehouse.table(name).to_wide(...)`` reads them back.
+        """
+        from miscope.warehouse.reader import WarehouseAccessor
+
+        return WarehouseAccessor(self)
+
+    @property
+    def tensor_catalog(self) -> TensorCatalogAccessor:
+        """Tensor descriptor catalog surface for this variant (REQ_110B).
+
+        Mirrors :attr:`warehouse` for the non-columnar plane:
+        ``variant.tensor_catalog.materialize()`` indexes the ``.npz`` tensor
+        blobs as coordinate-keyed descriptors; ``.descriptors()`` returns the
+        queryable relation (no payload); ``.resolve(rows)`` materializes the
+        selected blobs, verifying shape/dtype against the bytes.
+        """
+        from miscope.warehouse.tensor_catalog import TensorCatalogAccessor
+
+        return TensorCatalogAccessor(self)
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Training metadata (losses, checkpoint epochs, indices).
+
+        Reads from metadata.json on each access. Assign to a variable
+        to avoid repeated disk reads.
+        """
+        if not self.metadata_path.exists():
+            raise FileNotFoundError(f"No metadata found at {self.metadata_path}")
+        with open(self.metadata_path) as f:
+            return json.load(f)
+
+    @property
+    def model_config(self) -> dict[str, Any]:
+        """Model configuration (architecture, domain params, training params).
+
+        Reads from config.json on each access.
+        """
+        if not self.config_path.exists():
+            raise FileNotFoundError(f"No config found at {self.config_path}")
+        with open(self.config_path) as f:
+            return json.load(f)
+
+    @property
+    def summary_path(self) -> Path:
+        """Path to variant_summary.json (per-variant outcome snapshot)."""
+        return self.variant_dir / "variant_summary.json"
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        """Parsed variant_summary.json — per-variant outcome snapshot.
+
+        Reads on each access. Assign to a variable to avoid repeated disk reads.
+
+        Raises:
+            FileNotFoundError: If the summary file is absent (variant has not
+                been analyzed, or analysis predates the summary writer).
+        """
+        if not self.summary_path.exists():
+            raise FileNotFoundError(
+                f"No variant_summary.json for variant {self.name!r} at {self.summary_path}"
+            )
+        with open(self.summary_path) as f:
+            return json.load(f)
+
+    @property
+    def train_losses(self) -> list[float]:
+        """Per-epoch training losses. Shortcut for metadata['train_losses']."""
+        return self.metadata["train_losses"]
+
+    @property
+    def test_losses(self) -> list[float]:
+        """Per-epoch test losses. Shortcut for metadata['test_losses']."""
+        return self.metadata["test_losses"]
+
+    def run_with_cache(
+        self,
+        probe: torch.Tensor,
+        epoch: int,
+        device: str | torch.device | None = None,
+        dtype: torch.dtype | None = None,
+    ) -> tuple[torch.Tensor, ActivationCache]:
+        """Load model at checkpoint and run a forward pass with activation cache.
+
+        Args:
+            probe: Input tensor for the forward pass
+            epoch: Checkpoint epoch to load
+            device: Device for the model (default: auto-detect)
+            dtype: Forward-pass dtype. ``None`` (default) keeps the framework
+                default (float32); ``torch.float64`` runs the full forward pass
+                — and therefore the returned logits and every cached activation
+                — in double precision. The single seam for the float64
+                instability experiment.
+
+        Returns:
+            Tuple of (logits, cache) from ``HookedModel.run_with_cache``
+        """
+        model = self.load_model_at_checkpoint(epoch, dtype=dtype)
+        if device is not None:
+            model.to(device)  # in-place device move
+        logits, cache = model.run_with_cache(probe)
+        return logits, cache  # type: ignore[return-value]
+
+    def make_probe(
+        self,
+        inputs: list[list[int]],
+        device: str | torch.device | None = None,
+    ) -> torch.Tensor:
+        """Construct a probe tensor from input values.
+
+        Delegates to the family's make_probe implementation for
+        family-specific input formatting.
+
+        Args:
+            inputs: List of input sequences (e.g., [[3, 29]] for modular addition)
+            device: Device for the tensor
+
+        Returns:
+            Properly formatted probe tensor
+        """
+        return self._family.make_probe(self._params, inputs, device=device)
+
+    def analysis_dataset(
+        self,
+        device: str | torch.device | None = None,
+    ) -> torch.Tensor:
+        """Generate the full analysis dataset (probe) for this variant.
+
+        For modular addition, this is the full p x p grid of all input pairs.
+
+        Args:
+            device: Device for the tensor
+
+        Returns:
+            Analysis probe tensor
+        """
+        return self._family.generate_analysis_dataset(self._params, device=device)
+
+    def analysis_context(
+        self,
+        device: str | torch.device | None = None,
+    ) -> dict[str, Any]:
+        """Prepare family-specific analysis context.
+
+        Returns precomputed values needed for custom analysis (e.g.,
+        fourier_basis for modular addition).
+
+        Args:
+            device: Device for tensor computations (default: auto-detect)
+
+        Returns:
+            Dict with family-specific context (params, fourier_basis, etc.)
+        """
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        return self._family.prepare_analysis_context(self._params, device=device)
+
+    def at(self, epoch: int | None) -> EpochContext:
+        """Pin a training moment and return an EpochContext for view access.
+
+        The returned context fixes the epoch for all views dispatched through
+        it, enforcing a shared cursor across lenses.
+
+        Args:
+            epoch: Training epoch to pin. None defers resolution per-view
+                (per-epoch views resolve to first available; cross-epoch
+                views receive None as a "no cursor" signal).
+
+        Returns:
+            EpochContext bound to this variant and epoch.
+        """
+        from miscope.views.catalog import EpochContext
+
+        return EpochContext(variant=self, epoch=epoch)
+
+    def parameterize(
+        self,
+        *,
+        label: str | None = None,
+        local: dict[str, dict[str, Any]] | None = None,
+        **bindings: Any,
+    ) -> ParameterizedVariant:
+        """Bind a run set and return a recipe-scoped handle (REQ_138).
+
+        Reads through the returned handle resolve to the parameterization's recipe
+        plane; ``variant.at(...)`` (the empty parameterization) stays the default
+        plane. Views do not change shape — the handle only redirects where each
+        view reads its bytes.
+
+        Args:
+            label: Optional human-facing run-set label (recorded in the registry).
+            local: Analyzer-local bindings as ``{analyzer: {param: value}}`` — e.g.
+                ``local={"parameter_dmd": {"reference_epoch": 20000}}`` pins one
+                analyzer without touching others that share the parameter name.
+            **bindings: Run-level bindings (``probe=...``); each propagates to every
+                analyzer that declares a parameter of that name. A value that is a
+                :class:`~miscope.analysis.parameters.Binding` is used as-is;
+                otherwise it is wrapped as a literal.
+
+        Returns:
+            A :class:`ParameterizedVariant` exposing ``.at(...)`` / ``.view(...)``.
+        """
+        from miscope.analysis.parameters import Binding, LiteralBinding, Parameterization
+        from miscope.families.parameterized_variant import ParameterizedVariant
+
+        bound: list[Binding] = []
+        for name, value in bindings.items():
+            bound.append(value if isinstance(value, Binding) else LiteralBinding(name, value))
+        for analyzer, params in (local or {}).items():
+            for name, value in params.items():
+                bound.append(
+                    value
+                    if isinstance(value, Binding)
+                    else LiteralBinding(name, value, analyzer=analyzer)
+                )
+        return ParameterizedVariant(self, Parameterization(bindings=tuple(bound), label=label))
+
+    def view(self, name: str, **kwargs: Any) -> BoundView:
+        """Convenience shortcut for variant.at(epoch=None).view(name).
+
+        For per-epoch views, resolves to the first available artifact epoch.
+        For cross-epoch and metadata-based views, epoch is None (no cursor).
+
+        kwargs are forwarded to the renderer and merged with any kwargs passed
+        to .figure(), .show(), or .export() (call-site kwargs take precedence).
+
+        Args:
+            name: View identifier (e.g., "training.metadata.loss_curves", "parameters.embeddings.fourier_coefficients").
+            **kwargs: Renderer keyword arguments (e.g., site="attn_out", prime=7).
+
+        Returns:
+            BoundView ready to call .show(), .figure(), or .export().
+
+        Raises:
+            KeyError: If view name is not found in the catalog.
+        """
+        return self.at(epoch=None).view(name, **kwargs)
+
+    def dataview(self, name: str) -> BoundDataView:
+        """Convenience shortcut for variant.at(epoch=None).dataview(name).
+
+        For per-epoch dataviews, resolves to the first available artifact epoch.
+        For cross-epoch and metadata-based dataviews, epoch is None.
+
+        Args:
+            name: DataView identifier (e.g., "training.metadata.loss_curves").
+
+        Returns:
+            BoundDataView ready to call .data() or inspect .schema.
+
+        Raises:
+            KeyError: If dataview name is not found in the catalog.
+        """
+        return self.at(epoch=None).dataview(name)
+
+    # --- End notebook convenience properties ---
+
+    # --- Intervention sub-variants ---
+
+    @property
+    def interventions(self) -> list[InterventionVariant]:
+        """Discover intervention sub-variants nested under this variant.
+
+        Scans ``{variant_dir}/interventions/`` for subdirectories that
+        contain a config.json with an ``intervention`` block.
+
+        Returns:
+            Sorted list of InterventionVariant instances (by directory name).
+        """
+        from miscope.families.intervention_variant import InterventionVariant
+
+        interventions_dir = self.variant_dir / "interventions"
+        if not interventions_dir.exists():
+            return []
+
+        result = []
+        for d in sorted(interventions_dir.iterdir()):
+            if not d.is_dir():
+                continue
+            config_path = d / "config.json"
+            if not config_path.exists():
+                continue
+            with open(config_path) as f:
+                config = json.load(f)
+            intervention_config = config.get("intervention")
+            if intervention_config is None:
+                continue
+            result.append(InterventionVariant(self, intervention_config))
+        return result
+
+    def create_intervention_variant(
+        self,
+        intervention_config: dict[str, Any],
+    ) -> InterventionVariant:
+        """Create an InterventionVariant nested under this variant.
+
+        The directory name is taken from the config's optional ``label``
+        field; if absent, the 8-char config hash is used.  Raises
+        ``ValueError`` if a directory with that name already exists.
+
+        Args:
+            intervention_config: Intervention parameter dict.
+
+        Returns:
+            InterventionVariant ready for training.
+
+        Raises:
+            ValueError: If an intervention with the same name already exists.
+        """
+        from miscope.families.intervention_variant import InterventionVariant
+
+        iv = InterventionVariant(self, intervention_config)
+        target = iv.variant_dir
+        if target.exists():
+            raise ValueError(
+                f"Intervention '{iv.name}' already exists at {target}. "
+                "Use a different label or choose a different config."
+            )
+        return iv
+
+    # --- End intervention sub-variants ---
+
+    def ensure_directories(self) -> None:
+        """Create variant directories if they don't exist."""
+        self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
+        self.artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate_training_dataset(
+        self,
+        training_fraction: float = 0.3,
+        device: str | torch.device | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self._family.generate_training_dataset(
+            self._params,
+            training_fraction=training_fraction,
+            data_seed=self._params["data_seed"],
+            device=device,
+        )
+
+    def train(
+        self,
+        num_epochs: int | None = None,
+        checkpoint_epochs: list[int] | None = None,
+        training_fraction: float = 0.3,
+        device: str | torch.device | None = None,
+        progress_callback: Callable[[float, str], None] | None = None,
+        training_hook: Callable[[int], list[tuple[str, Callable[..., Any]]]] | None = None,
+        overwrite_all: bool = False,
+    ) -> TrainingResult:
+        """Train this variant's model.
+
+        Creates the model via family.create_model(), generates training data,
+        runs the training loop, and saves checkpoints and metadata.
+
+        data_seed is sourced from self._params["data_seed"] and must be set
+        when creating the variant via family.create_variant().
+
+        Args:
+            num_epochs: Total training epochs (default: from family config)
+            checkpoint_epochs: Epochs at which to save checkpoints
+                              (default: from family config)
+            training_fraction: Fraction of data for training (default: 0.3)
+            device: Device for training (default: auto-detect CUDA)
+            progress_callback: Optional callback for progress updates
+                              (fraction: float, description: str)
+            training_hook: Optional hook factory. Called each epoch with the
+                          current epoch number; returns a list of canonical-name
+                          forward hook tuples (name, fn) to apply via
+                          ``model.run_with_hooks()``. Return [] outside the
+                          intervention window for a no-op epoch. When None,
+                          the standard model(train_data) forward pass is used.
+            overwrite_all: REQ_149. When False (default), checkpoints whose files
+                          already exist are skipped, never overwritten — an
+                          insert/extend run thus writes only genuinely-new epochs
+                          and leaves existing snapshots (bytes + mtime) intact. Set
+                          True only for a deliberate full variant redo.
+
+        Returns:
+            TrainingResult whose ``checkpoint_epochs`` lists the epochs *written by
+            this run* (skipped pre-existing epochs are excluded). The variant's full
+            checkpoint set — existing plus newly written — is recorded in metadata.
+        """
+        # Auto-detect device
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Get training config from family
+        training_config = self._family.get_training_config()
+
+        if num_epochs is None:
+            num_epochs = int(training_config.get("num_epochs", 25000))
+
+        if checkpoint_epochs is None:
+            checkpoint_epochs = list(training_config.get("default_checkpoint_epochs", []))
+
+        # Filter and sort checkpoint epochs
+        checkpoint_epochs = sorted([e for e in checkpoint_epochs if e < num_epochs])
+        checkpoint_epochs_set = set(checkpoint_epochs)
+
+        # Ensure directories exist
+        self.ensure_directories()
+
+        # Create model via family
+        model = self._family.create_model(self._params, device=device)
+
+        # Generate training data via family
+        train_data, train_labels, test_data, test_labels, train_indices, test_indices = (
+            self._family.generate_training_dataset(
+                self._params,
+                training_fraction=training_fraction,
+                data_seed=self._params["data_seed"],
+                device=device,
+            )
+        )
+
+        # Setup optimizer
+        optimizer = self._family.create_optimizer(model)
+
+        train_losses: list[float] = []
+        test_losses: list[float] = []
+        saved_checkpoint_epochs: list[int] = []
+
+        # Training loop
+        for epoch in tqdm(range(num_epochs), desc="Training"):
+            # Forward pass — apply intervention hooks if provided for this epoch
+            fwd_hooks = training_hook(epoch) if training_hook is not None else []
+            if fwd_hooks:
+                train_logits = model.run_with_hooks(train_data, fwd_hooks=list(fwd_hooks))
+            else:
+                train_logits = model(train_data)
+            train_loss = self._family.compute_loss(train_logits, train_labels)
+
+            # Backward pass
+            train_loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            train_losses.append(train_loss.item())
+
+            # Evaluate on test set
+            with torch.inference_mode():
+                test_logits = model(test_data)
+                test_loss = self._family.compute_loss(test_logits, test_labels)
+                test_losses.append(test_loss.item())
+
+            # Save checkpoint if scheduled (skip-existing unless overwrite_all)
+            if epoch in checkpoint_epochs_set and self._save_checkpoint(
+                model.state_dict(), epoch, overwrite=overwrite_all
+            ):
+                saved_checkpoint_epochs.append(epoch)
+
+            # Progress callback
+            if progress_callback and epoch % 100 == 0:
+                progress_callback(
+                    epoch / num_epochs,
+                    f"Epoch {epoch}/{num_epochs} - Train: {train_loss.item():.6f}, Test: {test_loss.item():.6f}",
+                )
+
+        # Save final model as latest checkpoint (skip-existing unless overwrite_all)
+        final_epoch = num_epochs - 1
+        if final_epoch not in saved_checkpoint_epochs and self._save_checkpoint(
+            model.state_dict(), final_epoch, overwrite=overwrite_all
+        ):
+            saved_checkpoint_epochs.append(final_epoch)
+
+        # Save config
+        self._save_config(model, self._params["data_seed"], training_fraction)
+
+        # Save metadata. ``checkpoint_epochs`` records the variant's full checkpoint
+        # set after this run (existing-on-disk ∪ newly written), not just this run's
+        # writes — so consumers like the loss-curve rug see every checkpoint after a
+        # non-destructive insert/extend. ``saved_checkpoint_epochs`` (run-scoped) is
+        # what the TrainingResult reports.
+        present_checkpoint_epochs = sorted(self.get_available_checkpoints())
+        self._save_metadata(
+            train_losses=train_losses,
+            test_losses=test_losses,
+            train_indices=train_indices.tolist(),
+            test_indices=test_indices.tolist(),
+            checkpoint_epochs=present_checkpoint_epochs,
+            num_epochs=num_epochs,
+        )
+
+        if progress_callback:
+            progress_callback(1.0, "Training complete!")
+
+        return TrainingResult(
+            train_losses=train_losses,
+            test_losses=test_losses,
+            checkpoint_epochs=saved_checkpoint_epochs,
+            final_train_loss=train_losses[-1],
+            final_test_loss=test_losses[-1],
+            variant_dir=self.variant_dir,
+        )
+
+    def _save_checkpoint(
+        self, state_dict: dict[str, Any], epoch: int, *, overwrite: bool = False
+    ) -> bool:
+        """Save a checkpoint to disk as safetensors — non-destructive by default.
+
+        REQ_149: the single enforcement point for "training never silently
+        overwrites an existing snapshot". When a checkpoint for ``epoch`` already
+        exists and ``overwrite`` is False, the write is skipped, leaving the file's
+        bytes *and* mtime untouched. That is what keeps the checkpoint fingerprint
+        (and every downstream artifact signature) fresh on an insert/extend run, so
+        only genuinely-new epochs get re-analyzed. ``overwrite=True`` is the explicit
+        opt-in for a deliberate variant redo.
+
+        Args:
+            state_dict: Model state dict to save
+            epoch: Epoch number for filename
+            overwrite: Re-write even if a checkpoint for this epoch already exists.
+
+        Returns:
+            True if a file was written; False if an existing checkpoint was skipped.
+        """
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_epoch_{epoch:05d}.safetensors"
+        if checkpoint_path.exists() and not overwrite:
+            return False
+        save_file(state_dict, str(checkpoint_path))
+        return True
+
+    def _save_config(
+        self,
+        model: Any,
+        data_seed: int,
+        training_fraction: float,
+    ) -> None:
+        """Save model configuration as JSON.
+
+        Delegates to family.build_config_dict() so each family controls
+        what gets written without coupling variant.py to specific model types.
+
+        Args:
+            model: Trained model instance
+            data_seed: Data split random seed
+            training_fraction: Training data fraction
+        """
+        config_dict = self._family.build_config_dict(
+            model, self._params, data_seed, training_fraction
+        )
+        with open(self.config_path, "w") as f:
+            json.dump(config_dict, f, indent=2)
+
+    def _save_metadata(self, **kwargs: Any) -> None:
+        """Save training metadata as JSON.
+
+        Args:
+            **kwargs: Metadata to save (losses, indices, etc.)
+        """
+        with open(self.metadata_path, "w") as f:
+            json.dump(kwargs, f)
+
+    def __repr__(self) -> str:
+        return (
+            f"Variant(family={self._family.name!r}, name={self.name!r}, state={self.state.value})"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Variant):
+            return NotImplemented
+        return self._family.name == other._family.name and self._params == other._params
+
+    def __hash__(self) -> int:
+        return hash((self._family.name, tuple(sorted(self._params.items()))))

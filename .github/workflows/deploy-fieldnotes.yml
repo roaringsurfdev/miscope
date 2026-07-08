@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'fieldnotes/**'
-      - '.github/workflows/deploy-fieldnotes.yml'
+      - 'apps/fieldnotes/**'
+      - '.github/workflows/deploy-apps/fieldnotes.yml'
   workflow_dispatch:
 
 permissions:
@@ -29,17 +29,17 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-        working-directory: fieldnotes
+        working-directory: apps/fieldnotes
 
       - name: Build site
         run: npm run build
-        working-directory: fieldnotes
+        working-directory: apps/fieldnotes
 
       - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: fieldnotes/dist
+          path: apps/fieldnotes/dist
 
   deploy:
     needs: build

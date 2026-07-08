@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-temp="mono" data-type="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Variants and Variables — Fieldnotes — Kinomorphic</title>
+<script>(function(){try{var d=document.documentElement;d.setAttribute('data-theme',localStorage.getItem('kino-theme')||'light');d.setAttribute('data-temp',localStorage.getItem('kino-temp')||'mono');d.setAttribute('data-type',localStorage.getItem('kino-type')||'paper');}catch(e){}})();</script>
+<link rel="stylesheet" href="assets/kino.css">
+<link rel="stylesheet" href="assets/kino-ui.css">
+<link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="progress" data-progress></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="Home.html">
+      <span class="markwrap" data-mark="ring" data-animate data-dots="14"></span>
+      <span><b>Kinomorphic</b><span class="tld">.com</span></span>
+    </a>
+    <nav class="nav-links">
+      <a href="Home.html">Home</a>
+      <a href="Fieldnotes.html" class="active">Fieldnotes</a>
+      <a href="Home.html#approach">Approach</a>
+      <a href="Home.html#miscope" class="sub">MIScope</a>
+    </nav>
+    <span class="nav-spacer"></span>
+    <div class="nav-tools popwrap">
+      <button class="icon-btn js-settings" aria-label="Display settings" title="Type, color &amp; theme">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bg)"/><circle cx="15" cy="16" r="2.4" fill="var(--bg)"/></svg>
+      </button>
+      <button class="icon-btn js-theme" aria-label="Toggle dark mode" title="Light / dark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8"/><path d="M12 4 a8 8 0 0 1 0 16 z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <div class="settings-pop" id="settings-pop">
+        <div class="row"><h6>Type pairing</h6><div class="seg"><button data-set="type" data-val="paper">Paper</button><button data-set="type" data-val="lab">Lab</button><button data-set="type" data-val="journal">Journal</button></div></div>
+        <div class="row"><h6>Color temperature</h6><div class="seg"><button data-set="temp" data-val="warm">Warm</button><button data-set="temp" data-val="cool">Cool</button><button data-set="temp" data-val="mono">Mono</button></div></div>
+        <div class="row"><h6>Appearance</h6><div class="seg"><button data-set="theme" data-val="light">Light</button><button data-set="theme" data-val="dark">Dark</button></div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="post">
+  <!-- header -->
+  <div class="post-hd">
+    <div class="top"><span class="pn">FIELDNOTES 002</span><span>2026 · 03 · 29</span><span>·</span><span>12 min</span></div>
+    <h1>Variants and Variables</h1>
+    <p class="dek">A model is never one model. If we want to claim something about <em>how</em> learning happens, we have to hold the things that usually hide in a config file — prime, model seed, data seed — as first-class variables, and watch what survives across all of them.</p>
+    <div class="byline">
+      <span>Posted to Fieldnotes</span>
+      <div class="rtags"><span class="tag">infrastructure</span><span class="tag">methodology</span><span class="tag">mech-interp</span></div>
+    </div>
+  </div>
+
+  <!-- body -->
+  <article class="post-body">
+    <p>Grokking has a tidy story: train a small transformer on modular addition, watch it memorize, wait, and at some point generalization snaps into place. Told that way, it sounds like a single event that happens to a single model.</p>
+    <p>It isn't. Change the data seed and the same architecture can grok early, grok late, or never make the second descent at all. The "event" is really a distribution of trajectories, and the only way to say something durable about the mechanism is to look across that distribution — not at one lucky run.</p>
+
+    <h2>One task, forty-one runs</h2>
+    <p>So the unit of study isn't a model — it's a <em>variant</em>: a fully specified run, identified by its prime <code>p</code>, its model seed, and its data seed, tracked across a fixed series of checkpoints. Each variant carries a classification earned from its own dynamics — <span class="phase-mark">healthy</span>, late-grokker, degraded, or no-second-descent — rather than a label we assigned by hand.</p>
+
+    <div class="aside-note">
+      <span class="lbl">Why this matters for trust</span>
+      Holding seeds as variables is the difference between "this model did X" and "X is a property of how this task is learned." The second is a claim another researcher can check. The first is an anecdote.
+    </div>
+
+    <p>Below is the same variant — <code>p=113, seed=999, data_seed=598</code>, classified healthy — read the way these notes are meant to be read: by moving through training and watching the geometry change. The points are the model's residue classes, projected into the top principal components of the post-residual stream. Scrub, or press play.</p>
+  </article>
+
+  <!-- ============ SCRUBBER CENTERPIECE ============ -->
+  <div class="breakout reveal">
+    <figure style="margin:36px 0;">
+      <div class="scrubber" data-morph data-max="25000" data-onset="9500" data-grok="12400" data-n="60" data-start="6000">
+        <div class="figure-head">
+          <span class="fnum">FIG 1 · interactive</span>
+          <span class="ftitle">Residue classes settling onto a ring — Resid Post, PC1×PC2</span>
+          <span class="fmeta">p=113 · seed=999 · ds=598</span>
+        </div>
+        <div class="frames">
+          <div class="stage" style="position:relative;width:100%;aspect-ratio:16/8;">
+            <canvas style="position:absolute;inset:0;width:100%;height:100%;border-radius:3px;"></canvas>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="play" data-play aria-label="Play through training">
+            <svg class="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg class="ic-pause" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+          </button>
+          <div class="track">
+            <div class="epochs-row"><span class="epoch-read">epoch <b data-epoch>6,000</b> <span style="color:var(--faint)">/ 25,000</span></span><span class="epoch-label">drag to move through training</span></div>
+            <input type="range" aria-label="Training epoch">
+            <div class="phasebar">
+              <button data-jump="4300">feature onset · 4.3k</button>
+              <button data-jump="9500">2nd descent · 9.5k</button>
+              <button data-jump="12400">grokked · 12.4k</button>
+            </div>
+          </div>
+        </div>
+        <div class="cap">
+          <span class="phase-mark"></span> Early on the classes sit in a structureless cloud. Through the second descent they migrate outward; by the grokking epoch they've resolved onto a near-perfect circle — the model has found the cyclic structure of addition mod <em>p</em>. <b>This panel is a schematic of that motion; the measured version is Fig.&nbsp;3.</b>
+        </div>
+      </div>
+    </figure>
+  </div>
+
+  <article class="post-body">
+    <p>The jump to the ring isn't gradual. It clusters around the same window where test loss falls — the structure and the generalization arrive together. That co-timing is exactly the kind of thing a single static snapshot of a finished model can't show you, and it's why the checkpoint is the unit, not the endpoint.</p>
+
+    <h2>What every healthy variant agrees on</h2>
+    <p>Read enough variants and a separation appears between what's idiosyncratic and what's structural. The <em>which</em> frequencies a run commits to are partly an accident of its data seed. The <em>that</em> it commits to a sparse set of frequencies, that signal-to-noise climbs in steps, that representations briefly expand in dimension before contracting onto a low-dimensional form — those repeat.</p>
+  </article>
+
+  <!-- ============ BREAKOUT FIGURE GRID ============ -->
+  <div class="breakout wide reveal">
+    <figure style="margin:36px 0;">
+      <div class="figure">
+        <div class="figure-head"><span class="fnum">FIG 2</span><span class="ftitle">Three readouts of the same transition</span><span class="fmeta">p=113 · seed=999 · ds=598</span></div>
+        <div class="figure-body"><img src="assets/figures/snr-panels.png" alt="Signal-to-noise ratio, center spread and mean radius, and circularity across training"></div>
+        <div class="figure-cap"><span class="fc-num">Fig 2.</span> Signal-to-noise (top), center spread &amp; mean radius (middle), and circularity (bottom), each per stream. The vermilion line is the phase-transition marker — the same epoch in every panel. Reading them together is the point: one event, many simultaneous signatures.</div>
+      </div>
+    </figure>
+  </div>
+
+  <article class="post-body">
+    <p>The middle panel is the one I keep returning to. Mean radius and center spread move in opposite directions through the transition — the classes spread apart while each class tightens — which is the geometric fingerprint of a ring forming out of a blob. The first panel says <em>when</em>; the third says <em>how circular</em>; the middle says <em>how</em>.</p>
+
+    <blockquote>
+      The finding is rarely a number. It's a shape, and the shape only exists in time.
+      <cite>— from the program notes</cite>
+    </blockquote>
+
+    <h2>The same story, two geometries</h2>
+    <p>Two more views of the converged state — the class centroids in activation space, and the path the parameters themselves took to get there. Different objects, same arc: motion resolving into form.</p>
+  </article>
+
+  <div class="breakout wide reveal">
+    <div class="figrid two" style="margin:36px 0;">
+      <figure style="margin:0;">
+        <div class="figure">
+          <div class="figure-head"><span class="fnum">FIG 3</span><span class="ftitle">Class-centroid geometry</span></div>
+          <div class="figure-body"><img src="assets/figures/centroids-ring.png" alt="Class centroids on a ring across principal component pairs"></div>
+          <div class="figure-cap"><span class="fc-num">Fig 3.</span> The measured ring (cf. Fig. 1). Residue classes lie on a circle in PC1×PC2; the higher PCs encode the harmonics.</div>
+        </div>
+      </figure>
+      <figure style="margin:0;">
+        <div class="figure">
+          <div class="figure-head"><span class="fnum">FIG 4</span><span class="ftitle">Parameter trajectory, all params</span></div>
+          <div class="figure-body"><img src="assets/figures/param-trajectory.png" alt="3D parameter trajectory colored from early to late epoch"></div>
+          <div class="figure-cap"><span class="fc-num">Fig 4.</span> The whole-parameter path through training, colored blue→red by epoch. The sharp turn coincides with the transition in Fig. 2.</div>
+        </div>
+      </figure>
+    </div>
+  </div>
+
+  <article class="post-body">
+    <p>None of this is visible if you only keep the final weights. The trajectory in Fig.&nbsp;4 is forty-odd checkpoints of saved state; the ring in Fig.&nbsp;1 is the same state, read geometrically, frame by frame. Treating the run as a variable — and the training as a path — is what makes the comparison across forty-one of them possible.</p>
+    <p>That's the whole wager of the program, stated small: if we want to understand how learning happens, we have to be willing to store the journey, not just the destination — and to look at it as motion.</p>
+
+    <div class="aside-note">
+      <span class="lbl">Methods · build-owned</span>
+      Variants, checkpoints, and the figures here come from MIScope, run locally. The registry, classification thresholds, and animation harness are described in the repository.
+    </div>
+  </article>
+
+  <!-- next / footer nav -->
+  <div class="post-body" style="margin-top:60px;">
+    <hr class="rule">
+    <div style="display:flex;justify-content:space-between;gap:20px;padding:26px 0;flex-wrap:wrap;">
+      <a class="btn ghost" href="Fieldnotes.html"><span style="transform:rotate(180deg);display:inline-block;">→</span>&nbsp; All Fieldnotes</a>
+      <a class="btn" href="Post.html">Next · Reproducibility <span class="arrow">→</span></a>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-grid">
+    <div>
+      <div class="brand" style="font-size:1.05rem;"><span class="markwrap" data-mark="ring" style="width:26px;height:26px;"></span><span><b>Kinomorphic</b></span></div>
+      <p style="max-width:36ch;margin-top:16px;font-size:.92rem;color:var(--muted);">Independent research on the learning dynamics of neural networks — interpretability through a dynamical-systems lens.</p>
+    </div>
+    <div><h5>Site</h5><ul><li><a href="Home.html">Home</a></li><li><a href="Fieldnotes.html">Fieldnotes</a></li><li><a href="Home.html#approach">Approach</a></li><li><a href="Home.html#miscope">MIScope</a></li></ul></div>
+    <div><h5>Elsewhere</h5><ul><li><a href="#">GitHub · Kinomorphic</a></li><li><a href="#">MIScope on PyPI</a></li><li><a href="#">RSS</a></li></ul></div>
+  </div>
+</footer>
+
+<script src="assets/kino.js"></script>
+</body>
+</html>

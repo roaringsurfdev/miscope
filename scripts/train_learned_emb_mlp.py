@@ -21,7 +21,7 @@ import tqdm.auto as tqdm
 from safetensors.torch import save_file
 
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "packages" / "miscope" / "src"))
 
 from miscope.config import get_config  # noqa: E402
 from miscope.families.implementations.modulo_addition_embed_mlp import (  # noqa: E402
@@ -59,13 +59,13 @@ def train(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     cfg = get_config()
-    family = load_modulo_addition_embed_mlp_family(cfg.model_families_dir)
+    family = load_modulo_addition_embed_mlp_family(cfg.data_root)
 
     family._config["architecture"]["d_embed"] = d_embed
     family._config["architecture"]["d_hidden"] = d_hidden
 
     params = {"prime": prime, "seed": seed, "data_seed": data_seed}
-    variant = Variant(family, params, cfg.results_dir)  # type: ignore
+    variant = Variant(family, params)  # type: ignore
     variant.ensure_directories()
 
     model = family.create_model(params, device=device)

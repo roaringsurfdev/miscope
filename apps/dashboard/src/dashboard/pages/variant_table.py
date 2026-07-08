@@ -1,0 +1,286 @@
+"""Variant Table page (REQ_082).
+
+Displays all variants and their key metrics in a sortable, filterable table.
+Clicking a row selects that variant globally via variant-selector-store.
+"""
+
+from __future__ import annotations
+
+from dash import Dash, Input, Output, State, dash_table, html, set_props
+from dash.exceptions import PreventUpdate
+
+from dashboard.components.variant_selector import get_variant_choices
+from dashboard.state import get_families, variant_server_state
+
+# ---------------------------------------------------------------------------
+# Classification label colours
+# ---------------------------------------------------------------------------
+
+_CLASSIFICATION_COLORS: dict[str, str] = {
+    "healthy": "#d4edda",
+    "late_grokker": "#fff3cd",
+    "degraded": "#f8d7da",
+    "ungrokked": "#f8d7da",
+}
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+
+def _degenerate_final_windows(family) -> set[str]:
+    """Variant ids whose proxy ``final`` window is degenerate (start >= end).
+
+    REQ_144: the committed-frequency display reads the stable ``learned_frequencies``
+    but must reproduce the engine's empty ``committed_frequencies_end`` for variants
+    whose final window collapsed (e.g. p101, start==end==last checkpoint). That
+    degeneracy is a window-layer fact (fork e), so it is read here, by the consumer,
+    from ``window_ranges`` — never folded into the pure ``variant_outcomes`` registry.
+    Absent window data → no variant flagged (the count falls back to the full set).
+    """
+    import miscope.query
+
+    try:
+        with miscope.query.open(family=family) as con:
+            frame = con.df(
+                "SELECT variant_id FROM window_ranges "
+                "WHERE \"window\" = 'final' AND start_epoch >= end_epoch"
+            )
+    except Exception:
+        return set()
+    return {str(v) for v in frame["variant_id"]}
+
+
+def _load_table_rows() -> list[dict]:
+    """Load all variants from each family's variant registry (a variant_outcomes view).
+
+    Returns a flat list of row dicts ready for DataTable.
+    """
+    families = get_families()
+    rows: list[dict] = []
+
+    for family in families.values():
+        try:
+            records = family.variant_registry
+        except FileNotFoundError:
+            continue
+
+        degenerate_finals = _degenerate_final_windows(family)
+
+        for rec in records:
+            prime = rec.get("prime")
+            seed = rec.get("model_seed")
+            dseed = rec.get("data_seed")
+            family_name = rec.get("family", family.name)
+            variant_name = family.variant_pattern.format(prime=prime, seed=seed, data_seed=dseed)
+
+            classification_raw = rec.get("performance_classification", [])
+            classification = classification_raw[0] if classification_raw else "unknown"
+
+            grokking_epoch = rec.get("second_descent_onset_epoch")
+
+            # The engine's committed_frequencies_end equals the learned set when the
+            # final window is non-degenerate, else [] (REQ_144 Stage 4c gotcha).
+            learned = rec.get("learned_frequencies") or []
+            committed_count = 0 if rec.get("variant_id") in degenerate_finals else len(learned)
+
+            test_loss_final = rec.get("test_loss_final")
+            loss_display = f"{test_loss_final:.2e}" if test_loss_final is not None else "—"
+
+            transient_frequency_count = rec.get("transient_frequency_count")
+
+            rows.append(
+                {
+                    "_variant_name": variant_name,
+                    "family": family_name,
+                    "prime": prime,
+                    "model_seed": seed,
+                    "data_seed": dseed,
+                    "classification": classification,
+                    "test_loss_final": loss_display,
+                    "grokking_epoch": grokking_epoch if grokking_epoch is not None else "—",
+                    "committed_freqs": committed_count,
+                    "transient_frequency_count": transient_frequency_count,
+                }
+            )
+
+    rows.sort(
+        key=lambda r: (r["family"], r["prime"] or 0, r["model_seed"] or 0, r["data_seed"] or 0)
+    )
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# DataTable column definitions
+# ---------------------------------------------------------------------------
+
+_COLUMNS = [
+    {"name": "Family", "id": "family"},
+    {"name": "Prime (p)", "id": "prime", "type": "numeric"},
+    {"name": "Model Seed", "id": "model_seed", "type": "numeric"},
+    {"name": "Data Seed", "id": "data_seed", "type": "numeric"},
+    {"name": "Classification", "id": "classification"},
+    {"name": "Test Loss (final)", "id": "test_loss_final"},
+    {"name": "Grokking Epoch", "id": "grokking_epoch"},
+    {"name": "Committed Freqs", "id": "committed_freqs", "type": "numeric"},
+    {"name": "Transient Freq Count", "id": "transient_frequency_count", "type": "numeric"},
+]
+
+# ---------------------------------------------------------------------------
+# Page layout
+# ---------------------------------------------------------------------------
+
+
+def create_variant_table_page_nav(app: Dash) -> html.Div:
+    return html.Div()
+
+
+def create_variant_table_page_layout(app: Dash) -> html.Div:
+    rows = _load_table_rows()
+
+    style_data_conditional = [
+        {
+            "if": {"filter_query": f'{{classification}} = "{label}"'},
+            "backgroundColor": color,
+        }
+        for label, color in _CLASSIFICATION_COLORS.items()
+    ]
+    style_data_conditional.append(
+        {
+            "if": {"state": "selected"},
+            "backgroundColor": "#cce5ff",
+            "border": "1px solid #004085",
+        }
+    )
+
+    return html.Div(
+        [
+            html.H4("Variant Registry", className="mb-1"),
+            html.P(
+                f"{len(rows)} variants — click a row to select it as the active variant.",
+                className="text-muted small mb-3",
+            ),
+            dash_table.DataTable(
+                id="variant-table",
+                columns=_COLUMNS,  # pyright: ignore[reportArgumentType]
+                data=rows,
+                hidden_columns=["_variant_name"],
+                sort_action="native",
+                filter_action="native",
+                filter_options={"placeholder_text": "Filter…"},
+                row_selectable="single",
+                selected_rows=[],
+                page_action="native",
+                page_size=30,
+                style_table={"overflowX": "auto"},
+                style_header={
+                    "backgroundColor": "#343a40",
+                    "color": "white",
+                    "fontWeight": "bold",
+                    "fontSize": "13px",
+                },
+                style_cell={
+                    "fontSize": "13px",
+                    "padding": "6px 10px",
+                    "textAlign": "left",
+                    "whiteSpace": "normal",
+                },
+                style_data_conditional=style_data_conditional,  # pyright: ignore[reportArgumentType]
+            ),
+            html.Div(id="variant-table-status", className="text-muted small mt-2"),
+        ],
+        className="p-3",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Callbacks
+# ---------------------------------------------------------------------------
+
+
+def register_variant_table_page_callbacks(app: Dash) -> None:
+    @app.callback(
+        Output("variant-table-status", "children"),
+        Input("variant-table", "selected_rows"),
+        State("variant-table", "data"),
+        State("variant-table", "derived_virtual_data"),
+        prevent_initial_call=True,
+    )
+    def on_row_selected(
+        selected_rows: list[int] | None,
+        table_data: list[dict] | None,
+        virtual_data: list[dict] | None,
+    ) -> str:
+        if not selected_rows or not table_data:
+            raise PreventUpdate
+
+        # Use virtual_data (post-filter/sort) if available, else fall back to full data.
+        active_data = virtual_data if virtual_data is not None else table_data
+        row = active_data[selected_rows[0]]
+
+        family_name = row["family"]
+        variant_name = row["_variant_name"]
+
+        ok = variant_server_state.load_variant(family_name, variant_name)
+        if not ok:
+            return f"Could not load variant: {variant_name}"
+
+        max_epochs = max(0, len(variant_server_state.available_epochs) - 1)
+        epoch = (
+            variant_server_state.available_epochs[0] if variant_server_state.available_epochs else 0
+        )
+
+        set_props(
+            "variant-selector-store",
+            {
+                "data": {
+                    "family_name": family_name,
+                    "variant_name": variant_name,
+                    "intervention_name": None,
+                    "epoch": epoch,
+                    "epoch_index": 0,
+                    "max_epochs": max_epochs,
+                    "last_field_updated": "variant_name",
+                }
+            },
+        )
+        families = get_families()
+        variant_options = [
+            {"label": display, "value": name}
+            for display, name in get_variant_choices(families, family_name)
+        ]
+        set_props("variant-selector-family-dropdown", {"value": family_name})
+        set_props(
+            "variant-selector-variant-dropdown",
+            {"options": variant_options, "value": variant_name},
+        )
+
+        return f"Selected: {variant_name}"
+
+    @app.callback(
+        Output("variant-table", "selected_rows"),
+        Input("variant-selector-store", "modified_timestamp"),
+        State("variant-selector-store", "data"),
+        State("variant-table", "data"),
+        State("variant-table", "derived_virtual_data"),
+        prevent_initial_call=True,
+    )
+    def sync_selection_from_store(
+        _ts: str | None,
+        store_data: dict | None,
+        table_data: list[dict] | None,
+        virtual_data: list[dict] | None,
+    ) -> list[int]:
+        if not store_data or not table_data:
+            return []
+
+        active_variant = store_data.get("variant_name")
+        if not active_variant:
+            return []
+
+        active_data = virtual_data if virtual_data is not None else table_data
+        for idx, row in enumerate(active_data):
+            if row.get("_variant_name") == active_variant:
+                return [idx]
+
+        return []

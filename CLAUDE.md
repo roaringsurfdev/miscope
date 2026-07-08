@@ -6,12 +6,24 @@ See [PROJECT.md](PROJECT.md) for the full mission and architectural principles.
 
 **Mission:** A dynamics analysis platform that standardizes and hones lenses on models as they learn. This platform asks *how did learning happen?* — not *did the model learn the task?*
 
-**Two architectural constraints that must hold across all requirements:**
+**Three architectural constraints that must hold across all requirements:**
 
 1. **Views are universal instruments.** Analytical lenses (PCA, Fourier, neuron activations, attention patterns, loss curves) apply to any transformer. They do not belong to a model family. The instrument does not change shape because of what it's pointed at.
-2. **Families are context providers, not view owners.** A family contributes probe construction, interpretive context (e.g., a prime-based Fourier basis), and task-specific performance metrics. It does not register or own analytical views.
+2. **Tasks provide context; families own neither semantics nor views.** A **Family** is a junction — a pairing of a model **Architecture** with a **TaskType** — and owns no semantics of its own. Semantic context (probe construction, interpretive context like a prime-based Fourier basis, the master dataset, and task-specific performance metrics) is provided by the **TaskType/Task**. Neither families nor tasks register or own analytical views — those belong to the View Catalog and are universal.
+3. **Storage layout is internal to the API.** Consumers reach data through `Variant`, `ModelFamily`, and the View Catalog — never through file-path literals or direct construction of storage primitives (e.g. `ArtifactLoader`). This binds library code as well as app code: only the storage primitives themselves (the writers and accessor implementations) compose paths; everything else uses the accessors. Deployment-time values (host, port, etc.) live in per-app config files (e.g. `apps/dashboard/config.toml`), not in code. If an accessor doesn't exist for some piece of stored data, add the accessor — don't reach past the API.
 
 When a requirement conflicts with these constraints, flag it before implementing.
+
+**Discoverability first (REQ_107).** Before authoring a new analyzer or inlining a
+derivation, check `miscope.registry` for an existing field that already computes
+it. `registry.search("frequency")` finds related analyzers/DataViews;
+`registry.field("dominant_freq")` reports the producing analyzer, the coords it is
+keyed by, and its consumers. The registry is the canonical answer to "do we
+already have this?" — re-deriving a field that exists (and is keyed for joining)
+is the failure mode the registry exists to prevent. Every analyzer declares its
+output schema on `AnalyzerSpec.outputs` (field name, dtype, `kind`
+columnar|tensor, keying `coords`); a new analyzer without that declaration fails
+`registry.load()`.
 
 ---
 
@@ -119,8 +131,12 @@ A logical unit is a meaningful chunk of work that can be described as a complete
 
 **Continuous Integration:**
 - PRs to `develop` and `main` trigger CI workflow
-- Tests must pass before merge (blocking)
-- Lint/typecheck run as advisory (non-blocking for now)
+- All three CI jobs are blocking before merge: tests, lint (`ruff check` +
+  `ruff format --check`), and typecheck (`pyright`). Lint/typecheck were
+  advisory through the REQ_110 line; a large drift accumulation (89 pyright
+  errors cleared at once) showed the cost of letting them slip, so they are
+  now gates. Keeping `develop` (and what we push to remote) clean is cheaper
+  than a periodic cleanup sweep.
 
 **Merging to Main (Milestone Releases):**
 1. Create PR from `develop` → `main` on GitHub
@@ -141,7 +157,7 @@ This balances structure (clear minimum scope from CoS) with pragmatism (don't wr
 
 ### Requirements
 
-Requirements are documented in `/requirements/` using a structured format that emphasizes:
+Requirements are documented in `docs/requirements/` using a structured format that emphasizes:
 - Problem-first thinking (not solution prescription)
 - Clear conditions of satisfaction
 - Explicit constraints and decision authority
@@ -149,20 +165,33 @@ Requirements are documented in `/requirements/` using a structured format that e
 
 **Directory structure:**
 ```
-/requirements/
+docs/requirements/
 ├── README.md           # Current status and workflow guide
 ├── active/             # Requirements currently being worked on
-└── archive/            # Completed requirements by milestone
+├── staging/            # Implementation complete, awaiting next release
+└── archive/            # Released requirements by milestone
     └── vX.Y.Z-name/    # Each milestone preserves its requirements
 ```
 
+A requirement moves `active/` → `staging/` (when its implementation merges to
+`develop`, status flipped to `Completed`) → `archive/vX.Y.Z-name/` (at release
+time). `staging/` answers "what's about to ship next?"
+
+**Staging gate (drift prevention).** Before moving a requirement to `staging/`,
+verify the project is clean: `ruff check .`, `ruff format --check .`, and
+`uv run pyright` all pass (the same jobs CI gates on). This is the cheap
+local checkpoint that keeps `develop` clean per-requirement instead of letting
+type/lint debt pool across a long requirement line. For a long-lived feature
+branch (e.g. the REQ_110 line), run it at each merge to `develop`, not only at
+the final stage.
+
 **Working with requirements:**
 - Claude works on requirements via explicit direction (e.g., "Work on REQ_011")
-- New requirements go in `requirements/active/`
+- New requirements go in `docs/requirements/active/`
 - Requirements are stated in terms of problems to solve, not solutions expected
 - Every requirement includes conditions of satisfaction to define "done"
 - Claude has two outlets for observations and suggestions:
-  - `/notes/thoughts.md` - Unstructured parking lot for ideas and observations
+  - `docs/notes/thoughts.md` - Unstructured parking lot for ideas and observations
   - Notes section within requirements - Implementation-specific observations
 
 **Interrupt vs. Log decision boundary:**
@@ -173,13 +202,13 @@ This approach maintains flow while preserving collaborative intelligence for asy
 
 ### Milestone Releases
 
-When a set of requirements is complete, follow this process:
+When a set of requirements is ready to release, follow this process:
 
-1. **Bump version** in `dashboard/version.py`
+1. **Bump version** in `apps/dashboard/src/dashboard/version.py`
 2. **Update CHANGELOG.md** with release notes (features, architecture notes, references)
 3. **Archive requirements:**
-   - Create `requirements/archive/vX.Y.Z-name/`
-   - Move completed requirements from `active/` to archive
+   - Create `docs/requirements/archive/vX.Y.Z-name/`
+   - Move requirements from `staging/` (and any not-yet-staged completions) into the archive directory
    - Create `MILESTONE_SUMMARY.md` with key decisions and file locations
 4. **Commit** with message: "Release vX.Y.Z milestone-name"
 
@@ -217,34 +246,55 @@ At natural milestones — requirement completions, significant findings, moments
 Triggers: visual results that unlock understanding, findings that contradict prior assumptions, patterns that have become clear, moments where a model does something unexpected.
 
 **Figure export path:**
-Python generates figures in `src/miscope/` context; they land in `fieldnotes/public/figures/`. Plotly `write_html()` exports embed as iframes in MDX. Frame sequences go in subdirectories for slider-based animations.
+Python generates figures in `packages/miscope/` context; they land in `apps/fieldnotes/public/figures/`. Plotly `write_html()` exports embed as iframes in MDX. Frame sequences go in subdirectories for slider-based animations.
 
 **Deployment:**
-GitHub Actions builds `fieldnotes/` on push to `main` and deploys to GitHub Pages.
-URL: `https://GITHUB_USERNAME.github.io/MIScope/` — replace `GITHUB_USERNAME` in `fieldnotes/astro.config.mjs` before first deploy.
+GitHub Actions builds `apps/fieldnotes/` on push to `main` and deploys to GitHub Pages.
+URL: `https://GITHUB_USERNAME.github.io/MIScope/` — replace `GITHUB_USERNAME` in `apps/fieldnotes/astro.config.mjs` before first deploy.
 To enable: go to repo Settings → Pages → Source → GitHub Actions.
 
 ## Project Structure
 
+The repo is a uv workspace organized into a publishable package and the apps that consume it.
+
 ```
-src/miscope/           # Installable API package (import miscope.*)
-  analysis/            # Pipeline, analyzers, artifacts, protocols
-  families/            # Family registry, variants, model families
-  visualization/       # Renderers, export
-dashboard/             # Consumer — Dash dashboard
-fieldnotes/            # Research notebook (Astro, published to GitHub Pages)
-tests/                 # Test suite
-notebooks/             # Research notebooks
-model_families/        # JSON config + data
-results/               # Generated artifacts
-/policies/             # Development policies and procedures
-  debugging/           # Structured debugging policy
-/requirements/         # Project requirements
-  active/              # Requirements being worked on
-  archive/             # Completed requirements by milestone
-/notes/                # Claude's observations and suggestions
-  thoughts.md          # Unstructured parking lot for ideas
+packages/
+  miscope/             # Publishable library (import miscope.*)
+    src/miscope/
+      analysis/        # Pipeline, analyzers, artifacts, protocols
+      families/        # Family registry, variants, model families
+      views/           # View catalog API (EpochContext, BoundView)
+      visualization/   # Renderers, export
+    tests/             # Package unit/component tests
+apps/
+  dashboard/           # Local interactive surface (Dash)
+    src/dashboard/
+    tests/             # Dashboard tests
+  fieldnotes/          # Research notebook (Astro → GitHub Pages)
+  research/            # Exploratory frontend
+    notebooks/         # *.ipynb research notebooks
+    sketches/          # Exploratory *.py (POCs, one-off analyses)
+    animations/        # Generated GIFs (gitignored)
+    exports/           # Generated figures (gitignored)
+scripts/               # Operational scripts (run_analysis.py, train_*, etc.)
+tests/
+  integration/         # Cross-cutting tests (placeholder; currently empty)
+docs/                  # Documentation, requirements, notes, policies
+  requirements/        # Project requirements
+    active/            # In-flight
+    staging/           # Complete, awaiting release
+    archive/           # Completed by milestone
+  notes/               # Claude's observations and findings
+  policies/            # Dev policies (debugging, etc.)
+  origins/             # Project origin material
+  issues/              # Issue write-ups
+data/                  # Unified per-family data root (REQ_123)
+  {family}/            # family.json + ideal_frequency_sets.json (tracked)
+    variants/{vid}/    # Per-variant checkpoints/artifacts/etc. (gitignored)
+    variant_registry.json  # Compiled aggregate (gitignored)
 ```
+
+Workspace setup: root `pyproject.toml` declares `[tool.uv.workspace]` with members `packages/miscope` and `apps/dashboard`. The package's `pyproject.toml` is the publishable definition; the dashboard's is its own dependency surface (Dash + workspace miscope). `apps/fieldnotes/` is a Node/Astro project, not a uv workspace member.
 
 ---
 
@@ -365,6 +415,7 @@ The goal is not rigid rules but shared understanding that empowers both of us to
 
 ---
 
-**Version:** 0.6
-**Last Updated:** 2026-02-01
-**Status:** Added CI workflow and PR merge process
+**Version:** 0.9
+**Last Updated:** 2026-06-06
+**Status:** Lint + typecheck are now blocking CI gates with a per-requirement
+staging checkpoint (drift-prevention, post-REQ_110 cleanup).

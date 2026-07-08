@@ -1,0 +1,263 @@
+---
+/**
+ * DuckDBQuery — inline, reader-editable SQL over published data bundles (REQ_110F).
+ *
+ * Renders an editable SQL box + Run button + result table that query a published
+ * `data-*` bundle's Parquet asset *in the reader's browser* via DuckDB-WASM. The
+ * engine (several MB of WASM) is lazy-loaded from the jsDelivr CDN on the first Run
+ * — articles that never query pay nothing, and nothing about the engine enters the
+ * Astro build. DuckDB-WASM issues HTTP range requests, so a query fetches only the
+ * bytes it touches from the Release asset, not the whole file.
+ *
+ * Usage in MDX:
+ *   import DuckDBQuery from '../../components/DuckDBQuery.astro';
+ *
+ *   <DuckDBQuery
+ *     url="https://github.com/<org>/MIScope/releases/download/data-ring-geometry-v1.0/shape_characterizations.parquet"
+ *     table="shape_characterizations"
+ *     query={`SELECT variant_id, epoch, value AS circularity
+ * FROM shape_characterizations
+ * WHERE operation_type = 'circularity' AND epoch = 5000
+ * ORDER BY circularity DESC`}
+ *     caption="Circularity ranked across variants at epoch 5000 — edit and re-run."
+ *   />
+ *
+ * A `tables` array registers several assets for cross-table joins. With no `url`,
+ * the box runs against the engine itself (e.g. `SELECT * FROM range(5)`) — a
+ * zero-data smoke that the in-browser engine loads and queries.
+ */
+
+interface TableSpec {
+  name: string; // view name the reader's SQL references
+  url: string;  // Parquet asset URL (a Release asset)
+}
+
+interface Props {
+  url?: string;
+  table?: string;
+  tables?: TableSpec[];
+  query?: string;
+  caption?: string;
+  limit?: number; // max rows rendered (a guard on large results)
+}
+
+const { url, table, tables, query, caption, limit = 200 } = Astro.props;
+
+function stem(u: string): string {
+  const file = u.split("/").pop() ?? "data";
+  return file.replace(/\.parquet$/i, "");
+}
+
+// Normalize the single-url and multi-table forms to one registration list.
+const registrations: TableSpec[] = tables
+  ? tables
+  : url
+    ? [{ name: table ?? stem(url), url }]
+    : [];
+
+const firstTable = registrations[0]?.name;
+const defaultQuery = firstTable
+  ? `SELECT * FROM ${firstTable} LIMIT 20`
+  : "SELECT 42 AS answer";
+const initialSql = query ?? defaultQuery;
+---
+
+<div class="duckdb-query" data-tables={JSON.stringify(registrations)} data-limit={limit}>
+  <textarea class="dq-sql" spellcheck="false" rows={Math.min(12, initialSql.split("\n").length + 1)}
+    >{initialSql}</textarea>
+  <div class="dq-bar">
+    <button class="dq-run" type="button">Run query</button>
+    <span class="dq-status" role="status"></span>
+  </div>
+  <div class="dq-results"></div>
+  {caption && <p class="dq-caption">{caption}</p>}
+</div>
+
+<style>
+  .duckdb-query {
+    margin: 2.5rem 0;
+    max-width: var(--wide-width);
+    margin-left: calc(50% - var(--wide-width) / 2);
+    margin-right: calc(50% - var(--wide-width) / 2);
+    font-family: var(--font-ui);
+  }
+
+  .dq-sql {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    background: #fbfbfa;
+    color: var(--color-text);
+    resize: vertical;
+  }
+
+  .dq-sql:focus {
+    outline: none;
+    border-color: var(--color-accent);
+  }
+
+  .dq-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 0.6rem;
+  }
+
+  .dq-run {
+    font-family: var(--font-ui);
+    font-size: 0.8rem;
+    padding: 0.35rem 1rem;
+    border: 1px solid var(--color-accent);
+    background: var(--color-accent);
+    color: white;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: opacity 0.1s;
+  }
+
+  .dq-run:hover { opacity: 0.88; }
+  .dq-run:disabled { opacity: 0.5; cursor: progress; }
+
+  .dq-status {
+    font-size: 0.78rem;
+    color: var(--color-text-secondary);
+  }
+
+  .dq-status.dq-error { color: #b00020; }
+
+  .dq-results {
+    margin-top: 0.9rem;
+    overflow-x: auto;
+  }
+
+  .dq-results table {
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    width: 100%;
+  }
+
+  .dq-results th, .dq-results td {
+    border: 1px solid var(--color-border);
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .dq-results th {
+    background: #f4f4f2;
+    font-weight: 600;
+  }
+
+  .dq-results tbody tr:nth-child(even) { background: #fafafa; }
+
+  .dq-caption {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+    margin-top: 0.75rem;
+    line-height: 1.5;
+  }
+</style>
+
+<script>
+  // DuckDB-WASM ESM, pinned, fetched from the CDN only when a reader first runs a
+  // query (the dynamic import below is never evaluated until then). Kept as a URL
+  // import so the engine stays out of the Astro build — it is a runtime dependency
+  // of the reader's browser, not of the site bundle.
+  const DUCKDB_CDN = "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm";
+
+  type AnyDB = any; // CDN import is untyped; this is browser glue, not library code.
+
+  let dbPromise: Promise<AnyDB> | null = null;
+
+  // Singleton: one engine instance per page, instantiated on first Run.
+  function getDB(): Promise<AnyDB> {
+    if (dbPromise) return dbPromise;
+    dbPromise = (async () => {
+      const duckdb = await import(/* @vite-ignore */ DUCKDB_CDN);
+      const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+      const workerUrl = URL.createObjectURL(
+        new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }),
+      );
+      const worker = new Worker(workerUrl);
+      const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+      await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+      URL.revokeObjectURL(workerUrl);
+      return db;
+    })();
+    return dbPromise;
+  }
+
+  function bigintSafe(value: unknown): string {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "bigint") return value.toString();
+    return String(value);
+  }
+
+  function renderTable(host: HTMLElement, result: any, limit: number): number {
+    const columns = result.schema.fields.map((f: any) => f.name);
+    const rows = result.toArray();
+    const shown = rows.slice(0, limit);
+    const head = `<tr>${columns.map((c: string) => `<th>${c}</th>`).join("")}</tr>`;
+    const body = shown
+      .map(
+        (row: any) =>
+          `<tr>${columns.map((c: string) => `<td>${bigintSafe(row[c])}</td>`).join("")}</tr>`,
+      )
+      .join("");
+    host.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    return rows.length;
+  }
+
+  async function runQuery(widget: HTMLElement): Promise<void> {
+    const sqlBox = widget.querySelector<HTMLTextAreaElement>(".dq-sql")!;
+    const button = widget.querySelector<HTMLButtonElement>(".dq-run")!;
+    const status = widget.querySelector<HTMLElement>(".dq-status")!;
+    const results = widget.querySelector<HTMLElement>(".dq-results")!;
+    const limit = Number(widget.dataset.limit ?? "200");
+    const registrations: { name: string; url: string }[] = JSON.parse(
+      widget.dataset.tables ?? "[]",
+    );
+
+    button.disabled = true;
+    status.classList.remove("dq-error");
+    status.textContent = dbPromise ? "Running…" : "Loading query engine…";
+
+    try {
+      const db = await getDB();
+      const conn = await db.connect();
+      try {
+        // Register each Release asset as a view so the reader's SQL reads `FROM name`.
+        // DuckDB-WASM range-reads the remote Parquet — only the touched bytes transfer.
+        for (const { name, url } of registrations) {
+          await conn.query(
+            `CREATE OR REPLACE VIEW "${name}" AS SELECT * FROM read_parquet('${url}')`,
+          );
+        }
+        const result = await conn.query(sqlBox.value);
+        const total = renderTable(results, result, limit);
+        const capped = total > limit ? ` (showing first ${limit})` : "";
+        status.textContent = `${total} row${total === 1 ? "" : "s"}${capped}`;
+      } finally {
+        await conn.close();
+      }
+    } catch (err) {
+      // A broken query is recoverable: the box stays editable, the error is shown.
+      status.classList.add("dq-error");
+      status.textContent = err instanceof Error ? err.message : String(err);
+      results.innerHTML = "";
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  document.querySelectorAll<HTMLElement>(".duckdb-query").forEach((widget) => {
+    widget
+      .querySelector<HTMLButtonElement>(".dq-run")!
+      .addEventListener("click", () => void runQuery(widget));
+  });
+</script>

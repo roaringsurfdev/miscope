@@ -23,11 +23,11 @@ Figures exported:
 
 from pathlib import Path
 
-from miscope.config import get_config
-from miscope.families import FamilyRegistry, Variant
+from miscope import load_family
+from miscope.families import Variant
 from miscope.visualization.renderers.loss_curves import render_loss_curves_with_indicator
 
-FIGURES_DIR = Path(__file__).parent.parent / "fieldnotes" / "public" / "figures"
+FIGURES_DIR = Path(__file__).parent.parent / "apps" / "fieldnotes" / "public" / "figures"
 
 
 def export_html(fig, name: str) -> None:
@@ -95,10 +95,8 @@ def export_pca_3d(variant: Variant, label: str) -> None:
 
 
 def main() -> None:
-    cfg = get_config()
-    registry = FamilyRegistry(cfg.model_families_dir, cfg.results_dir)
-    family = registry.get_family("modulo_addition_1layer")
-    all_variants = registry.get_variants(family)
+    family = load_family("modulo_addition_1layer")
+    all_variants = family.variants
 
     # --- variants-and-variables.mdx: loss curves ---
     print("Loss curves:")

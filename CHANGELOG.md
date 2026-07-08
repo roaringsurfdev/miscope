@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+_v1.0.0 clean-room rebaseline in progress — see `docs/design/`. Pre-rebaseline
+requirements are frozen; nothing is added here during the freeze._
+
+## [0.9.0] - 2026-07-07
+
+Last release before the **v1.0.0 clean-room rebaseline**. Consolidates the
+platform's maturation from a collection of analyzers into a lakehouse-backed,
+registry-driven, monorepo-packaged analysis platform, capped by Layer 4 circuit
+analysis. Per-requirement detail (REQ_055–REQ_156) is preserved in
+`docs/requirements/archive/v0.9.0-lakehouse-platform/`; the next release, v1.0.0, is
+designed in `docs/design/` (`PLATFORM.md`, `data_model.md`, `architecture.md`).
+
+### Highlights by arc
+
+- **Lakehouse data platform** (REQ_108, 110/110A/110B/110C) — columnar warehouse,
+  address-only tensor catalog, DuckDB query surface, publication bundles.
+- **Analysis-platform foundations** — hooked models (REQ_105, 112, 113),
+  discoverability registry (REQ_107), measurement primitives (REQ_109, 126),
+  analyzer spec/registry & I/O unification (REQ_119, 120, 121), fluid dependency
+  scheduler (REQ_133), attention-head coordinate (REQ_136).
+- **Monorepo & config** (REQ_115, 123, 124, 125) — uv workspace layout, unified data
+  root, per-app config.
+- **Derived tables & incremental refresh** (REQ_140, 141, 144, 145, 149) —
+  aggregation layer, signature-based freshness.
+- **Layer 4 circuits** (REQ_152, 154, 155, 156) — full OV circuit, circuit spectra
+  siblings/views, conformed circuit tables.
+- **Dynamics & geometry** (REQ_055, 073, 088, 089, 090, 092, 096, 117, 118) — DMD
+  reorganization, 2-layer MLP family, frequency-group weight geometry, intragroup
+  manifold, neuron grouping.
+- **Consolidation & migration** (REQ_097, 098, 102, 104, 114, 122, 127–132, 135) —
+  analyzer cleanup, deprecations, consumer migrations, dead-code cull.
+
+### Added
+
+- **`weight_spectra` analyzer** (REQ_111) — successor to `effective_dimensionality`
+  - New analyzer `weight_spectra` retains per-matrix singular values **and** left/right singular vectors (`u_{name}`, `vt_{name}`), enabling subspace and spectral-basis views to work directly from artifacts
+  - New pure primitive `miscope.analysis.library.pca.compute_svd(matrix) -> SVDResult` (raw, non-centered SVD; distinct from `pca()`, which mean-centers for sample distributions)
+  - New helper `compute_weight_spectra(model)` in `library/weights.py` routes through `compute_svd` for every weight matrix; attention matrices decompose per head
+  - Parity validated bit-exactly against `effective_dimensionality` on the canon reference set (p113/s999/ds598, p109/s485/ds598, p101/s999/ds598) at 5 epochs per variant; no inline `np.linalg.svd` in `analyze()`
+  - `effective_dimensionality` retained for the parallel deprecation window; retirement will be tracked under REQ_102 once consumers migrate
+
+### Changed
+
+- **`ParameterTrajectory` analyzer rename** (REQ_111) — mechanical port of `parameter_trajectory_pca` → `parameter_trajectory`
+  - Analyzer class renamed `ParameterTrajectoryPCA` → `ParameterTrajectory`; file `parameter_trajectory_pca.py` → `parameter_trajectory.py` (preserves history via `git mv`)
+  - Registered analyzer name (`"parameter_trajectory"`) and artifact directory layout were already aligned in earlier work — this rename closes the file/class gap, no on-disk artifact changes
+  - Transform steps already routed through REQ_109 primitives (`pca`, `compute_velocity`); confirmed by audit, no implementation change
+  - Consumer references updated: `analyzers/__init__.py`, `tests/test_cross_epoch_analyzers.py`, `scripts/run_regression_check.py`, `visualization/renderers/parameter_trajectory.py` docstring
+
+### Removed
+
+- **Analyzer retirements** (REQ_102) — superseded analyzers removed from the publishable library. Historical on-disk artifacts remain readable; same-named renderers/views were re-pointed to the successors under REQ_127.
+  - `effective_dimensionality` → **`weight_spectra`** (REQ_111; bit-exact SV/PR parity recorded on canon)
+  - `centroid_dmd` → **`activation_dmd`** + **`parameter_dmd`** (REQ_117); the dead `renderers/dmd.py` (no live callers) removed with it. The raw Centroid Trajectory plot is downstream work against the future `representation_trajectory` analyzer
+  - `coarseness`, `attention_freq` → **`activation_basis_projection`** (REQ_126)
+  - `attention_fourier`, `neuron_fourier` → **`weight_basis_projection`** (REQ_126)
+  - `dominant_frequencies` → **`weight_basis_projection`** (REQ_126); its sole surviving analyzer consumer, `fourier_frequency_quality`, was re-pointed to `neuron_grouping` under REQ_130
+  - `neuron_freq_clusters` (artifact `neuron_freq_norm`) → **`activation_basis_projection`** (REQ_126); its three surviving analyzer consumers (`neuron_dynamics`, `freq_group_weight_geometry`, `neuron_group_pca`) were re-pointed to a basis-reconstruction helper under REQ_131
+
 ## [0.8.3] - 2026-04-05
 
 ### Added

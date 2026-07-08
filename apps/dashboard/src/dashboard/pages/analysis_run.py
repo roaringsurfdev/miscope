@@ -1,0 +1,354 @@
+"""Analysis Run page for the Dash dashboard.
+
+Ports the Gradio Analysis tab run-trigger UI: family/variant selection,
+analysis pipeline execution with real-time progress tracking.
+"""
+
+from __future__ import annotations
+
+import threading
+import traceback
+
+import dash_bootstrap_components as dbc
+from dash import Dash, Input, Output, State, dcc, html, no_update
+
+from dashboard.components.variant_selector import get_family_choices, get_variant_choices
+from dashboard.state import analysis_progress, get_families, refresh_families
+
+
+def create_analysis_run_page_nav(app: Dash) -> html.Div:
+    return html.Div()
+
+
+def create_analysis_run_page_layout(app: Dash) -> html.Div:
+    """Create the Analysis Run page layout."""
+    families = get_families()
+    family_choices = get_family_choices(families)
+    family_options = [{"label": display, "value": name} for display, name in family_choices]
+    default_family = family_options[0]["value"] if family_options else None
+
+    return html.Div(
+        children=[
+            html.H4("Analysis Run", className="mb-4"),
+            dbc.Row(
+                [
+                    # Left column: selection
+                    dbc.Col(
+                        [
+                            dbc.Label("Model Family", className="fw-bold"),
+                            dcc.Dropdown(
+                                id="analysis-run-family-dropdown",
+                                options=family_options,
+                                value=default_family,
+                                clearable=False,
+                            ),
+                            html.Br(),
+                            dbc.Label("Variant", className="fw-bold"),
+                            dcc.Dropdown(
+                                id="analysis-run-variant-dropdown",
+                                placeholder="Select variant...",
+                            ),
+                            html.Br(),
+                            dcc.Checklist(
+                                id="analysis-run-force-refresh-checkbox",
+                                options=[{"label": "Force Refresh", "value": "yes"}],
+                                value=[],
+                            ),
+                            html.Br(),
+                            dbc.Button(
+                                "Refresh Variants",
+                                id="analysis-run-refresh-btn",
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                                className="w-100 mb-3",
+                            ),
+                        ],
+                        md=5,
+                    ),
+                    # Right column: status + button
+                    dbc.Col(
+                        [
+                            html.H6("Status"),
+                            dbc.Progress(
+                                id="analysis-run-progress-bar",
+                                value=0,
+                                striped=True,
+                                animated=True,
+                                className="mb-2",
+                                style={"display": "none"},
+                            ),
+                            html.Div(
+                                id="analysis-run-status",
+                                children="Select a variant to analyze",
+                                className="mb-3",
+                                style={
+                                    "whiteSpace": "pre-wrap",
+                                    "fontFamily": "monospace",
+                                    "fontSize": "0.85rem",
+                                    "backgroundColor": "#f8f9fa",
+                                    "padding": "12px",
+                                    "borderRadius": "4px",
+                                    "minHeight": "150px",
+                                    "maxHeight": "400px",
+                                    "overflowY": "auto",
+                                },
+                            ),
+                            dbc.Button(
+                                "Run Analysis",
+                                id="analysis-run-start-btn",
+                                color="primary",
+                                className="w-100",
+                            ),
+                            html.Div(id="analysis-run-freshness-indicator", className="mt-3"),
+                        ],
+                        md=7,
+                    ),
+                ],
+                className="g-4",
+            ),
+            dcc.Interval(
+                id="analysis-run-interval",
+                interval=500,
+                disabled=True,
+            ),
+        ],
+        style={"padding": "20px", "maxWidth": "1000px"},
+    )
+
+
+def _run_analysis_thread(family_name: str, variant_name: str, force_refresh: bool = False) -> None:
+    """Execute analysis pipeline in a background thread."""
+    import os
+
+    try:
+        os.nice(10)
+    except (AttributeError, OSError):
+        pass
+
+    import logging
+
+    from miscope.analysis import AnalysisPipeline, plan_analysis
+    from miscope.analysis.registry import AnalyzerRegistry
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        analysis_progress.update(0.05, "Initializing...")
+
+        families = get_families()
+        family = families[family_name]
+        variant = next((v for v in family.variants if v.name == variant_name), None)
+        if variant is None:
+            analysis_progress.finish(f"Variant '{variant_name}' not found")
+            return
+
+        analysis_progress.update(0.1, "Starting analysis pipeline...")
+
+        def progress_callback(pct: float, desc: str) -> None:
+            analysis_progress.update(0.1 + (pct * 0.9), desc)
+
+        # REQ_120: pull Specs from the Registry — single enumeration,
+        # category-agnostic. The pipeline instantiates analyzers from the
+        # Registry at execute time via _absorb_plan_references.
+        specs = AnalyzerRegistry.list_for_family(family)
+        plan = plan_analysis(variant, specs, force=force_refresh)
+        logger.info("Analysis plan for %s:\n%s", variant.name, plan.format())
+
+        pipeline = AnalysisPipeline(variant)
+        pipeline.run(progress_callback=progress_callback, force=force_refresh, plan=plan)
+
+        # The warehouse (columnar + derived tables) is a separate materialization
+        # from the npz artifacts the pipeline just wrote, so an analysis run leaves it
+        # stale. Re-materialize so the summary below and every dashboard view read
+        # fresh tables. REQ_145: surgical by default — only tables whose source
+        # signature changed are rebuilt; ``force`` propagates as the "rebuild
+        # everything" override so the checkbox still does a full rebuild.
+        analysis_progress.update(0.93, "Materializing warehouse (columnar + derived)...")
+        from miscope.warehouse import materialize_variant_columnar, materialize_variant_derived
+
+        materialize_variant_columnar(variant, force=force_refresh)
+        materialize_variant_derived(variant, force=force_refresh)
+
+        # Regenerate variant_summary.json from the warehouse tables. The summary
+        # assembler is transformer-specific (it reads the modulo-addition outcome
+        # clusters); skip it for other families. The variant registry is no longer a
+        # file (REQ_144 fork a) — it is a live view over the variant_outcomes table
+        # the warehouse pass above just materialized, so there is nothing to rebuild.
+        if family_name == "modulo_addition_1layer":
+            analysis_progress.update(0.97, "Regenerating variant summary...")
+            from miscope.analysis.variant_analysis_summary import write_variant_summary
+
+            write_variant_summary(variant)
+
+        refresh_families()
+        analysis_progress.finish(f"Analysis complete!\nArtifacts saved to {variant.artifacts_dir}")
+
+    except Exception as e:
+        analysis_progress.finish(f"Analysis failed: {e}\n\n{traceback.format_exc()}")
+
+
+def register_analysis_run_page_callbacks(app: Dash) -> None:
+    """Register all Analysis Run page callbacks."""
+
+    @app.callback(
+        Output("analysis-run-variant-dropdown", "options"),
+        Output("analysis-run-variant-dropdown", "value"),
+        Input("analysis-run-family-dropdown", "value"),
+    )
+    def on_analysis_family_change(family_name: str | None) -> tuple[list, None]:
+        if not family_name:
+            return [], None
+        families = get_families()
+        choices = get_variant_choices(families, family_name)
+        return [{"label": display, "value": name} for display, name in choices], None
+
+    @app.callback(
+        Output("analysis-run-variant-dropdown", "options", allow_duplicate=True),
+        Output("analysis-run-variant-dropdown", "value", allow_duplicate=True),
+        Input("analysis-run-refresh-btn", "n_clicks"),
+        State("analysis-run-family-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def on_refresh_variants(n_clicks: int | None, family_name: str | None):
+        if not n_clicks or not family_name:
+            return no_update, no_update
+        refresh_families()
+        families = get_families()
+        choices = get_variant_choices(families, family_name)
+        return [{"label": display, "value": name} for display, name in choices], None
+
+    @app.callback(
+        Output("analysis-run-interval", "disabled"),
+        Output("analysis-run-start-btn", "disabled"),
+        Output("analysis-run-status", "children", allow_duplicate=True),
+        Output("analysis-run-progress-bar", "style", allow_duplicate=True),
+        Input("analysis-run-start-btn", "n_clicks"),
+        State("analysis-run-family-dropdown", "value"),
+        State("analysis-run-variant-dropdown", "value"),
+        State("analysis-run-force-refresh-checkbox", "value"),
+        prevent_initial_call=True,
+    )
+    def on_start_analysis(
+        n_clicks: int | None,
+        family_name: str | None,
+        variant_name: str | None,
+        force_refresh: str | None,
+    ) -> tuple:
+        if not n_clicks:
+            return no_update, no_update, no_update, no_update
+        if not family_name or not variant_name:
+            return no_update, no_update, "Please select a family and variant", no_update
+        if analysis_progress.get_state()["running"]:
+            return no_update, no_update, "Analysis already in progress...", no_update
+        force = force_refresh and "yes" in force_refresh
+        if force:
+            app.server.logger.warning("Running Analysis with Force Refresh")
+        analysis_progress.start()
+        thread = threading.Thread(
+            target=_run_analysis_thread,
+            args=(family_name, variant_name, force),
+            daemon=True,
+        )
+        thread.start()
+        return False, True, "Starting analysis...", {"display": "block"}
+
+    @app.callback(
+        Output("analysis-run-freshness-indicator", "children"),
+        Input("analysis-run-variant-dropdown", "value"),
+        State("analysis-run-family-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def show_freshness_indicator(
+        variant_name: str | None, family_name: str | None
+    ) -> html.Div | dbc.Alert:
+        if not variant_name or not family_name:
+            return html.Div()
+        try:
+            from miscope.analysis.freshness import check_freshness
+            from miscope.analysis.registry import AnalyzerRegistry
+
+            families = get_families()
+            family = families[family_name]
+            variant = next((v for v in family.variants if v.name == variant_name), None)
+            if variant is None:
+                return html.Div()
+            # REQ_120: hand the freshness check the family's registered Specs.
+            # Spec-based input keeps registered-but-never-run analyzers visible
+            # as "absent" alongside on-disk leftovers.
+            specs = AnalyzerRegistry.list_for_family(family)
+            registered_analyzers = [AnalyzerRegistry.create(s.name) for s in specs]
+            report = check_freshness(variant, analyzers=registered_analyzers)
+            if report.any_stale:
+                stale_per = [fe.analyzer_name for fe in report.per_epoch if not fe.is_fresh]
+                stale_cross = [ce.analyzer_name for ce in report.cross_epoch if not ce.is_fresh]
+                stale_items = stale_per + stale_cross
+                if report.summary_stale:
+                    stale_items.append("variant_summary.json")
+                detail = ", ".join(stale_items[:4])
+                if len(stale_items) > 4:
+                    detail += f" (+{len(stale_items) - 4} more)"
+                return dbc.Alert(
+                    [
+                        html.Strong("⚠ Stale artifacts detected: "),
+                        html.Span(detail),
+                        dbc.Collapse(
+                            html.Pre(
+                                report.format(),
+                                style={
+                                    "fontSize": "0.75rem",
+                                    "marginTop": "8px",
+                                    "marginBottom": "0",
+                                },
+                            ),
+                            id="analysis-run-freshness-detail",
+                            is_open=False,
+                        ),
+                        html.A(
+                            " (show details)",
+                            id="analysis-run-freshness-toggle",
+                            href="#",
+                            style={"fontSize": "0.8rem"},
+                        ),
+                    ],
+                    color="warning",
+                    className="mt-2 mb-0 py-2",
+                )
+            return dbc.Alert(
+                "✓ All artifacts are fresh.", color="success", className="mt-2 mb-0 py-2"
+            )
+        except Exception:
+            return html.Div()
+
+    @app.callback(
+        Output("analysis-run-freshness-detail", "is_open"),
+        Input("analysis-run-freshness-toggle", "n_clicks"),
+        State("analysis-run-freshness-detail", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_freshness_detail(n_clicks: int | None, is_open: bool) -> bool:
+        return not is_open
+
+    @app.callback(
+        Output("analysis-run-progress-bar", "value"),
+        Output("analysis-run-progress-bar", "label"),
+        Output("analysis-run-status", "children"),
+        Output("analysis-run-interval", "disabled", allow_duplicate=True),
+        Output("analysis-run-start-btn", "disabled", allow_duplicate=True),
+        Output("analysis-run-progress-bar", "style"),
+        Input("analysis-run-interval", "n_intervals"),
+        prevent_initial_call=True,
+    )
+    def poll_analysis_progress(_n_intervals: int) -> tuple:
+        state = analysis_progress.get_state()
+        pct = int(state["progress"] * 100)
+        if state["running"]:
+            return pct, f"{pct}%", state["message"], False, True, {"display": "block"}
+        return (
+            100,
+            "100%",
+            state["result"] if state["result"] else state["message"],
+            True,
+            False,
+            {"display": "none"},
+        )

@@ -1,0 +1,181 @@
+"""Intra-Group Manifold Geometry Analyzer.
+
+Cross-epoch analyzer that fits a quadratic surface to each frequency group's
+distribution in weight-space PCA coordinates at every training epoch.
+
+The key question: does manifold formation (transition from flat blob to saddle/bowl)
+happen gradually or as a sharp phase-transition event?  Running the fit at every
+epoch exposes the timing relative to neuron commitment and grokking.
+
+Consumes the 'neuron_group_pca' cross-epoch artifact — specifically the
+'projections' field (n_epochs, d_mlp, 3) — rather than re-loading weight matrices.
+Group membership is read from 'neuron_group_idx'.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import numpy as np
+
+from miscope.analysis.inputs import ArtifactInput, ResolvedInputs
+from miscope.analysis.library.shape import _SHAPE_TO_INT, characterize_surface
+from miscope.analysis.output_schema import OutputField as F
+from miscope.analysis.registry import register_analyzer
+from miscope.analysis.spec import AnalyzerSpec
+
+# Quadratic-surface fit diagnostics per frequency group over training. All
+# fields are scalar-per-(epoch, group) → columnar.
+_GROUP_TRAJ_FIELDS = (
+    ("r2_linear", "R² of a linear surface fit to the group manifold."),
+    ("r2_quadratic", "R² of a quadratic surface fit to the group manifold."),
+    ("r2_curvature", "Curvature component of the quadratic fit (R² gain over linear)."),
+    ("a", "Quadratic-fit coefficient a."),
+    ("b", "Quadratic-fit coefficient b."),
+    ("c", "Quadratic-fit coefficient c."),
+    ("shape_int", "Integer shape classification of the group manifold."),
+)
+
+SPEC = AnalyzerSpec(
+    name="intragroup_manifold",
+    output_scope="cross_epoch",
+    inputs=(ArtifactInput("neuron_group_pca"),),
+    outputs=(
+        F.columnar(
+            "group_freqs",
+            "int32",
+            ("variant", "group"),
+            "Frequency each group represents.",
+        ),
+        F.columnar(
+            "group_sizes",
+            "int32",
+            ("variant", "group"),
+            "Neuron count in each group.",
+        ),
+        F.columnar(
+            "epochs",
+            "int32",
+            ("variant", "epoch"),
+            "Epoch axis labels for the trajectories.",
+        ),
+        *(
+            F.columnar(name, "float32", ("variant", "epoch", "group"), desc)
+            for name, desc in _GROUP_TRAJ_FIELDS
+        ),
+    ),
+)
+
+
+@register_analyzer(SPEC)
+class IntraGroupManifoldAnalyzer:
+    """Quadratic surface fit for each frequency group at every training epoch.
+
+    Reads 'projections' from the neuron_group_pca cross-epoch artifact so no
+    weight matrices need to be re-loaded.  Group membership is fixed at the
+    final epoch (same convention as NeuronGroupPCAAnalyzer).
+
+    Cross-epoch artifact keys:
+        group_freqs   int32   (n_groups,)             frequency index per group
+        group_sizes   int32   (n_groups,)             neuron count per group
+        epochs        int32   (n_epochs,)
+        r2_linear     float32 (n_epochs, n_groups)    R² of linear planar fit
+        r2_quadratic  float32 (n_epochs, n_groups)    R² of full quadratic fit
+        r2_curvature  float32 (n_epochs, n_groups)    r2_quadratic − r2_linear
+        a             float32 (n_epochs, n_groups)    PC1² coefficient
+        b             float32 (n_epochs, n_groups)    PC2² coefficient
+        c             float32 (n_epochs, n_groups)    PC1·PC2 coefficient
+        shape_int     int32   (n_epochs, n_groups)    shape label
+                                                      (0=flat/blob, 1=bowl, 2=saddle)
+    """
+
+    name = "intragroup_manifold"
+    requires = ["neuron_group_pca"]
+
+    def analyze(
+        self,
+        inputs: ResolvedInputs,
+        context: dict[str, Any],
+    ) -> dict[str, np.ndarray]:
+        """Fit quadratic surfaces to each group at every epoch."""
+        assert inputs.deps is not None
+        ngpca = inputs.deps.load_cross_epoch(
+            "neuron_group_pca",
+            fields=["group_freqs", "group_sizes", "neuron_group_idx", "projections", "epochs"],
+        )
+
+        group_freqs = ngpca["group_freqs"]
+        group_sizes = ngpca["group_sizes"]
+        neuron_group_idx = ngpca["neuron_group_idx"]
+        projections = ngpca["projections"]  # (n_epochs, d_mlp, 3)
+        artifact_epochs = ngpca["epochs"]  # (n_epochs,) int32
+
+        n_groups = len(group_freqs)
+        n_epochs = len(artifact_epochs)
+
+        if n_groups == 0:
+            return _empty_result(artifact_epochs)
+
+        group_members = _build_group_members(neuron_group_idx, n_groups)
+
+        r2_linear = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        r2_quadratic = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        r2_curvature = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        a_coeff = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        b_coeff = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        c_coeff = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+        shape_int = np.full((n_epochs, n_groups), np.nan, dtype=np.float32)
+
+        for ep_idx in range(n_epochs):
+            for g_idx, members in enumerate(group_members):
+                proj = projections[ep_idx, members, :]  # (n_members, 3)
+                if np.any(np.isnan(proj)):
+                    continue
+                result = characterize_surface(proj)
+                r2_linear[ep_idx, g_idx] = result.r2_linear
+                r2_quadratic[ep_idx, g_idx] = result.r2_quadratic
+                r2_curvature[ep_idx, g_idx] = result.r2_curvature
+                a_coeff[ep_idx, g_idx] = result.a
+                b_coeff[ep_idx, g_idx] = result.b
+                c_coeff[ep_idx, g_idx] = result.c
+                if np.isnan(result.r2_curvature):
+                    shape_int[ep_idx, g_idx] = _SHAPE_TO_INT["flat/blob"]
+                else:
+                    shape_int[ep_idx, g_idx] = _SHAPE_TO_INT[result.shape]
+
+        return {
+            "group_freqs": group_freqs.astype(np.int32),
+            "group_sizes": group_sizes.astype(np.int32),
+            "epochs": artifact_epochs.astype(np.int32),
+            "r2_linear": r2_linear,
+            "r2_quadratic": r2_quadratic,
+            "r2_curvature": r2_curvature,
+            "a": a_coeff,
+            "b": b_coeff,
+            "c": c_coeff,
+            "shape_int": shape_int,
+        }
+
+
+def _build_group_members(
+    neuron_group_idx: np.ndarray,
+    n_groups: int,
+) -> list[np.ndarray]:
+    """Reconstruct per-group member index arrays from the flat label array."""
+    return [np.where(neuron_group_idx == g)[0] for g in range(n_groups)]
+
+
+def _empty_result(epochs: np.ndarray) -> dict[str, np.ndarray]:
+    n = len(epochs)
+    return {
+        "group_freqs": np.array([], dtype=np.int32),
+        "group_sizes": np.array([], dtype=np.int32),
+        "epochs": epochs.astype(np.int32),
+        "r2_linear": np.empty((n, 0), dtype=np.float32),
+        "r2_quadratic": np.empty((n, 0), dtype=np.float32),
+        "r2_curvature": np.empty((n, 0), dtype=np.float32),
+        "a": np.empty((n, 0), dtype=np.float32),
+        "b": np.empty((n, 0), dtype=np.float32),
+        "c": np.empty((n, 0), dtype=np.float32),
+        "shape_int": np.array([], dtype=np.int32),
+    }

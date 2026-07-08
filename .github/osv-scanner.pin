@@ -1,0 +1,25 @@
+# Pinned osv-scanner release. Single source of truth for both the CI workflow
+# (.github/workflows/audit.yml) and the local script (scripts/audit_deps.sh).
+#
+# Why pinned: in a fast-churning vulnerability-disclosure climate, an unpinned
+# `latest` lets the audit tool itself change underneath you, and a tampered
+# release could substitute silently. Pinning + checksum makes any substitution
+# fail closed. NOTE: pinning the binary does NOT make the audit stale — OSV
+# vulnerability DATA is queried live at scan time regardless of binary version.
+#
+# Bump procedure (deliberate, from a TRUSTED machine — not via an agent/sandbox):
+#   1. Choose a release: https://github.com/google/osv-scanner/releases
+#   2. Fetch that release's checksums and copy the osv-scanner_linux_amd64 hash.
+#      The checksums asset is named osv-scanner_SHA256SUMS:
+#        curl -sSL https://github.com/google/osv-scanner/releases/download/v<VERSION>/osv-scanner_SHA256SUMS \
+#          | grep osv-scanner_linux_amd64
+#      Cross-check the hash from a second vantage point before trusting it.
+#   3. Update VERSION and SHA256_LINUX_AMD64 below; note who verified, when.
+#
+# Verified-by: roaringsurfdev on 2026-05-30 (v2.3.8, linux_amd64)
+#
+# v2.3.8 was the release that resolved as `latest` on 2026-05-30. Confirm the
+# version is still the one you want whenever you bump the hash.
+
+VERSION=2.3.8
+SHA256_LINUX_AMD64=bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc

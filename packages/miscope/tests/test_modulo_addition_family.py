@@ -1,0 +1,330 @@
+"""Tests for Modulo Addition 1-Layer family implementation (REQ_021c)."""
+# pyright: reportArgumentType=false
+# pyright: reportInvalidTypeForm=false
+# pyright: reportReturnType=false
+# pyright: reportAttributeAccessIssue=false
+
+import tempfile
+from pathlib import Path
+
+import pytest
+import torch
+
+from miscope.analysis.analyzers import AnalyzerRegistry
+from miscope.analysis.inputs import ResolvedInputs
+from miscope.families import VariantState
+from miscope.families.discovery import discover_families
+from miscope.families.implementations import ModuloAddition1LayerFamily
+
+
+@pytest.fixture
+def temp_data_root() -> Path:
+    """Create a temporary data root containing the modulo_addition_1layer family."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        data_root = Path(tmpdir)
+
+        family_dir = data_root / "modulo_addition_1layer"
+        family_dir.mkdir(parents=True)
+
+        # Create family.json
+        import json
+
+        config = {
+            "name": "modulo_addition_1layer",
+            "display_name": "Modulo Addition (1 Layer)",
+            "description": "Single-layer transformer for modular arithmetic",
+            "architecture": {
+                "n_layers": 1,
+                "n_heads": 4,
+                "d_model": 128,
+                "d_head": 32,
+                "d_mlp": 512,
+                "act_fn": "relu",
+                "normalization_type": None,
+                "n_ctx": 3,
+            },
+            "domain_parameters": {
+                "prime": {"type": "int", "description": "Modulus", "default": 113},
+                "seed": {"type": "int", "description": "Random seed", "default": 999},
+                "data_seed": {
+                    "type": "int",
+                    "description": "Random seed for train/test split",
+                    "default": 598,
+                },
+            },
+            "analyzers": [
+                "neuron_activations",
+                "activation_frequency_norm",
+                "weight_spectra",
+            ],
+            "visualizations": ["dominant_frequencies_bar"],
+            "analysis_dataset": {"type": "modulo_addition_grid"},
+            "variant_pattern": "p{prime}_seed{seed}_dseed{data_seed}",
+        }
+        with open(family_dir / "family.json", "w") as f:
+            json.dump(config, f)
+
+        (family_dir / "variants").mkdir()
+        yield data_root
+
+
+@pytest.fixture
+def families(temp_data_root):
+    """Discover families in the temp data root."""
+    return discover_families(data_root=temp_data_root)
+
+
+@pytest.fixture
+def family(families):
+    """The modulo_addition_1layer family from the temp project."""
+    return families["modulo_addition_1layer"]
+
+
+# --- Family Discovery Tests ---
+
+
+class TestFamilyDiscovery:
+    """Tests for family discovery and loading."""
+
+    def test_registry_discovers_family(self, families):
+        """Test that discovery finds the modulo_addition_1layer family."""
+        assert "modulo_addition_1layer" in families
+        assert len(families) == 1
+
+    def test_family_is_correct_implementation(self, family):
+        """Test that the family is loaded as ModuloAddition1LayerFamily."""
+        assert isinstance(family, ModuloAddition1LayerFamily)
+
+    def test_family_properties(self, family):
+        """Test that family properties are correct."""
+        assert family.name == "modulo_addition_1layer"
+        assert family.display_name == "Modulo Addition (1 Layer)"
+        assert family.architecture["n_layers"] == 1
+        assert family.architecture["d_mlp"] == 512
+        assert "neuron_activations" in family.analyzers
+
+
+# --- Model Creation Tests ---
+
+
+class TestModelCreation:
+    """Tests for model creation."""
+
+    def test_create_model_basic(self, family):
+        """Test basic model creation."""
+        model = family.create_model({"prime": 11, "seed": 42})
+
+        assert model is not None
+        assert model.cfg.n_layers == 1
+        assert model.cfg.d_vocab == 12  # p + 1
+        assert model.cfg.d_vocab_out == 11  # p
+
+    def test_create_model_vocab_size(self, family):
+        """Test that vocabulary size is correct for different primes."""
+        for p in [7, 11, 17]:
+            model = family.create_model({"prime": p})
+            assert model.cfg.d_vocab == p + 1
+            assert model.cfg.d_vocab_out == p
+
+    def test_create_model_architecture(self, family):
+        """Test that model architecture matches family config."""
+        model = family.create_model({"prime": 11})
+
+        assert model.cfg.n_layers == 1
+        assert model.cfg.n_heads == 4
+        assert model.cfg.d_model == 128
+        assert model.cfg.d_mlp == 512
+        assert model.cfg.act_fn == "relu"
+
+    def test_create_model_biases_disabled(self, family):
+        """Test that biases are disabled (requires_grad=False)."""
+        model = family.create_model({"prime": 11})
+
+        for name, param in model.named_parameters():
+            if "b_" in name:
+                assert not param.requires_grad
+
+
+# --- Dataset Generation Tests ---
+
+
+class TestDatasetGeneration:
+    """Tests for analysis dataset generation."""
+
+    def test_generate_dataset_shape(self, family):
+        """Test that dataset has correct shape."""
+        p = 11
+        dataset = family.generate_analysis_dataset({"prime": p})
+
+        assert dataset.shape == (p * p, 3)
+
+    def test_generate_dataset_content(self, family):
+        """Test that dataset contains correct values."""
+        p = 5
+        dataset = family.generate_analysis_dataset({"prime": p})
+
+        # First row should be [0, 0, p]
+        assert dataset[0, 0] == 0
+        assert dataset[0, 1] == 0
+        assert dataset[0, 2] == p  # equals token
+
+        # All values in columns 0 and 1 should be in [0, p-1]
+        assert (dataset[:, 0] >= 0).all()
+        assert (dataset[:, 0] < p).all()
+        assert (dataset[:, 1] >= 0).all()
+        assert (dataset[:, 1] < p).all()
+
+        # Column 2 should all be equals token (p)
+        assert (dataset[:, 2] == p).all()
+
+    def test_get_labels(self, family):
+        """Test that labels are correct."""
+        p = 7
+        labels = family.get_labels({"prime": p})
+
+        assert labels.shape == (p * p,)
+        assert (labels >= 0).all()
+        assert (labels < p).all()
+
+        # Verify a few specific cases
+        dataset = family.generate_analysis_dataset({"prime": p})
+        for i in range(min(10, len(labels))):
+            a, b = dataset[i, 0].item(), dataset[i, 1].item()
+            expected = (a + b) % p
+            assert labels[i].item() == expected
+
+
+# --- Variant Tests ---
+
+
+class TestVariantIntegration:
+    """Tests for variant creation and discovery."""
+
+    def test_create_variant(self, family):
+        """Test creating a variant."""
+        variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
+
+        assert variant.name == "p113_seed42_dseed598"
+        assert variant.state == VariantState.UNTRAINED
+
+    def test_variant_directory_structure(self, family, temp_data_root):
+        """Test variant directory paths."""
+        variant = family.create_variant({"prime": 113, "seed": 42, "data_seed": 598})
+
+        expected_base = temp_data_root / "modulo_addition_1layer" / "variants"
+        assert variant.variant_dir == expected_base / "p113_seed42_dseed598"
+
+    def test_discover_variants(self, family, temp_data_root):
+        """Test discovering existing variants."""
+        variant_dir = (
+            temp_data_root / "modulo_addition_1layer" / "variants" / "p17_seed123_dseed598"
+        )
+        variant_dir.mkdir(parents=True)
+        (variant_dir / "checkpoints").mkdir()
+        (variant_dir / "checkpoints" / "checkpoint_epoch_00100.safetensors").touch()
+
+        variants = family.variants
+
+        assert len(variants) == 1
+        assert variants[0].name == "p17_seed123_dseed598"
+        assert variants[0].params == {"prime": 17, "seed": 123, "data_seed": 598}
+        assert variants[0].state == VariantState.TRAINED
+
+
+# --- Analyzer Integration Tests ---
+
+
+class TestAnalyzerIntegration:
+    """Tests for analyzer integration with the family."""
+
+    def test_get_analyzers_for_family(self, family):
+        """Test getting analyzers for the family."""
+        specs = AnalyzerRegistry.list_for_family(family)
+
+        assert len(specs) == 3
+        analyzer_names = {s.name for s in specs}
+        assert "neuron_activations" in analyzer_names
+        assert "activation_frequency_norm" in analyzer_names
+        assert "weight_spectra" in analyzer_names
+
+    def test_run_neuron_activations_analyzer(self, family):
+        """Test running the neuron activations analyzer."""
+        params = {"prime": 7, "seed": 42}
+
+        model = family.create_model(params)
+        dataset = family.generate_analysis_dataset(params)
+        context = family.prepare_analysis_context(params, model.cfg.device)
+
+        with torch.inference_mode():
+            logits, cache = model.run_with_cache(dataset)
+
+        analyzer = AnalyzerRegistry.create("neuron_activations")
+        result = analyzer.analyze(
+            ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+        )
+
+        assert "activations" in result
+        p = params["prime"]
+        d_mlp = model.cfg.d_mlp
+        assert result["activations"].shape == (d_mlp, p, p)
+
+
+# --- End-to-End Test ---
+
+
+class TestEndToEnd:
+    """End-to-end integration test."""
+
+    def test_full_workflow(self, family):
+        """Test complete workflow: family -> model -> dataset -> analysis."""
+        # 1. Family is the loaded modulo_addition_1layer implementation.
+        assert isinstance(family, ModuloAddition1LayerFamily)
+
+        # 2. Create a variant
+        params = {"prime": 7, "seed": 42, "data_seed": 598}
+        variant = family.create_variant(params)
+        assert variant.name == "p7_seed42_dseed598"
+
+        # 3. Create model
+        model = family.create_model(params)
+        assert model.cfg.d_vocab == 8
+
+        # 4. Generate dataset
+        dataset = family.generate_analysis_dataset(params)
+        assert dataset.shape == (49, 3)
+
+        # 5. Run forward pass
+        with torch.inference_mode():
+            logits, cache = model.run_with_cache(dataset)
+        assert logits.shape == (49, 3, 7)
+
+        # 6. Get and run analyzers
+        context = family.prepare_analysis_context(params, model.cfg.device)
+        specs = AnalyzerRegistry.list_for_family(family)
+        analyzers = [AnalyzerRegistry.create(s.name) for s in specs]
+
+        for analyzer in analyzers:
+            result = analyzer.analyze(
+                ResolvedInputs(probe=dataset, model=model, cache=cache, logits=logits), context
+            )
+            assert len(result) > 0
+
+
+# --- Real Family.json Test ---
+
+
+class TestRealFamilyJson:
+    """Test with the actual family.json file."""
+
+    def test_load_real_family_json(self):
+        """Test loading the real family.json file."""
+        from miscope.families.implementations.modulo_addition_1layer import (
+            load_modulo_addition_1layer_family,
+        )
+
+        # This will fail if the file doesn't exist or is invalid
+        family = load_modulo_addition_1layer_family()
+
+        assert family.name == "modulo_addition_1layer"
+        assert family.display_name == "Modulo Addition (1 Layer)"
+        assert isinstance(family, ModuloAddition1LayerFamily)

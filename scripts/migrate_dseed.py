@@ -1,12 +1,11 @@
-"""One-time migration: add _dseed{data_seed} suffix to variant directories.
+"""Historical migration (REQ_061): add _dseed{data_seed} suffix to variant directories.
 
-REQ_061: data_seed is now a first-class domain parameter. All existing variant
-directories must be renamed to encode the data_seed they were trained with.
+data_seed became a first-class domain parameter in REQ_061. This script is kept
+for archaeology only — it no-ops against the current tree.
 
 Usage:
     uv run python scripts/migrate_dseed.py                  # dry run
     uv run python scripts/migrate_dseed.py --apply          # apply renames
-    uv run python scripts/migrate_dseed.py --apply --data-seed 598  # explicit seed
 
 Idempotent: directories already containing '_dseed' are skipped.
 """
@@ -19,7 +18,9 @@ import re
 import sys
 from pathlib import Path
 
-OLD_PATTERN = re.compile(r"^(modulo_addition_1layer_p\d+_seed\d+)$")
+from miscope.config import get_config
+
+OLD_PATTERN = re.compile(r"^(p\d+_seed\d+)$")
 
 
 def load_data_seed_from_config(variant_dir: Path, fallback: int) -> int:
@@ -50,13 +51,13 @@ def collect_renames(family_dir: Path, default_data_seed: int) -> list[tuple[Path
     return renames
 
 
-def run(results_dir: Path, family_name: str, default_data_seed: int, apply: bool) -> None:
-    family_dir = results_dir / family_name
-    if not family_dir.exists():
-        print(f"Family directory not found: {family_dir}")
+def run(data_root: Path, family_name: str, default_data_seed: int, apply: bool) -> None:
+    variants_dir = data_root / family_name / "variants"
+    if not variants_dir.exists():
+        print(f"Variants directory not found: {variants_dir}")
         sys.exit(1)
 
-    renames = collect_renames(family_dir, default_data_seed)
+    renames = collect_renames(variants_dir, default_data_seed)
 
     if not renames:
         print("No directories require migration.")
@@ -84,10 +85,10 @@ def main() -> None:
         help="Fallback data_seed value when config.json is absent (default: 598)",
     )
     parser.add_argument(
-        "--results-dir",
+        "--data-root",
         type=Path,
-        default=Path(__file__).parent.parent / "results",
-        help="Path to results directory",
+        default=None,
+        help="Unified data root (default: from cfg.data_root).",
     )
     parser.add_argument(
         "--family",
@@ -97,7 +98,7 @@ def main() -> None:
     args = parser.parse_args()
 
     run(
-        results_dir=args.results_dir,
+        data_root=args.data_root if args.data_root is not None else get_config().data_root,
         family_name=args.family,
         default_data_seed=args.data_seed,
         apply=args.apply,

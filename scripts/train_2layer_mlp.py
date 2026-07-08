@@ -20,9 +20,9 @@ import torch
 import tqdm.auto as tqdm
 from safetensors.torch import save_file
 
-# Ensure project root is on the path when run as a script
+# Ensure miscope is on the path when run as a script outside `uv run`
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root / "packages" / "miscope" / "src"))
 
 from miscope.config import get_config  # noqa: E402
 from miscope.families.implementations.modulo_addition_2l_mlp import (  # noqa: E402
@@ -78,13 +78,13 @@ def train(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     cfg = get_config()
-    family = load_modulo_addition_2l_mlp_family(cfg.model_families_dir)
+    family = load_modulo_addition_2l_mlp_family(cfg.data_root)
 
     params = {"prime": prime, "seed": seed, "data_seed": data_seed}
     # Override d_hidden from CLI if different from family.json default
     family._config["architecture"]["d_hidden"] = d_hidden
 
-    variant = Variant(family, params, cfg.results_dir)  # type: ignore
+    variant = Variant(family, params)  # type: ignore
     variant.ensure_directories()
 
     model = family.create_model(params, device=device)

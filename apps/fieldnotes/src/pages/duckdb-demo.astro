@@ -1,0 +1,81 @@
+---
+import Base from '../layouts/Base.astro';
+import DuckDBQuery from '../components/DuckDBQuery.astro';
+---
+
+<Base
+  title="Inline data queries"
+  description="Query MIScope's published data bundles in your browser via DuckDB-WASM."
+>
+  <div class="post-header">
+    <h1>Inline data queries</h1>
+    <p class="lede">
+      Published findings carry their data. A <code>data-*</code> Release attaches the
+      derived metrics behind a chart as Parquet; the box below runs SQL over that data
+      <em>in your browser</em> — no install, no account. The query engine (DuckDB-WASM)
+      loads on your first Run, and each query fetches only the bytes it touches.
+    </p>
+  </div>
+
+  <h2>Engine smoke (no remote data)</h2>
+  <p>
+    This box queries the engine itself — proof the in-browser SQL engine loads and runs.
+    Edit the SQL and Run again.
+  </p>
+
+  <DuckDBQuery
+    query={`SELECT i AS n, i * i AS square
+FROM range(8) t(i)
+ORDER BY n`}
+    caption="A zero-data query against DuckDB-WASM. The engine is fetched from the CDN on the first Run, then reused."
+  />
+
+  <h2>Against a published bundle</h2>
+  <p>
+    Once a finding ships its <code>data-*</code> Release, an article points the same
+    component at a Parquet asset URL and the reader queries it live. In MDX:
+  </p>
+
+  <pre class="usage"><code>{`import DuckDBQuery from '../../components/DuckDBQuery.astro';
+
+<DuckDBQuery
+  url="https://github.com/roaringsurfdev/MIScope/releases/download/data-ring-geometry-v1.0/shape_characterizations.parquet"
+  table="shape_characterizations"
+  query={\`SELECT variant_id, epoch, value AS circularity
+FROM shape_characterizations
+WHERE operation_type = 'circularity' AND epoch = 5000
+ORDER BY circularity DESC\`}
+  caption="Circularity ranked across variants at epoch 5000 — edit and re-run."
+/>`}</code></pre>
+
+  <p>
+    A broken query is recoverable: the box stays editable and the error surfaces inline,
+    so a reader can fix the SQL and Run again without leaving the page.
+  </p>
+</Base>
+
+<style>
+  .lede {
+    font-family: var(--font-ui);
+    font-size: 0.95rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  h2 {
+    font-size: 1.05rem;
+    margin-top: 2.5rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .usage {
+    background: #f4f4f2;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+</style>
